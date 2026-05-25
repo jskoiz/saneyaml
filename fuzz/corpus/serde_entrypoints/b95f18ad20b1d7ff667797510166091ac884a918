@@ -1,0 +1,4 @@
+key1:trailing content
+ "quoted1"
+key2: "quoted2" trailing content
+key3: "quoted3"

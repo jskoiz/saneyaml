@@ -1,0 +1,4 @@
+scalar: !Thing x
+sequence: !Thing [first]
+mapping: !Thing {k: v}
+empty: !Thing

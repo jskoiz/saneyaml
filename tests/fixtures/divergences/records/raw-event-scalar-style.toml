@@ -1,0 +1,6 @@
+case = "raw-event-scalar-style"
+policy = "raw event milestone"
+prototype = "parse_events carries parser-observed scalar style for plain, single-quoted, double-quoted, literal, and folded scalars along with normalized scalar values."
+libyaml = "libyaml scalar events expose scalar style as Plain, SingleQuoted, DoubleQuoted, Literal, or Folded."
+yaml_rust2_saphyr = "yaml-rust2 and saphyr parser events expose scalar style alongside scalar value before tree normalization."
+decision = "Raw scalar events carry parser-observed style plus normalized value. Raw scalar spelling is not exposed, so this is not a lossless editor API."

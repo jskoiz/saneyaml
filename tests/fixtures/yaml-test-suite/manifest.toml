@@ -1,0 +1,544 @@
+[[case]]
+id = "DHP8"
+name = "flow sequence"
+features = ["flow", "sequence", "scalar"]
+
+[[case]]
+id = "7W2P"
+name = "missing values resolve to null"
+features = ["block", "mapping", "null"]
+
+[[case]]
+id = "2JQS"
+name = "duplicate missing block mapping keys are rejected by tree loading"
+features = ["block", "mapping", "null", "duplicate-key"]
+
+[[case]]
+id = "5WE3"
+name = "explicit block mapping entries"
+features = ["block", "mapping", "explicit", "scalar", "sequence"]
+
+[[case]]
+id = "V9D5"
+name = "compact block mappings"
+features = ["block", "mapping", "explicit", "sequence", "compact"]
+
+[[case]]
+id = "S3PD"
+name = "implicit block mapping entries"
+features = ["block", "mapping", "sequence", "empty-key"]
+
+[[case]]
+id = "CFD4"
+name = "empty implicit key in single pair flow sequences"
+features = ["flow", "sequence", "mapping", "empty-key"]
+
+[[case]]
+id = "M2N8/00"
+name = "question mark edge case with empty compact mapping key"
+features = ["block", "sequence", "mapping", "explicit", "empty-key", "compact"]
+
+[[case]]
+id = "UKK6/00"
+name = "colon-only compact sequence mapping"
+features = ["block", "sequence", "mapping", "empty-key", "compact"]
+
+[[case]]
+id = "UKK6/02"
+name = "bare explicit non-specific tag"
+features = ["tag", "scalar", "null"]
+
+[[case]]
+id = "2EBW"
+name = "allowed characters in keys"
+features = ["block", "mapping", "scalar", "plain", "punctuation"]
+
+[[case]]
+id = "FBC9"
+name = "allowed characters in plain scalars"
+features = ["block", "mapping", "scalar", "plain", "punctuation", "multiline"]
+
+[[case]]
+id = "XLQ9"
+name = "plain scalar line that looks like a YAML directive"
+features = ["document", "scalar", "plain", "directive", "multiline"]
+
+[[case]]
+id = "AB8U"
+name = "sequence entry looking continuation"
+features = ["block", "sequence", "scalar", "plain", "multiline", "indentation"]
+
+[[case]]
+id = "3GZX"
+name = "alias nodes"
+features = ["anchor", "alias", "mapping", "scalar"]
+
+[[case]]
+id = "U3XV"
+name = "node and mapping key anchors"
+features = ["anchor", "mapping", "key", "scalar"]
+
+[[case]]
+id = "2SXE"
+name = "anchors with colon in name"
+features = ["anchor", "alias", "mapping", "key", "scalar"]
+
+[[case]]
+id = "PW8X"
+name = "anchors on empty scalars"
+features = ["anchor", "mapping", "sequence", "null", "explicit"]
+
+[[case]]
+id = "JHB9"
+name = "two documents in stream"
+features = ["stream", "document"]
+
+[[case]]
+id = "6LVF"
+name = "reserved directives are ignored"
+features = ["directive", "document", "scalar"]
+
+[[case]]
+id = "6BCT"
+name = "tabs may separate tokens"
+features = ["block", "sequence", "mapping", "tab", "separation"]
+
+[[case]]
+id = "6CA3"
+name = "tab-indented top-level flow sequence"
+features = ["flow", "sequence", "tab", "separation"]
+
+[[case]]
+id = "Q5MG"
+name = "tab before root flow mapping"
+features = ["flow", "mapping", "tab", "separation"]
+
+[[case]]
+id = "4EJS"
+name = "tab indentation is rejected"
+features = ["error", "indentation"]
+
+[[case]]
+id = "Y79Y"
+name = "tab-only block scalar content line is rejected"
+features = ["error", "block", "scalar", "indentation", "tab"]
+
+[[case]]
+id = "Y79Y/001"
+name = "space then tab block scalar content line is accepted"
+features = ["block", "scalar", "indentation", "tab"]
+
+[[case]]
+id = "Y79Y/002"
+name = "tab-only flow sequence separation line is accepted"
+features = ["flow", "sequence", "tab", "separation"]
+
+[[case]]
+id = "Y79Y/004"
+name = "tab after block sequence indicator is rejected"
+features = ["error", "block", "sequence", "indentation", "tab"]
+
+[[case]]
+id = "Y79Y/005"
+name = "tab after block sequence indicator separation is rejected"
+features = ["error", "block", "sequence", "indentation", "tab"]
+
+[[case]]
+id = "Y79Y/006"
+name = "tab after explicit key indicator is rejected"
+features = ["error", "block", "mapping", "explicit", "indentation", "tab"]
+
+[[case]]
+id = "Y79Y/008"
+name = "tab after explicit key indicator before mapping key is rejected"
+features = ["error", "block", "mapping", "explicit", "indentation", "tab"]
+
+[[case]]
+id = "Y79Y/010"
+name = "tab before negative scalar is accepted"
+features = ["block", "sequence", "scalar", "tab", "separation"]
+
+[[case]]
+id = "SR86"
+name = "anchor plus alias is rejected"
+features = ["error", "anchor", "alias"]
+
+[[case]]
+id = "CML9"
+name = "missing comma in flow sequence is rejected"
+features = ["error", "flow", "sequence", "comment"]
+
+[[case]]
+id = "T833"
+name = "missing comma in flow mapping is rejected"
+features = ["error", "flow", "mapping"]
+
+[[case]]
+id = "6JTT"
+name = "unclosed nested flow sequence is rejected"
+features = ["error", "flow", "sequence"]
+
+[[case]]
+id = "CTN5"
+name = "extra comma in flow sequence is rejected"
+features = ["error", "flow", "sequence"]
+
+[[case]]
+id = "YJV2"
+name = "dash in flow sequence is rejected"
+features = ["error", "flow", "sequence", "scalar"]
+
+[[case]]
+id = "3RLN-001"
+name = "escaped tab after folded double-quoted line break"
+features = ["double-quoted", "scalar", "tab", "fold"]
+
+[[case]]
+id = "3RLN-002"
+name = "tab as double-quoted continuation indentation"
+features = ["double-quoted", "scalar", "tab", "fold"]
+
+[[case]]
+id = "KH5V-001"
+name = "escaped inline tab in double-quoted scalar"
+features = ["double-quoted", "scalar", "tab", "escape"]
+
+[[case]]
+id = "6WPF"
+name = "same-indent root double-quoted scalar continuation"
+features = ["double-quoted", "scalar", "fold"]
+
+[[case]]
+id = "KSS4"
+name = "same-indent double-quoted scalar before next document"
+features = ["double-quoted", "scalar", "stream", "anchor"]
+
+[[case]]
+id = "XW4D"
+name = "various trailing comments"
+features = ["comment", "mapping", "sequence", "explicit", "anchor", "double-quoted", "plain", "folded"]
+
+[[case]]
+id = "RZP5"
+name = "various trailing comments with same-line anchor"
+features = ["comment", "mapping", "sequence", "explicit", "anchor", "double-quoted", "plain", "folded"]
+
+[[case]]
+id = "JY7Z"
+name = "trailing mapping-looking text after double-quoted scalar is rejected"
+features = ["error", "double-quoted", "mapping", "scalar"]
+
+[[case]]
+id = "Q4CL"
+name = "trailing text after double-quoted scalar is rejected"
+features = ["error", "double-quoted", "mapping", "scalar"]
+
+[[case]]
+id = "QB6E"
+name = "wrong-indented multiline quoted scalar is rejected"
+features = ["error", "double-quoted", "mapping", "scalar", "indentation"]
+
+[[case]]
+id = "DK95-01"
+name = "tab-looking indentation in multiline quoted scalar is rejected"
+features = ["error", "double-quoted", "mapping", "scalar", "tab"]
+
+[[case]]
+id = "9JBA"
+name = "comment must be separated from flow sequence end"
+features = ["error", "comment", "flow", "sequence"]
+
+[[case]]
+id = "CVW2"
+name = "comment-looking flow sequence entry requires separation"
+features = ["error", "comment", "flow", "sequence"]
+
+[[case]]
+id = "9C9N"
+name = "wrong indented flow sequence is rejected"
+features = ["error", "flow", "indent", "sequence"]
+
+[[case]]
+id = "DK4H"
+name = "implicit flow sequence key followed by newline is rejected"
+features = ["error", "flow", "mapping", "sequence"]
+
+[[case]]
+id = "ZXT5"
+name = "implicit flow sequence key followed by newline and adjacent value is rejected"
+features = ["error", "flow", "mapping", "sequence"]
+
+[[case]]
+id = "5LLU"
+name = "wrongly indented block scalar content after spaces-only lines is rejected"
+features = ["error", "block", "scalar", "folded", "indentation", "whitespace"]
+
+[[case]]
+id = "SKE5"
+name = "anchor before zero-indented sequence"
+features = ["anchor", "indent", "sequence"]
+
+[[case]]
+id = "SY6V"
+name = "anchor before sequence entry on same line is rejected"
+features = ["error", "anchor", "sequence"]
+
+[[case]]
+id = "G9HC"
+name = "invalid anchor in zero-indented sequence is rejected"
+features = ["error", "anchor", "sequence"]
+
+[[case]]
+id = "GT5M"
+name = "node anchor in sequence is rejected"
+features = ["error", "anchor", "sequence"]
+
+[[case]]
+id = "5U3A"
+name = "sequence on same line as mapping key is rejected"
+features = ["error", "mapping", "sequence"]
+
+[[case]]
+id = "ZCZ6"
+name = "nested mapping in plain single-line value is rejected"
+features = ["error", "mapping", "scalar"]
+
+[[case]]
+id = "8XDJ"
+name = "comment inside multiline plain mapping value is rejected"
+features = ["error", "comment", "mapping", "scalar", "multiline"]
+
+[[case]]
+id = "BF9H"
+name = "trailing comment in multiline plain scalar is rejected"
+features = ["error", "comment", "mapping", "scalar", "multiline"]
+
+[[case]]
+id = "BS4K"
+name = "comment between top-level plain scalar lines is rejected"
+features = ["error", "comment", "scalar", "multiline"]
+
+[[case]]
+id = "9HCY"
+name = "TAG directive after implicit document content is rejected"
+features = ["error", "directive", "tag", "document"]
+
+[[case]]
+id = "EB22"
+name = "YAML directive after scalar document content is rejected"
+features = ["error", "directive", "document", "scalar"]
+
+[[case]]
+id = "RHX7"
+name = "YAML directive after mapping document content is rejected"
+features = ["error", "directive", "document", "mapping"]
+
+[[case]]
+id = "9MMA"
+name = "bare YAML directive without document start is rejected"
+features = ["error", "directive", "document"]
+
+[[case]]
+id = "B63P"
+name = "YAML directive before document end marker is rejected"
+features = ["error", "directive", "document"]
+
+[[case]]
+id = "9KBC"
+name = "block mapping on document start line is rejected"
+features = ["error", "document", "mapping"]
+
+[[case]]
+id = "CXX2"
+name = "anchored block mapping on document start line is rejected"
+features = ["error", "document", "mapping", "anchor"]
+
+[[case]]
+id = "4JVG"
+name = "duplicate anchor property on one node is rejected"
+features = ["error", "anchor", "mapping"]
+
+[[case]]
+id = "2G84/00"
+name = "zero block scalar indentation indicator is rejected"
+features = ["error", "block", "scalar", "indentation"]
+
+[[case]]
+id = "2G84/01"
+name = "two-digit block scalar indentation indicator is rejected"
+features = ["error", "block", "scalar", "indentation"]
+
+[[case]]
+id = "A984"
+name = "multiline scalar in mapping"
+features = ["block", "mapping", "scalar", "multiline"]
+
+[[case]]
+id = "P2AD"
+name = "block scalar header"
+features = ["block", "scalar", "indentation", "chomping"]
+
+[[case]]
+id = "F8F9"
+name = "chomping trailing lines"
+features = ["block", "scalar", "chomping", "comment"]
+
+[[case]]
+id = "F6MC"
+name = "more indented folded block scalar lines"
+features = ["block", "scalar", "folded", "indentation"]
+
+[[case]]
+id = "M5C3"
+name = "block scalar nodes with separated tag"
+features = ["block", "scalar", "tag", "indentation"]
+
+[[case]]
+id = "36F6"
+name = "multiline plain scalar with empty line"
+features = ["block", "mapping", "scalar", "multiline"]
+
+[[case]]
+id = "5GBF"
+name = "empty lines in flow and block scalars"
+features = ["block", "mapping", "scalar", "quoted", "literal", "whitespace", "multiline"]
+
+[[case]]
+id = "4CQQ"
+name = "multi-line flow scalars"
+features = ["block", "mapping", "scalar", "quoted", "multiline"]
+
+[[case]]
+id = "7TMG"
+name = "comment in multiline flow sequence"
+features = ["flow", "sequence", "comment", "multiline"]
+
+[[case]]
+id = "9MMW"
+name = "single pair implicit entries"
+features = ["flow", "sequence", "mapping", "implicit", "complex-key"]
+
+[[case]]
+id = "QF4Y"
+name = "multiline single pair flow mapping in flow sequence"
+features = ["flow", "sequence", "mapping", "implicit", "multiline"]
+
+[[case]]
+id = "CT4Q"
+name = "multiline explicit key single pair flow mapping in flow sequence"
+features = ["flow", "sequence", "mapping", "explicit", "multiline"]
+
+[[case]]
+id = "C2DT"
+name = "flow mapping adjacent values"
+features = ["flow", "mapping", "scalar", "quoted", "null", "spec"]
+
+[[case]]
+id = "5MUD"
+name = "colon and adjacent value on next line"
+features = ["flow", "mapping", "scalar", "quoted", "multiline"]
+
+[[case]]
+id = "5T43"
+name = "colon at beginning of adjacent flow scalar"
+features = ["flow", "sequence", "mapping", "scalar", "quoted", "plain"]
+
+[[case]]
+id = "58MP"
+name = "flow mapping adjacent colon-prefixed value"
+features = ["flow", "mapping", "scalar", "plain"]
+
+[[case]]
+id = "8KB6"
+name = "multiline plain flow mapping key without value"
+features = ["flow", "mapping", "scalar", "plain", "multiline"]
+
+[[case]]
+id = "9SA2"
+name = "multiline double quoted flow mapping key"
+features = ["flow", "mapping", "scalar", "quoted", "multiline"]
+
+[[case]]
+id = "X38W"
+name = "aliases in flow objects"
+features = ["anchor", "alias", "complex-key", "flow", "mapping", "sequence"]
+
+[[case]]
+id = "6BFJ"
+name = "mapping, key and flow sequence item anchors"
+features = ["anchor", "complex-key", "flow", "mapping", "sequence"]
+
+[[case]]
+id = "6PBE"
+name = "zero-indented sequences in explicit mapping keys"
+features = ["block", "mapping", "explicit", "sequence", "complex-key"]
+
+[[case]]
+id = "57H4"
+name = "block collection nodes"
+features = ["block", "mapping", "sequence", "tag"]
+
+[[case]]
+id = "MZX3"
+name = "scalar style fidelity"
+features = ["event", "scalar", "quoted", "folded"]
+
+[[case]]
+id = "S4JQ"
+name = "explicit non-specific tag"
+features = ["event", "tag", "scalar"]
+
+[[case]]
+id = "6M2F"
+name = "aliases in explicit block mapping"
+features = ["event", "anchor", "alias", "mapping", "explicit"]
+
+[[case]]
+id = "BU8L"
+name = "node anchor and tag on separate lines"
+features = ["event", "anchor", "tag", "mapping"]
+
+[[case]]
+id = "W4TN"
+name = "YAML directive and explicit document boundaries"
+features = ["directive", "stream", "document", "scalar", "literal"]
+
+[[case]]
+id = "FP8R"
+name = "zero-indented folded block scalar after document start"
+features = ["document", "scalar", "folded", "indent"]
+
+[[case]]
+id = "DK3J"
+name = "zero-indented folded block scalar with comment-looking content"
+features = ["document", "scalar", "folded", "comment"]
+
+[[case]]
+id = "M7A3"
+name = "bare documents"
+features = ["stream", "document", "scalar", "plain", "literal"]
+
+[[case]]
+id = "UT92"
+name = "explicit documents with directive-looking flow key"
+features = ["flow", "mapping", "stream", "document", "directive", "comment", "spec"]
+
+[[case]]
+id = "U3C3"
+name = "TAG directive resolves tag handles"
+features = ["directive", "tag", "scalar", "quoted"]
+
+[[case]]
+id = "6CK3"
+name = "tag shorthand suffix escapes"
+features = ["directive", "tag", "sequence", "scalar"]
+
+[[case]]
+id = "9KAX"
+name = "various combinations of tags and anchors"
+features = ["tag", "anchor", "document", "mapping", "scalar"]
+
+[[case]]
+id = "FTA2"
+name = "root sequence anchor after document start"
+features = ["event", "document", "anchor", "sequence"]

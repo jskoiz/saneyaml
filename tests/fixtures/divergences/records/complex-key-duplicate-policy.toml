@@ -1,0 +1,6 @@
+case = "complex-key-duplicate-policy"
+policy = "duplicate key diagnostics"
+prototype = "Tree loading rejects duplicate resolved scalar, sequence, and mapping keys after alias expansion. parse_events exposes duplicate keys as raw events because duplicate-key detection is a loader policy, not a parser-event policy. YAML-suite X38W is rejected in tree loading while raw alias events remain available."
+libyaml = "libyaml parser events expose keys but do not by themselves impose a duplicate-key policy."
+yaml_rust2_saphyr = "yaml-rust2 rejects alias-expanded duplicate sequence keys in X38W, while saphyr accepts the same fixture."
+decision = "Use structural equality for untagged collection keys in tree loading to favor YAML 1.2 uniqueness and config safety. Keep the known saphyr acceptance as an ecosystem divergence, and keep parse_events permissive for parser-event fidelity."

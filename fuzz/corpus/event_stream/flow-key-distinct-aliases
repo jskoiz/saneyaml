@@ -1,0 +1,3 @@
+a: &a one
+b: &b two
+root: {? *a : first, ? *b : second}

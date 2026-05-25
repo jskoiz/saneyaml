@@ -1,0 +1,6 @@
+version: "3.9"
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+services:
+  web:
+    <<: *service-defaults

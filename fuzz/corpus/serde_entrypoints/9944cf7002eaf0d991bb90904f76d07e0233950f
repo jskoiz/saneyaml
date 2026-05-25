@@ -1,0 +1,1 @@
+vars: {BOOL_TRUE: true, INT: 1_000, FLOA6: 1.5, CPU2 100m}

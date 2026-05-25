@@ -1,0 +1,2 @@
+upstream = "https://github.com/yaml/yaml-test-suite"
+selection_policy = "Hand-curated YAML 1.2 core/config milestone fixtures; copied in exact or reduced form for prototype development."

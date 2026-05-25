@@ -1,0 +1,7 @@
+case = "empty-scalar-anchors"
+policy = "YAML 1.2 anchor properties on empty scalar nodes"
+prototype = "Accepts YAML-suite PW8X. Anchor-only block sequence items, block mapping keys, and block mapping values resolve to null scalar nodes while raw events preserve the anchor metadata."
+libyaml = "Ruby Psych 3.1.0/libyaml 0.2.1 accepts PW8X, with loader-specific tree details for empty scalar nodes."
+yaml_rust2 = "yaml-rust2 0.11.0 accepts PW8X and normalizes empty scalar nodes compatibly with the prototype for the selected parity paths."
+saphyr = "saphyr 0.0.6 accepts PW8X, but its loaded tree represents selected anchor-only empty scalar nodes as empty strings rather than nulls."
+decision = "Keep null resolution for empty scalar nodes because it matches this crate's YAML 1.2 core-schema policy and existing anchor-only flow-node behavior; record the saphyr loaded-tree shape divergence while retaining event parity coverage."

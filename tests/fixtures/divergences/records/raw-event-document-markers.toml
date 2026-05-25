@@ -1,0 +1,6 @@
+case = "raw-event-document-markers"
+policy = "raw event milestone"
+prototype = "parse_events carries explicitness and marker-token spans for document start and end events. DocumentStart and DocumentEnd spans point at the --- or ... marker itself. Document start markers can carry root node content/properties such as --- &root and --- !Thing, with metadata attached to the root node event."
+libyaml = "libyaml document events carry explicit/implicit document boundary information and directive metadata at the parser-event layer."
+yaml_rust2_saphyr = "yaml-rust2 and saphyr expose document boundary events from the parser before tree loading; yaml-rust2's public Event shape is simpler than libyaml and does not carry all libyaml marker metadata."
+decision = "Raw events keep document boundary marker-token spans, explicitness, and directive metadata. Root node properties after --- are supported. Non-comment trailing content after ... remains rejected."

@@ -1,0 +1,19 @@
+name: Polymorphic Workflow
+on: [push, pull_request]
+permissions: read-all
+jobs:
+  hosted:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo test --locked
+  self_hosted:
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - run: ./scripts/ci.sh
+  grouped:
+    runs-on:
+      group: ubuntu-runners
+      labels: ubuntu-24.04-16core
+    steps:
+      - run: echo grouped runner

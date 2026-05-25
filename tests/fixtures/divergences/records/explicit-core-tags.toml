@@ -1,0 +1,8 @@
+case = "explicit-core-tags"
+policy = "Preserve explicit core tags in retained values while supporting numeric typed reads for explicit core numeric tags"
+prototype = "Preserves !!binary, !!int, !!timestamp, and !!float as tagged nodes whose inner scalar remains the original source value. Serde typed reads coerce explicit !!int and !!float numeric targets, including !!int 0x7B and !!float .inf, without changing retained Value or Node trees."
+serde_yaml = "serde_yaml 0.9.34 drops the explicit tag metadata. In Value, !!binary and !!timestamp remain strings, !!int 0x7B becomes integer 123, and !!float .inf becomes a floating-point infinity; in BTreeMap<String, String>, source spelling is preserved for string targets."
+yaml_rust2 = "yaml-rust2 0.11.0 keeps !!binary and !!timestamp as string values, reports !!int 0x7B as BadValue, and loads !!float .inf as Real(\".inf\")."
+saphyr = "saphyr 0.0.6 reports !!binary, !!int 0x7B, and !!timestamp as BadValue in the loaded tree, while !!float .inf becomes FloatingPoint(inf)."
+libyaml = "Ruby Psych 3.1.0/libyaml 0.2.1 constructs !!binary SGVsbG8= as Hello, !!int 0x7B as integer 123, !!timestamp 2026-05-24 as Date, and !!float .inf as Infinity."
+decision = "Keep explicit core tags as retained metadata. Support tag-aware typed Serde reads for explicit !!int and !!float numeric values because this closes a serde_yaml read-compatibility gap without adding YAML 1.1 implicit typing. Continue not to construct binary or timestamp values unless a later migration milestone scopes schema construction."

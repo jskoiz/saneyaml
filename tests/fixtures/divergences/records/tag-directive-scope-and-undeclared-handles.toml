@@ -1,0 +1,6 @@
+case = "tag-directive-scope-and-undeclared-handles"
+policy = "parser-event and tree tag handle compatibility"
+prototype = "Declared %TAG handles resolve only for the following explicit document, including on flow mapping keys. Local tags such as !Thing, core tags such as !!str, and verbatim tags remain supported. Undeclared named handles such as !e!Thing are rejected instead of preserved as raw tags."
+libyaml = "libyaml resolves declared tag handles on node events and rejects undeclared handles."
+yaml_rust2_saphyr = "yaml-rust2 and saphyr parser layers reject undeclared named tag handles while accepting local, core, and declared handles."
+decision = "Reject undeclared named tag handles to match parser compatibility targets and prevent silent tag-scope leakage. Do not use YAML 1.1 schema coercion for resolved tags."

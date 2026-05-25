@@ -1,0 +1,3 @@
+--- &root !Thing
+child: 1
+ref: *root

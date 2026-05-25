@@ -1,0 +1,6 @@
+case = "raw-event-directives"
+policy = "raw event milestone"
+prototype = "Parser accepts %YAML 1.2 and %TAG before an explicit document start, exposes directive metadata on DocumentStart events, resolves declared tag handles for the following document, ignores reserved unknown directives, and still requires an explicit document start after any directive line."
+libyaml = "libyaml exposes YAML directives through document-start event metadata and uses TAG directives to resolve tag handles."
+yaml_rust2_saphyr = "yaml-rust2 and saphyr parser layers accept directives, ignore reserved unknown directives such as YAML-suite 6LVF, and resolve tag handles before node events; their tree loaders may not preserve the directive list itself."
+decision = "Accept %YAML 1.2 and %TAG before an explicit document start, expose directive metadata on DocumentStart, resolve declared tag handles for the following document, and ignore reserved unknown directives while retaining the explicit document-start requirement. Continue rejecting %YAML 1.1 rather than enabling legacy scalar resolution."

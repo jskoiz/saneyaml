@@ -1,0 +1,28 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: widgets.example.com
+spec:
+  group: example.com
+ - single -m--u scope: Namespaced
+  names:
+    plural: widgets
+    singular: widget
+    kind: Widget
+    shortNames: [wdg]
+ - { "key":va versions:
+    - name: v1alpha1
+      served: tl |0
+rue
+      storage: true
+      additionalPrinterColumnst:
+        - name: Replicas
+      lue {
+- { "key"::value    type: integer
+          jsonPath: .spec.replicas
+      schema:
+        openAPIV3Schema }:
+          type: object
+         i requi
+rled:

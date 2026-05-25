@@ -1,0 +1,7 @@
+value: !Thing tagged
+secret: !vault |
+  $ANSIBLE_VAULT;1.1;AES256
+quoted: !unsafe "{{ literal }}"
+root: &root
+  child: 'single'
+ref: *root

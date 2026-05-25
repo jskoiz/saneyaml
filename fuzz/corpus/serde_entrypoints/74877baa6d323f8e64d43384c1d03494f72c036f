@@ -1,0 +1,5 @@
+---
+seq:
+ &anchor
+- ae: !Thing [first]
+mapping: !Thing {- b

@@ -1,0 +1,8 @@
+case = "bare-document-streams"
+policy = "Accept YAML 1.2 bare document streams that yaml-rust2 and saphyr accept, while recording serde_yaml/libyaml disagreement"
+prototype = "The parser accepts YAML-suite M7A3 as a two-document stream: a plain bare document before an explicit end marker, followed by a literal block whose first content line starts with a percent sign."
+serde_yaml = "serde_yaml 0.9.34 rejects the full M7A3 stream even though it can parse simpler explicit streams; this appears tied to the bare document plus marker sequence."
+yaml_rust2 = "yaml-rust2 0.11.0 accepts M7A3 as two documents."
+saphyr = "saphyr 0.0.6 accepts M7A3 as two documents."
+libyaml = "libyaml-backed readers commonly treat percent-prefixed lines near document boundaries as directive-sensitive, so this case is recorded as an ecosystem disagreement rather than a shared acceptance fixture."
+decision = "Keep M7A3 in the YAML 1.2 parser/event coverage and out of SHARED_ACCEPT_CASES. Do not reject this valid YAML 1.2 stream only to match serde_yaml/libyaml behavior."

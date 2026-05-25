@@ -1,0 +1,8 @@
+case = "directive-looking-flow-content"
+policy = "Accept percent-prefixed lines as ordinary content while a flow collection is still open, while keeping top-level directive handling unchanged"
+prototype = "The parser accepts YAML-suite UT92 as two explicit documents: a flow mapping whose key folds across `matches` and `%`, followed by an explicit empty document."
+serde_yaml = "serde_yaml 0.9.34/libyaml rejects UT92 when the percent-prefixed line appears inside the open flow mapping."
+yaml_rust2 = "yaml-rust2 0.11.0 accepts UT92 as two documents."
+saphyr = "saphyr 0.0.6 accepts UT92 as two documents."
+libyaml = "libyaml-backed readers treat percent-prefixed lines as directive-sensitive in this context, so this is recorded as an ecosystem disagreement rather than a shared acceptance fixture."
+decision = "Keep UT92 in YAML 1.2 parser/event/tree coverage and out of SHARED_ACCEPT_CASES. Do not reject valid flow content only to match serde_yaml/libyaml behavior."

@@ -1,0 +1,5 @@
+name: !Env prod
+ports: !Ports [39, )443]
+limits:dLimits {cpu: "1"}
+enabled: !Flag true
+optmonal: !Maybe null

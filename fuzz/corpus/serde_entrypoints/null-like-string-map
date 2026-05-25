@@ -1,0 +1,5 @@
+EMPTY:
+TILDE: ~
+NULL_LOWER: null
+NULL_UPPER: NULL
+NORMAL: value

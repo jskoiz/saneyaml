@@ -1,0 +1,5 @@
+case = "multiline-quoted-flow-key"
+policy = "YAML 1.2 conformance"
+prototype = "Accepts multiline quoted flow mapping keys and folds the physical line break to a space."
+serde_yaml_libyaml = "serde_yaml 0.9/libyaml rejects the selected 9SA2 YAML 1.2 fixture."
+decision = "Prefer YAML 1.2 behavior matching yaml-rust2 and saphyr for parser/tree conformance."

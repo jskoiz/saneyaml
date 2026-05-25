@@ -1,0 +1,2236 @@
+use crate::{Error, Span};
+use serde::de::{self, EnumAccess, MapAccess, SeqAccess, VariantAccess, Visitor};
+use std::borrow::Cow;
+use std::cmp::Ordering;
+use std::collections::hash_map::DefaultHasher;
+use std::fmt;
+use std::hash::{Hash, Hasher};
+use std::mem::{self, discriminant};
+use std::ops::{Index as StdIndex, IndexMut as StdIndexMut};
+use std::str::FromStr;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Node {
+    pub value: NodeValue,
+    pub span: Span,
+    pub(crate) source: Option<ScalarSource>,
+}
+
+impl Node {
+    pub fn new(value: NodeValue, span: Span) -> Self {
+        Self {
+            value,
+            span,
+            source: None,
+        }
+    }
+
+    pub fn null(span: Span) -> Self {
+        Self::new(NodeValue::Null, span)
+    }
+
+    pub(crate) fn empty_scalar(span: Span) -> Self {
+        Self::null(span).with_scalar_source("")
+    }
+
+    pub(crate) fn with_scalar_source(mut self, raw: impl Into<String>) -> Self {
+        self.source = Some(ScalarSource { raw: raw.into() });
+        self
+    }
+
+    pub fn scalar_source(&self) -> Option<&ScalarSource> {
+        self.source.as_ref()
+    }
+
+    pub fn as_str(&self) -> Option<&str> {
+        match &self.value {
+            NodeValue::String(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn equivalent(&self, other: &Self) -> bool {
+        self.value.equivalent(&other.value)
+    }
+
+    pub fn into_value(self) -> Value {
+        self.value.into()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ScalarSource {
+    raw: String,
+}
+
+impl ScalarSource {
+    pub fn raw(&self) -> &str {
+        &self.raw
+    }
+}
+
+impl From<Node> for Value {
+    fn from(node: Node) -> Self {
+        node.into_value()
+    }
+}
+
+impl From<&Node> for Value {
+    fn from(node: &Node) -> Self {
+        (&node.value).into()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum NodeValue {
+    Null,
+    Bool(bool),
+    Number(Number),
+    String(String),
+    Sequence(Vec<Node>),
+    Mapping(Vec<(Node, Node)>),
+    Tagged(Box<TaggedNode>),
+}
+
+#[derive(Clone, Debug, Eq)]
+pub struct Tag {
+    pub handle: String,
+    pub suffix: String,
+}
+
+impl Tag {
+    pub fn new(raw: impl Into<String>) -> Self {
+        let raw = raw.into();
+        assert!(!raw.is_empty(), "empty YAML tag is not allowed");
+        if let Some(suffix) = raw.strip_prefix("!!") {
+            Self {
+                handle: "!!".to_string(),
+                suffix: suffix.to_string(),
+            }
+        } else if let Some(rest) = raw.strip_prefix('!') {
+            if rest.starts_with('<') && rest.ends_with('>') && rest.len() >= 2 {
+                Self {
+                    handle: "!".to_string(),
+                    suffix: rest[1..rest.len() - 1].to_string(),
+                }
+            } else if let Some((handle, suffix)) = rest.split_once('!') {
+                Self {
+                    handle: format!("!{handle}!"),
+                    suffix: suffix.to_string(),
+                }
+            } else {
+                Self {
+                    handle: "!".to_string(),
+                    suffix: rest.to_string(),
+                }
+            }
+        } else {
+            Self {
+                handle: "!".to_string(),
+                suffix: raw,
+            }
+        }
+    }
+
+    pub fn variant(&self) -> &str {
+        &self.suffix
+    }
+
+    pub(crate) fn serde_variant(&self) -> Cow<'_, str> {
+        if self.handle == "!" && self.suffix.is_empty() {
+            Cow::Borrowed("!")
+        } else if self.handle == "!" && !tag_suffix_needs_verbatim(&self.suffix) {
+            Cow::Borrowed(&self.suffix)
+        } else {
+            Cow::Owned(self.to_string())
+        }
+    }
+}
+
+impl fmt::Display for Tag {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.handle.as_str() {
+            "!" if tag_suffix_needs_verbatim(&self.suffix) => {
+                write!(formatter, "!<{}>", self.suffix)
+            }
+            "!" | "!!" => write!(formatter, "{}{}", self.handle, self.suffix),
+            _ => write!(formatter, "{}{}", self.handle, self.suffix),
+        }
+    }
+}
+
+impl PartialEq for Tag {
+    fn eq(&self, other: &Self) -> bool {
+        tag_compare_key(&self.to_string()) == tag_compare_key(&other.to_string())
+    }
+}
+
+impl<T> PartialEq<T> for Tag
+where
+    T: ?Sized + AsRef<str>,
+{
+    fn eq(&self, other: &T) -> bool {
+        tag_compare_key(&self.to_string()) == tag_compare_key(other.as_ref())
+    }
+}
+
+impl Ord for Tag {
+    fn cmp(&self, other: &Self) -> Ordering {
+        tag_compare_key(&self.to_string()).cmp(tag_compare_key(&other.to_string()))
+    }
+}
+
+impl PartialOrd for Tag {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Hash for Tag {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        tag_compare_key(&self.to_string()).hash(state);
+    }
+}
+
+fn tag_compare_key(text: &str) -> &str {
+    match text.strip_prefix('!') {
+        Some("") | None => text,
+        Some(unbanged) => unbanged,
+    }
+}
+
+fn tag_suffix_needs_verbatim(suffix: &str) -> bool {
+    !suffix.is_empty()
+        && (suffix.starts_with("tag:")
+            || suffix.starts_with(':')
+            || suffix.starts_with('<')
+            || suffix.ends_with(':')
+            || suffix.contains('!')
+            || suffix
+                .chars()
+                .any(|ch| ch.is_whitespace() || matches!(ch, ',' | '[' | ']' | '{' | '}')))
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaggedNode {
+    pub tag: Tag,
+    pub tag_span: Span,
+    pub value: Node,
+}
+
+impl NodeValue {
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            NodeValue::String(value) => Some(value),
+            NodeValue::Tagged(tagged) => tagged.value.as_str(),
+            _ => None,
+        }
+    }
+
+    pub fn equivalent(&self, other: &Self) -> bool {
+        match (self, other) {
+            (NodeValue::Null, NodeValue::Null) => true,
+            (NodeValue::Bool(left), NodeValue::Bool(right)) => left == right,
+            (NodeValue::Number(left), NodeValue::Number(right)) => left == right,
+            (NodeValue::String(left), NodeValue::String(right)) => left == right,
+            (NodeValue::Sequence(left), NodeValue::Sequence(right)) => {
+                left.len() == right.len()
+                    && left
+                        .iter()
+                        .zip(right.iter())
+                        .all(|(left, right)| left.equivalent(right))
+            }
+            (NodeValue::Mapping(left), NodeValue::Mapping(right)) => {
+                left.len() == right.len()
+                    && left.iter().zip(right.iter()).all(
+                        |((left_key, left_value), (right_key, right_value))| {
+                            left_key.equivalent(right_key) && left_value.equivalent(right_value)
+                        },
+                    )
+            }
+            (NodeValue::Tagged(left), NodeValue::Tagged(right)) => {
+                left.tag == right.tag && left.value.equivalent(&right.value)
+            }
+            _ => false,
+        }
+    }
+}
+
+impl From<Value> for NodeValue {
+    fn from(value: Value) -> Self {
+        match value {
+            Value::Null => NodeValue::Null,
+            Value::Bool(value) => NodeValue::Bool(value),
+            Value::Number(value) => NodeValue::Number(value),
+            Value::String(value) => NodeValue::String(value),
+            Value::Sequence(items) => NodeValue::Sequence(
+                items
+                    .into_iter()
+                    .map(|value| Node::new(value.into(), Span::default()))
+                    .collect(),
+            ),
+            Value::Mapping(entries) => NodeValue::Mapping(
+                entries
+                    .into_iter()
+                    .map(|(key, value)| {
+                        (
+                            Node::new(key.into(), Span::default()),
+                            Node::new(value.into(), Span::default()),
+                        )
+                    })
+                    .collect(),
+            ),
+            Value::Tagged(tagged) => NodeValue::Tagged(Box::new(TaggedNode {
+                tag: tagged.tag,
+                tag_span: Span::default(),
+                value: Node::new(tagged.value.into(), Span::default()),
+            })),
+        }
+    }
+}
+
+impl From<NodeValue> for Value {
+    fn from(value: NodeValue) -> Self {
+        match value {
+            NodeValue::Null => Value::Null,
+            NodeValue::Bool(value) => Value::Bool(value),
+            NodeValue::Number(value) => Value::Number(value),
+            NodeValue::String(value) => Value::String(value),
+            NodeValue::Sequence(items) => {
+                Value::Sequence(items.into_iter().map(Node::into_value).collect())
+            }
+            NodeValue::Mapping(entries) => Value::Mapping(
+                entries
+                    .into_iter()
+                    .map(|(key, value)| (key.into_value(), value.into_value()))
+                    .collect(),
+            ),
+            NodeValue::Tagged(tagged) => Value::Tagged(Box::new(TaggedValue {
+                tag: tagged.tag,
+                value: tagged.value.into_value(),
+            })),
+        }
+    }
+}
+
+impl From<&NodeValue> for Value {
+    fn from(value: &NodeValue) -> Self {
+        match value {
+            NodeValue::Null => Value::Null,
+            NodeValue::Bool(value) => Value::Bool(*value),
+            NodeValue::Number(value) => Value::Number(*value),
+            NodeValue::String(value) => Value::String(value.clone()),
+            NodeValue::Sequence(items) => Value::Sequence(items.iter().map(Value::from).collect()),
+            NodeValue::Mapping(entries) => Value::Mapping(
+                entries
+                    .iter()
+                    .map(|(key, value)| (Value::from(key), Value::from(value)))
+                    .collect(),
+            ),
+            NodeValue::Tagged(tagged) => Value::Tagged(Box::new(TaggedValue {
+                tag: tagged.tag.clone(),
+                value: Value::from(&tagged.value),
+            })),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, PartialOrd, Hash)]
+pub enum Value {
+    #[default]
+    Null,
+    Bool(bool),
+    Number(Number),
+    String(String),
+    Sequence(Sequence),
+    Mapping(Mapping),
+    Tagged(Box<TaggedValue>),
+}
+
+impl Eq for Value {}
+
+pub type Sequence = Vec<Value>;
+
+#[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
+pub struct TaggedValue {
+    pub tag: Tag,
+    pub value: Value,
+}
+
+macro_rules! value_from_number {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl From<$ty> for Value {
+                fn from(value: $ty) -> Self {
+                    Value::Number(Number::from(value))
+                }
+            }
+        )*
+    };
+}
+
+value_from_number! {
+    i8, i16, i32, i64, i128, isize,
+    u8, u16, u32, u64, u128, usize,
+    f32, f64,
+}
+
+impl From<bool> for Value {
+    fn from(value: bool) -> Self {
+        Value::Bool(value)
+    }
+}
+
+impl From<String> for Value {
+    fn from(value: String) -> Self {
+        Value::String(value)
+    }
+}
+
+impl From<&str> for Value {
+    fn from(value: &str) -> Self {
+        Value::String(value.to_string())
+    }
+}
+
+impl<'a> From<Cow<'a, str>> for Value {
+    fn from(value: Cow<'a, str>) -> Self {
+        Value::String(value.into_owned())
+    }
+}
+
+impl From<Mapping> for Value {
+    fn from(value: Mapping) -> Self {
+        Value::Mapping(value)
+    }
+}
+
+impl<T> From<Vec<T>> for Value
+where
+    T: Into<Value>,
+{
+    fn from(value: Vec<T>) -> Self {
+        Value::Sequence(value.into_iter().map(Into::into).collect())
+    }
+}
+
+impl<T> From<&[T]> for Value
+where
+    T: Clone + Into<Value>,
+{
+    fn from(value: &[T]) -> Self {
+        Value::Sequence(value.iter().cloned().map(Into::into).collect())
+    }
+}
+
+impl<T> FromIterator<T> for Value
+where
+    T: Into<Value>,
+{
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        Value::Sequence(iter.into_iter().map(Into::into).collect())
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct Mapping {
+    entries: Vec<(Value, Value)>,
+}
+
+impl Mapping {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            entries: Vec::with_capacity(capacity),
+        }
+    }
+
+    pub fn reserve(&mut self, additional: usize) {
+        self.entries.reserve(additional);
+    }
+
+    pub fn shrink_to_fit(&mut self) {
+        self.entries.shrink_to_fit();
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.entries.capacity()
+    }
+
+    pub fn insert(&mut self, key: Value, value: Value) -> Option<Value> {
+        if let Some((_, existing)) = self
+            .entries
+            .iter_mut()
+            .find(|(existing_key, _)| existing_key == &key)
+        {
+            return Some(mem::replace(existing, value));
+        }
+        self.entries.push((key, value));
+        None
+    }
+
+    pub fn entry(&mut self, key: Value) -> Entry<'_> {
+        if let Some(index) = self
+            .entries
+            .iter()
+            .position(|(existing_key, _)| existing_key == &key)
+        {
+            Entry::Occupied(OccupiedEntry {
+                mapping: self,
+                index,
+            })
+        } else {
+            Entry::Vacant(VacantEntry { mapping: self, key })
+        }
+    }
+
+    pub fn remove<I>(&mut self, index: I) -> Option<Value>
+    where
+        I: Index,
+    {
+        self.swap_remove(index)
+    }
+
+    pub fn remove_entry<I>(&mut self, index: I) -> Option<(Value, Value)>
+    where
+        I: Index,
+    {
+        self.swap_remove_entry(index)
+    }
+
+    pub fn swap_remove<I>(&mut self, index: I) -> Option<Value>
+    where
+        I: Index,
+    {
+        let pos = mapping_index_position(self, &index)?;
+        Some(self.entries.swap_remove(pos).1)
+    }
+
+    pub fn swap_remove_entry<I>(&mut self, index: I) -> Option<(Value, Value)>
+    where
+        I: Index,
+    {
+        let pos = mapping_index_position(self, &index)?;
+        Some(self.entries.swap_remove(pos))
+    }
+
+    pub fn shift_remove<I>(&mut self, index: I) -> Option<Value>
+    where
+        I: Index,
+    {
+        let pos = mapping_index_position(self, &index)?;
+        Some(self.entries.remove(pos).1)
+    }
+
+    pub fn shift_remove_entry<I>(&mut self, index: I) -> Option<(Value, Value)>
+    where
+        I: Index,
+    {
+        let pos = mapping_index_position(self, &index)?;
+        Some(self.entries.remove(pos))
+    }
+
+    pub fn retain<F>(&mut self, mut keep: F)
+    where
+        F: FnMut(&Value, &mut Value) -> bool,
+    {
+        self.entries.retain_mut(|(key, value)| keep(&*key, value));
+    }
+
+    pub fn get<I>(&self, index: I) -> Option<&Value>
+    where
+        I: Index,
+    {
+        index.index_into_mapping(self)
+    }
+
+    pub fn get_mut<I>(&mut self, index: I) -> Option<&mut Value>
+    where
+        I: Index,
+    {
+        index.index_into_mapping_mut(self)
+    }
+
+    pub fn contains_key<I>(&self, index: I) -> bool
+    where
+        I: Index,
+    {
+        self.get(index).is_some()
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    pub fn clear(&mut self) {
+        self.entries.clear();
+    }
+
+    pub fn iter(&self) -> Iter<'_> {
+        Iter {
+            iter: self.entries.iter(),
+        }
+    }
+
+    pub fn iter_mut(&mut self) -> IterMut<'_> {
+        IterMut {
+            iter: self.entries.iter_mut(),
+        }
+    }
+
+    pub fn keys(&self) -> Keys<'_> {
+        Keys {
+            iter: self.entries.iter(),
+        }
+    }
+
+    pub fn values(&self) -> Values<'_> {
+        Values {
+            iter: self.entries.iter(),
+        }
+    }
+
+    pub fn values_mut(&mut self) -> ValuesMut<'_> {
+        ValuesMut {
+            iter: self.entries.iter_mut(),
+        }
+    }
+
+    pub fn into_keys(self) -> IntoKeys {
+        IntoKeys {
+            iter: self.entries.into_iter(),
+        }
+    }
+
+    pub fn into_values(self) -> IntoValues {
+        IntoValues {
+            iter: self.entries.into_iter(),
+        }
+    }
+
+    pub fn as_slice(&self) -> &[(Value, Value)] {
+        &self.entries
+    }
+}
+
+impl PartialEq for Mapping {
+    fn eq(&self, other: &Self) -> bool {
+        self.len() == other.len()
+            && self
+                .entries
+                .iter()
+                .all(|(key, value)| other.get(key).is_some_and(|other| other == value))
+    }
+}
+
+impl Eq for Mapping {}
+
+#[allow(clippy::derived_hash_with_manual_eq)]
+impl Hash for Mapping {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let mut xor = 0;
+        for (key, value) in self {
+            let mut hasher = DefaultHasher::new();
+            key.hash(&mut hasher);
+            value.hash(&mut hasher);
+            xor ^= hasher.finish();
+        }
+        xor.hash(state);
+    }
+}
+
+impl PartialOrd for Mapping {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let mut left = self.iter().collect::<Vec<_>>();
+        let mut right = other.iter().collect::<Vec<_>>();
+        left.sort_by(|(left_key, left_value), (right_key, right_value)| {
+            total_value_cmp(left_key, right_key)
+                .then_with(|| total_value_cmp(left_value, right_value))
+        });
+        right.sort_by(|(left_key, left_value), (right_key, right_value)| {
+            total_value_cmp(left_key, right_key)
+                .then_with(|| total_value_cmp(left_value, right_value))
+        });
+        Some(iter_cmp_by(
+            left,
+            right,
+            |(left_key, left_value), (right_key, right_value)| {
+                total_value_cmp(left_key, right_key)
+                    .then_with(|| total_value_cmp(left_value, right_value))
+            },
+        ))
+    }
+}
+
+fn total_value_cmp(left: &Value, right: &Value) -> Ordering {
+    match (left, right) {
+        (Value::Null, Value::Null) => Ordering::Equal,
+        (Value::Null, _) => Ordering::Less,
+        (_, Value::Null) => Ordering::Greater,
+
+        (Value::Bool(left), Value::Bool(right)) => left.cmp(right),
+        (Value::Bool(_), _) => Ordering::Less,
+        (_, Value::Bool(_)) => Ordering::Greater,
+
+        (Value::Number(left), Value::Number(right)) => total_number_cmp(left, right),
+        (Value::Number(_), _) => Ordering::Less,
+        (_, Value::Number(_)) => Ordering::Greater,
+
+        (Value::String(left), Value::String(right)) => left.cmp(right),
+        (Value::String(_), _) => Ordering::Less,
+        (_, Value::String(_)) => Ordering::Greater,
+
+        (Value::Sequence(left), Value::Sequence(right)) => {
+            iter_cmp_by(left, right, total_value_cmp)
+        }
+        (Value::Sequence(_), _) => Ordering::Less,
+        (_, Value::Sequence(_)) => Ordering::Greater,
+
+        (Value::Mapping(left), Value::Mapping(right)) => {
+            left.partial_cmp(right).unwrap_or(Ordering::Equal)
+        }
+        (Value::Mapping(_), _) => Ordering::Less,
+        (_, Value::Mapping(_)) => Ordering::Greater,
+
+        (Value::Tagged(left), Value::Tagged(right)) => left
+            .tag
+            .cmp(&right.tag)
+            .then_with(|| total_value_cmp(&left.value, &right.value)),
+    }
+}
+
+fn iter_cmp_by<I, F>(left: I, right: I, mut cmp: F) -> Ordering
+where
+    I: IntoIterator,
+    F: FnMut(I::Item, I::Item) -> Ordering,
+{
+    let mut left = left.into_iter();
+    let mut right = right.into_iter();
+    loop {
+        match (left.next(), right.next()) {
+            (None, None) => return Ordering::Equal,
+            (None, Some(_)) => return Ordering::Less,
+            (Some(_), None) => return Ordering::Greater,
+            (Some(left), Some(right)) => match cmp(left, right) {
+                Ordering::Equal => {}
+                order => return order,
+            },
+        }
+    }
+}
+
+pub struct Iter<'a> {
+    iter: std::slice::Iter<'a, (Value, Value)>,
+}
+
+impl<'a> Iterator for Iter<'a> {
+    type Item = (&'a Value, &'a Value);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|(key, value)| (key, value))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+}
+
+impl DoubleEndedIterator for Iter<'_> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back().map(|(key, value)| (key, value))
+    }
+}
+
+impl ExactSizeIterator for Iter<'_> {
+    fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
+
+pub struct IterMut<'a> {
+    iter: std::slice::IterMut<'a, (Value, Value)>,
+}
+
+impl<'a> Iterator for IterMut<'a> {
+    type Item = (&'a Value, &'a mut Value);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|(key, value)| (&*key, value))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+}
+
+impl DoubleEndedIterator for IterMut<'_> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back().map(|(key, value)| (&*key, value))
+    }
+}
+
+impl ExactSizeIterator for IterMut<'_> {
+    fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
+
+pub struct IntoIter {
+    iter: std::vec::IntoIter<(Value, Value)>,
+}
+
+impl Iterator for IntoIter {
+    type Item = (Value, Value);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+}
+
+impl DoubleEndedIterator for IntoIter {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back()
+    }
+}
+
+impl ExactSizeIterator for IntoIter {
+    fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
+
+pub struct Keys<'a> {
+    iter: std::slice::Iter<'a, (Value, Value)>,
+}
+
+impl<'a> Iterator for Keys<'a> {
+    type Item = &'a Value;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|(key, _)| key)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+}
+
+impl DoubleEndedIterator for Keys<'_> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back().map(|(key, _)| key)
+    }
+}
+
+impl ExactSizeIterator for Keys<'_> {
+    fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
+
+pub struct IntoKeys {
+    iter: std::vec::IntoIter<(Value, Value)>,
+}
+
+impl Iterator for IntoKeys {
+    type Item = Value;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|(key, _)| key)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+}
+
+impl DoubleEndedIterator for IntoKeys {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back().map(|(key, _)| key)
+    }
+}
+
+impl ExactSizeIterator for IntoKeys {
+    fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
+
+pub struct Values<'a> {
+    iter: std::slice::Iter<'a, (Value, Value)>,
+}
+
+impl<'a> Iterator for Values<'a> {
+    type Item = &'a Value;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|(_, value)| value)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+}
+
+impl DoubleEndedIterator for Values<'_> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back().map(|(_, value)| value)
+    }
+}
+
+impl ExactSizeIterator for Values<'_> {
+    fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
+
+pub struct ValuesMut<'a> {
+    iter: std::slice::IterMut<'a, (Value, Value)>,
+}
+
+impl<'a> Iterator for ValuesMut<'a> {
+    type Item = &'a mut Value;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|(_, value)| value)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+}
+
+impl DoubleEndedIterator for ValuesMut<'_> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back().map(|(_, value)| value)
+    }
+}
+
+impl ExactSizeIterator for ValuesMut<'_> {
+    fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
+
+pub struct IntoValues {
+    iter: std::vec::IntoIter<(Value, Value)>,
+}
+
+impl Iterator for IntoValues {
+    type Item = Value;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|(_, value)| value)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+}
+
+impl DoubleEndedIterator for IntoValues {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back().map(|(_, value)| value)
+    }
+}
+
+impl ExactSizeIterator for IntoValues {
+    fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
+
+pub enum Entry<'a> {
+    Occupied(OccupiedEntry<'a>),
+    Vacant(VacantEntry<'a>),
+}
+
+pub struct OccupiedEntry<'a> {
+    mapping: &'a mut Mapping,
+    index: usize,
+}
+
+pub struct VacantEntry<'a> {
+    mapping: &'a mut Mapping,
+    key: Value,
+}
+
+impl<'a> Entry<'a> {
+    pub fn key(&self) -> &Value {
+        match self {
+            Entry::Occupied(entry) => entry.key(),
+            Entry::Vacant(entry) => entry.key(),
+        }
+    }
+
+    pub fn or_insert(self, default: Value) -> &'a mut Value {
+        match self {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => entry.insert(default),
+        }
+    }
+
+    pub fn or_insert_with<F>(self, default: F) -> &'a mut Value
+    where
+        F: FnOnce() -> Value,
+    {
+        match self {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => entry.insert(default()),
+        }
+    }
+
+    pub fn and_modify<F>(self, f: F) -> Self
+    where
+        F: FnOnce(&mut Value),
+    {
+        match self {
+            Entry::Occupied(mut entry) => {
+                f(entry.get_mut());
+                Entry::Occupied(entry)
+            }
+            Entry::Vacant(entry) => Entry::Vacant(entry),
+        }
+    }
+}
+
+impl<'a> OccupiedEntry<'a> {
+    pub fn key(&self) -> &Value {
+        &self.mapping.entries[self.index].0
+    }
+
+    pub fn get(&self) -> &Value {
+        &self.mapping.entries[self.index].1
+    }
+
+    pub fn get_mut(&mut self) -> &mut Value {
+        &mut self.mapping.entries[self.index].1
+    }
+
+    pub fn into_mut(self) -> &'a mut Value {
+        &mut self.mapping.entries[self.index].1
+    }
+
+    pub fn insert(&mut self, value: Value) -> Value {
+        mem::replace(&mut self.mapping.entries[self.index].1, value)
+    }
+
+    pub fn remove(self) -> Value {
+        self.mapping.entries.swap_remove(self.index).1
+    }
+
+    pub fn remove_entry(self) -> (Value, Value) {
+        self.mapping.entries.swap_remove(self.index)
+    }
+}
+
+impl<'a> VacantEntry<'a> {
+    pub fn key(&self) -> &Value {
+        &self.key
+    }
+
+    pub fn into_key(self) -> Value {
+        self.key
+    }
+
+    pub fn insert(self, value: Value) -> &'a mut Value {
+        let index = self.mapping.entries.len();
+        self.mapping.entries.push((self.key, value));
+        &mut self.mapping.entries[index].1
+    }
+}
+
+fn mapping_index_position<I>(mapping: &Mapping, index: &I) -> Option<usize>
+where
+    I: Index,
+{
+    let value = index.index_into_mapping(mapping)?;
+    let value_ptr = value as *const Value;
+    mapping
+        .entries
+        .iter()
+        .position(|(_, existing)| std::ptr::eq(existing, value_ptr))
+}
+
+impl Extend<(Value, Value)> for Mapping {
+    fn extend<T: IntoIterator<Item = (Value, Value)>>(&mut self, iter: T) {
+        for (key, value) in iter {
+            self.insert(key, value);
+        }
+    }
+}
+
+impl FromIterator<(Value, Value)> for Mapping {
+    fn from_iter<T: IntoIterator<Item = (Value, Value)>>(iter: T) -> Self {
+        let mut mapping = Mapping::new();
+        mapping.extend(iter);
+        mapping
+    }
+}
+
+impl<'a> IntoIterator for &'a Mapping {
+    type Item = (&'a Value, &'a Value);
+    type IntoIter = Iter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut Mapping {
+    type Item = (&'a Value, &'a mut Value);
+    type IntoIter = IterMut<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
+    }
+}
+
+impl IntoIterator for Mapping {
+    type Item = (Value, Value);
+    type IntoIter = IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        IntoIter {
+            iter: self.entries.into_iter(),
+        }
+    }
+}
+
+impl<I> StdIndex<I> for Mapping
+where
+    I: Index,
+{
+    type Output = Value;
+
+    fn index(&self, index: I) -> &Self::Output {
+        index
+            .index_into_mapping(self)
+            .expect("no entry found for key")
+    }
+}
+
+impl<I> StdIndexMut<I> for Mapping
+where
+    I: Index,
+{
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        index
+            .index_into_mapping_mut(self)
+            .expect("no entry found for key")
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Mapping {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_map(MappingVisitor)
+    }
+}
+
+struct MappingVisitor;
+
+impl<'de> Visitor<'de> for MappingVisitor {
+    type Value = Mapping;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a YAML mapping")
+    }
+
+    fn visit_unit<E>(self) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(Mapping::new())
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'de>,
+    {
+        let mut mapping = Mapping::new();
+        while let Some((key, value)) = map.next_entry::<Value, Value>()? {
+            if mapping.contains_key(&key) {
+                return Err(de::Error::custom(format!(
+                    "duplicate entry in YAML map for key {key:?}"
+                )));
+            }
+            mapping.insert(key, value);
+        }
+        Ok(mapping)
+    }
+}
+
+pub trait Index {
+    fn index_into<'a>(&self, value: &'a Value) -> Option<&'a Value>;
+    fn index_into_mut<'a>(&self, value: &'a mut Value) -> Option<&'a mut Value>;
+    fn index_or_insert<'a>(&self, value: &'a mut Value) -> &'a mut Value;
+    fn index_into_mapping<'a>(&self, mapping: &'a Mapping) -> Option<&'a Value>;
+    fn index_into_mapping_mut<'a>(&self, mapping: &'a mut Mapping) -> Option<&'a mut Value>;
+}
+
+impl Index for usize {
+    fn index_into<'a>(&self, value: &'a Value) -> Option<&'a Value> {
+        match value {
+            Value::Sequence(items) => items.get(*self),
+            Value::Mapping(mapping) => self.index_into_mapping(mapping),
+            Value::Tagged(tagged) => self.index_into(&tagged.value),
+            _ => None,
+        }
+    }
+
+    fn index_into_mut<'a>(&self, value: &'a mut Value) -> Option<&'a mut Value> {
+        match value {
+            Value::Sequence(items) => items.get_mut(*self),
+            Value::Mapping(mapping) => self.index_into_mapping_mut(mapping),
+            Value::Tagged(tagged) => self.index_into_mut(&mut tagged.value),
+            _ => None,
+        }
+    }
+
+    fn index_or_insert<'a>(&self, mut value: &'a mut Value) -> &'a mut Value {
+        loop {
+            match value {
+                Value::Sequence(items) => {
+                    let len = items.len();
+                    return items.get_mut(*self).unwrap_or_else(|| {
+                        panic!("cannot access index {self} of YAML sequence of length {len}")
+                    });
+                }
+                Value::Mapping(mapping) => {
+                    if let Some(index) = numeric_index_position_in_mapping(mapping, *self) {
+                        return &mut mapping.entries[index].1;
+                    }
+                    return mapping
+                        .entry(numeric_index_key(*self))
+                        .or_insert(Value::Null);
+                }
+                Value::Tagged(tagged) => value = &mut tagged.value,
+                _ => panic!(
+                    "cannot access index {self} of YAML {}",
+                    value_type_name(value)
+                ),
+            }
+        }
+    }
+
+    fn index_into_mapping<'a>(&self, mapping: &'a Mapping) -> Option<&'a Value> {
+        numeric_index_position_in_mapping(mapping, *self).map(|index| &mapping.entries[index].1)
+    }
+
+    fn index_into_mapping_mut<'a>(&self, mapping: &'a mut Mapping) -> Option<&'a mut Value> {
+        numeric_index_position_in_mapping(mapping, *self).map(|index| &mut mapping.entries[index].1)
+    }
+}
+
+impl Index for str {
+    fn index_into<'a>(&self, value: &'a Value) -> Option<&'a Value> {
+        match value {
+            Value::Mapping(mapping) => self.index_into_mapping(mapping),
+            Value::Tagged(tagged) => self.index_into(&tagged.value),
+            _ => None,
+        }
+    }
+
+    fn index_into_mut<'a>(&self, value: &'a mut Value) -> Option<&'a mut Value> {
+        match value {
+            Value::Mapping(mapping) => self.index_into_mapping_mut(mapping),
+            Value::Tagged(tagged) => self.index_into_mut(&mut tagged.value),
+            _ => None,
+        }
+    }
+
+    fn index_or_insert<'a>(&self, mut value: &'a mut Value) -> &'a mut Value {
+        if let Value::Null = value {
+            *value = Value::Mapping(Mapping::new());
+        }
+
+        loop {
+            match value {
+                Value::Mapping(mapping) => {
+                    return mapping
+                        .entry(Value::String(self.to_string()))
+                        .or_insert(Value::Null);
+                }
+                Value::Tagged(tagged) => value = &mut tagged.value,
+                _ => panic!(
+                    "cannot access key {self:?} in YAML {}",
+                    value_type_name(value)
+                ),
+            }
+        }
+    }
+
+    fn index_into_mapping<'a>(&self, mapping: &'a Mapping) -> Option<&'a Value> {
+        mapping.entries.iter().find_map(|(key, value)| {
+            matches!(key, Value::String(existing) if existing == self).then_some(value)
+        })
+    }
+
+    fn index_into_mapping_mut<'a>(&self, mapping: &'a mut Mapping) -> Option<&'a mut Value> {
+        mapping.entries.iter_mut().find_map(|(key, value)| {
+            matches!(key, Value::String(existing) if existing == self).then_some(value)
+        })
+    }
+}
+
+impl Index for &str {
+    fn index_into<'a>(&self, value: &'a Value) -> Option<&'a Value> {
+        str::index_into(self, value)
+    }
+
+    fn index_into_mut<'a>(&self, value: &'a mut Value) -> Option<&'a mut Value> {
+        str::index_into_mut(self, value)
+    }
+
+    fn index_or_insert<'a>(&self, value: &'a mut Value) -> &'a mut Value {
+        str::index_or_insert(self, value)
+    }
+
+    fn index_into_mapping<'a>(&self, mapping: &'a Mapping) -> Option<&'a Value> {
+        str::index_into_mapping(self, mapping)
+    }
+
+    fn index_into_mapping_mut<'a>(&self, mapping: &'a mut Mapping) -> Option<&'a mut Value> {
+        str::index_into_mapping_mut(self, mapping)
+    }
+}
+
+impl Index for String {
+    fn index_into<'a>(&self, value: &'a Value) -> Option<&'a Value> {
+        self.as_str().index_into(value)
+    }
+
+    fn index_into_mut<'a>(&self, value: &'a mut Value) -> Option<&'a mut Value> {
+        self.as_str().index_into_mut(value)
+    }
+
+    fn index_or_insert<'a>(&self, value: &'a mut Value) -> &'a mut Value {
+        self.as_str().index_or_insert(value)
+    }
+
+    fn index_into_mapping<'a>(&self, mapping: &'a Mapping) -> Option<&'a Value> {
+        self.as_str().index_into_mapping(mapping)
+    }
+
+    fn index_into_mapping_mut<'a>(&self, mapping: &'a mut Mapping) -> Option<&'a mut Value> {
+        self.as_str().index_into_mapping_mut(mapping)
+    }
+}
+
+impl Index for Value {
+    fn index_into<'a>(&self, value: &'a Value) -> Option<&'a Value> {
+        match value {
+            Value::Mapping(mapping) => self.index_into_mapping(mapping),
+            Value::Tagged(tagged) => self.index_into(&tagged.value),
+            _ => None,
+        }
+    }
+
+    fn index_into_mut<'a>(&self, value: &'a mut Value) -> Option<&'a mut Value> {
+        match value {
+            Value::Mapping(mapping) => self.index_into_mapping_mut(mapping),
+            Value::Tagged(tagged) => self.index_into_mut(&mut tagged.value),
+            _ => None,
+        }
+    }
+
+    fn index_or_insert<'a>(&self, mut value: &'a mut Value) -> &'a mut Value {
+        if let Value::Null = value {
+            *value = Value::Mapping(Mapping::new());
+        }
+
+        loop {
+            match value {
+                Value::Mapping(mapping) => {
+                    return mapping.entry(self.clone()).or_insert(Value::Null);
+                }
+                Value::Tagged(tagged) => value = &mut tagged.value,
+                _ => panic!(
+                    "cannot access key {self:?} in YAML {}",
+                    value_type_name(value)
+                ),
+            }
+        }
+    }
+
+    fn index_into_mapping<'a>(&self, mapping: &'a Mapping) -> Option<&'a Value> {
+        mapping
+            .entries
+            .iter()
+            .find_map(|(key, value)| (key == self).then_some(value))
+    }
+
+    fn index_into_mapping_mut<'a>(&self, mapping: &'a mut Mapping) -> Option<&'a mut Value> {
+        mapping
+            .entries
+            .iter_mut()
+            .find_map(|(key, value)| (key == self).then_some(value))
+    }
+}
+
+impl Index for &Value {
+    fn index_into<'a>(&self, value: &'a Value) -> Option<&'a Value> {
+        (*self).index_into(value)
+    }
+
+    fn index_into_mut<'a>(&self, value: &'a mut Value) -> Option<&'a mut Value> {
+        (*self).index_into_mut(value)
+    }
+
+    fn index_or_insert<'a>(&self, value: &'a mut Value) -> &'a mut Value {
+        (*self).index_or_insert(value)
+    }
+
+    fn index_into_mapping<'a>(&self, mapping: &'a Mapping) -> Option<&'a Value> {
+        (*self).index_into_mapping(mapping)
+    }
+
+    fn index_into_mapping_mut<'a>(&self, mapping: &'a mut Mapping) -> Option<&'a mut Value> {
+        (*self).index_into_mapping_mut(mapping)
+    }
+}
+
+static NULL_VALUE: Value = Value::Null;
+
+impl<I> StdIndex<I> for Value
+where
+    I: Index,
+{
+    type Output = Value;
+
+    fn index(&self, index: I) -> &Self::Output {
+        self.get(index).unwrap_or(&NULL_VALUE)
+    }
+}
+
+impl<I> StdIndexMut<I> for Value
+where
+    I: Index,
+{
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        index.index_or_insert(self)
+    }
+}
+
+fn numeric_index_key(index: usize) -> Value {
+    Value::Number(Number::Unsigned(index as u128))
+}
+
+fn numeric_index_position_in_mapping(mapping: &Mapping, index: usize) -> Option<usize> {
+    let index = index as u128;
+    mapping.entries.iter().position(|(key, _)| match key {
+        Value::Number(Number::Unsigned(value)) => *value == index,
+        Value::Number(Number::Integer(value)) => u128::try_from(*value).ok() == Some(index),
+        _ => false,
+    })
+}
+
+fn value_type_name(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "null",
+        Value::Bool(_) => "boolean",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Sequence(_) => "sequence",
+        Value::Mapping(_) => "mapping",
+        Value::Tagged(tagged) => value_type_name(&tagged.value),
+    }
+}
+
+impl Value {
+    pub fn apply_merge(&mut self) -> crate::Result<()> {
+        let mut values = vec![self];
+        while let Some(value) = values.pop() {
+            match value {
+                Value::Mapping(mapping) => {
+                    match mapping.shift_remove("<<") {
+                        Some(Value::Mapping(merge)) => merge_mapping(mapping, merge),
+                        Some(Value::Sequence(sequence)) => {
+                            for value in sequence {
+                                match value {
+                                    Value::Mapping(merge) => merge_mapping(mapping, merge),
+                                    Value::Sequence(_) => {
+                                        return Err(merge_error(
+                                            "expected a mapping for merging, but found sequence",
+                                        ));
+                                    }
+                                    Value::Tagged(_) => {
+                                        return Err(merge_error(
+                                            "unexpected tagged value in merge",
+                                        ));
+                                    }
+                                    _ => {
+                                        return Err(merge_error(
+                                            "expected a mapping for merging, but found scalar",
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                        Some(Value::Tagged(_)) => {
+                            return Err(merge_error("unexpected tagged value in merge"));
+                        }
+                        Some(_) => {
+                            return Err(merge_error(
+                                "expected a mapping or list of mappings for merging, but found scalar",
+                            ));
+                        }
+                        None => {}
+                    }
+                    values.extend(mapping.values_mut());
+                }
+                Value::Sequence(sequence) => values.extend(sequence),
+                Value::Tagged(tagged) => values.push(&mut tagged.value),
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    pub fn get<I>(&self, index: I) -> Option<&Value>
+    where
+        I: Index,
+    {
+        index.index_into(self)
+    }
+
+    pub fn get_mut<I>(&mut self, index: I) -> Option<&mut Value>
+    where
+        I: Index,
+    {
+        index.index_into_mut(self)
+    }
+
+    pub fn as_null(&self) -> Option<()> {
+        match self {
+            Value::Tagged(tagged) => tagged.value.as_null(),
+            _ => self.is_null().then_some(()),
+        }
+    }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            Value::Bool(value) => Some(*value),
+            Value::Tagged(tagged) => tagged.value.as_bool(),
+            _ => None,
+        }
+    }
+
+    pub fn as_i64(&self) -> Option<i64> {
+        match self {
+            Value::Number(number) => number.as_i64(),
+            Value::Tagged(tagged) => tagged.value.as_i64(),
+            _ => None,
+        }
+    }
+
+    pub fn as_u64(&self) -> Option<u64> {
+        match self {
+            Value::Number(number) => number.as_u64(),
+            Value::Tagged(tagged) => tagged.value.as_u64(),
+            _ => None,
+        }
+    }
+
+    pub fn as_i128(&self) -> Option<i128> {
+        match self {
+            Value::Number(number) => number.as_i128(),
+            Value::Tagged(tagged) => tagged.value.as_i128(),
+            _ => None,
+        }
+    }
+
+    pub fn as_u128(&self) -> Option<u128> {
+        match self {
+            Value::Number(number) => number.as_u128(),
+            Value::Tagged(tagged) => tagged.value.as_u128(),
+            _ => None,
+        }
+    }
+
+    pub fn as_f64(&self) -> Option<f64> {
+        match self {
+            Value::Number(number) => number.as_f64(),
+            Value::Tagged(tagged) => tagged.value.as_f64(),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            Value::String(value) => Some(value),
+            Value::Tagged(tagged) => tagged.value.as_str(),
+            _ => None,
+        }
+    }
+
+    pub fn as_sequence(&self) -> Option<&Sequence> {
+        match self {
+            Value::Sequence(items) => Some(items),
+            Value::Tagged(tagged) => tagged.value.as_sequence(),
+            _ => None,
+        }
+    }
+
+    pub fn as_sequence_mut(&mut self) -> Option<&mut Sequence> {
+        match self {
+            Value::Sequence(items) => Some(items),
+            Value::Tagged(tagged) => tagged.value.as_sequence_mut(),
+            _ => None,
+        }
+    }
+
+    pub fn as_mapping(&self) -> Option<&Mapping> {
+        match self {
+            Value::Mapping(entries) => Some(entries),
+            Value::Tagged(tagged) => tagged.value.as_mapping(),
+            _ => None,
+        }
+    }
+
+    pub fn as_mapping_mut(&mut self) -> Option<&mut Mapping> {
+        match self {
+            Value::Mapping(entries) => Some(entries),
+            Value::Tagged(tagged) => tagged.value.as_mapping_mut(),
+            _ => None,
+        }
+    }
+
+    pub fn as_tagged(&self) -> Option<&TaggedValue> {
+        match self {
+            Value::Tagged(tagged) => Some(tagged),
+            _ => None,
+        }
+    }
+
+    pub fn is_null(&self) -> bool {
+        matches!(self, Value::Null)
+            || matches!(self, Value::Tagged(tagged) if tagged.value.is_null())
+    }
+
+    pub fn is_bool(&self) -> bool {
+        matches!(self, Value::Bool(_))
+            || matches!(self, Value::Tagged(tagged) if tagged.value.is_bool())
+    }
+
+    pub fn is_number(&self) -> bool {
+        matches!(self, Value::Number(_))
+            || matches!(self, Value::Tagged(tagged) if tagged.value.is_number())
+    }
+
+    pub fn is_i64(&self) -> bool {
+        self.as_i64().is_some()
+    }
+
+    pub fn is_u64(&self) -> bool {
+        self.as_u64().is_some()
+    }
+
+    pub fn is_f64(&self) -> bool {
+        matches!(self, Value::Number(number) if number.is_f64())
+            || matches!(self, Value::Tagged(tagged) if tagged.value.is_f64())
+    }
+
+    pub fn is_string(&self) -> bool {
+        matches!(self, Value::String(_))
+            || matches!(self, Value::Tagged(tagged) if tagged.value.is_string())
+    }
+
+    pub fn is_sequence(&self) -> bool {
+        matches!(self, Value::Sequence(_))
+            || matches!(self, Value::Tagged(tagged) if tagged.value.is_sequence())
+    }
+
+    pub fn is_mapping(&self) -> bool {
+        matches!(self, Value::Mapping(_))
+            || matches!(self, Value::Tagged(tagged) if tagged.value.is_mapping())
+    }
+
+    pub fn is_tagged(&self) -> bool {
+        matches!(self, Value::Tagged(_))
+    }
+
+    pub fn equivalent(&self, other: &Self) -> bool {
+        self == other
+    }
+}
+
+impl PartialEq<str> for Value {
+    fn eq(&self, other: &str) -> bool {
+        self.as_str().is_some_and(|value| value == other)
+    }
+}
+
+impl PartialEq<&str> for Value {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str().is_some_and(|value| value == *other)
+    }
+}
+
+impl PartialEq<String> for Value {
+    fn eq(&self, other: &String) -> bool {
+        self.as_str().is_some_and(|value| value == other)
+    }
+}
+
+impl PartialEq<bool> for Value {
+    fn eq(&self, other: &bool) -> bool {
+        self.as_bool().is_some_and(|value| value == *other)
+    }
+}
+
+macro_rules! value_partial_eq_numeric {
+    ($([$($ty:ty)*], $conversion:ident, $base:ty)*) => {
+        $($(
+            impl PartialEq<$ty> for Value {
+                fn eq(&self, other: &$ty) -> bool {
+                    self.$conversion().is_some_and(|value| value == (*other as $base))
+                }
+            }
+
+            impl PartialEq<$ty> for &Value {
+                fn eq(&self, other: &$ty) -> bool {
+                    self.$conversion().is_some_and(|value| value == (*other as $base))
+                }
+            }
+
+            impl PartialEq<$ty> for &mut Value {
+                fn eq(&self, other: &$ty) -> bool {
+                    self.$conversion().is_some_and(|value| value == (*other as $base))
+                }
+            }
+        )*)*
+    }
+}
+
+value_partial_eq_numeric! {
+    [i8 i16 i32 i64 isize], as_i64, i64
+    [u8 u16 u32 u64 usize], as_u64, u64
+    [f32 f64], as_f64, f64
+}
+
+fn merge_mapping(mapping: &mut Mapping, merge: Mapping) {
+    for (key, value) in merge {
+        if !mapping.contains_key(&key) {
+            mapping.insert(key, value);
+        }
+    }
+}
+
+fn merge_error(message: &'static str) -> Error {
+    Error::new(message, Span::default())
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum Number {
+    Integer(i128),
+    Unsigned(u128),
+    Float(f64),
+}
+
+impl PartialEq for Number {
+    fn eq(&self, other: &Self) -> bool {
+        match (*self, *other) {
+            (Number::Integer(left), Number::Integer(right)) => left == right,
+            (Number::Unsigned(left), Number::Unsigned(right)) => left == right,
+            (Number::Float(left), Number::Float(right)) if left.is_nan() && right.is_nan() => true,
+            (Number::Float(left), Number::Float(right)) => left == right,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Number {}
+
+impl PartialOrd for Number {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (*self, *other) {
+            (Number::Float(left), Number::Float(right)) if left.is_nan() && right.is_nan() => {
+                Some(Ordering::Equal)
+            }
+            (Number::Float(left), Number::Float(right)) => left.partial_cmp(&right),
+            _ => Some(total_number_cmp(self, other)),
+        }
+    }
+}
+
+#[allow(clippy::derived_hash_with_manual_eq)]
+impl Hash for Number {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        discriminant(self).hash(state);
+        match self {
+            Number::Integer(value) => value.hash(state),
+            Number::Unsigned(value) => value.hash(state),
+            Number::Float(_) => 3.hash(state),
+        }
+    }
+}
+
+fn total_number_cmp(left: &Number, right: &Number) -> Ordering {
+    match (*left, *right) {
+        (Number::Integer(left), Number::Integer(right)) => left.cmp(&right),
+        (Number::Unsigned(left), Number::Unsigned(right)) => left.cmp(&right),
+        (Number::Integer(left), Number::Unsigned(right)) => {
+            if left < 0 {
+                Ordering::Less
+            } else {
+                (left as u128).cmp(&right)
+            }
+        }
+        (Number::Unsigned(left), Number::Integer(right)) => {
+            if right < 0 {
+                Ordering::Greater
+            } else {
+                left.cmp(&(right as u128))
+            }
+        }
+        (Number::Float(left), Number::Float(right)) => {
+            left.partial_cmp(&right).unwrap_or_else(|| {
+                if !left.is_nan() {
+                    Ordering::Less
+                } else if !right.is_nan() {
+                    Ordering::Greater
+                } else {
+                    Ordering::Equal
+                }
+            })
+        }
+        (Number::Integer(_) | Number::Unsigned(_), Number::Float(_)) => Ordering::Less,
+        (Number::Float(_), Number::Integer(_) | Number::Unsigned(_)) => Ordering::Greater,
+    }
+}
+
+impl Number {
+    pub fn is_i64(&self) -> bool {
+        self.as_i64().is_some()
+    }
+
+    pub fn is_u64(&self) -> bool {
+        self.as_u64().is_some()
+    }
+
+    pub fn is_i128(&self) -> bool {
+        matches!(self, Number::Integer(_))
+            || matches!(self, Number::Unsigned(value) if i128::try_from(*value).is_ok())
+    }
+
+    pub fn is_u128(&self) -> bool {
+        matches!(self, Number::Unsigned(_)) || matches!(self, Number::Integer(value) if *value >= 0)
+    }
+
+    pub fn is_f64(&self) -> bool {
+        matches!(self, Number::Float(_))
+    }
+
+    pub fn is_nan(&self) -> bool {
+        matches!(self, Number::Float(value) if value.is_nan())
+    }
+
+    pub fn is_infinite(&self) -> bool {
+        matches!(self, Number::Float(value) if value.is_infinite())
+    }
+
+    pub fn is_finite(&self) -> bool {
+        match self {
+            Number::Integer(_) | Number::Unsigned(_) => true,
+            Number::Float(value) => value.is_finite(),
+        }
+    }
+
+    pub fn as_i64(&self) -> Option<i64> {
+        match self {
+            Number::Integer(value) => i64::try_from(*value).ok(),
+            Number::Unsigned(value) => i64::try_from(*value).ok(),
+            Number::Float(_) => None,
+        }
+    }
+
+    pub fn as_u64(&self) -> Option<u64> {
+        match self {
+            Number::Integer(value) => u64::try_from(*value).ok(),
+            Number::Unsigned(value) => u64::try_from(*value).ok(),
+            Number::Float(_) => None,
+        }
+    }
+
+    pub fn as_i128(&self) -> Option<i128> {
+        match self {
+            Number::Integer(value) => Some(*value),
+            Number::Unsigned(value) => i128::try_from(*value).ok(),
+            Number::Float(_) => None,
+        }
+    }
+
+    pub fn as_u128(&self) -> Option<u128> {
+        match self {
+            Number::Integer(value) => u128::try_from(*value).ok(),
+            Number::Unsigned(value) => Some(*value),
+            Number::Float(_) => None,
+        }
+    }
+
+    pub fn as_f64(&self) -> Option<f64> {
+        match self {
+            Number::Integer(value) => Some(*value as f64),
+            Number::Unsigned(value) => Some(*value as f64),
+            Number::Float(value) => Some(*value),
+        }
+    }
+}
+
+impl fmt::Display for Number {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Number::Integer(value) => write!(formatter, "{value}"),
+            Number::Unsigned(value) => write!(formatter, "{value}"),
+            Number::Float(value) if value.is_nan() => formatter.write_str(".nan"),
+            Number::Float(value) if value.is_infinite() => {
+                if value.is_sign_negative() {
+                    formatter.write_str("-.inf")
+                } else {
+                    formatter.write_str(".inf")
+                }
+            }
+            Number::Float(value) => formatter.write_str(ryu::Buffer::new().format_finite(*value)),
+        }
+    }
+}
+
+impl FromStr for Number {
+    type Err = Error;
+
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        parse_number_text(text).ok_or_else(|| Error::new("failed to parse number", Span::default()))
+    }
+}
+
+macro_rules! number_from_signed {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl From<$ty> for Number {
+                fn from(value: $ty) -> Self {
+                    Number::Integer(value as i128)
+                }
+            }
+        )*
+    };
+}
+
+macro_rules! number_from_unsigned {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl From<$ty> for Number {
+                fn from(value: $ty) -> Self {
+                    Number::Unsigned(value as u128)
+                }
+            }
+        )*
+    };
+}
+
+number_from_signed!(i8, i16, i32, i64, i128, isize);
+number_from_unsigned!(u8, u16, u32, u64, u128, usize);
+
+impl From<f32> for Number {
+    fn from(value: f32) -> Self {
+        Number::from(f64::from(value))
+    }
+}
+
+impl From<f64> for Number {
+    fn from(mut value: f64) -> Self {
+        if value.is_nan() {
+            value = f64::NAN.copysign(1.0);
+        }
+        Number::Float(value)
+    }
+}
+
+fn parse_number_text(text: &str) -> Option<Number> {
+    let compact = text.replace('_', "");
+    if is_number_int_like(&compact) {
+        return if compact.starts_with('-') {
+            compact.parse::<i128>().ok().map(Number::Integer)
+        } else {
+            parse_positive_number_text(compact.strip_prefix('+').unwrap_or(&compact))
+        };
+    }
+    parse_special_float_text(&compact).or_else(|| {
+        is_number_float_like(&compact)
+            .then(|| compact.parse::<f64>().ok().map(Number::from))
+            .flatten()
+    })
+}
+
+fn parse_positive_number_text(text: &str) -> Option<Number> {
+    text.parse::<i64>()
+        .ok()
+        .map(|value| Number::Integer(i128::from(value)))
+        .or_else(|| {
+            text.parse::<u64>()
+                .ok()
+                .map(|value| Number::Unsigned(u128::from(value)))
+        })
+        .or_else(|| text.parse::<i128>().ok().map(Number::Integer))
+        .or_else(|| text.parse::<u128>().ok().map(Number::Unsigned))
+}
+
+fn parse_special_float_text(text: &str) -> Option<Number> {
+    if text.eq_ignore_ascii_case(".nan") {
+        return Some(Number::from(f64::NAN));
+    }
+    if text.eq_ignore_ascii_case(".inf") || text.eq_ignore_ascii_case("+.inf") {
+        return Some(Number::from(f64::INFINITY));
+    }
+    if text.eq_ignore_ascii_case("-.inf") {
+        return Some(Number::from(f64::NEG_INFINITY));
+    }
+    None
+}
+
+fn is_number_int_like(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    if bytes.is_empty() {
+        return false;
+    }
+    let mut idx = usize::from(matches!(bytes[0], b'+' | b'-'));
+    let mut digits = 0usize;
+    while idx < bytes.len() {
+        match bytes[idx] {
+            b'0'..=b'9' => digits += 1,
+            _ => return false,
+        }
+        idx += 1;
+    }
+    digits > 0
+}
+
+fn is_number_float_like(text: &str) -> bool {
+    if !(text.contains('.') || text.contains('e') || text.contains('E')) {
+        return false;
+    }
+    let bytes = text.as_bytes();
+    let mut digits = 0usize;
+    for (idx, byte) in bytes.iter().enumerate() {
+        match byte {
+            b'0'..=b'9' => digits += 1,
+            b'+' | b'-' if idx == 0 => {}
+            b'+' | b'-' if matches!(bytes.get(idx.wrapping_sub(1)), Some(b'e' | b'E')) => {}
+            b'.' | b'e' | b'E' => {}
+            _ => return false,
+        }
+    }
+    digits > 0
+}
+
+struct NumberVisitor;
+
+impl<'de> Visitor<'de> for NumberVisitor {
+    type Value = Number;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a YAML number")
+    }
+
+    fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
+        Ok(Number::from(value))
+    }
+
+    fn visit_i128<E>(self, value: i128) -> Result<Self::Value, E> {
+        Ok(Number::from(value))
+    }
+
+    fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
+        Ok(Number::from(value))
+    }
+
+    fn visit_u128<E>(self, value: u128) -> Result<Self::Value, E> {
+        Ok(Number::from(value))
+    }
+
+    fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E> {
+        Ok(Number::from(value))
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Number {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(NumberVisitor)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Value {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(ValueVisitor)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for TaggedValue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct TaggedValueVisitor;
+
+        impl<'de> Visitor<'de> for TaggedValueVisitor {
+            type Value = TaggedValue;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("a YAML tagged value")
+            }
+
+            fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
+            where
+                A: EnumAccess<'de>,
+            {
+                let (tag, contents) = data.variant_seed(TagVisitor)?;
+                let value = contents.newtype_variant()?;
+                Ok(TaggedValue { tag, value })
+            }
+        }
+
+        deserializer.deserialize_any(TaggedValueVisitor)
+    }
+}
+
+struct ValueVisitor;
+
+impl<'de> Visitor<'de> for ValueVisitor {
+    type Value = Value;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a YAML value")
+    }
+
+    fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E> {
+        Ok(Value::Bool(value))
+    }
+
+    fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
+        Ok(Value::Number(Number::Integer(i128::from(value))))
+    }
+
+    fn visit_i128<E>(self, value: i128) -> Result<Self::Value, E> {
+        Ok(Value::Number(Number::Integer(value)))
+    }
+
+    fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
+        Ok(Value::Number(Number::Unsigned(u128::from(value))))
+    }
+
+    fn visit_u128<E>(self, value: u128) -> Result<Self::Value, E> {
+        Ok(Value::Number(Number::Unsigned(value)))
+    }
+
+    fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E> {
+        Ok(Value::Number(Number::Float(value)))
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(Value::String(value.to_string()))
+    }
+
+    fn visit_borrowed_str<E>(self, value: &'de str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(Value::String(value.to_string()))
+    }
+
+    fn visit_string<E>(self, value: String) -> Result<Self::Value, E> {
+        Ok(Value::String(value))
+    }
+
+    fn visit_none<E>(self) -> Result<Self::Value, E> {
+        Ok(Value::Null)
+    }
+
+    fn visit_unit<E>(self) -> Result<Self::Value, E> {
+        Ok(Value::Null)
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        let mut items = Vec::new();
+        while let Some(value) = seq.next_element::<Value>()? {
+            items.push(value);
+        }
+        Ok(Value::Sequence(items))
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'de>,
+    {
+        let mut entries = Mapping::new();
+        while let Some((key, value)) = map.next_entry::<Value, Value>()? {
+            entries.insert(key, value);
+        }
+        Ok(Value::Mapping(entries))
+    }
+
+    fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
+    where
+        A: EnumAccess<'de>,
+    {
+        let (tag, contents) = data.variant_seed(TagVisitor)?;
+        let value = contents.newtype_variant()?;
+        Ok(Value::Tagged(Box::new(TaggedValue { tag, value })))
+    }
+}
+
+struct TagVisitor;
+
+impl<'de> de::DeserializeSeed<'de> for TagVisitor {
+    type Value = Tag;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        deserializer.deserialize_str(self)
+    }
+}
+
+impl<'de> Visitor<'de> for TagVisitor {
+    type Value = Tag;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a YAML tag")
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(Tag::new(value))
+    }
+
+    fn visit_string<E>(self, value: String) -> Result<Self::Value, E> {
+        Ok(Tag::new(value))
+    }
+}

@@ -1,0 +1,6 @@
+case = "document-start-inline-node"
+policy = "document-start marker root node support"
+prototype = "Supports inline root nodes and root node properties after ---, including scalars, flow collections, anchors, and tags. Metadata from --- &root or --- !Thing attaches to the root node event rather than DocumentStart. Non-comment trailing content after ... remains rejected."
+libyaml = "libyaml accepts root content and node properties after explicit document-start markers and exposes the marker as a document-start event followed by node events."
+yaml_rust2_saphyr = "yaml-rust2 and saphyr accept document-start root nodes and attach anchor/tag metadata to the following node event."
+decision = "Support document-start inline/root metadata for parser-event compatibility while keeping tree anchors event-only and preserving explicit DocumentStart spans."

@@ -1,0 +1,2 @@
+root: {!Tag dup: first, dupkey:: second}
+ |x

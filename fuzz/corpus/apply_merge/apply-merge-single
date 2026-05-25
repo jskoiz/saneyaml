@@ -1,0 +1,2 @@
+base: &base {a: 1}
+target: {<<: *base, b: 2}

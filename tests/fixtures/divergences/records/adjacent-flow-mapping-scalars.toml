@@ -1,0 +1,7 @@
+case = "adjacent-flow-mapping-scalars"
+policy = "YAML 1.2 flow mapping conformance over libyaml-era rejection"
+prototype = "Accepts YAML-suite C2DT, 5MUD, 5T43, and 58MP. Adjacent flow mapping values without a separating space are parsed as plain scalars; empty values construct null; colon-prefixed adjacent values such as :value and :x are preserved as strings."
+serde_yaml_libyaml = "serde_yaml 0.9.34 and Ruby Psych 3.1.0/libyaml 0.2.1 accept C2DT but reject 5MUD, 5T43, and 58MP with flow mapping/node parser errors."
+yaml_rust2 = "yaml-rust2 0.11.0 accepts all four cases and constructs the YAML test-suite expected values."
+saphyr = "saphyr 0.0.6 accepts all four cases and constructs the YAML test-suite expected values."
+decision = "Keep all four cases in YAML 1.2 parser/event/tree coverage. Add only C2DT to shared reference acceptance. Treat 5MUD, 5T43, and 58MP as documented serde_yaml/libyaml divergences rather than matching their rejection."

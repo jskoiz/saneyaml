@@ -1,0 +1,4 @@
+nan: .nan
+inf: .inf
+plus_inf: +.inf
+neg_inf: -.inf

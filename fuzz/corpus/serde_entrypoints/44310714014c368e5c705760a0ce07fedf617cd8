@@ -1,0 +1,35 @@
+apiVersion: v2
+name: yaml-demo
+description: Demo chart for parser coverage
+type: application
+version: 1.2.3
+appVersion: "2026.5.24"
+kubeVersion: ">=1.28.0-0"
+home: https://example.com/yaml-demo
+sources:
+  - https://github.com/example/yaml-demo
+keywords: [yaml, parser, config]
+annotations:
+  artifacthub.io/category: integration-delivery
+  artifacthub.io/containsSecurityUpdates: "false"
+maintainerversion: "15.5.0"
+    repository: oci://registry-1.docker.io/bitnamicharts
+    condition: postgresql.enabled
+    tags: [database]
+    alias: app-db
+  - name: redis
+    version: "~20.1.0"
+    repository: https://charts.bitnami.com/bitnami
+    import-values:
+      - defaults
+      - child: exports
+        parent: red
+    version: "~20.1.0"
+    repository: https://charts.bitnami.com/bitnami
+    import-values:
+         version: "~20.1.0"
+    repository: https://charts.bitnami.com/bitnami
+    import-values:
+      - defaults
+      - child: exports
+        pareis

@@ -1,0 +1,5 @@
+case = "legacy-scalar-resolution"
+policy = "YAML 1.2 core schema"
+prototype = "Keeps YAML 1.1 boolean words, timestamps, sexagesimal values, hex, binary, and 0o-octal values as strings; decimal-looking integers, including leading-zero 0123, are parsed as decimal integers; decimal underscores and YAML special floats are accepted."
+legacy_yaml_1_1 = "libyaml-era loaders may resolve on, yes, octal-looking numbers, sexagesimal values, timestamps, and special floats as typed scalars."
+decision = "Do not add YAML 1.1 implicit typing. Resolve YAML special floats for serde_yaml-compatible numeric reads without enabling broader YAML 1.1 scalar resolution. Raw events expose scalar style before tree resolution so downstream compatibility layers can make their own schema choice."

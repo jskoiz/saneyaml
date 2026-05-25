@@ -1,0 +1,40 @@
+#![forbid(unsafe_code)]
+
+mod ast;
+mod de;
+mod emit;
+mod error;
+mod key_identity;
+mod parse;
+mod ser;
+
+pub mod with;
+
+pub mod mapping {
+    pub use crate::ast::{
+        Entry, Index, IntoIter, IntoKeys, IntoValues, Iter, IterMut, Keys, Mapping, OccupiedEntry,
+        VacantEntry, Values, ValuesMut,
+    };
+}
+
+pub mod value {
+    pub use crate::ast::{Index, Mapping, Number, Sequence, Tag, TaggedValue, Value};
+    pub use crate::de::from_value;
+    pub use crate::ser::{ValueSerializer as Serializer, to_value};
+}
+
+pub use ast::{
+    Entry, Index, Mapping, Node, NodeValue, Number, OccupiedEntry, ScalarSource, Sequence, Tag,
+    TaggedNode, TaggedValue, VacantEntry, Value,
+};
+pub use de::{
+    Deserializer, from_documents_reader, from_documents_slice, from_documents_str, from_node,
+    from_reader, from_slice, from_str, from_value,
+};
+pub use error::{Diagnostic, Error, Location, RelatedDiagnostic, Result, Span};
+pub use parse::{
+    CollectionStyle, Event, EventAnchor, EventDocumentDirectives, EventMeta, EventTag,
+    EventTagDirective, EventYamlVersion, ScalarStyle, parse_bytes, parse_documents, parse_events,
+    parse_str,
+};
+pub use ser::{Serializer, to_string, to_value, to_writer};

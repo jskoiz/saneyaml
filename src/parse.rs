@@ -2011,6 +2011,7 @@ impl Parser {
                 out.push('\n');
             }
         }
+        let has_content_line = lines.iter().any(|line| !line.is_empty());
         match header.chomping {
             BlockScalarChomping::Strip => {
                 while out.ends_with('\n') {
@@ -2018,8 +2019,12 @@ impl Parser {
                 }
             }
             BlockScalarChomping::Clip => {
-                while out.ends_with("\n\n") {
-                    out.pop();
+                if has_content_line {
+                    while out.ends_with("\n\n") {
+                        out.pop();
+                    }
+                } else {
+                    out.clear();
                 }
             }
             BlockScalarChomping::Keep => {}

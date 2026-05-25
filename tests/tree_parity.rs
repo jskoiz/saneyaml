@@ -59,6 +59,10 @@ const VALUE_SHAPE_CASES: &[TreeCase] = &[
         input: include_str!("fixtures/yaml-test-suite/data/6FWR/in.yaml"),
     },
     TreeCase {
+        name: "yts_k858_empty_block_scalar_chomping",
+        input: include_str!("fixtures/yaml-test-suite/data/K858/in.yaml"),
+    },
+    TreeCase {
         name: "yts_4q9f_folded_block_scalar_empty_lines_explicit_start",
         input: include_str!("fixtures/yaml-test-suite/data/4Q9F/in.yaml"),
     },

@@ -245,6 +245,11 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "empty_block_scalar_chomping",
+        input: include_str!("fixtures/yaml-test-suite/data/K858/in.yaml"),
+        docs: 1,
+    },
+    Case {
         name: "folded_block_scalar_more_indented_lines",
         input: include_str!("fixtures/yaml-test-suite/data/F6MC/in.yaml"),
         docs: 1,
@@ -483,6 +488,23 @@ fn compatibility_block_scalar_chomping_values_match_reference_expectation() {
     assert_eq!(reference["strip"].as_str(), Some("# text"));
     assert_eq!(reference["clip"].as_str(), Some("# text\n"));
     assert_eq!(reference["keep"].as_str(), Some("# text\n\n"));
+}
+
+#[test]
+fn compatibility_empty_block_scalar_chomping_values_match_reference_expectation() {
+    let input = include_str!("fixtures/yaml-test-suite/data/K858/in.yaml");
+    let doc = parse_str(input).expect("parse empty block scalar chomping fixture");
+    let entries = mapping_entries(&doc);
+    assert_eq!(entries[0].1.as_str(), Some(""));
+    assert_eq!(entries[1].1.as_str(), Some(""));
+    assert_eq!(entries[2].1.as_str(), Some("\n"));
+
+    let reference: serde_yaml::Value = serde_yaml::from_str(input).expect("serde_yaml parses K858");
+    assert_eq!(reference["strip"].as_str(), Some(""));
+    assert_eq!(reference["clip"].as_str(), Some(""));
+    assert_eq!(reference["keep"].as_str(), Some("\n"));
+    yaml_rust2::YamlLoader::load_from_str(input).expect("yaml-rust2 accepts K858");
+    saphyr::Yaml::load_from_str(input).expect("saphyr accepts K858");
 }
 
 #[test]

@@ -93,6 +93,12 @@ fn emitter_preserves_block_string_trailing_blank_lines() {
     assert!(emitted.contains("clip: |"));
     assert!(emitted.contains("keep: |+"));
     assert!(parse_str(&emitted).expect("reparse").equivalent(&node));
+
+    let empty_input = include_str!("fixtures/yaml-test-suite/data/K858/in.yaml");
+    let node = parse_str(empty_input).expect("parse empty chomping fixture");
+    let emitted = to_string(&node).expect("emit empty chomping fixture");
+    assert!(emitted.contains("keep: |+"));
+    assert!(parse_str(&emitted).expect("reparse").equivalent(&node));
 }
 
 #[test]

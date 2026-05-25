@@ -205,12 +205,12 @@ fn emit_block_string(value: &str, indent: usize, context: Context, out: &mut Str
         out.push('2');
     }
     let trailing_newlines = value.chars().rev().take_while(|ch| *ch == '\n').count();
+    let content = value.strip_suffix('\n').unwrap_or(value);
     if trailing_newlines == 0 {
         out.push('-');
-    } else if trailing_newlines > 1 {
+    } else if trailing_newlines > 1 || content.is_empty() {
         out.push('+');
     }
-    let content = value.strip_suffix('\n').unwrap_or(value);
     let content_indent = if matches!(context, Context::Root) {
         indent + 2
     } else {

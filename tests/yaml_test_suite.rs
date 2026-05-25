@@ -153,8 +153,8 @@ fn yts_manifest_selected_cases_have_fixture_inputs_and_unique_ids() {
         }
     }
 
-    assert_eq!(manifest.case.len(), 121);
-    assert_eq!(accepted, 79);
+    assert_eq!(manifest.case.len(), 122);
+    assert_eq!(accepted, 80);
     assert_eq!(error_cases, 40);
     assert_eq!(tree_only_rejections, 2);
 }
@@ -250,7 +250,7 @@ fn yts_manifest_acceptance_policy_matches_parser_event_and_serde_entrypoints() {
         accepted += 1;
     }
 
-    assert_eq!(accepted, 79);
+    assert_eq!(accepted, 80);
     assert_eq!(syntax_rejections, 40);
     assert_eq!(tree_only_rejections, 2);
 }
@@ -3414,6 +3414,22 @@ fn yts_parse_f8f9__block_scalar_chomping_trailing_lines() {
     assert_eq!(entries[1].1.as_str(), Some("# text\n"));
     assert_eq!(entries[2].0.as_str(), Some("keep"));
     assert_eq!(entries[2].1.as_str(), Some("# text\n\n"));
+}
+
+#[test]
+fn yts_parse_k858__empty_block_scalar_chomping() {
+    let input = include_str!("fixtures/yaml-test-suite/data/K858/in.yaml");
+    let doc = parse_str(input).expect("parse empty block scalar chomping");
+    let Value::Mapping(entries) = doc.value else {
+        panic!("expected mapping");
+    };
+    assert_eq!(entries.len(), 3);
+    assert_eq!(entries[0].0.as_str(), Some("strip"));
+    assert_eq!(entries[0].1.as_str(), Some(""));
+    assert_eq!(entries[1].0.as_str(), Some("clip"));
+    assert_eq!(entries[1].1.as_str(), Some(""));
+    assert_eq!(entries[2].0.as_str(), Some("keep"));
+    assert_eq!(entries[2].1.as_str(), Some("\n"));
 }
 
 #[test]

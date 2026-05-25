@@ -903,6 +903,14 @@ policy = "raw-events-tree-serde-accept"
 features = ["sequence", "scalar", "folded", "literal", "block", "indent", "tab"]
 
 [[case]]
+id = "K858"
+name = "empty block scalar chomping"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["mapping", "scalar", "folded", "literal", "block", "chomping"]
+
+[[case]]
 id = "FP8R"
 name = "zero-indented folded block scalar after document start"
 expected = "accept"

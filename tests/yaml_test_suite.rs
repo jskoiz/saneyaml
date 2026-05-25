@@ -15,7 +15,18 @@ struct SuiteManifest {
 struct SuiteCase {
     id: String,
     name: String,
+    expected: ExpectedOutcome,
+    source: String,
+    policy: String,
     features: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+enum ExpectedOutcome {
+    Accept,
+    SyntaxError,
+    TreeError,
 }
 
 impl SuiteCase {
@@ -31,11 +42,11 @@ impl SuiteCase {
     }
 
     fn is_error_case(&self) -> bool {
-        self.features.iter().any(|feature| feature == "error")
+        self.expected == ExpectedOutcome::SyntaxError
     }
 
     fn is_tree_only_rejection(&self) -> bool {
-        matches!(self.id.as_str(), "2JQS" | "X38W")
+        self.expected == ExpectedOutcome::TreeError
     }
 }
 
@@ -75,7 +86,9 @@ fn event_source(input: &str, span: yaml::Span) -> &str {
 fn yts_manifest_selected_cases_have_fixture_inputs_and_unique_ids() {
     let manifest = selected_suite_manifest();
     let mut seen = HashSet::new();
+    let mut accepted = 0usize;
     let mut error_cases = 0usize;
+    let mut tree_only_rejections = 0usize;
 
     for case in &manifest.case {
         assert!(
@@ -89,11 +102,61 @@ fn yts_manifest_selected_cases_have_fixture_inputs_and_unique_ids() {
             case.id,
             case.name
         );
-        error_cases += usize::from(case.is_error_case());
+        assert_eq!(
+            case.source, "selected-yaml-test-suite-fixture",
+            "{} ({}) records an unsupported source policy",
+            case.id, case.name
+        );
+        assert!(
+            !case.policy.trim().is_empty(),
+            "{} ({}) must record an expected-outcome policy",
+            case.id,
+            case.name
+        );
+        match case.expected {
+            ExpectedOutcome::Accept => {
+                assert_eq!(
+                    case.policy, "raw-events-tree-serde-accept",
+                    "{} ({}) accept case records wrong policy",
+                    case.id, case.name
+                );
+                accepted += 1;
+            }
+            ExpectedOutcome::SyntaxError => {
+                assert_eq!(
+                    case.policy, "raw-events-tree-serde-reject",
+                    "{} ({}) syntax-error case records wrong policy",
+                    case.id, case.name
+                );
+                assert!(
+                    case.features.iter().any(|feature| feature == "error"),
+                    "{} ({}) syntax-error case should keep the error feature for searchability",
+                    case.id,
+                    case.name
+                );
+                error_cases += 1;
+            }
+            ExpectedOutcome::TreeError => {
+                assert_eq!(
+                    case.policy, "raw-events-accept-tree-serde-reject",
+                    "{} ({}) tree-error case records wrong policy",
+                    case.id, case.name
+                );
+                assert!(
+                    !case.features.iter().any(|feature| feature == "error"),
+                    "{} ({}) tree-error case is not a syntax-error fixture",
+                    case.id,
+                    case.name
+                );
+                tree_only_rejections += 1;
+            }
+        }
     }
 
     assert_eq!(manifest.case.len(), 109);
+    assert_eq!(accepted, 67);
     assert_eq!(error_cases, 40);
+    assert_eq!(tree_only_rejections, 2);
 }
 
 #[test]

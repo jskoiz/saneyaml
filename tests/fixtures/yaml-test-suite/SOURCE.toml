@@ -1,2 +1,10 @@
 upstream = "https://github.com/yaml/yaml-test-suite"
 selection_policy = "Hand-curated YAML 1.2 core/config milestone fixtures; copied in exact or reduced form for prototype development."
+manifest_policy = "Each selected case records explicit expected, source, and policy fields so harness behavior is not inferred from feature tags alone."
+expected_values = ["accept", "syntax-error", "tree-error"]
+source_values = ["selected-yaml-test-suite-fixture"]
+policy_values = [
+  "raw-events-tree-serde-accept",
+  "raw-events-tree-serde-reject",
+  "raw-events-accept-tree-serde-reject",
+]

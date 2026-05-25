@@ -228,10 +228,11 @@ The compatibility harness checks shared acceptance across this crate,
 `serde_yaml`, `yaml-rust2`, and `saphyr`, plus dedicated Rust-reference
 parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
 
-- the pinned selected YAML test-suite manifest, currently 109 fixtures: 67
-  normal accepts, 40 syntax/error rejects, and YAML-suite 2JQS/X38W as
-  intentional tree/Serde-only rejections while raw parser events remain
-  available
+- the pinned selected YAML test-suite manifest, currently 109 fixtures with
+  explicit per-case `expected`, `source`, and parser/tree/Serde `policy`
+  fields: 67 normal accepts, 40 syntax/error rejects, and YAML-suite
+  2JQS/X38W as intentional tree/Serde-only rejections while raw parser events
+  remain available
 - core scalars
 - block and flow collections
 - explicit block mapping entries

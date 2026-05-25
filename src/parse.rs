@@ -1928,10 +1928,12 @@ impl Parser {
                     }
                     line.raw_from(indent).to_string()
                 } else {
-                    if block_indent.is_none() {
+                    if let Some(indent) = block_indent {
+                        line.raw_from(indent).to_string()
+                    } else {
                         max_leading_blank_indent = max_leading_blank_indent.max(line.raw.len());
+                        String::new()
                     }
-                    String::new()
                 }
             } else {
                 let indent = *block_indent.get_or_insert(line.indent);
@@ -1958,19 +1960,18 @@ impl Parser {
             }
         } else {
             for (idx, line) in lines.iter().enumerate() {
-                if line.is_empty() {
-                    out.push('\n');
-                    continue;
-                }
-                if idx > 0 && !lines[idx - 1].is_empty() {
-                    let previous = &lines[idx - 1];
-                    if previous.starts_with(' ') || line.starts_with(' ') {
+                out.push_str(line);
+                if let Some(next) = lines.get(idx + 1) {
+                    if line.is_empty()
+                        || next.is_empty()
+                        || line.starts_with(' ')
+                        || next.starts_with(' ')
+                    {
                         out.push('\n');
                     } else {
                         out.push(' ');
                     }
                 }
-                out.push_str(line);
             }
             if lines.last().is_some_and(|line| !line.is_empty()) {
                 out.push('\n');

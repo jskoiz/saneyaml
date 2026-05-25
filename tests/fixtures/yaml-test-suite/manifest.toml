@@ -839,6 +839,22 @@ policy = "raw-events-tree-serde-accept"
 features = ["directive", "document", "null", "comment"]
 
 [[case]]
+id = "6VJK"
+name = "folded block scalar keeps paragraph and more-indented breaks"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["scalar", "folded", "block", "indent"]
+
+[[case]]
+id = "6FWR"
+name = "literal keep block scalar preserves spaces-only content line"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["document", "scalar", "literal", "block", "chomping"]
+
+[[case]]
 id = "FP8R"
 name = "zero-indented folded block scalar after document start"
 expected = "accept"

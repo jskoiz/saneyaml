@@ -228,9 +228,9 @@ The compatibility harness checks shared acceptance across this crate,
 `serde_yaml`, `yaml-rust2`, and `saphyr`, plus dedicated Rust-reference
 parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
 
-- the pinned selected YAML test-suite manifest, currently 113 fixtures with
+- the pinned selected YAML test-suite manifest, currently 115 fixtures with
   explicit per-case `expected`, `source`, and parser/tree/Serde `policy`
-  fields: 71 normal accepts, 40 syntax/error rejects, and YAML-suite
+  fields: 73 normal accepts, 40 syntax/error rejects, and YAML-suite
   2JQS/X38W as intentional tree/Serde-only rejections while raw parser events
   remain available
 - core scalars
@@ -262,8 +262,10 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
 - tabs used as token separation are accepted where YAML 1.2 permits them,
   including YAML-suite 6BCT, 6CA3, Q5MG, Y79Y/002, and Y79Y/010, with a
   recorded `serde_yaml`/libyaml divergence for the root/tab separation cases
-- block scalar trailing-line chomping
-- folded block scalars with leading blank and more-indented lines
+- block scalar trailing-line chomping, including literal keep chomping with a
+  spaces-only content line from YAML-suite 6FWR
+- folded block scalars with leading blank, paragraph breaks, and more-indented
+  lines, including YAML-suite F6MC and 6VJK
 - multiline plain scalars in mappings
 - multiline plain scalars with empty-line paragraph breaks
 - multiline plain scalars in block sequence items whose continuation line

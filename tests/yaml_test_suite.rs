@@ -153,8 +153,8 @@ fn yts_manifest_selected_cases_have_fixture_inputs_and_unique_ids() {
         }
     }
 
-    assert_eq!(manifest.case.len(), 113);
-    assert_eq!(accepted, 71);
+    assert_eq!(manifest.case.len(), 115);
+    assert_eq!(accepted, 73);
     assert_eq!(error_cases, 40);
     assert_eq!(tree_only_rejections, 2);
 }
@@ -250,7 +250,7 @@ fn yts_manifest_acceptance_policy_matches_parser_event_and_serde_entrypoints() {
         accepted += 1;
     }
 
-    assert_eq!(accepted, 71);
+    assert_eq!(accepted, 73);
     assert_eq!(syntax_rejections, 40);
     assert_eq!(tree_only_rejections, 2);
 }
@@ -3414,6 +3414,25 @@ fn yts_parse_f8f9__block_scalar_chomping_trailing_lines() {
     assert_eq!(entries[1].1.as_str(), Some("# text\n"));
     assert_eq!(entries[2].0.as_str(), Some("keep"));
     assert_eq!(entries[2].1.as_str(), Some("# text\n\n"));
+}
+
+#[test]
+fn yts_parse_6vjk__folded_block_preserves_blank_paragraphs_and_more_indented_lines() {
+    let input = include_str!("fixtures/yaml-test-suite/data/6VJK/in.yaml");
+    let doc = parse_str(input).expect("parse folded block scalar with paragraphs");
+    assert_eq!(
+        doc.as_str(),
+        Some(
+            "Sammy Sosa completed another fine season with great stats.\n\n  63 Home Runs\n  0.288 Batting Average\n\nWhat a year!\n"
+        )
+    );
+}
+
+#[test]
+fn yts_parse_6fwr__literal_keep_preserves_spaces_only_line() {
+    let input = include_str!("fixtures/yaml-test-suite/data/6FWR/in.yaml");
+    let doc = parse_str(input).expect("parse literal block scalar with spaces-only line");
+    assert_eq!(doc.as_str(), Some("ab\n\n \n"));
 }
 
 #[test]

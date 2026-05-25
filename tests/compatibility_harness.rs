@@ -250,6 +250,16 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "folded_block_scalar_paragraphs",
+        input: include_str!("fixtures/yaml-test-suite/data/6VJK/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "literal_block_scalar_spaces_only_line",
+        input: include_str!("fixtures/yaml-test-suite/data/6FWR/in.yaml"),
+        docs: 1,
+    },
+    Case {
         name: "block_scalar_nodes",
         input: include_str!("fixtures/yaml-test-suite/data/M5C3/in.yaml"),
         docs: 1,
@@ -465,6 +475,31 @@ fn compatibility_folded_block_more_indented_values_match_reference_expectation()
         reference["b"].as_str(),
         Some("\n\n more indented\nregular\n")
     );
+}
+
+#[test]
+fn compatibility_block_scalar_paragraph_and_space_only_lines_match_reference_expectation() {
+    let folded = include_str!("fixtures/yaml-test-suite/data/6VJK/in.yaml");
+    let folded_doc = parse_str(folded).expect("parse folded paragraph fixture");
+    let expected_folded = "Sammy Sosa completed another fine season with great stats.\n\n  63 Home Runs\n  0.288 Batting Average\n\nWhat a year!\n";
+    assert_eq!(folded_doc.as_str(), Some(expected_folded));
+
+    let folded_reference: serde_yaml::Value =
+        serde_yaml::from_str(folded).expect("serde_yaml parses folded paragraph fixture");
+    assert_eq!(folded_reference.as_str(), Some(expected_folded));
+    yaml_rust2::YamlLoader::load_from_str(folded).expect("yaml-rust2 accepts 6VJK");
+    saphyr::Yaml::load_from_str(folded).expect("saphyr accepts 6VJK");
+
+    let literal = include_str!("fixtures/yaml-test-suite/data/6FWR/in.yaml");
+    let literal_doc = parse_str(literal).expect("parse literal spaces-only fixture");
+    let expected_literal = "ab\n\n \n";
+    assert_eq!(literal_doc.as_str(), Some(expected_literal));
+
+    let literal_reference: serde_yaml::Value =
+        serde_yaml::from_str(literal).expect("serde_yaml parses literal spaces-only fixture");
+    assert_eq!(literal_reference.as_str(), Some(expected_literal));
+    yaml_rust2::YamlLoader::load_from_str(literal).expect("yaml-rust2 accepts 6FWR");
+    saphyr::Yaml::load_from_str(literal).expect("saphyr accepts 6FWR");
 }
 
 #[test]

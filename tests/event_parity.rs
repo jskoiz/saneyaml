@@ -162,6 +162,16 @@ const CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "yts_6vjk_folded_block_scalar_paragraphs",
+        input: include_str!("fixtures/yaml-test-suite/data/6VJK/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_6fwr_literal_block_scalar_spaces_only_line",
+        input: include_str!("fixtures/yaml-test-suite/data/6FWR/in.yaml"),
+        docs: 1,
+    },
+    Case {
         name: "yts_qf4y_multiline_single_pair_flow_mapping",
         input: include_str!("fixtures/yaml-test-suite/data/QF4Y/in.yaml"),
         docs: 1,

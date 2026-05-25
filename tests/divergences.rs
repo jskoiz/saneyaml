@@ -568,6 +568,16 @@ fn divergence_supported_directives_are_syntax_only_and_reserved_directives_are_i
     };
     assert_eq!(entries[0].0.as_str(), Some("key"));
 
+    let yaml_1_1 =
+        parse_str("%YAML 1.1\n---\non: off\nyes: no\n").expect("YAML 1.1 directive syntax");
+    let yaml::NodeValue::Mapping(entries) = yaml_1_1.value else {
+        panic!("expected YAML 1.1 mapping");
+    };
+    assert_eq!(entries[0].0.as_str(), Some("on"));
+    assert_eq!(entries[0].1.as_str(), Some("off"));
+    assert_eq!(entries[1].0.as_str(), Some("yes"));
+    assert_eq!(entries[1].1.as_str(), Some("no"));
+
     let tagged =
         parse_str("%TAG !e! tag:example.com,2026:\n---\nvalue: !e!Thing x\n").expect("TAG");
     let yaml::NodeValue::Mapping(entries) = tagged.value else {
@@ -591,16 +601,14 @@ fn divergence_supported_directives_are_syntax_only_and_reserved_directives_are_i
     );
 
     for input in [
-        "%YAML 1.1\n---\nkey: value\n",
+        "%YAML 1.1#...\n---\nkey: value\n",
         "%FOO bar\nkey: value\n",
         "%TAG !e! tag:example.com,2026:\nkey: value\n",
     ] {
         let error = parse_str(input).expect_err("unsupported directive form rejected");
         assert!(
             error.to_string().contains("unsupported YAML directive")
-                || error
-                    .to_string()
-                    .contains("unsupported YAML directive version")
+                || error.to_string().contains("invalid YAML directive")
                 || error.to_string().contains("explicit document start")
         );
     }

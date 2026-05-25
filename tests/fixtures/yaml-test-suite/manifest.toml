@@ -807,6 +807,38 @@ policy = "raw-events-tree-serde-accept"
 features = ["directive", "stream", "document", "scalar", "literal"]
 
 [[case]]
+id = "BEC7"
+name = "YAML directive with unsupported version warning"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["directive", "document", "scalar", "spec"]
+
+[[case]]
+id = "MUS6/02"
+name = "YAML 1.1 directive with extra separation"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["directive", "document", "null"]
+
+[[case]]
+id = "MUS6/03"
+name = "YAML 1.1 directive with tab separation"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["directive", "document", "null", "tab"]
+
+[[case]]
+id = "MUS6/04"
+name = "YAML 1.1 directive with trailing comment"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["directive", "document", "null", "comment"]
+
+[[case]]
 id = "FP8R"
 name = "zero-indented folded block scalar after document start"
 expected = "accept"

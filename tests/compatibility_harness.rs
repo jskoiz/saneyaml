@@ -1346,6 +1346,56 @@ fn compatibility_reserved_directives_match_yaml_1_2_rust_references() {
 }
 
 #[test]
+fn compatibility_yaml_version_directive_variants_match_rust_references() {
+    for (name, input, expected_docs) in [
+        (
+            "BEC7",
+            include_str!("fixtures/yaml-test-suite/data/BEC7/in.yaml"),
+            1,
+        ),
+        (
+            "MUS6/02",
+            include_str!("fixtures/yaml-test-suite/data/MUS6-02/in.yaml"),
+            1,
+        ),
+        (
+            "MUS6/03",
+            include_str!("fixtures/yaml-test-suite/data/MUS6-03/in.yaml"),
+            1,
+        ),
+        (
+            "MUS6/04",
+            include_str!("fixtures/yaml-test-suite/data/MUS6-04/in.yaml"),
+            1,
+        ),
+    ] {
+        let ours = parse_documents(input)
+            .unwrap_or_else(|error| panic!("ours parses {name} directive variant: {error}"));
+        assert_eq!(ours.len(), expected_docs, "ours doc count for {name}");
+
+        let yaml_rust2 = yaml_rust2::YamlLoader::load_from_str(input)
+            .unwrap_or_else(|error| panic!("yaml-rust2 parses {name}: {error}"));
+        assert_eq!(
+            yaml_rust2.len(),
+            expected_docs,
+            "yaml-rust2 doc count for {name}"
+        );
+
+        let saphyr = saphyr::Yaml::load_from_str(input)
+            .unwrap_or_else(|error| panic!("saphyr parses {name}: {error}"));
+        assert_eq!(saphyr.len(), expected_docs, "saphyr doc count for {name}");
+    }
+
+    let schema_neutral =
+        parse_str("%YAML 1.1\n---\non: off\nyes: no\n").expect("YAML 1.1 syntax metadata");
+    let entries = mapping_entries(&schema_neutral);
+    assert_eq!(entries[0].0.as_str(), Some("on"));
+    assert_eq!(entries[0].1.as_str(), Some("off"));
+    assert_eq!(entries[1].0.as_str(), Some("yes"));
+    assert_eq!(entries[1].1.as_str(), Some("no"));
+}
+
+#[test]
 fn compatibility_flow_blank_line_folding_matches_reference_expectation() {
     let value_input = "root: { a: first\n\n  second, b: c }\n";
     let doc = parse_str(value_input).expect("parse flow blank-line value folding");

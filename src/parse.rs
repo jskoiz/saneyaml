@@ -648,22 +648,21 @@ impl Parser {
     fn parse_directive(&mut self, line: &Line) -> Result<()> {
         let fields = directive_fields(line);
         match fields.as_slice() {
-            [name, version] if name.text == "%YAML" && version.text == "1.2" => {
+            [name, version] if name.text == "%YAML" => {
+                let Some((major, minor)) = parse_yaml_version(version.text) else {
+                    return Err(Error::new("invalid YAML directive", line.span()));
+                };
                 self.pending_directives = true;
                 if self.pending_document_directives.yaml_version.is_some() {
                     return Err(Error::new("duplicate YAML directive", line.span()));
                 }
                 self.pending_document_directives.yaml_version = Some(EventYamlVersion {
-                    major: 1,
-                    minor: 2,
+                    major,
+                    minor,
                     span: line.local_span(version.start, version.end),
                 });
                 Ok(())
             }
-            [name, version] if name.text == "%YAML" => Err(Error::new(
-                format!("unsupported YAML directive version `{}`", version.text),
-                line.span(),
-            )),
             [name, ..] if name.text == "%YAML" => {
                 Err(Error::new("invalid YAML directive", line.span()))
             }
@@ -2480,7 +2479,9 @@ fn directive_fields(line: &Line) -> Vec<DirectiveField<'_>> {
     let mut fields = Vec::new();
     let mut start = None;
     for (idx, ch) in line.content.char_indices() {
-        if ch.is_whitespace() {
+        if ch == '#' && start.is_none() {
+            break;
+        } else if ch.is_whitespace() {
             if let Some(field_start) = start.take() {
                 fields.push(DirectiveField {
                     text: &line.content[field_start..idx],
@@ -2500,6 +2501,14 @@ fn directive_fields(line: &Line) -> Vec<DirectiveField<'_>> {
         });
     }
     fields
+}
+
+fn parse_yaml_version(text: &str) -> Option<(u8, u8)> {
+    let (major, minor) = text.split_once('.')?;
+    if major.is_empty() || minor.is_empty() || minor.contains('.') {
+        return None;
+    }
+    Some((major.parse().ok()?, minor.parse().ok()?))
 }
 
 fn valid_tag_handle(handle: &str) -> bool {

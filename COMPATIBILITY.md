@@ -16,7 +16,7 @@ The compatibility target is intentionally split:
 
 | Area | Prototype policy | libyaml / YAML 1.1 paths | yaml-rust2 / saphyr | serde_yaml |
 |---|---|---|---|---|
-| YAML version | YAML 1.2 core by default | Often YAML 1.1 heritage | Compare as YAML 1.2-oriented Rust parsers | Serde data model |
+| YAML version | Numeric `%YAML` version directives are accepted as syntax metadata; scalar resolution remains YAML 1.2/core-config oriented | Often YAML 1.1 heritage | Compare as YAML 1.2-oriented Rust parsers | Serde data model |
 | `on`, `off`, `yes`, `no` | Strings | Often booleans; aliases like `on` and `yes` can collide as the same key | Compare per schema | Usually data-model dependent |
 | Duplicate keys | Error for duplicate scalar, sequence, and mapping keys after alias expansion, with typed scalar key domains distinct (`1` and `"1"` are different keys); raw events still expose duplicate keys | Psych/libyaml can construct duplicate scalar keys as last-wins values | yaml-rust2 rejects some duplicate collection keys, while saphyr accepts selected cases such as X38W | `serde_yaml` rejects duplicate scalar keys |
 | Merge key `<<` | Preserved as a literal key by default in parser/tree/Serde `Value` reads; alias values are expanded as ordinary cloned values, but merged keys are not inserted unless callers explicitly invoke `yaml::Value::apply_merge()` | Common legacy feature, often expanded with earlier merge-list mappings winning and explicit target keys overriding merged keys | Preserved literally in current tree loaders | Preserved literally in `Value`; opt-in `Value::apply_merge()` expands merges |
@@ -28,7 +28,7 @@ The compatibility target is intentionally split:
 | Comments/formatting | Discarded | Not semantic | Not semantic | Discarded |
 | Emission | Deterministic structural YAML for emittable trees; duplicate-effective mapping keys, over-depth trees, and directly nested tags are rejected before output; public writers follow `serde_yaml` document-marker policy by omitting `---` for the first ordinary document and inserting `---` between stream documents | Manual comparison only | Manual comparison only | Public writer document-marker policy is matched; byte-for-byte formatting parity remains out of scope |
 | Numeric extensions | Decimal ints/floats plus underscores and YAML special floats are resolved; hex/octal/binary remain strings unless explicitly tagged | YAML 1.1 has broad numeric typing | YAML 1.2 core support varies by crate | Data-model dependent |
-| Directives | `%YAML 1.2` and `%TAG` are accepted as syntax/event inputs; reserved unknown directives are ignored but still require an explicit document start; `%YAML 1.1` is rejected; directive metadata is exposed on `DocumentStart` events | Exposed and may affect version/schema handling | Exposed by parser layers | Usually not a Serde value |
+| Directives | Numeric `%YAML` version directives and `%TAG` are accepted as syntax/event inputs; reserved unknown directives are ignored but still require an explicit document start; version directives do not switch scalar schema; directive metadata is exposed on `DocumentStart` events | Exposed and may affect version/schema handling | Exposed by parser layers | Usually not a Serde value |
 | Explicit core tags | Tree and `Value` loading preserve explicit `!!binary`, `!!timestamp`, `!!int`, and `!!float` tags; typed Serde reads coerce explicit `!!int`/`!!float` numeric targets while preserving tags in retained values | YAML 1.1 typed binary/timestamp/numeric support is common | Tag-aware behavior varies, including `BadValue` for some explicit core tags | Partial/lossy |
 
 ## Public API Compatibility Surface
@@ -228,9 +228,9 @@ The compatibility harness checks shared acceptance across this crate,
 `serde_yaml`, `yaml-rust2`, and `saphyr`, plus dedicated Rust-reference
 parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
 
-- the pinned selected YAML test-suite manifest, currently 109 fixtures with
+- the pinned selected YAML test-suite manifest, currently 113 fixtures with
   explicit per-case `expected`, `source`, and parser/tree/Serde `policy`
-  fields: 67 normal accepts, 40 syntax/error rejects, and YAML-suite
+  fields: 71 normal accepts, 40 syntax/error rejects, and YAML-suite
   2JQS/X38W as intentional tree/Serde-only rejections while raw parser events
   remain available
 - core scalars

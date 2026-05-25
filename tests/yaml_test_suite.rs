@@ -153,8 +153,8 @@ fn yts_manifest_selected_cases_have_fixture_inputs_and_unique_ids() {
         }
     }
 
-    assert_eq!(manifest.case.len(), 109);
-    assert_eq!(accepted, 67);
+    assert_eq!(manifest.case.len(), 113);
+    assert_eq!(accepted, 71);
     assert_eq!(error_cases, 40);
     assert_eq!(tree_only_rejections, 2);
 }
@@ -250,7 +250,7 @@ fn yts_manifest_acceptance_policy_matches_parser_event_and_serde_entrypoints() {
         accepted += 1;
     }
 
-    assert_eq!(accepted, 67);
+    assert_eq!(accepted, 71);
     assert_eq!(syntax_rejections, 40);
     assert_eq!(tree_only_rejections, 2);
 }
@@ -1088,6 +1088,61 @@ fn yts_parse_w4tn__yaml_directive_and_explicit_boundaries() {
             } if value == "%!PS-Adobe-2.0\n"
         )
     }));
+}
+
+#[test]
+fn yts_parse_bec7_mus6__yaml_version_directive_variants_are_syntax_only() {
+    for (name, input, version) in [
+        (
+            "BEC7",
+            include_str!("fixtures/yaml-test-suite/data/BEC7/in.yaml"),
+            (1, 3, "1.3"),
+        ),
+        (
+            "MUS6/02",
+            include_str!("fixtures/yaml-test-suite/data/MUS6-02/in.yaml"),
+            (1, 1, "1.1"),
+        ),
+        (
+            "MUS6/03",
+            include_str!("fixtures/yaml-test-suite/data/MUS6-03/in.yaml"),
+            (1, 1, "1.1"),
+        ),
+        (
+            "MUS6/04",
+            include_str!("fixtures/yaml-test-suite/data/MUS6-04/in.yaml"),
+            (1, 1, "1.1"),
+        ),
+    ] {
+        let docs = parse_documents(input).unwrap_or_else(|error| panic!("parse {name}: {error}"));
+        assert_eq!(docs.len(), 1, "{name}");
+        let values: Vec<yaml::Value> = yaml::from_documents_str(input)
+            .unwrap_or_else(|error| panic!("Serde documents for {name}: {error}"));
+        assert_eq!(values.len(), 1, "{name}");
+
+        let events =
+            parse_events(input).unwrap_or_else(|error| panic!("events for {name}: {error}"));
+        let version_meta = events.iter().find_map(|event| match event {
+            Event::DocumentStart { directives, .. } => directives.yaml_version.as_ref(),
+            _ => None,
+        });
+        let version_meta = version_meta.unwrap_or_else(|| panic!("{name} YAML directive metadata"));
+        assert_eq!(
+            (version_meta.major, version_meta.minor),
+            (version.0, version.1)
+        );
+        assert_eq!(event_source(input, version_meta.span), version.2);
+    }
+
+    let doc = parse_str("%YAML 1.1\n---\non: off\nyes: no\n")
+        .expect("version directive remains schema-neutral");
+    let yaml::NodeValue::Mapping(entries) = doc.value else {
+        panic!("expected mapping");
+    };
+    assert_eq!(entries[0].0.as_str(), Some("on"));
+    assert_eq!(entries[0].1.as_str(), Some("off"));
+    assert_eq!(entries[1].0.as_str(), Some("yes"));
+    assert_eq!(entries[1].1.as_str(), Some("no"));
 }
 
 #[test]
@@ -2318,11 +2373,7 @@ fn reject_extra_flow_commas_in_reduced_sequences_and_mappings() {
 
 #[test]
 fn yts_reject_bad_document_markers_and_directives() {
-    for input in [
-        "... trailing\n",
-        "%YAML 1.1\n---\nkey: value\n",
-        "%FOO bar\nkey: value\n",
-    ] {
+    for input in ["... trailing\n", "%FOO bar\nkey: value\n"] {
         let error = parse_str(input).expect_err("marker/directive rejected");
         assert!(
             error.to_string().contains("document end markers")

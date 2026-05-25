@@ -855,6 +855,54 @@ policy = "raw-events-tree-serde-accept"
 features = ["document", "scalar", "literal", "block", "chomping"]
 
 [[case]]
+id = "4Q9F"
+name = "folded block scalar with empty lines and explicit start"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["document", "scalar", "folded", "block", "chomping"]
+
+[[case]]
+id = "TS54"
+name = "folded block scalar with empty lines"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["scalar", "folded", "block", "chomping"]
+
+[[case]]
+id = "7T8X"
+name = "folded block scalar with leading blank and indented list-like lines"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["scalar", "folded", "block", "indent"]
+
+[[case]]
+id = "93WF"
+name = "strip folded block scalar with spaces-only blank lines and explicit start"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["document", "scalar", "folded", "block", "chomping", "indent"]
+
+[[case]]
+id = "K527"
+name = "strip folded block scalar with spaces-only blank lines"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["scalar", "folded", "block", "chomping", "indent"]
+
+[[case]]
+id = "R4YG"
+name = "block scalar detected indentation"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["sequence", "scalar", "folded", "literal", "block", "indent", "tab"]
+
+[[case]]
 id = "FP8R"
 name = "zero-indented folded block scalar after document start"
 expected = "accept"

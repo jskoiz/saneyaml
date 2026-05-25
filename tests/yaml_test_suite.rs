@@ -153,8 +153,8 @@ fn yts_manifest_selected_cases_have_fixture_inputs_and_unique_ids() {
         }
     }
 
-    assert_eq!(manifest.case.len(), 115);
-    assert_eq!(accepted, 73);
+    assert_eq!(manifest.case.len(), 121);
+    assert_eq!(accepted, 79);
     assert_eq!(error_cases, 40);
     assert_eq!(tree_only_rejections, 2);
 }
@@ -250,7 +250,7 @@ fn yts_manifest_acceptance_policy_matches_parser_event_and_serde_entrypoints() {
         accepted += 1;
     }
 
-    assert_eq!(accepted, 73);
+    assert_eq!(accepted, 79);
     assert_eq!(syntax_rejections, 40);
     assert_eq!(tree_only_rejections, 2);
 }
@@ -3433,6 +3433,54 @@ fn yts_parse_6fwr__literal_keep_preserves_spaces_only_line() {
     let input = include_str!("fixtures/yaml-test-suite/data/6FWR/in.yaml");
     let doc = parse_str(input).expect("parse literal block scalar with spaces-only line");
     assert_eq!(doc.as_str(), Some("ab\n\n \n"));
+}
+
+#[test]
+fn yts_parse_folded_block_blank_runs_match_upstream_values() {
+    for (id, input, expected) in [
+        (
+            "4Q9F",
+            include_str!("fixtures/yaml-test-suite/data/4Q9F/in.yaml"),
+            "ab cd\nef\n\ngh\n",
+        ),
+        (
+            "TS54",
+            include_str!("fixtures/yaml-test-suite/data/TS54/in.yaml"),
+            "ab cd\nef\n\ngh\n",
+        ),
+        (
+            "7T8X",
+            include_str!("fixtures/yaml-test-suite/data/7T8X/in.yaml"),
+            "\nfolded line\nnext line\n  * bullet\n\n  * list\n  * lines\n\nlast line\n",
+        ),
+        (
+            "93WF",
+            include_str!("fixtures/yaml-test-suite/data/93WF/in.yaml"),
+            "trimmed\n\n\nas space",
+        ),
+        (
+            "K527",
+            include_str!("fixtures/yaml-test-suite/data/K527/in.yaml"),
+            "trimmed\n\n\nas space",
+        ),
+    ] {
+        let doc = parse_str(input).unwrap_or_else(|error| panic!("parse {id}: {error}"));
+        assert_eq!(doc.as_str(), Some(expected), "{id}");
+    }
+}
+
+#[test]
+fn yts_parse_r4yg__block_scalar_detected_indentation_values() {
+    let input = include_str!("fixtures/yaml-test-suite/data/R4YG/in.yaml");
+    let doc = parse_str(input).expect("parse detected block scalar indentation");
+    let Value::Sequence(items) = doc.value else {
+        panic!("expected sequence");
+    };
+    assert_eq!(items.len(), 4);
+    assert_eq!(items[0].as_str(), Some("detected\n"));
+    assert_eq!(items[1].as_str(), Some("\n\n# detected\n"));
+    assert_eq!(items[2].as_str(), Some(" explicit\n"));
+    assert_eq!(items[3].as_str(), Some("\t\ndetected\n"));
 }
 
 #[test]

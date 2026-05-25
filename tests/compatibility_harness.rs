@@ -260,6 +260,31 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "folded_block_scalar_empty_lines_explicit_start",
+        input: include_str!("fixtures/yaml-test-suite/data/4Q9F/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "folded_block_scalar_empty_lines",
+        input: include_str!("fixtures/yaml-test-suite/data/TS54/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "folded_block_scalar_list_like_indented_lines",
+        input: include_str!("fixtures/yaml-test-suite/data/7T8X/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "folded_block_scalar_strip_spaces_explicit_start",
+        input: include_str!("fixtures/yaml-test-suite/data/93WF/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "folded_block_scalar_strip_spaces",
+        input: include_str!("fixtures/yaml-test-suite/data/K527/in.yaml"),
+        docs: 1,
+    },
+    Case {
         name: "block_scalar_nodes",
         input: include_str!("fixtures/yaml-test-suite/data/M5C3/in.yaml"),
         docs: 1,
@@ -500,6 +525,65 @@ fn compatibility_block_scalar_paragraph_and_space_only_lines_match_reference_exp
     assert_eq!(literal_reference.as_str(), Some(expected_literal));
     yaml_rust2::YamlLoader::load_from_str(literal).expect("yaml-rust2 accepts 6FWR");
     saphyr::Yaml::load_from_str(literal).expect("saphyr accepts 6FWR");
+}
+
+#[test]
+fn compatibility_folded_block_blank_runs_match_reference_expectation() {
+    for (id, input, expected) in [
+        (
+            "4Q9F",
+            include_str!("fixtures/yaml-test-suite/data/4Q9F/in.yaml"),
+            "ab cd\nef\n\ngh\n",
+        ),
+        (
+            "TS54",
+            include_str!("fixtures/yaml-test-suite/data/TS54/in.yaml"),
+            "ab cd\nef\n\ngh\n",
+        ),
+        (
+            "7T8X",
+            include_str!("fixtures/yaml-test-suite/data/7T8X/in.yaml"),
+            "\nfolded line\nnext line\n  * bullet\n\n  * list\n  * lines\n\nlast line\n",
+        ),
+        (
+            "93WF",
+            include_str!("fixtures/yaml-test-suite/data/93WF/in.yaml"),
+            "trimmed\n\n\nas space",
+        ),
+        (
+            "K527",
+            include_str!("fixtures/yaml-test-suite/data/K527/in.yaml"),
+            "trimmed\n\n\nas space",
+        ),
+    ] {
+        let doc = parse_str(input).unwrap_or_else(|error| panic!("ours parses {id}: {error}"));
+        assert_eq!(doc.as_str(), Some(expected), "{id}");
+
+        let reference: serde_yaml::Value = serde_yaml::from_str(input)
+            .unwrap_or_else(|error| panic!("serde_yaml parses {id}: {error}"));
+        assert_eq!(reference.as_str(), Some(expected), "{id}");
+    }
+
+    let input = include_str!("fixtures/yaml-test-suite/data/R4YG/in.yaml");
+    let doc = parse_str(input).expect("ours parses R4YG");
+    let Value::Sequence(items) = doc.value else {
+        panic!("expected sequence");
+    };
+    yaml_rust2::YamlLoader::load_from_str(input).expect("yaml-rust2 accepts R4YG");
+    saphyr::Yaml::load_from_str(input).expect("saphyr accepts R4YG");
+    serde_yaml::from_str::<serde_yaml::Value>(input)
+        .expect_err("serde_yaml/libyaml rejects R4YG tab-leading block content");
+    for (index, expected) in [
+        "detected\n",
+        "\n\n# detected\n",
+        " explicit\n",
+        "\t\ndetected\n",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert_eq!(items[index].as_str(), Some(expected), "R4YG item {index}");
+    }
 }
 
 #[test]

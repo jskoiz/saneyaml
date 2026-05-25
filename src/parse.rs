@@ -1959,18 +1959,52 @@ impl Parser {
                 out.push('\n');
             }
         } else {
-            for (idx, line) in lines.iter().enumerate() {
-                out.push_str(line);
-                if let Some(next) = lines.get(idx + 1) {
-                    if line.is_empty()
-                        || next.is_empty()
-                        || line.starts_with(' ')
-                        || next.starts_with(' ')
+            let mut idx = 0usize;
+            while idx < lines.len() {
+                if lines[idx].is_empty() {
+                    out.push('\n');
+                    idx += 1;
+                    continue;
+                }
+
+                while idx < lines.len() && !lines[idx].is_empty() {
+                    out.push_str(&lines[idx]);
+                    if let Some(next) = lines.get(idx + 1)
+                        && !next.is_empty()
                     {
-                        out.push('\n');
-                    } else {
-                        out.push(' ');
+                        if block_scalar_line_is_more_indented(&lines[idx])
+                            || block_scalar_line_is_more_indented(next)
+                        {
+                            out.push('\n');
+                        } else {
+                            out.push(' ');
+                        }
                     }
+                    idx += 1;
+                }
+
+                let blank_start = idx;
+                while idx < lines.len() && lines[idx].is_empty() {
+                    idx += 1;
+                }
+                let blank_count = idx - blank_start;
+                if blank_count == 0 {
+                    continue;
+                }
+
+                let previous_more_indented = lines
+                    .get(blank_start.wrapping_sub(1))
+                    .is_some_and(|line| block_scalar_line_is_more_indented(line));
+                let next_more_indented = lines
+                    .get(idx)
+                    .is_some_and(|line| block_scalar_line_is_more_indented(line));
+                let line_breaks = if previous_more_indented || next_more_indented {
+                    blank_count + 1
+                } else {
+                    blank_count
+                };
+                for _ in 0..line_breaks {
+                    out.push('\n');
                 }
             }
             if lines.last().is_some_and(|line| !line.is_empty()) {
@@ -2335,6 +2369,10 @@ impl Parser {
             self.pos += 1;
         }
     }
+}
+
+fn block_scalar_line_is_more_indented(line: &str) -> bool {
+    line.starts_with(' ') || line.starts_with('\t')
 }
 
 fn preprocess(input: &str) -> Result<Vec<Line>> {

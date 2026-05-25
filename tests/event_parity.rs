@@ -172,6 +172,36 @@ const CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "yts_4q9f_folded_block_scalar_empty_lines_explicit_start",
+        input: include_str!("fixtures/yaml-test-suite/data/4Q9F/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_ts54_folded_block_scalar_empty_lines",
+        input: include_str!("fixtures/yaml-test-suite/data/TS54/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_7t8x_folded_block_scalar_list_like_indented_lines",
+        input: include_str!("fixtures/yaml-test-suite/data/7T8X/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_93wf_folded_block_scalar_strip_spaces_explicit_start",
+        input: include_str!("fixtures/yaml-test-suite/data/93WF/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_k527_folded_block_scalar_strip_spaces",
+        input: include_str!("fixtures/yaml-test-suite/data/K527/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_r4yg_block_scalar_detected_indentation",
+        input: include_str!("fixtures/yaml-test-suite/data/R4YG/in.yaml"),
+        docs: 1,
+    },
+    Case {
         name: "yts_qf4y_multiline_single_pair_flow_mapping",
         input: include_str!("fixtures/yaml-test-suite/data/QF4Y/in.yaml"),
         docs: 1,

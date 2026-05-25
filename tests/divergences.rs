@@ -330,6 +330,7 @@ fn divergence_tab_token_separation_record_is_present() {
     let record = include_str!("fixtures/divergences/records/tab-token-separation.toml");
     assert!(record.contains("tab-token-separation"));
     assert!(record.contains("6BCT"));
+    assert!(record.contains("R4YG"));
     assert!(record.contains("serde_yaml 0.9.34"));
     assert!(record.contains("yaml-rust2 0.11.0"));
     assert!(record.contains("saphyr 0.0.6"));

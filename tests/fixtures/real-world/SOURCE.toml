@@ -1,0 +1,208 @@
+[[fixture]]
+path = "github-actions/minimal-ci.yaml"
+domain = "github-actions"
+source_type = "synthetic"
+source = "Locally synthesized from GitHub Actions workflow syntax conventions."
+version = "GitHub Actions workflow syntax, 2026-05 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "Minimal CI workflow preserving trigger and job structure."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
+path = "github-actions/matrix-ci.yaml"
+domain = "github-actions"
+source_type = "synthetic"
+source = "Locally synthesized from GitHub Actions matrix workflow conventions."
+version = "GitHub Actions workflow syntax, 2026-05 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "Matrix job fixture preserving expression strings, strategy axes, and permissions."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
+path = "github-actions/polymorphic-workflow.yaml"
+domain = "github-actions"
+source_type = "synthetic"
+source = "Locally synthesized from GitHub Actions workflow_dispatch and runner-shape conventions."
+version = "GitHub Actions workflow syntax, 2026-05 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "Polymorphic triggers and runner fields reduced to parser-relevant YAML shapes."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
+path = "docker-compose/compose.yaml"
+domain = "docker-compose"
+source_type = "synthetic"
+source = "Locally synthesized from Compose Specification service configuration conventions."
+version = "Compose Specification, 2026-05 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "Common service map preserving environment and volume shapes."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
+path = "docker-compose/compose-anchors.yaml"
+domain = "docker-compose"
+source_type = "synthetic"
+source = "Locally synthesized from Compose extension-field, anchor, alias, and merge-key conventions."
+version = "Compose Specification, 2026-05 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "Anchor and merge-key fixture reduced to extension defaults and service overrides."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
+path = "docker-compose/compose-platform-resources.yaml"
+domain = "docker-compose"
+source_type = "synthetic"
+source = "Locally synthesized from Compose platform and deploy resource conventions."
+version = "Compose Specification, 2026-05 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "Platform, deploy, and resource fields reduced to parser-relevant scalar/unit strings."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
+path = "docker-compose/compose-polymorphic.yaml"
+domain = "docker-compose"
+source_type = "synthetic"
+source = "Locally synthesized from Compose polymorphic service-field conventions."
+version = "Compose Specification, 2026-05 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "Environment, healthcheck, env_file, profiles, depends_on, and mount shapes."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
+path = "kubernetes/deployment.yaml"
+domain = "kubernetes"
+source_type = "synthetic"
+source = "Locally synthesized from Kubernetes apps/v1 Deployment conventions."
+version = "Kubernetes apps/v1, 2026-05 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "Deployment fixture reduced to metadata, pod template, resources, and image scalars."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
+path = "kubernetes/multi-doc.yaml"
+domain = "kubernetes"
+source_type = "synthetic"
+source = "Locally synthesized from Kubernetes multi-document manifest conventions."
+version = "Kubernetes v1 resources, 2026-05 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "Multi-document stream preserving Deployment and Service style boundaries."
+expected_docs = 2
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
+path = "kubernetes/custom-resource-definition.yaml"
+domain = "kubernetes"
+source_type = "synthetic"
+source = "Locally synthesized from Kubernetes apiextensions.k8s.io/v1 CRD and custom-resource conventions."
+version = "Kubernetes apiextensions.k8s.io/v1, 2026-05 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "CRD plus custom resource stream preserving embedded OpenAPI schema keys."
+expected_docs = 2
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
+path = "kubernetes/helm-rendered-stream.yaml"
+domain = "kubernetes"
+source_type = "synthetic"
+source = "Locally synthesized from Helm-rendered Kubernetes manifest stream conventions."
+version = "Helm v3 rendered Kubernetes manifests, 2026-05 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "Rendered stream preserving explicit boundaries, comments, and empty documents."
+expected_docs = 5
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
+path = "kubernetes/configmap-block-scalars.yaml"
+domain = "kubernetes"
+source_type = "synthetic"
+source = "Locally synthesized from Kubernetes v1 ConfigMap data conventions."
+version = "Kubernetes v1 ConfigMap, 2026-05 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "ConfigMap data fixture preserving literal block scalar comments and blank lines."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
+path = "helm/values.yaml"
+domain = "helm"
+source_type = "synthetic"
+source = "Locally synthesized from Helm values.yaml conventions."
+version = "Helm v3 values, 2026-05 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "Values fixture preserving image, ingress, resources, and YAML 1.2 ambiguous strings."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
+path = "helm/Chart.yaml"
+domain = "helm"
+source_type = "synthetic"
+source = "Locally synthesized from Helm Chart.yaml metadata and dependency conventions."
+version = "Helm v3 Chart.yaml, 2026-05 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "Chart metadata fixture preserving semver strings, annotations, maintainers, and dependencies."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
+path = "openapi/petstore-fragment.yaml"
+domain = "openapi"
+source_type = "synthetic"
+source = "Locally synthesized from OpenAPI path and schema conventions."
+version = "OpenAPI 3.x fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "Fragment preserving path templates, examples, extension keys, and media-type keys."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
+path = "openapi/operations-and-polymorphism.yaml"
+domain = "openapi"
+source_type = "synthetic"
+source = "Locally synthesized from OpenAPI operation, parameter, and schema polymorphism conventions."
+version = "OpenAPI 3.x fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "Operation fixture preserving dynamic schema keys, examples, and oneOf-style shapes."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
+path = "cloudflare/wrangler.yaml"
+domain = "wrangler"
+source_type = "synthetic"
+source = "Locally synthesized from Cloudflare Wrangler YAML configuration conventions."
+version = "Wrangler YAML configuration, 2026-05 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "Worker config fixture preserving bindings, vars, routes, and borrowed string reads."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
+path = "ansible/playbook.yaml"
+domain = "ansible"
+source_type = "synthetic"
+source = "Locally synthesized from Ansible playbook conventions."
+version = "Ansible playbook YAML, 2026-05 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "Playbook fixture preserving task lists, module keys, variables, and scalar templates."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
+path = "ansible/vault-and-unsafe-tags.yaml"
+domain = "ansible"
+source_type = "synthetic"
+source = "Locally synthesized from Ansible !vault and !unsafe tag conventions."
+version = "Ansible playbook YAML, 2026-05 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "Tagged value fixture preserving vault block scalar and unsafe template tags."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]

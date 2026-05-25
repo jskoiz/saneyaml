@@ -344,10 +344,17 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
 - Cloudflare Wrangler-style YAML
 - Ansible-style playbooks, including `!vault` and `!unsafe` tagged values and
   raw event coverage for tag/style metadata
-- normalized loaded-tree parity for the existing real-world fixtures against
-  `yaml-rust2` and `saphyr`, covering the same GitHub Actions, Docker Compose,
-  Kubernetes, Helm, OpenAPI, Wrangler, and Ansible fixture set used by event
-  parity
+- the real-world fixture registry in `tests/fixtures/real-world/SOURCE.toml`,
+  currently 19 files and 25 YAML documents, with per-fixture domain, source
+  type, version surface, license/redaction note, reduction note, expected
+  document count, and gate coverage
+- shared-reference acceptance for every registered real-world fixture against
+  this crate, `serde_yaml` 0.9.34, `yaml-rust2` 0.11.0, and `saphyr` 0.0.6
+  as pinned in `Cargo.toml`
+- normalized loaded-tree parity for the registered real-world fixtures against
+  `yaml-rust2` 0.11.0 and `saphyr` 0.0.6, covering the same GitHub Actions,
+  Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and Ansible fixture set
+  used by event parity
 
 The adoption path should be driven by failing conformance fixtures, real-world
 config incompatibilities, and safety gaps. Compatibility shims are deliberately

@@ -305,6 +305,16 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
         docs: 2,
     },
     Case {
+        name: "kubernetes_deployment",
+        input: include_str!("fixtures/real-world/kubernetes/deployment.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "kubernetes_configmap_block_scalars",
+        input: include_str!("fixtures/real-world/kubernetes/configmap-block-scalars.yaml"),
+        docs: 1,
+    },
+    Case {
         name: "helm_values",
         input: include_str!("fixtures/real-world/helm/values.yaml"),
         docs: 1,
@@ -332,6 +342,11 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
     Case {
         name: "ansible_playbook",
         input: include_str!("fixtures/real-world/ansible/playbook.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "ansible_vault_and_unsafe_tags",
+        input: include_str!("fixtures/real-world/ansible/vault-and-unsafe-tags.yaml"),
         docs: 1,
     },
 ];

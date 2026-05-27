@@ -1,0 +1,7 @@
+case = "numeric-key-identity"
+policy = "numeric mapping-key identity"
+prototype = "Tree loading and emitter preflight treat nonnegative signed and unsigned integer keys with the same magnitude as duplicate effective keys. Float key identity follows yaml::Number equality for finite floats, so 0.0 and -0.0 collide as mapping keys. String keys such as \"1\" remain distinct from numeric keys."
+serde_yaml = "serde_yaml 0.9.34 treats same-magnitude positive integer Value keys as the same mapping key. Parser-backed duplicate scalar rejection is still limited by the Serde data model surface."
+libyaml = "Ruby Psych 3.1.0/libyaml 0.2.1 can construct duplicate scalar keys with last-wins behavior, so numeric key collisions can lose the earlier value."
+yaml_rust2_saphyr = "yaml-rust2 and saphyr provide parser/tree behavior but do not define this crate's public yaml::Value mapping identity."
+decision = "Keep parser, public Value/Mapping, and emitter duplicate-key identity aligned for numeric keys. Do not preserve raw spelling or raw float sign-bit differences when the public value model considers keys equal."

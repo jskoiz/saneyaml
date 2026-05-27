@@ -18,7 +18,7 @@ The compatibility target is intentionally split:
 |---|---|---|---|---|
 | YAML version | Numeric `%YAML` version directives are accepted as syntax metadata; scalar resolution remains YAML 1.2/core-config oriented | Often YAML 1.1 heritage | Compare as YAML 1.2-oriented Rust parsers | Serde data model |
 | `on`, `off`, `yes`, `no` | Strings | Often booleans; aliases like `on` and `yes` can collide as the same key | Compare per schema | Usually data-model dependent |
-| Duplicate keys | Error for duplicate scalar, sequence, and mapping keys after alias expansion, with mapping-key identity order-insensitive like public `Mapping` equality and typed scalar key domains distinct (`1` and `"1"` are different keys); nonnegative signed and unsigned integer keys share identity; raw events still expose duplicate keys | Psych/libyaml can construct duplicate scalar keys as last-wins values | yaml-rust2 rejects some duplicate collection keys, while saphyr accepts selected cases such as X38W | `serde_yaml` rejects duplicate scalar keys |
+| Duplicate keys | Error for duplicate scalar, sequence, and mapping keys after alias expansion, with mapping-key identity order-insensitive like public `Mapping` equality and typed scalar key domains distinct (`1` and `"1"` are different keys); nonnegative signed and unsigned integer keys share identity; signed-zero float keys share identity; raw events still expose duplicate keys | Psych/libyaml can construct duplicate scalar keys as last-wins values | yaml-rust2 rejects some duplicate collection keys, while saphyr accepts selected cases such as X38W | `serde_yaml` rejects duplicate scalar keys |
 | Merge key `<<` | Preserved as a literal key by default in parser/tree/Serde `Value` reads; alias values are expanded as ordinary cloned values, but merged keys are not inserted unless callers explicitly invoke `yaml::Value::apply_merge()` | Common legacy feature, often expanded with earlier merge-list mappings winning and explicit target keys overriding merged keys | Preserved literally in current tree loaders | Preserved literally in `Value`; opt-in `Value::apply_merge()` expands merges |
 | Anchors and aliases | Supported for acyclic value expansion; graph identity is not preserved; colon-bearing anchor names and anchors on empty scalar nodes are accepted with recorded tree-shape divergences | Supported, sometimes with graph identity and legacy loader-specific tree shapes | Supported by clone-on-alias loading; saphyr loads selected empty scalar anchor nodes as empty strings | Data-model dependent, accepted in common read paths |
 | Custom tags | Preserved as tagged tree/Value nodes for `Value` and Serde enum support; transparent metadata for ordinary typed Serde reads; `%TAG` handles are resolved for the following explicit document; undeclared named handles are rejected; schema coercion is not implemented | Supported as tags | Supported as tags | Partial/lossy |
@@ -203,6 +203,10 @@ Serde numeric policy:
   normalize same-magnitude nonnegative signed and unsigned integers to the
   same identity, matching `serde_yaml` positive integer behavior while keeping
   text keys such as `"1"` distinct.
+- `yaml::Number` follows Rust `f64` equality for finite float identity in
+  public `Value`/`Mapping` comparisons, so `0.0` and `-0.0` are the same key.
+  Parser duplicate-key rejection and emitter duplicate-key preflight use that
+  same signed-zero identity rather than raw float bits.
 - generic `Serialize` inputs to `yaml::to_value` and `yaml::value::Serializer`
   follow `serde_yaml::value::Serializer` by stringifying 128-bit integers that
   do not fit in `i64` or `u64`; parsed `yaml::Value` trees keep widened

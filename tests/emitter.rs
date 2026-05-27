@@ -38,6 +38,10 @@ fn int_node(value: i128) -> Node {
     Node::new(Value::Number(Number::Integer(value)), Span::default())
 }
 
+fn float_node(value: f64) -> Node {
+    Node::new(Value::Number(Number::Float(value)), Span::default())
+}
+
 fn permuted_mapping_key(first_order: bool) -> Node {
     let entries = if first_order {
         vec![
@@ -210,6 +214,30 @@ fn emitter_rejects_signed_unsigned_duplicate_numeric_keys() {
     let message = error.to_string();
     assert!(
         message.contains("duplicate key") || message.contains("duplicate mapping key `1`"),
+        "{message}"
+    );
+}
+
+#[test]
+fn emitter_rejects_signed_zero_duplicate_float_keys() {
+    let node = Node::new(
+        Value::Mapping(vec![
+            (
+                float_node(0.0),
+                Node::new(Value::String("positive".to_string()), Span::default()),
+            ),
+            (
+                float_node(-0.0),
+                Node::new(Value::String("negative".to_string()), Span::default()),
+            ),
+        ]),
+        Span::default(),
+    );
+
+    let error = to_string(&node).expect_err("signed zero float keys are rejected");
+    let message = error.to_string();
+    assert!(
+        message.contains("duplicate key") || message.contains("duplicate mapping key"),
         "{message}"
     );
 }

@@ -216,6 +216,17 @@ fn divergence_duplicate_scalar_keys_record_is_present() {
 }
 
 #[test]
+fn divergence_numeric_key_identity_record_is_present() {
+    let record = include_str!("fixtures/divergences/records/numeric-key-identity.toml");
+    assert!(record.contains("numeric-key-identity"));
+    assert!(record.contains("nonnegative signed and unsigned integer keys"));
+    assert!(record.contains("0.0 and -0.0 collide"));
+    assert!(record.contains("serde_yaml 0.9.34"));
+    assert!(record.contains("Psych 3.1.0/libyaml 0.2.1"));
+    assert!(record.contains("decision"));
+}
+
+#[test]
 fn divergence_explicit_core_tags_record_is_present() {
     let record = include_str!("fixtures/divergences/records/explicit-core-tags.toml");
     assert!(record.contains("explicit-core-tags"));

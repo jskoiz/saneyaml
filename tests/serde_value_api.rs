@@ -1672,6 +1672,15 @@ fn serde_api_value_public_traits_match_serde_yaml_adoption_surface() {
     assert_eq!(first_nan, second_nan);
     assert_eq!(hash_of(&first_nan), hash_of(&second_nan));
 
+    let positive_zero = Value::Number(Number::Float(0.0));
+    let negative_zero = Value::Number(Number::Float(-0.0));
+    assert_eq!(positive_zero, negative_zero);
+    assert_eq!(hash_of(&positive_zero), hash_of(&negative_zero));
+    assert_eq!(
+        positive_zero.partial_cmp(&negative_zero),
+        Some(Ordering::Equal)
+    );
+
     let mut left = Mapping::new();
     left.insert("a".into(), 1u64.into());
     left.insert("b".into(), "two".into());

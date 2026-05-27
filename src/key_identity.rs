@@ -88,7 +88,7 @@ fn duplicate_key_identity_at(key: &Node, depth: usize) -> Result<Option<Duplicat
         Value::Number(Number::Integer(value)) if *value < 0 => Some(DuplicateKey::Integer(*value)),
         Value::Number(Number::Integer(value)) => Some(DuplicateKey::Unsigned(*value as u128)),
         Value::Number(Number::Unsigned(value)) => Some(DuplicateKey::Unsigned(*value)),
-        Value::Number(Number::Float(value)) => Some(DuplicateKey::Float(value.to_bits())),
+        Value::Number(Number::Float(value)) => Some(DuplicateKey::Float(float_key_bits(*value))),
         Value::String(value) => Some(DuplicateKey::String(value.clone())),
         Value::Sequence(items) => duplicate_sequence_identity(items, next_depth(depth))?,
         Value::Mapping(entries) => duplicate_mapping_identity(entries, next_depth(depth))?,
@@ -127,4 +127,14 @@ fn duplicate_mapping_identity(
 
 fn next_depth(depth: usize) -> usize {
     depth.saturating_add(1)
+}
+
+fn float_key_bits(value: f64) -> u64 {
+    if value == 0.0 {
+        return 0.0f64.to_bits();
+    }
+    if value.is_nan() {
+        return f64::NAN.to_bits();
+    }
+    value.to_bits()
 }

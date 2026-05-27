@@ -398,6 +398,10 @@ fn duplicate_tree_key_inputs() -> impl Iterator<Item = (&'static str, &'static s
             "tagged-permuted-mapping-key",
             "root: {!Tag {a: 1, b: 2}: first, {b: 2, a: 1}: second}\n",
         ),
+        (
+            "signed-zero-float-key",
+            "root:\n  0.0: positive\n  -0.0: negative\n",
+        ),
     ]
     .into_iter()
 }

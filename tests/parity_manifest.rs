@@ -9,6 +9,7 @@ const YAML_SUITE_MANIFEST: &str = include_str!("fixtures/yaml-test-suite/manifes
 const REAL_WORLD_SOURCE: &str = include_str!("fixtures/real-world/SOURCE.toml");
 const RUST_REFERENCE_DIVERGENCE_CASES: &[&str] = &[
     "M7A3", // serde_yaml rejects the full bare-document stream; Rust parser references accept.
+    "UT92", // serde_yaml rejects directive-looking lines inside open flow content; Rust parser references accept.
 ];
 
 #[derive(Debug, Deserialize)]

@@ -20,6 +20,25 @@ impl Read for FailingReader {
     }
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StrictMatrixConfig {
+    name: String,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct PortsMatrixConfig {
+    ports: Vec<u16>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct PortMatrixConfig {
+    port: u16,
+}
+
 #[test]
 fn successful_tree_spans_are_in_bounds() {
     let input = include_str!("fixtures/real-world/helm/values.yaml");
@@ -75,6 +94,128 @@ fn reader_failures_without_source_spans_do_not_render_zero_location() {
         assert_eq!(error.location(), None);
         assert!(!display.contains("line 0"));
         assert!(!display.contains("column 0"));
+    }
+}
+
+#[test]
+fn parser_diagnostics_have_exact_spans_across_entrypoints() {
+    for case in [
+        ParserDiagnosticCase {
+            name: "undefined alias",
+            input: "service: *missing\n",
+            message: "unknown anchor `missing`",
+            span: ExpectedSpan {
+                line: 1,
+                column: 10,
+                source: "*missing",
+            },
+            related: &[],
+        },
+        ParserDiagnosticCase {
+            name: "recursive flow alias",
+            input: "root: &root {? *root : value}\n",
+            message: "recursive alias",
+            span: ExpectedSpan {
+                line: 1,
+                column: 16,
+                source: "*root",
+            },
+            related: &[ExpectedRelated {
+                message: "anchor is still being parsed here",
+                span: ExpectedSpan {
+                    line: 1,
+                    column: 7,
+                    source: "&root",
+                },
+            }],
+        },
+        ParserDiagnosticCase {
+            name: "duplicate scalar key",
+            input: "root:\n  true: first\n  true: second\n",
+            message: "duplicate mapping key `true`",
+            span: ExpectedSpan {
+                line: 3,
+                column: 3,
+                source: "true",
+            },
+            related: &[ExpectedRelated {
+                message: "previous key is here",
+                span: ExpectedSpan {
+                    line: 2,
+                    column: 3,
+                    source: "true",
+                },
+            }],
+        },
+    ] {
+        for entrypoint in ParserEntrypoint::ALL {
+            let error = entrypoint.error(case.input);
+            assert_exact_diagnostic(&error, case.input, case.name, entrypoint.name(), &case);
+        }
+    }
+}
+
+#[test]
+fn serde_diagnostics_have_exact_spans_across_entrypoints() {
+    for case in [
+        SerdeDiagnosticCase {
+            name: "unknown field",
+            shape: SerdeShape::Strict,
+            input: "name: app\nextra: true\n",
+            message: "unknown field `extra`",
+            span: ExpectedSpan {
+                line: 2,
+                column: 1,
+                source: "extra",
+            },
+        },
+        SerdeDiagnosticCase {
+            name: "sequence type error",
+            shape: SerdeShape::Ports,
+            input: "ports: no\n",
+            message: "expected sequence",
+            span: ExpectedSpan {
+                line: 1,
+                column: 8,
+                source: "no",
+            },
+        },
+        SerdeDiagnosticCase {
+            name: "integer range error",
+            shape: SerdeShape::Port,
+            input: "port: 70000\n",
+            message: "invalid value",
+            span: ExpectedSpan {
+                line: 1,
+                column: 7,
+                source: "70000",
+            },
+        },
+    ] {
+        for entrypoint in SerdeEntrypoint::ALL {
+            let error = entrypoint.error(case.shape, case.input);
+            assert_exact_span(
+                &error.span(),
+                case.input,
+                &case.span,
+                case.name,
+                entrypoint.name(),
+            );
+            assert!(
+                error.to_string().contains(case.message),
+                "{} via {} should contain {:?}: {}",
+                case.name,
+                entrypoint.name(),
+                case.message,
+                error
+            );
+            assert!(
+                error.diagnostic().related.is_empty(),
+                "{} via {} should not report related spans",
+                case.name,
+                entrypoint.name(),
+            );
+        }
     }
 }
 
@@ -431,4 +572,246 @@ fn alias_expansion_chain(levels: usize) -> String {
     }
     input.push_str(&format!("boom: *{}\n", names[levels - 1]));
     input
+}
+
+#[derive(Clone, Copy)]
+struct ExpectedSpan {
+    line: usize,
+    column: usize,
+    source: &'static str,
+}
+
+struct ExpectedRelated {
+    message: &'static str,
+    span: ExpectedSpan,
+}
+
+struct ParserDiagnosticCase {
+    name: &'static str,
+    input: &'static str,
+    message: &'static str,
+    span: ExpectedSpan,
+    related: &'static [ExpectedRelated],
+}
+
+#[derive(Clone, Copy)]
+enum ParserEntrypoint {
+    ParseStr,
+    ParseBytes,
+    FromStr,
+    FromSlice,
+    DirectDeserializerStr,
+    DirectDeserializerSlice,
+}
+
+impl ParserEntrypoint {
+    const ALL: [Self; 6] = [
+        Self::ParseStr,
+        Self::ParseBytes,
+        Self::FromStr,
+        Self::FromSlice,
+        Self::DirectDeserializerStr,
+        Self::DirectDeserializerSlice,
+    ];
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::ParseStr => "parse_str",
+            Self::ParseBytes => "parse_bytes",
+            Self::FromStr => "from_str",
+            Self::FromSlice => "from_slice",
+            Self::DirectDeserializerStr => "Deserializer::from_str",
+            Self::DirectDeserializerSlice => "Deserializer::from_slice",
+        }
+    }
+
+    fn error(self, input: &str) -> yaml::Error {
+        match self {
+            Self::ParseStr => parse_str(input).expect_err("parse_str should reject"),
+            Self::ParseBytes => {
+                parse_bytes(input.as_bytes()).expect_err("parse_bytes should reject")
+            }
+            Self::FromStr => yaml::from_str::<Value>(input).expect_err("from_str should reject"),
+            Self::FromSlice => {
+                yaml::from_slice::<Value>(input.as_bytes()).expect_err("from_slice should reject")
+            }
+            Self::DirectDeserializerStr => Value::deserialize(yaml::Deserializer::from_str(input))
+                .expect_err("direct string deserializer should reject"),
+            Self::DirectDeserializerSlice => {
+                Value::deserialize(yaml::Deserializer::from_slice(input.as_bytes()))
+                    .expect_err("direct slice deserializer should reject")
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum SerdeShape {
+    Strict,
+    Ports,
+    Port,
+}
+
+struct SerdeDiagnosticCase {
+    name: &'static str,
+    shape: SerdeShape,
+    input: &'static str,
+    message: &'static str,
+    span: ExpectedSpan,
+}
+
+#[derive(Clone, Copy)]
+enum SerdeEntrypoint {
+    FromStr,
+    FromSlice,
+    DirectDeserializerStr,
+    DirectDeserializerSlice,
+}
+
+impl SerdeEntrypoint {
+    const ALL: [Self; 4] = [
+        Self::FromStr,
+        Self::FromSlice,
+        Self::DirectDeserializerStr,
+        Self::DirectDeserializerSlice,
+    ];
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::FromStr => "from_str",
+            Self::FromSlice => "from_slice",
+            Self::DirectDeserializerStr => "Deserializer::from_str",
+            Self::DirectDeserializerSlice => "Deserializer::from_slice",
+        }
+    }
+
+    fn error(self, shape: SerdeShape, input: &str) -> yaml::Error {
+        match (self, shape) {
+            (Self::FromStr, SerdeShape::Strict) => {
+                yaml::from_str::<StrictMatrixConfig>(input).expect_err("from_str should reject")
+            }
+            (Self::FromStr, SerdeShape::Ports) => {
+                yaml::from_str::<PortsMatrixConfig>(input).expect_err("from_str should reject")
+            }
+            (Self::FromStr, SerdeShape::Port) => {
+                yaml::from_str::<PortMatrixConfig>(input).expect_err("from_str should reject")
+            }
+            (Self::FromSlice, SerdeShape::Strict) => {
+                yaml::from_slice::<StrictMatrixConfig>(input.as_bytes())
+                    .expect_err("from_slice should reject")
+            }
+            (Self::FromSlice, SerdeShape::Ports) => {
+                yaml::from_slice::<PortsMatrixConfig>(input.as_bytes())
+                    .expect_err("from_slice should reject")
+            }
+            (Self::FromSlice, SerdeShape::Port) => {
+                yaml::from_slice::<PortMatrixConfig>(input.as_bytes())
+                    .expect_err("from_slice should reject")
+            }
+            (Self::DirectDeserializerStr, SerdeShape::Strict) => {
+                StrictMatrixConfig::deserialize(yaml::Deserializer::from_str(input))
+                    .expect_err("direct string deserializer should reject")
+            }
+            (Self::DirectDeserializerStr, SerdeShape::Ports) => {
+                PortsMatrixConfig::deserialize(yaml::Deserializer::from_str(input))
+                    .expect_err("direct string deserializer should reject")
+            }
+            (Self::DirectDeserializerStr, SerdeShape::Port) => {
+                PortMatrixConfig::deserialize(yaml::Deserializer::from_str(input))
+                    .expect_err("direct string deserializer should reject")
+            }
+            (Self::DirectDeserializerSlice, SerdeShape::Strict) => {
+                StrictMatrixConfig::deserialize(yaml::Deserializer::from_slice(input.as_bytes()))
+                    .expect_err("direct slice deserializer should reject")
+            }
+            (Self::DirectDeserializerSlice, SerdeShape::Ports) => {
+                PortsMatrixConfig::deserialize(yaml::Deserializer::from_slice(input.as_bytes()))
+                    .expect_err("direct slice deserializer should reject")
+            }
+            (Self::DirectDeserializerSlice, SerdeShape::Port) => {
+                PortMatrixConfig::deserialize(yaml::Deserializer::from_slice(input.as_bytes()))
+                    .expect_err("direct slice deserializer should reject")
+            }
+        }
+    }
+}
+
+fn assert_exact_diagnostic(
+    error: &yaml::Error,
+    input: &str,
+    case_name: &str,
+    entrypoint: &str,
+    expected: &ParserDiagnosticCase,
+) {
+    assert!(
+        error.to_string().contains(expected.message),
+        "{case_name} via {entrypoint} should contain {:?}: {error}",
+        expected.message,
+    );
+    assert_exact_span(&error.span(), input, &expected.span, case_name, entrypoint);
+    let diagnostic = error.diagnostic();
+    assert_eq!(
+        diagnostic.related.len(),
+        expected.related.len(),
+        "{case_name} via {entrypoint} related span count",
+    );
+    for (actual, expected) in diagnostic.related.iter().zip(expected.related) {
+        assert!(
+            actual.message.contains(expected.message),
+            "{case_name} via {entrypoint} related diagnostic should contain {:?}: {:?}",
+            expected.message,
+            actual.message,
+        );
+        assert_exact_span(&actual.span, input, &expected.span, case_name, entrypoint);
+    }
+}
+
+fn assert_exact_span(
+    actual: &yaml::Span,
+    input: &str,
+    expected: &ExpectedSpan,
+    case_name: &str,
+    entrypoint: &str,
+) {
+    let expected_start = byte_offset(input, expected.line, expected.column);
+    let expected_end = expected_start + expected.source.len();
+    assert_eq!(
+        actual.line, expected.line,
+        "{case_name} via {entrypoint} line"
+    );
+    assert_eq!(
+        actual.column, expected.column,
+        "{case_name} via {entrypoint} column",
+    );
+    assert_eq!(
+        actual.start, expected_start,
+        "{case_name} via {entrypoint} start",
+    );
+    assert_eq!(actual.end, expected_end, "{case_name} via {entrypoint} end");
+    assert_eq!(
+        &input[actual.start..actual.end],
+        expected.source,
+        "{case_name} via {entrypoint} source slice",
+    );
+}
+
+fn byte_offset(input: &str, line: usize, column: usize) -> usize {
+    let mut current_line = 1usize;
+    let mut current_column = 1usize;
+    for (offset, byte) in input.bytes().enumerate() {
+        if current_line == line && current_column == column {
+            return offset;
+        }
+        if byte == b'\n' {
+            current_line += 1;
+            current_column = 1;
+        } else {
+            current_column += 1;
+        }
+    }
+    if current_line == line && current_column == column {
+        input.len()
+    } else {
+        panic!("line {line}, column {column} is outside input {input:?}");
+    }
 }

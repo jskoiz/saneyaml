@@ -3612,9 +3612,16 @@ fn serde_api_string_targets_preserve_plain_scalar_source_for_typed_reads() {
     let input = include_str!("fixtures/divergences/source-backed-string-targets.yaml");
 
     let parsed: SourceBackedStringTargets = yaml::from_str(input).expect("typed string targets");
+    let parsed_from_slice: SourceBackedStringTargets =
+        yaml::from_slice(input.as_bytes()).expect("typed string targets from slice");
+    let parsed_direct_slice: SourceBackedStringTargets =
+        SourceBackedStringTargets::deserialize(yaml::Deserializer::from_slice(input.as_bytes()))
+            .expect("typed string targets from direct slice deserializer");
     let reference: SourceBackedStringTargets =
         serde_yaml::from_str(input).expect("serde_yaml typed string targets");
     assert_eq!(parsed, reference);
+    assert_eq!(parsed_from_slice, reference);
+    assert_eq!(parsed_direct_slice, reference);
     assert_eq!(parsed.responses["200"], "ok");
     assert_eq!(parsed.responses["404"], "missing");
     assert_eq!(parsed.vars["BOOL_TRUE"], "true");
@@ -3802,6 +3809,9 @@ fn serde_api_deserializer_borrows_source_backed_string_targets() {
     let parsed: BorrowedScalarTargets<'_> =
         BorrowedScalarTargets::deserialize(yaml::Deserializer::from_str(input))
             .expect("borrowed source-backed direct deserializer");
+    let parsed_from_slice: BorrowedScalarTargets<'_> =
+        BorrowedScalarTargets::deserialize(yaml::Deserializer::from_slice(input.as_bytes()))
+            .expect("borrowed source-backed direct slice deserializer");
     let reference: BTreeMap<String, BTreeMap<String, String>> =
         serde_yaml::from_str(input).expect("serde_yaml source-backed string targets");
 
@@ -3810,6 +3820,17 @@ fn serde_api_deserializer_borrows_source_backed_string_targets() {
     assert_eq!(parsed.vars["BOOL_TRUE"], "true");
     assert_eq!(parsed.vars["INT"], "1_000");
     assert_eq!(parsed.vars["FLOAT"], "1.5");
+    assert_eq!(
+        parsed_from_slice.responses["200"],
+        reference["responses"]["200"]
+    );
+    assert_eq!(
+        parsed_from_slice.responses["404"],
+        reference["responses"]["404"]
+    );
+    assert_eq!(parsed_from_slice.vars["BOOL_TRUE"], "true");
+    assert_eq!(parsed_from_slice.vars["INT"], "1_000");
+    assert_eq!(parsed_from_slice.vars["FLOAT"], "1.5");
     assert_borrowed_from(
         input,
         parsed.responses.keys().next().expect("first response key"),
@@ -3817,6 +3838,17 @@ fn serde_api_deserializer_borrows_source_backed_string_targets() {
     assert_borrowed_from(input, parsed.vars["BOOL_TRUE"]);
     assert_borrowed_from(input, parsed.vars["INT"]);
     assert_borrowed_from(input, parsed.vars["FLOAT"]);
+    assert_borrowed_from(
+        input,
+        parsed_from_slice
+            .responses
+            .keys()
+            .next()
+            .expect("first response key from slice"),
+    );
+    assert_borrowed_from(input, parsed_from_slice.vars["BOOL_TRUE"]);
+    assert_borrowed_from(input, parsed_from_slice.vars["INT"]);
+    assert_borrowed_from(input, parsed_from_slice.vars["FLOAT"]);
 }
 
 #[test]
@@ -3835,6 +3867,8 @@ fn serde_api_from_str_borrows_plain_scalar_map_keys_and_source_backed_values() {
     let input = include_str!("fixtures/divergences/source-backed-string-targets.yaml");
     let parsed: BorrowedScalarTargets<'_> =
         yaml::from_str(input).expect("borrowed source-backed string targets");
+    let parsed_from_slice: BorrowedScalarTargets<'_> = yaml::from_slice(input.as_bytes())
+        .expect("borrowed source-backed string targets from slice");
     let reference: BTreeMap<String, BTreeMap<String, String>> =
         serde_yaml::from_str(input).expect("serde_yaml source-backed string targets");
 
@@ -3846,12 +3880,36 @@ fn serde_api_from_str_borrows_plain_scalar_map_keys_and_source_backed_values() {
     assert_eq!(parsed.vars["FLOAT"], "1.5");
     assert_eq!(parsed.vars["LEADING_ZERO"], "0123");
     assert_eq!(parsed.vars["CPU"], "100m");
+    assert_eq!(
+        parsed_from_slice.responses["200"],
+        reference["responses"]["200"]
+    );
+    assert_eq!(
+        parsed_from_slice.responses["404"],
+        reference["responses"]["404"]
+    );
+    assert_eq!(parsed_from_slice.vars["BOOL_TRUE"], "true");
+    assert_eq!(parsed_from_slice.vars["BOOL_FALSE"], "FALSE");
+    assert_eq!(parsed_from_slice.vars["INT"], "1_000");
+    assert_eq!(parsed_from_slice.vars["FLOAT"], "1.5");
+    assert_eq!(parsed_from_slice.vars["LEADING_ZERO"], "0123");
+    assert_eq!(parsed_from_slice.vars["CPU"], "100m");
     assert_borrowed_from(
         input,
         parsed.responses.keys().next().expect("first response key"),
     );
     assert_borrowed_from(input, parsed.vars["BOOL_TRUE"]);
     assert_borrowed_from(input, parsed.vars["INT"]);
+    assert_borrowed_from(
+        input,
+        parsed_from_slice
+            .responses
+            .keys()
+            .next()
+            .expect("first response key from slice"),
+    );
+    assert_borrowed_from(input, parsed_from_slice.vars["BOOL_TRUE"]);
+    assert_borrowed_from(input, parsed_from_slice.vars["INT"]);
 }
 
 #[test]

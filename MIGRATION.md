@@ -16,6 +16,10 @@ For local evaluation:
 yaml = { path = "/Users/jk/Desktop/yaml" }
 ```
 
+The compileable example in `examples/serde_yaml_migration.rs` shows the same
+path for typed reads, `Value` patching, stream reads, structural writes, and
+diagnostic handling.
+
 Typical import rewrites:
 
 ```rust
@@ -75,13 +79,17 @@ currently covers:
 - merge expansion through `Value::apply_merge`
 - value-backed bytes and writer byte rejection policy
 - empty input behavior
-- real-world GitHub Actions, Docker Compose, Kubernetes, and Wrangler fixture
-  fields compared against `serde_yaml`
+- real-world GitHub Actions, Docker Compose, Kubernetes, Helm, OpenAPI,
+  Wrangler, and Ansible fixture fields compared against `serde_yaml`
+
+`tests/downstream_migration_harness.rs` adds downstream-shaped typed call sites
+for GitHub Actions, Docker Compose, Kubernetes streams, Helm, OpenAPI,
+Wrangler, and Ansible, and compares each result against `serde_yaml`.
 
 Focused proof command:
 
 ```sh
-cargo test --test serde_yaml_swap_harness
+cargo test --test serde_yaml_swap_harness --test downstream_migration_harness
 ```
 
 Broader migration proof:
@@ -92,6 +100,17 @@ cargo test --test yaml_test_suite --test event_parity --test tree_parity --test 
 cargo test --test divergence_manifest --test divergences --test baseline_audit
 cargo clippy --all-targets -- -D warnings
 ```
+
+## Performance Evidence
+
+`examples/real_world_benchmark.rs` benchmarks parse/load cost over the same
+26-file / 32-document real-world registry without timing file I/O:
+
+```sh
+cargo run --release --example real_world_benchmark
+```
+
+The latest captured table is recorded in `BENCHMARKS.md`.
 
 ## Real-World Fixture Coverage
 
@@ -147,5 +166,6 @@ testing each adopter's own YAML corpus.
 - Add migration-impact wording directly to every divergence record.
 - Add version-pinned libyaml/Psych probe artifacts for records that rely on
   external libyaml behavior.
-- Extend the swap harness with more downstream fixture families before claiming
-  broad ecosystem replacement readiness.
+- Run the migration harness against real external downstream crates before
+  claiming broad ecosystem replacement readiness.
+- Choose the public package name and final license before publishing.

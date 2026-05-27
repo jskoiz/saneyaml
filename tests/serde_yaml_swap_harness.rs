@@ -296,6 +296,31 @@ fn swap_harness_real_world_fixtures_match_serde_yaml_on_migration_fields() {
         serde_docs[1]["metadata"]["name"].as_str()
     );
 
+    let helm = include_str!("fixtures/real-world/helm/upstream-hello-world-Chart.yaml");
+    let yaml_helm: Value = yaml::from_str(helm).expect("yaml Helm value");
+    let serde_helm: serde_yaml::Value = serde_yaml::from_str(helm).expect("serde_yaml Helm value");
+    assert_eq!(
+        yaml_helm["apiVersion"].as_str(),
+        serde_helm["apiVersion"].as_str()
+    );
+    assert_eq!(
+        yaml_helm["appVersion"].as_str(),
+        serde_helm["appVersion"].as_str()
+    );
+
+    let openapi = include_str!("fixtures/real-world/openapi/upstream-petstore.yaml");
+    let yaml_openapi: Value = yaml::from_str(openapi).expect("yaml OpenAPI value");
+    let serde_openapi: serde_yaml::Value =
+        serde_yaml::from_str(openapi).expect("serde_yaml OpenAPI value");
+    assert_eq!(
+        yaml_openapi["paths"]["/pets"]["get"]["operationId"].as_str(),
+        serde_openapi["paths"]["/pets"]["get"]["operationId"].as_str()
+    );
+    assert_eq!(
+        yaml_openapi["components"]["schemas"]["Pets"]["maxItems"].as_u64(),
+        serde_openapi["components"]["schemas"]["Pets"]["maxItems"].as_u64()
+    );
+
     let wrangler = include_str!("fixtures/real-world/cloudflare/wrangler.yaml");
     let yaml_wrangler: Value = yaml::from_str(wrangler).expect("yaml wrangler value");
     let serde_wrangler: serde_yaml::Value =
@@ -303,5 +328,26 @@ fn swap_harness_real_world_fixtures_match_serde_yaml_on_migration_fields() {
     assert_eq!(
         yaml_wrangler["name"].as_str(),
         serde_wrangler["name"].as_str()
+    );
+
+    let adapted_wrangler =
+        include_str!("fixtures/real-world/cloudflare/adapted-durable-objects-wrangler.yaml");
+    let yaml_adapted_wrangler: Value =
+        yaml::from_str(adapted_wrangler).expect("yaml adapted wrangler value");
+    let serde_adapted_wrangler: serde_yaml::Value =
+        serde_yaml::from_str(adapted_wrangler).expect("serde_yaml adapted wrangler value");
+    assert_eq!(
+        yaml_adapted_wrangler["durable_objects"]["bindings"][1]["class_name"].as_str(),
+        serde_adapted_wrangler["durable_objects"]["bindings"][1]["class_name"].as_str()
+    );
+
+    let ansible = include_str!("fixtures/real-world/ansible/upstream-lamp-simple-site.yml");
+    let yaml_ansible: Value = yaml::from_str(ansible).expect("yaml Ansible value");
+    let serde_ansible: serde_yaml::Value =
+        serde_yaml::from_str(ansible).expect("serde_yaml Ansible value");
+    assert_eq!(yaml_ansible.as_sequence().map(Vec::len), Some(3));
+    assert_eq!(
+        yaml_ansible[2]["roles"][0].as_str(),
+        serde_ansible[2]["roles"][0].as_str()
     );
 }

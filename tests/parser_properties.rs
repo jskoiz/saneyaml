@@ -1,8 +1,11 @@
 use proptest::prelude::*;
-use serde::{Deserialize, de::DeserializeOwned};
+use serde::{
+    Deserialize,
+    de::{self, DeserializeOwned, Visitor},
+};
 use std::{
     collections::BTreeMap,
-    fs,
+    fmt, fs,
     io::Cursor,
     path::{Path, PathBuf},
 };
@@ -517,6 +520,49 @@ struct RootStringConfig {
     alias_value: Option<String>,
 }
 
+#[derive(Debug)]
+struct FuzzBytes;
+
+struct FuzzByteVisitor;
+
+impl<'de> Visitor<'de> for FuzzByteVisitor {
+    type Value = FuzzBytes;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("bytes")
+    }
+
+    fn visit_bytes<E>(self, _value: &[u8]) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(FuzzBytes)
+    }
+
+    fn visit_borrowed_bytes<E>(self, _value: &'de [u8]) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(FuzzBytes)
+    }
+
+    fn visit_byte_buf<E>(self, _value: Vec<u8>) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(FuzzBytes)
+    }
+}
+
+impl<'de> Deserialize<'de> for FuzzBytes {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_bytes(FuzzByteVisitor)
+    }
+}
+
 fn assert_serde_entrypoint_invariants(input: &[u8]) {
     assert_single_document_entrypoint(input);
     assert_document_stream_entrypoints(input);
@@ -525,6 +571,7 @@ fn assert_serde_entrypoint_invariants(input: &[u8]) {
     assert_numeric_map_entrypoints(input);
     assert_typed_reader_entrypoints(input);
     assert_borrowed_entrypoints(input);
+    assert_byte_entrypoints(input);
 }
 
 fn assert_apply_merge_invariants(input: &[u8]) {
@@ -822,6 +869,22 @@ fn assert_borrowed_entrypoints(input: &[u8]) {
                 assert_borrowed_from_input(input, config.path);
             }
             Err(error) => assert_error_invariants(input, &error),
+        }
+    }
+}
+
+fn assert_byte_entrypoints(input: &[u8]) {
+    if let Err(error) = yaml::from_slice::<FuzzBytes>(input) {
+        assert_error_invariants(input, &error);
+    }
+
+    if let Err(error) = FuzzBytes::deserialize(yaml::Deserializer::from_slice(input)) {
+        assert_error_invariants_allowing_unspanned(input, &error);
+    }
+
+    for result in yaml::Deserializer::from_slice(input).map(FuzzBytes::deserialize) {
+        if let Err(error) = result {
+            assert_error_invariants(input, &error);
         }
     }
 }

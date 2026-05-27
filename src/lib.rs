@@ -1,3 +1,25 @@
+//! Pure-Rust YAML parser, emitter, and Serde integration for
+//! configuration-shaped YAML.
+//!
+//! The preview API focuses on YAML 1.2 parser events, loaded document trees,
+//! `serde_yaml`-style `Value`/`Mapping`/`Number` workflows, typed Serde reads,
+//! structural writes, and line/column diagnostics. See `MIGRATION.md`,
+//! `COMPATIBILITY.md`, and `DEVELOPER_PREVIEW.md` for the current adoption
+//! contract and intentional non-goals.
+//!
+//! ```rust
+//! use serde::Deserialize;
+//!
+//! #[derive(Deserialize)]
+//! struct Config {
+//!     name: String,
+//! }
+//!
+//! let config: Config = yaml::from_str("name: api\n")?;
+//! assert_eq!(config.name, "api");
+//! # Ok::<(), yaml::Error>(())
+//! ```
+//!
 #![forbid(unsafe_code)]
 
 mod ast;

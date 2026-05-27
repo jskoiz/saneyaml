@@ -1,5 +1,5 @@
 use proptest::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, de::DeserializeOwned};
 use std::{
     collections::BTreeMap,
     fs,
@@ -444,12 +444,42 @@ struct BorrowedVars<'a> {
     vars: BTreeMap<&'a str, &'a str>,
 }
 
+#[derive(Debug, Deserialize, PartialEq)]
+struct OwnedReaderConfig {
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    path: String,
+    #[serde(default)]
+    enabled: bool,
+    #[serde(default)]
+    vars: BTreeMap<String, String>,
+    #[serde(default)]
+    ints: BTreeMap<String, i128>,
+    #[serde(default)]
+    uints: BTreeMap<String, u128>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct TaggedAliasValues {
+    first: String,
+    second: String,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct RootStringConfig {
+    root: BTreeMap<String, String>,
+    #[serde(default)]
+    alias_value: Option<String>,
+}
+
 fn assert_serde_entrypoint_invariants(input: &[u8]) {
     assert_single_document_entrypoint(input);
     assert_document_stream_entrypoints(input);
     assert_reader_backed_entrypoints(input);
     assert_config_string_map_entrypoints(input);
     assert_numeric_map_entrypoints(input);
+    assert_typed_reader_entrypoints(input);
     assert_borrowed_entrypoints(input);
 }
 
@@ -574,29 +604,89 @@ fn assert_reader_backed_entrypoints(input: &[u8]) {
 }
 
 fn assert_config_string_map_entrypoints(input: &[u8]) {
-    if let Err(error) = yaml::from_slice::<BTreeMap<String, String>>(input) {
-        assert_error_invariants(input, &error);
-    }
-    if let Err(error) = yaml::from_slice::<BTreeMap<String, Option<String>>>(input) {
-        assert_error_invariants(input, &error);
-    }
+    assert_owned_reader_entrypoint::<BTreeMap<String, String>>(input);
+    assert_owned_reader_entrypoint::<BTreeMap<String, Option<String>>>(input);
 }
 
 fn assert_numeric_map_entrypoints(input: &[u8]) {
-    assert_owned_entrypoint::<BTreeMap<String, i128>>(input);
-    assert_owned_entrypoint::<BTreeMap<String, u128>>(input);
-    assert_owned_entrypoint::<BTreeMap<String, i64>>(input);
-    assert_owned_entrypoint::<BTreeMap<String, u64>>(input);
-    assert_owned_entrypoint::<BTreeMap<String, i8>>(input);
-    assert_owned_entrypoint::<BTreeMap<String, u8>>(input);
+    assert_owned_reader_entrypoint::<BTreeMap<String, i128>>(input);
+    assert_owned_reader_entrypoint::<BTreeMap<String, u128>>(input);
+    assert_owned_reader_entrypoint::<BTreeMap<String, i64>>(input);
+    assert_owned_reader_entrypoint::<BTreeMap<String, u64>>(input);
+    assert_owned_reader_entrypoint::<BTreeMap<String, i8>>(input);
+    assert_owned_reader_entrypoint::<BTreeMap<String, u8>>(input);
 }
 
-fn assert_owned_entrypoint<T>(input: &[u8])
+fn assert_typed_reader_entrypoints(input: &[u8]) {
+    assert_owned_reader_entrypoint::<OwnedReaderConfig>(input);
+    assert_owned_reader_entrypoint::<TaggedAliasValues>(input);
+    assert_owned_reader_entrypoint::<RootStringConfig>(input);
+}
+
+fn assert_owned_reader_entrypoint<T>(input: &[u8])
 where
-    T: for<'de> Deserialize<'de>,
+    T: DeserializeOwned + std::fmt::Debug + PartialEq,
 {
-    if let Err(error) = yaml::from_slice::<T>(input) {
-        assert_error_invariants(input, &error);
+    assert_entrypoint_pair(
+        input,
+        "from_slice/from_reader",
+        yaml::from_slice::<T>(input),
+        yaml::from_reader::<_, T>(Cursor::new(input)),
+    );
+
+    assert_entrypoint_pair(
+        input,
+        "direct slice/reader deserializer",
+        T::deserialize(yaml::Deserializer::from_slice(input)),
+        T::deserialize(yaml::Deserializer::from_reader(Cursor::new(input))),
+    );
+
+    assert_entrypoint_pair(
+        input,
+        "from_documents_slice/from_documents_reader",
+        yaml::from_documents_slice::<T>(input),
+        yaml::from_documents_reader::<T, _>(Cursor::new(input)),
+    );
+
+    assert_stream_results_match(
+        input,
+        yaml::Deserializer::from_slice(input)
+            .map(T::deserialize)
+            .collect::<Vec<_>>(),
+        yaml::Deserializer::from_reader(Cursor::new(input))
+            .map(T::deserialize)
+            .collect::<Vec<_>>(),
+    );
+}
+
+fn assert_entrypoint_pair<T>(
+    input: &[u8],
+    label: &str,
+    left: yaml::Result<T>,
+    right: yaml::Result<T>,
+) where
+    T: std::fmt::Debug + PartialEq,
+{
+    match (left, right) {
+        (Ok(left), Ok(right)) => assert_eq!(left, right, "{label} drifted"),
+        (Err(left), Err(right)) => {
+            assert_error_invariants_allowing_unspanned(input, &left);
+            assert_error_invariants_allowing_unspanned(input, &right);
+        }
+        (left, right) => panic!("{label} drifted: left={left:?}, right={right:?}"),
+    }
+}
+
+fn assert_stream_results_match<T>(
+    input: &[u8],
+    left: Vec<yaml::Result<T>>,
+    right: Vec<yaml::Result<T>>,
+) where
+    T: std::fmt::Debug + PartialEq,
+{
+    assert_eq!(left.len(), right.len(), "typed stream length drifted");
+    for (left, right) in left.into_iter().zip(right) {
+        assert_entrypoint_pair(input, "typed stream slice/reader", left, right);
     }
 }
 
@@ -908,6 +998,20 @@ fn assert_error_invariants(input: &[u8], error: &Error) {
     let diagnostic = error.diagnostic();
     assert!(!diagnostic.message.is_empty());
     assert_span_invariants(input, diagnostic.span);
+    for related in &diagnostic.related {
+        assert!(!related.message.is_empty());
+        assert_span_invariants(input, related.span);
+    }
+}
+
+fn assert_error_invariants_allowing_unspanned(input: &[u8], error: &Error) {
+    let diagnostic = error.diagnostic();
+    assert!(!diagnostic.message.is_empty());
+    if error.location().is_some() {
+        assert_span_invariants(input, diagnostic.span);
+    } else {
+        assert_eq!(diagnostic.span, Span::default());
+    }
     for related in &diagnostic.related {
         assert!(!related.message.is_empty());
         assert_span_invariants(input, related.span);

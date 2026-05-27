@@ -3,6 +3,7 @@ use serde::Deserialize;
 use std::{
     collections::BTreeMap,
     fs,
+    io::Cursor,
     path::{Path, PathBuf},
 };
 use yaml::{
@@ -446,6 +447,7 @@ struct BorrowedVars<'a> {
 fn assert_serde_entrypoint_invariants(input: &[u8]) {
     assert_single_document_entrypoint(input);
     assert_document_stream_entrypoints(input);
+    assert_reader_backed_entrypoints(input);
     assert_config_string_map_entrypoints(input);
     assert_numeric_map_entrypoints(input);
     assert_borrowed_entrypoints(input);
@@ -503,6 +505,65 @@ fn assert_document_stream_entrypoints(input: &[u8]) {
                 "stream deserializer should surface parse errors"
             );
             for error in stream_results
+                .iter()
+                .filter_map(|result| result.as_ref().err())
+            {
+                assert_error_invariants(input, error);
+            }
+        }
+    }
+}
+
+fn assert_reader_backed_entrypoints(input: &[u8]) {
+    match (
+        yaml::from_slice::<Value>(input),
+        yaml::from_reader::<_, Value>(Cursor::new(input)),
+    ) {
+        (Ok(from_slice), Ok(from_reader)) => assert!(from_slice.equivalent(&from_reader)),
+        (Err(slice_error), Err(reader_error)) => {
+            assert_error_invariants(input, &slice_error);
+            assert_error_invariants(input, &reader_error);
+        }
+        (from_slice, from_reader) => panic!(
+            "from_reader drifted from from_slice: from_slice={from_slice:?}, from_reader={from_reader:?}"
+        ),
+    }
+
+    let from_documents_slice = yaml::from_documents_slice::<Value>(input);
+    let from_documents_reader = yaml::from_documents_reader::<Value, _>(Cursor::new(input));
+    match (from_documents_slice, from_documents_reader) {
+        (Ok(from_slice), Ok(from_reader)) => {
+            assert_eq!(from_slice.len(), from_reader.len());
+            for (from_slice, from_reader) in from_slice.iter().zip(from_reader.iter()) {
+                assert!(from_slice.equivalent(from_reader));
+            }
+        }
+        (Err(slice_error), Err(reader_error)) => {
+            assert_error_invariants(input, &slice_error);
+            assert_error_invariants(input, &reader_error);
+        }
+        (from_slice, from_reader) => panic!(
+            "from_documents_reader drifted from from_documents_slice: from_slice={from_slice:?}, from_reader={from_reader:?}"
+        ),
+    }
+
+    let reader_stream_results = yaml::Deserializer::from_reader(Cursor::new(input))
+        .map(Value::deserialize)
+        .collect::<Vec<_>>();
+    match yaml::from_documents_reader::<Value, _>(Cursor::new(input)) {
+        Ok(expected) => {
+            assert_eq!(reader_stream_results.len(), expected.len());
+            for (actual, expected) in reader_stream_results.into_iter().zip(expected) {
+                let actual = actual.expect("reader stream document should deserialize");
+                assert!(actual.equivalent(&expected));
+            }
+        }
+        Err(_) => {
+            assert!(
+                reader_stream_results.iter().any(Result::is_err),
+                "reader stream deserializer should surface parse errors"
+            );
+            for error in reader_stream_results
                 .iter()
                 .filter_map(|result| result.as_ref().err())
             {

@@ -386,6 +386,18 @@ fn duplicate_tree_key_inputs() -> impl Iterator<Item = (&'static str, &'static s
             "tagged-mapping-key",
             "root: {!Tag {x: y}: first, {x: y}: second}\n",
         ),
+        (
+            "permuted-mapping-key",
+            "root: {? {a: 1, b: 2}: first, ? {b: 2, a: 1}: second}\n",
+        ),
+        (
+            "alias-expanded-permuted-mapping-key",
+            "left: &left {a: 1, b: 2}\nright: &right {b: 2, a: 1}\nroot: {? *left : first, ? *right : second}\n",
+        ),
+        (
+            "tagged-permuted-mapping-key",
+            "root: {!Tag {a: 1, b: 2}: first, {b: 2, a: 1}: second}\n",
+        ),
     ]
     .into_iter()
 }

@@ -30,6 +30,29 @@ fn tagged_node(tag: &str, value: Node) -> Node {
     )
 }
 
+fn string_node(value: &str) -> Node {
+    Node::new(Value::String(value.to_string()), Span::default())
+}
+
+fn int_node(value: i128) -> Node {
+    Node::new(Value::Number(Number::Integer(value)), Span::default())
+}
+
+fn permuted_mapping_key(first_order: bool) -> Node {
+    let entries = if first_order {
+        vec![
+            (string_node("a"), int_node(1)),
+            (string_node("b"), int_node(2)),
+        ]
+    } else {
+        vec![
+            (string_node("b"), int_node(2)),
+            (string_node("a"), int_node(1)),
+        ]
+    };
+    Node::new(Value::Mapping(entries), Span::default())
+}
+
 #[test]
 fn emit_parse_emit_is_stable_for_nested_config() {
     let input = include_str!("fixtures/real-world/github-actions/minimal-ci.yaml");
@@ -187,6 +210,30 @@ fn emitter_rejects_signed_unsigned_duplicate_numeric_keys() {
     let message = error.to_string();
     assert!(
         message.contains("duplicate key") || message.contains("duplicate mapping key `1`"),
+        "{message}"
+    );
+}
+
+#[test]
+fn emitter_rejects_permuted_duplicate_mapping_keys() {
+    let node = Node::new(
+        Value::Mapping(vec![
+            (
+                permuted_mapping_key(true),
+                Node::new(Value::String("first".to_string()), Span::default()),
+            ),
+            (
+                permuted_mapping_key(false),
+                Node::new(Value::String("second".to_string()), Span::default()),
+            ),
+        ]),
+        Span::default(),
+    );
+
+    let error = to_string(&node).expect_err("permuted duplicate mapping keys are rejected");
+    let message = error.to_string();
+    assert!(
+        message.contains("duplicate key") || message.contains("duplicate mapping key"),
         "{message}"
     );
 }

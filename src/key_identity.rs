@@ -1,7 +1,7 @@
 use crate::{Error, Node, NodeValue as Value, Number, Result, Span, parse::MAX_DEPTH};
 use std::collections::HashMap;
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub(crate) enum DuplicateKey {
     Null,
     Bool(bool),
@@ -121,6 +121,7 @@ fn duplicate_mapping_identity(
         };
         identities.push((key_identity, value_identity));
     }
+    identities.sort();
     Ok(Some(DuplicateKey::Mapping(identities)))
 }
 

@@ -197,6 +197,7 @@ fn divergence_complex_key_duplicate_policy_record_is_present() {
     let record = include_str!("fixtures/divergences/records/complex-key-duplicate-policy.toml");
     assert!(record.contains("complex-key-duplicate-policy"));
     assert!(record.contains("X38W"));
+    assert!(record.contains("order-insensitive mapping-key equality"));
     assert!(record.contains("yaml-rust2"));
     assert!(record.contains("saphyr"));
     assert!(record.contains("decision"));
@@ -430,6 +431,16 @@ fn divergence_complex_collection_duplicate_key_policy_matches_documented_split()
     );
     saphyr::Yaml::load_from_str(input).expect("saphyr accepts YAML-suite X38W");
     yaml::parse_events(input).expect("raw event parser preserves X38W alias events");
+
+    let permuted = "root: {? {a: 1, b: 2}: first, ? {b: 2, a: 1}: second}\n";
+    let error = parse_str(permuted).expect_err("prototype rejects permuted duplicate mapping keys");
+    let display = error.to_string();
+    assert!(display.contains("duplicate mapping key"));
+    assert!(
+        !error.diagnostic().related.is_empty(),
+        "permuted duplicate key diagnostic points back to the first mapping key"
+    );
+    yaml::parse_events(permuted).expect("raw event parser preserves permuted duplicate keys");
 }
 
 #[test]

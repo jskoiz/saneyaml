@@ -1253,6 +1253,10 @@ fn compatibility_recent_invalid_suite_rejections_match_reference_crates() {
             include_str!("fixtures/yaml-test-suite/data/ZXT5/in.yaml"),
         ),
         (
+            "236B",
+            include_str!("fixtures/yaml-test-suite/data/236B/in.yaml"),
+        ),
+        (
             "5LLU",
             include_str!("fixtures/yaml-test-suite/data/5LLU/in.yaml"),
         ),

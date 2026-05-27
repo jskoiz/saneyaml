@@ -153,9 +153,9 @@ fn yts_manifest_selected_cases_have_fixture_inputs_and_unique_ids() {
         }
     }
 
-    assert_eq!(manifest.case.len(), 122);
+    assert_eq!(manifest.case.len(), 123);
     assert_eq!(accepted, 80);
-    assert_eq!(error_cases, 40);
+    assert_eq!(error_cases, 41);
     assert_eq!(tree_only_rejections, 2);
 }
 
@@ -251,7 +251,7 @@ fn yts_manifest_acceptance_policy_matches_parser_event_and_serde_entrypoints() {
     }
 
     assert_eq!(accepted, 80);
-    assert_eq!(syntax_rejections, 40);
+    assert_eq!(syntax_rejections, 41);
     assert_eq!(tree_only_rejections, 2);
 }
 
@@ -2167,6 +2167,18 @@ fn yts_reject_zxt5__implicit_flow_sequence_key_before_adjacent_value() {
     assert!(events_error.to_string().contains("expected `]`"));
     assert_eq!(events_error.span().line, 2);
     assert_eq!(events_error.span().column, 3);
+}
+
+#[test]
+fn yts_reject_236b__invalid_value_after_mapping() {
+    let input = include_str!("fixtures/yaml-test-suite/data/236B/in.yaml");
+    let error = parse_str(input).expect_err("invalid value after mapping rejected");
+    assert_eq!(error.span().line, 3);
+    assert_eq!(error.span().column, 1);
+
+    let events_error = parse_events(input).expect_err("event parser rejects invalid mapping value");
+    assert_eq!(events_error.span().line, 3);
+    assert_eq!(events_error.span().column, 1);
 }
 
 #[test]

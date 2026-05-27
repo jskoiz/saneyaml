@@ -245,9 +245,9 @@ The compatibility harness checks shared acceptance across this crate,
 `serde_yaml`, `yaml-rust2`, and `saphyr`, plus dedicated Rust-reference
 parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
 
-- the pinned selected YAML test-suite manifest, currently 122 fixtures with
+- the pinned selected YAML test-suite manifest, currently 123 fixtures with
   explicit per-case `expected`, `source`, and parser/tree/Serde `policy`
-  fields: 80 normal accepts, 40 syntax/error rejects, and YAML-suite
+  fields: 80 normal accepts, 41 syntax/error rejects, and YAML-suite
   2JQS/X38W as intentional tree/Serde-only rejections while raw parser events
   remain available
 - core scalars
@@ -333,7 +333,8 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   node properties, CML9/T833 missing comma failures, 6JTT unclosed flow
   sequence, CTN5 extra comma rejection in flow collections, YJV2 dash-only
   plain scalars in flow sequences, 9JBA/CVW2 adjacent comment-looking text in
-  and after a flow sequence, 9C9N wrong-indented flow sequence continuation, DK4H/ZXT5
+  and after a flow sequence, 9C9N wrong-indented flow sequence continuation, 236B
+  invalid value after a mapping, DK4H/ZXT5
   implicit flow-sequence keys followed by newlines, 5LLU bad block-scalar indentation after
   spaces-only lines, Y79Y tab-starting block scalar content and tab separation
   after block indicators, SY6V/G9HC/GT5M invalid anchor/sequence placements,

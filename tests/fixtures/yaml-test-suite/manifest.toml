@@ -431,6 +431,14 @@ policy = "raw-events-tree-serde-reject"
 features = ["error", "flow", "mapping", "sequence"]
 
 [[case]]
+id = "236B"
+name = "invalid value after mapping is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "block", "mapping", "scalar"]
+
+[[case]]
 id = "5LLU"
 name = "wrongly indented block scalar content after spaces-only lines is rejected"
 expected = "syntax-error"

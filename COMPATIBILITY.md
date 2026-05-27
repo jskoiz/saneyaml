@@ -249,7 +249,11 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   explicit per-case `expected`, `source`, and parser/tree/Serde `policy`
   fields: 80 normal accepts, 41 syntax/error rejects, and YAML-suite
   2JQS/X38W as intentional tree/Serde-only rejections while raw parser events
-  remain available
+  remain available. The manifest also owns the selected-suite parity ledger:
+  `parity.event`, `parity.tree`, and `parity.shared_reference` must match the
+  Rust source gates exactly, while the companion deferred lists explicitly
+  account for accepted cases that are outside each parity gate for this
+  milestone
 - core scalars
 - block and flow collections
 - explicit block mapping entries

@@ -31,6 +31,17 @@ struct TreeShapeDivergenceCase {
 #[derive(Debug, Deserialize)]
 struct SuiteManifest {
     case: Vec<SuiteCase>,
+    parity: SuiteParity,
+}
+
+#[derive(Debug, Deserialize)]
+struct SuiteParity {
+    event: Vec<String>,
+    event_deferred: Vec<String>,
+    tree: Vec<String>,
+    tree_deferred: Vec<String>,
+    shared_reference: Vec<String>,
+    shared_reference_deferred: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -82,6 +93,65 @@ fn yaml_suite_parity_sources_are_manifested_acceptance_cases() {
     assert_manifested_accept_cases("event parity", &event_dirs, &cases);
     assert_manifested_accept_cases("tree parity", &tree_dirs, &cases);
     assert_manifested_accept_cases("compatibility harness", &compatibility_dirs, &cases);
+}
+
+#[test]
+fn yaml_suite_parity_sources_match_manifest_ledger() {
+    let manifest = yaml_suite_manifest();
+    let cases_by_id: BTreeMap<String, SuiteCase> = manifest
+        .case
+        .iter()
+        .cloned()
+        .map(|case| (case.id.clone(), case))
+        .collect();
+
+    let event_ids = yts_case_ids(
+        source_section(EVENT_PARITY_SOURCE, "const CASES"),
+        &cases_by_id,
+    );
+    let tree_ids = yts_case_ids(
+        source_section(TREE_PARITY_SOURCE, "const VALUE_SHAPE_CASES"),
+        &cases_by_id,
+    );
+    let shared_reference_ids = yts_case_ids(
+        source_section(COMPATIBILITY_HARNESS_SOURCE, "const SHARED_ACCEPT_CASES"),
+        &cases_by_id,
+    );
+
+    assert_eq!(
+        event_ids,
+        string_set(&manifest.parity.event),
+        "event parity source cases must match the manifest-owned event ledger",
+    );
+    assert_eq!(
+        tree_ids,
+        string_set(&manifest.parity.tree),
+        "tree parity source cases must match the manifest-owned tree ledger",
+    );
+    assert_eq!(
+        shared_reference_ids,
+        string_set(&manifest.parity.shared_reference),
+        "shared-reference source cases must match the manifest-owned shared-reference ledger",
+    );
+
+    assert_parity_partition(
+        "event",
+        &manifest.parity.event,
+        &manifest.parity.event_deferred,
+        &cases_by_id,
+    );
+    assert_parity_partition(
+        "tree",
+        &manifest.parity.tree,
+        &manifest.parity.tree_deferred,
+        &cases_by_id,
+    );
+    assert_parity_partition(
+        "shared-reference",
+        &manifest.parity.shared_reference,
+        &manifest.parity.shared_reference_deferred,
+        &cases_by_id,
+    );
 }
 
 #[test]
@@ -337,13 +407,15 @@ fn yaml_suite_cases_by_fixture_dir() -> BTreeMap<String, SuiteCase> {
 }
 
 fn yaml_suite_cases_by_id() -> BTreeMap<String, SuiteCase> {
-    let manifest: SuiteManifest =
-        toml::from_str(YAML_SUITE_MANIFEST).expect("YAML-suite manifest parses");
-    manifest
+    yaml_suite_manifest()
         .case
         .into_iter()
         .map(|case| (case.id.clone(), case))
         .collect()
+}
+
+fn yaml_suite_manifest() -> SuiteManifest {
+    toml::from_str(YAML_SUITE_MANIFEST).expect("YAML-suite manifest parses")
 }
 
 fn real_world_paths_for_gate(gate: &str) -> BTreeSet<String> {
@@ -390,6 +462,62 @@ fn yts_fixture_dirs(source: &str) -> BTreeSet<String> {
         "include_str!(\"fixtures/yaml-test-suite/data/",
         "/in.yaml\")",
     )
+}
+
+fn yts_case_ids(source: &str, cases_by_id: &BTreeMap<String, SuiteCase>) -> BTreeSet<String> {
+    let cases_by_fixture_dir: BTreeMap<_, _> = cases_by_id
+        .values()
+        .map(|case| (case.fixture_dir(), case.id.clone()))
+        .collect();
+    yts_fixture_dirs(source)
+        .into_iter()
+        .map(|fixture_dir| {
+            cases_by_fixture_dir
+                .get(&fixture_dir)
+                .cloned()
+                .unwrap_or_else(|| panic!("source references unmanifested case {fixture_dir}"))
+        })
+        .collect()
+}
+
+fn string_set(values: &[String]) -> BTreeSet<String> {
+    values.iter().cloned().collect()
+}
+
+fn assert_parity_partition(
+    surface: &str,
+    included: &[String],
+    deferred: &[String],
+    cases_by_id: &BTreeMap<String, SuiteCase>,
+) {
+    let included = string_set(included);
+    let deferred = string_set(deferred);
+    assert!(
+        included.is_disjoint(&deferred),
+        "{surface} parity included and deferred sets must not overlap",
+    );
+
+    let accepted: BTreeSet<_> = cases_by_id
+        .values()
+        .filter(|case| case.expected == ExpectedOutcome::Accept)
+        .map(|case| case.id.clone())
+        .collect();
+    let partition: BTreeSet<_> = included.union(&deferred).cloned().collect();
+    assert_eq!(
+        partition, accepted,
+        "{surface} parity ledger must include or explicitly defer every accepted YAML-suite case",
+    );
+
+    for id in included.union(&deferred) {
+        let case = cases_by_id
+            .get(id.as_str())
+            .unwrap_or_else(|| panic!("{surface} parity ledger references unknown case {id}"));
+        assert_eq!(
+            case.expected,
+            ExpectedOutcome::Accept,
+            "{surface} parity ledger must only include accepted cases",
+        );
+    }
 }
 
 fn real_world_paths(source: &str) -> BTreeSet<String> {

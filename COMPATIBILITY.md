@@ -251,9 +251,11 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   2JQS/X38W as intentional tree/Serde-only rejections while raw parser events
   remain available. The manifest also owns the selected-suite parity ledger:
   `parity.event`, `parity.tree`, and `parity.shared_reference` must match the
-  Rust source gates exactly, while the companion deferred lists explicitly
-  account for accepted cases that are outside each parity gate for this
-  milestone
+  Rust source gates exactly. Current selected-suite ledgers cover event parity
+  for 78 accepted cases with 2 documented event-shape deferrals, loaded-tree
+  value-shape parity for 77 accepted cases with 3 documented tree-shape
+  deferrals, and shared-reference acceptance for 57 accepted cases with 23
+  documented `serde_yaml`/libyaml divergence deferrals
 - core scalars
 - block and flow collections
 - explicit block mapping entries
@@ -335,8 +337,10 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
 - empty implicit mapping keys as null keys in selected block and flow forms,
   including YAML-suite S3PD, CFD4, M2N8-00, and UKK6-00, while retaining
   duplicate-null-key rejection
-- bare explicit non-specific tags, including YAML-suite UKK6-02, preserved as
-  `!` metadata on a null node
+- explicit non-specific tag cases: YAML-suite UKK6/02 and S4JQ are accepted in
+  event/shared-reference gates where the references agree, but remain
+  documented tree-shape divergences because loaders disagree on the empty/tagged
+  value shape
 - selected upstream YAML-suite error fixtures, including SR86 anchor-plus-alias
   node properties, CML9/T833 missing comma failures, 6JTT unclosed flow
   sequence, CTN5 extra comma rejection in flow collections, YJV2 dash-only

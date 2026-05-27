@@ -300,6 +300,96 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "yts_dhp8_flow_sequence_and_mapping",
+        input: include_str!("fixtures/yaml-test-suite/data/DHP8/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_7w2p_block_mapping_missing_values",
+        input: include_str!("fixtures/yaml-test-suite/data/7W2P/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_ukk6_02_bare_explicit_non_specific_tag",
+        input: include_str!("fixtures/yaml-test-suite/data/UKK6-02/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_3gzx_alias_nodes",
+        input: include_str!("fixtures/yaml-test-suite/data/3GZX/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_u3xv_node_and_mapping_key_anchors",
+        input: include_str!("fixtures/yaml-test-suite/data/U3XV/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_y79y_002_tab_only_flow_sequence_separation",
+        input: include_str!("fixtures/yaml-test-suite/data/Y79Y-002/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_3rln_001_double_quoted_leading_tab",
+        input: include_str!("fixtures/yaml-test-suite/data/3RLN-001/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_3rln_002_double_quoted_leading_tab",
+        input: include_str!("fixtures/yaml-test-suite/data/3RLN-002/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_kh5v_001_double_quoted_inline_tab",
+        input: include_str!("fixtures/yaml-test-suite/data/KH5V-001/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_6wpf_double_quoted_multiline_scalar",
+        input: include_str!("fixtures/yaml-test-suite/data/6WPF/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_kss4_same_indent_double_quoted_stream_scalar",
+        input: include_str!("fixtures/yaml-test-suite/data/KSS4/in.yaml"),
+        docs: 2,
+    },
+    Case {
+        name: "yts_mzx3_scalar_styles",
+        input: include_str!("fixtures/yaml-test-suite/data/MZX3/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_s4jq_preserve_explicit_non_specific_tag",
+        input: include_str!("fixtures/yaml-test-suite/data/S4JQ/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_mus6_02_yaml_version_extra_spaces",
+        input: include_str!("fixtures/yaml-test-suite/data/MUS6-02/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_mus6_03_yaml_version_tab_spacing",
+        input: include_str!("fixtures/yaml-test-suite/data/MUS6-03/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_mus6_04_yaml_version_comment",
+        input: include_str!("fixtures/yaml-test-suite/data/MUS6-04/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_u3c3_tag_directive_scalar",
+        input: include_str!("fixtures/yaml-test-suite/data/U3C3/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_fta2_document_start_anchor",
+        input: include_str!("fixtures/yaml-test-suite/data/FTA2/in.yaml"),
+        docs: 1,
+    },
+    Case {
         name: "github_actions_minimal",
         input: include_str!("fixtures/real-world/github-actions/minimal-ci.yaml"),
         docs: 1,

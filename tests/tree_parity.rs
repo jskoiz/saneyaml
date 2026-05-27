@@ -150,6 +150,210 @@ const VALUE_SHAPE_CASES: &[TreeCase] = &[
         name: "yts_57h4_tagged_block_collections",
         input: include_str!("fixtures/yaml-test-suite/data/57H4/in.yaml"),
     },
+    TreeCase {
+        name: "yts_dhp8_flow_sequence_and_mapping",
+        input: include_str!("fixtures/yaml-test-suite/data/DHP8/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_7w2p_block_mapping_missing_values",
+        input: include_str!("fixtures/yaml-test-suite/data/7W2P/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_5we3_explicit_block_mapping_entries",
+        input: include_str!("fixtures/yaml-test-suite/data/5WE3/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_v9d5_compact_block_mappings",
+        input: include_str!("fixtures/yaml-test-suite/data/V9D5/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_s3pd_implicit_block_mapping_entries",
+        input: include_str!("fixtures/yaml-test-suite/data/S3PD/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_cfd4_empty_implicit_flow_sequence_keys",
+        input: include_str!("fixtures/yaml-test-suite/data/CFD4/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_m2n8_00_question_mark_edge_empty_compact_mapping_key",
+        input: include_str!("fixtures/yaml-test-suite/data/M2N8-00/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_ukk6_00_colon_only_compact_sequence_mapping",
+        input: include_str!("fixtures/yaml-test-suite/data/UKK6-00/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_2ebw_allowed_plain_key_characters",
+        input: include_str!("fixtures/yaml-test-suite/data/2EBW/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_fbc9_allowed_plain_scalar_characters",
+        input: include_str!("fixtures/yaml-test-suite/data/FBC9/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_xlq9_directive_looking_plain_scalar_continuation",
+        input: include_str!("fixtures/yaml-test-suite/data/XLQ9/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_ab8u_sequence_entry_looking_continuation",
+        input: include_str!("fixtures/yaml-test-suite/data/AB8U/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_3gzx_alias_nodes",
+        input: include_str!("fixtures/yaml-test-suite/data/3GZX/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_u3xv_node_and_mapping_key_anchors",
+        input: include_str!("fixtures/yaml-test-suite/data/U3XV/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_2sxe_anchors_with_colon_in_name",
+        input: include_str!("fixtures/yaml-test-suite/data/2SXE/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_jhb9_two_documents_with_comments",
+        input: include_str!("fixtures/yaml-test-suite/data/JHB9/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_6lvf_reserved_directive_is_ignored",
+        input: include_str!("fixtures/yaml-test-suite/data/6LVF/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_6bct_separation_spaces",
+        input: include_str!("fixtures/yaml-test-suite/data/6BCT/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_6ca3_tab_before_root_flow_sequence",
+        input: include_str!("fixtures/yaml-test-suite/data/6CA3/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_q5mg_tab_before_root_flow_mapping",
+        input: include_str!("fixtures/yaml-test-suite/data/Q5MG/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_y79y_001_space_tab_block_scalar_content",
+        input: include_str!("fixtures/yaml-test-suite/data/Y79Y-001/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_y79y_002_tab_only_flow_sequence_separation",
+        input: include_str!("fixtures/yaml-test-suite/data/Y79Y-002/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_y79y_010_tab_separated_negative_scalar",
+        input: include_str!("fixtures/yaml-test-suite/data/Y79Y-010/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_3rln_001_double_quoted_leading_tab",
+        input: include_str!("fixtures/yaml-test-suite/data/3RLN-001/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_3rln_002_double_quoted_leading_tab",
+        input: include_str!("fixtures/yaml-test-suite/data/3RLN-002/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_kh5v_001_double_quoted_inline_tab",
+        input: include_str!("fixtures/yaml-test-suite/data/KH5V-001/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_6wpf_double_quoted_multiline_scalar",
+        input: include_str!("fixtures/yaml-test-suite/data/6WPF/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_kss4_same_indent_double_quoted_stream_scalar",
+        input: include_str!("fixtures/yaml-test-suite/data/KSS4/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_xw4d_various_trailing_comments",
+        input: include_str!("fixtures/yaml-test-suite/data/XW4D/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_rzp5_various_trailing_comments_same_line_anchor",
+        input: include_str!("fixtures/yaml-test-suite/data/RZP5/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_a984_multiline_scalar_in_mapping",
+        input: include_str!("fixtures/yaml-test-suite/data/A984/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_p2ad_block_scalar_header",
+        input: include_str!("fixtures/yaml-test-suite/data/P2AD/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_f8f9_block_scalar_chomping",
+        input: include_str!("fixtures/yaml-test-suite/data/F8F9/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_f6mc_folded_block_more_indented_lines",
+        input: include_str!("fixtures/yaml-test-suite/data/F6MC/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_m5c3_block_scalar_tags",
+        input: include_str!("fixtures/yaml-test-suite/data/M5C3/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_36f6_multiline_plain_scalar_with_empty_line",
+        input: include_str!("fixtures/yaml-test-suite/data/36F6/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_5gbf_empty_lines_in_flow_and_block_scalars",
+        input: include_str!("fixtures/yaml-test-suite/data/5GBF/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_4cqq_multi_line_flow_scalars",
+        input: include_str!("fixtures/yaml-test-suite/data/4CQQ/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_7tmg_flow_sequence_comments",
+        input: include_str!("fixtures/yaml-test-suite/data/7TMG/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_9mmw_single_pair_implicit_entries",
+        input: include_str!("fixtures/yaml-test-suite/data/9MMW/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_8kb6_multiline_flow_plain_key",
+        input: include_str!("fixtures/yaml-test-suite/data/8KB6/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_6bfj_flow_key_metadata",
+        input: include_str!("fixtures/yaml-test-suite/data/6BFJ/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_mzx3_scalar_styles",
+        input: include_str!("fixtures/yaml-test-suite/data/MZX3/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_6m2f_aliases_in_explicit_block_mapping",
+        input: include_str!("fixtures/yaml-test-suite/data/6M2F/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_bec7_yaml_version_1_3_directive",
+        input: include_str!("fixtures/yaml-test-suite/data/BEC7/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_mus6_02_yaml_version_extra_spaces",
+        input: include_str!("fixtures/yaml-test-suite/data/MUS6-02/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_mus6_03_yaml_version_tab_spacing",
+        input: include_str!("fixtures/yaml-test-suite/data/MUS6-03/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_mus6_04_yaml_version_comment",
+        input: include_str!("fixtures/yaml-test-suite/data/MUS6-04/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_u3c3_tag_directive_scalar",
+        input: include_str!("fixtures/yaml-test-suite/data/U3C3/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_6ck3_tag_shorthand_suffix_escapes",
+        input: include_str!("fixtures/yaml-test-suite/data/6CK3/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_fta2_document_start_anchor",
+        input: include_str!("fixtures/yaml-test-suite/data/FTA2/in.yaml"),
+    },
 ];
 
 const TAGGED_SAPHYR_CASES: &[TreeCase] = &[TreeCase {

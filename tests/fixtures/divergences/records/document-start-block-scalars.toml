@@ -1,0 +1,7 @@
+case = "document-start-block-scalars"
+policy = "YAML 1.2 document-start block scalar forms follow Rust parser references rather than libyaml rejection"
+prototype = "Accepts YAML-suite W4TN, FP8R, and DK3J, where explicit document-start markers are followed by zero-indented literal or folded block scalars and comment-looking folded content."
+serde_yaml = "serde_yaml 0.9.34 rejects W4TN, FP8R, and DK3J through libyaml document-start/block-scalar handling."
+yaml_rust2 = "yaml-rust2 0.11.0 accepts W4TN, FP8R, and DK3J."
+saphyr = "saphyr 0.0.6 accepts W4TN, FP8R, and DK3J."
+decision = "Keep these YAML 1.2 document-start block scalar cases in parser/event/tree coverage and out of shared-reference acceptance; do not reject them only to match libyaml-era behavior."

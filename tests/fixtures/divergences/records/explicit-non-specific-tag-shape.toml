@@ -1,0 +1,7 @@
+case = "explicit-non-specific-tag-shape"
+policy = "Explicit non-specific tags are preserved for parser/event surfaces while tree loaders differ on empty tagged nodes"
+prototype = "Accepts YAML-suite UKK6/02 and S4JQ. UKK6/02 loads a bare explicit non-specific tag as null; S4JQ keeps the explicit non-specific tag transparent for typed reads while preserving tag metadata in retained tree/value surfaces."
+serde_yaml = "serde_yaml 0.9.34 accepts UKK6/02 and S4JQ for document-count compatibility."
+yaml_rust2 = "yaml-rust2 0.11.0 loads UKK6/02 and S4JQ with different empty/tagged scalar value shapes than the prototype for the selected cases."
+saphyr = "saphyr 0.0.6 loads UKK6/02 as an empty string and matches the prototype more closely for S4JQ."
+decision = "Keep UKK6/02 and S4JQ in event or shared-reference acceptance where those surfaces agree, but keep them out of loaded-tree parity until the explicit non-specific tag value-shape policy is intentionally changed."

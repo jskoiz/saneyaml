@@ -1023,14 +1023,10 @@ event = [
     "SKE5",
     "PW8X",
     "57H4",
-]
-
-event_deferred = [
     "DHP8",
     "7W2P",
     "S3PD",
     "CFD4",
-    "M2N8/00",
     "UKK6/00",
     "UKK6/02",
     "2EBW",
@@ -1068,8 +1064,12 @@ event_deferred = [
     "MUS6/02",
     "MUS6/03",
     "MUS6/04",
-    "K858",
     "6CK3",
+]
+
+event_deferred = [
+    "M2N8/00",
+    "K858",
 ]
 
 tree = [
@@ -1099,9 +1099,6 @@ tree = [
     "DK3J",
     "M7A3",
     "57H4",
-]
-
-tree_deferred = [
     "DHP8",
     "7W2P",
     "5WE3",
@@ -1110,7 +1107,6 @@ tree_deferred = [
     "CFD4",
     "M2N8/00",
     "UKK6/00",
-    "UKK6/02",
     "2EBW",
     "FBC9",
     "XLQ9",
@@ -1118,7 +1114,6 @@ tree_deferred = [
     "3GZX",
     "U3XV",
     "2SXE",
-    "PW8X",
     "JHB9",
     "6LVF",
     "6BCT",
@@ -1147,7 +1142,6 @@ tree_deferred = [
     "8KB6",
     "6BFJ",
     "MZX3",
-    "S4JQ",
     "6M2F",
     "BEC7",
     "MUS6/02",
@@ -1156,6 +1150,12 @@ tree_deferred = [
     "U3C3",
     "6CK3",
     "FTA2",
+]
+
+tree_deferred = [
+    "UKK6/02",
+    "PW8X",
+    "S4JQ",
 ]
 
 shared_reference = [
@@ -1198,48 +1198,48 @@ shared_reference = [
     "93WF",
     "K527",
     "M5C3",
+    "DHP8",
+    "7W2P",
+    "UKK6/02",
+    "3GZX",
+    "U3XV",
+    "Y79Y/002",
+    "3RLN-001",
+    "3RLN-002",
+    "KH5V-001",
+    "6WPF",
+    "KSS4",
+    "MZX3",
+    "S4JQ",
+    "MUS6/02",
+    "MUS6/03",
+    "MUS6/04",
+    "U3C3",
+    "FTA2",
 ]
 
 shared_reference_deferred = [
-    "DHP8",
-    "7W2P",
     "S3PD",
     "CFD4",
     "M2N8/00",
     "UKK6/00",
-    "UKK6/02",
-    "3GZX",
-    "U3XV",
     "2SXE",
     "6LVF",
     "6BCT",
     "6CA3",
     "Q5MG",
     "Y79Y/001",
-    "Y79Y/002",
     "Y79Y/010",
-    "3RLN-001",
-    "3RLN-002",
-    "KH5V-001",
-    "6WPF",
-    "KSS4",
     "5MUD",
     "5T43",
     "58MP",
     "9SA2",
-    "MZX3",
-    "S4JQ",
     "6M2F",
     "W4TN",
     "BEC7",
-    "MUS6/02",
-    "MUS6/03",
-    "MUS6/04",
     "R4YG",
     "FP8R",
     "DK3J",
     "M7A3",
     "UT92",
-    "U3C3",
-    "FTA2",
 ]

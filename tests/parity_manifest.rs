@@ -8,18 +8,210 @@ const REAL_WORLD_CONFIGS_SOURCE: &str = include_str!("real_world_configs.rs");
 const COMPATIBILITY_SOURCE: &str = include_str!("../COMPATIBILITY.md");
 const YAML_SUITE_MANIFEST: &str = include_str!("fixtures/yaml-test-suite/manifest.toml");
 const REAL_WORLD_SOURCE: &str = include_str!("fixtures/real-world/SOURCE.toml");
+const ADJACENT_FLOW_MAPPING_SCALARS_RECORD: &str =
+    include_str!("fixtures/divergences/records/adjacent-flow-mapping-scalars.toml");
+const BARE_DOCUMENT_STREAMS_RECORD: &str =
+    include_str!("fixtures/divergences/records/bare-document-streams.toml");
+const COLON_ANCHOR_NAMES_RECORD: &str =
+    include_str!("fixtures/divergences/records/colon-anchor-names.toml");
+const DIRECTIVE_LOOKING_FLOW_CONTENT_RECORD: &str =
+    include_str!("fixtures/divergences/records/directive-looking-flow-content.toml");
+const DOCUMENT_START_BLOCK_SCALARS_RECORD: &str =
+    include_str!("fixtures/divergences/records/document-start-block-scalars.toml");
+const EMPTY_BLOCK_SCALAR_EVENT_SHAPE_RECORD: &str =
+    include_str!("fixtures/divergences/records/empty-block-scalar-event-shape.toml");
+const EMPTY_IMPLICIT_KEYS_RECORD: &str =
+    include_str!("fixtures/divergences/records/empty-implicit-keys.toml");
 const EMPTY_SCALAR_ANCHORS_RECORD: &str =
     include_str!("fixtures/divergences/records/empty-scalar-anchors.toml");
+const EXPLICIT_NON_SPECIFIC_TAG_SHAPE_RECORD: &str =
+    include_str!("fixtures/divergences/records/explicit-non-specific-tag-shape.toml");
+const MULTILINE_QUOTED_FLOW_KEY_RECORD: &str =
+    include_str!("fixtures/divergences/records/multiline-quoted-flow-key.toml");
+const RAW_EVENT_ANCHORS_ALIASES_RECORD: &str =
+    include_str!("fixtures/divergences/records/raw-event-anchors-aliases.toml");
+const RAW_EVENT_DIRECTIVES_RECORD: &str =
+    include_str!("fixtures/divergences/records/raw-event-directives.toml");
+const TAB_TOKEN_SEPARATION_RECORD: &str =
+    include_str!("fixtures/divergences/records/tab-token-separation.toml");
+const YAML_VERSION_DIRECTIVE_SCHEMA_RECORD: &str =
+    include_str!("fixtures/divergences/records/yaml-version-directive-schema.toml");
 const RUST_REFERENCE_DIVERGENCE_CASES: &[&str] = &[
     "M7A3", // serde_yaml rejects the full bare-document stream; Rust parser references accept.
     "UT92", // serde_yaml rejects directive-looking lines inside open flow content; Rust parser references accept.
 ];
-const TREE_SHAPE_DIVERGENCE_CASES: &[TreeShapeDivergenceCase] = &[TreeShapeDivergenceCase {
-    id: "PW8X",
-    record_case: "empty-scalar-anchors",
-    record_source: EMPTY_SCALAR_ANCHORS_RECORD,
-    compatibility_terms: &["PW8X", "empty scalar nodes", "tree-shape divergences"],
-}];
+const EVENT_DEFERRED_DIVERGENCES: &[DeferredDivergenceCase] = &[
+    DeferredDivergenceCase {
+        id: "M2N8/00",
+        record_case: "empty-implicit-keys",
+        record_source: EMPTY_IMPLICIT_KEYS_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "K858",
+        record_case: "empty-block-scalar-event-shape",
+        record_source: EMPTY_BLOCK_SCALAR_EVENT_SHAPE_RECORD,
+    },
+];
+const TREE_DEFERRED_DIVERGENCES: &[DeferredDivergenceCase] = &[
+    DeferredDivergenceCase {
+        id: "UKK6/02",
+        record_case: "explicit-non-specific-tag-shape",
+        record_source: EXPLICIT_NON_SPECIFIC_TAG_SHAPE_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "PW8X",
+        record_case: "empty-scalar-anchors",
+        record_source: EMPTY_SCALAR_ANCHORS_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "S4JQ",
+        record_case: "explicit-non-specific-tag-shape",
+        record_source: EXPLICIT_NON_SPECIFIC_TAG_SHAPE_RECORD,
+    },
+];
+const SHARED_REFERENCE_DIVERGENCES: &[DeferredDivergenceCase] = &[
+    DeferredDivergenceCase {
+        id: "S3PD",
+        record_case: "empty-implicit-keys",
+        record_source: EMPTY_IMPLICIT_KEYS_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "CFD4",
+        record_case: "empty-implicit-keys",
+        record_source: EMPTY_IMPLICIT_KEYS_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "M2N8/00",
+        record_case: "empty-implicit-keys",
+        record_source: EMPTY_IMPLICIT_KEYS_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "UKK6/00",
+        record_case: "empty-implicit-keys",
+        record_source: EMPTY_IMPLICIT_KEYS_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "2SXE",
+        record_case: "colon-anchor-names",
+        record_source: COLON_ANCHOR_NAMES_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "6LVF",
+        record_case: "raw-event-directives",
+        record_source: RAW_EVENT_DIRECTIVES_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "6BCT",
+        record_case: "tab-token-separation",
+        record_source: TAB_TOKEN_SEPARATION_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "6CA3",
+        record_case: "tab-token-separation",
+        record_source: TAB_TOKEN_SEPARATION_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "Q5MG",
+        record_case: "tab-token-separation",
+        record_source: TAB_TOKEN_SEPARATION_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "Y79Y/001",
+        record_case: "tab-token-separation",
+        record_source: TAB_TOKEN_SEPARATION_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "Y79Y/010",
+        record_case: "tab-token-separation",
+        record_source: TAB_TOKEN_SEPARATION_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "5MUD",
+        record_case: "adjacent-flow-mapping-scalars",
+        record_source: ADJACENT_FLOW_MAPPING_SCALARS_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "5T43",
+        record_case: "adjacent-flow-mapping-scalars",
+        record_source: ADJACENT_FLOW_MAPPING_SCALARS_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "58MP",
+        record_case: "adjacent-flow-mapping-scalars",
+        record_source: ADJACENT_FLOW_MAPPING_SCALARS_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "9SA2",
+        record_case: "multiline-quoted-flow-key",
+        record_source: MULTILINE_QUOTED_FLOW_KEY_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "6M2F",
+        record_case: "raw-event-anchors-aliases",
+        record_source: RAW_EVENT_ANCHORS_ALIASES_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "W4TN",
+        record_case: "document-start-block-scalars",
+        record_source: DOCUMENT_START_BLOCK_SCALARS_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "BEC7",
+        record_case: "yaml-version-directive-schema",
+        record_source: YAML_VERSION_DIRECTIVE_SCHEMA_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "R4YG",
+        record_case: "tab-token-separation",
+        record_source: TAB_TOKEN_SEPARATION_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "FP8R",
+        record_case: "document-start-block-scalars",
+        record_source: DOCUMENT_START_BLOCK_SCALARS_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "DK3J",
+        record_case: "document-start-block-scalars",
+        record_source: DOCUMENT_START_BLOCK_SCALARS_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "M7A3",
+        record_case: "bare-document-streams",
+        record_source: BARE_DOCUMENT_STREAMS_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "UT92",
+        record_case: "directive-looking-flow-content",
+        record_source: DIRECTIVE_LOOKING_FLOW_CONTENT_RECORD,
+    },
+];
+const TREE_SHAPE_DIVERGENCE_CASES: &[TreeShapeDivergenceCase] = &[
+    TreeShapeDivergenceCase {
+        id: "UKK6/02",
+        record_case: "explicit-non-specific-tag-shape",
+        record_source: EXPLICIT_NON_SPECIFIC_TAG_SHAPE_RECORD,
+        compatibility_terms: &["UKK6/02", "explicit non-specific tag"],
+    },
+    TreeShapeDivergenceCase {
+        id: "PW8X",
+        record_case: "empty-scalar-anchors",
+        record_source: EMPTY_SCALAR_ANCHORS_RECORD,
+        compatibility_terms: &["PW8X", "empty scalar nodes", "tree-shape divergences"],
+    },
+    TreeShapeDivergenceCase {
+        id: "S4JQ",
+        record_case: "explicit-non-specific-tag-shape",
+        record_source: EXPLICIT_NON_SPECIFIC_TAG_SHAPE_RECORD,
+        compatibility_terms: &["S4JQ", "explicit non-specific tag"],
+    },
+];
+
+struct DeferredDivergenceCase {
+    id: &'static str,
+    record_case: &'static str,
+    record_source: &'static str,
+}
 
 struct TreeShapeDivergenceCase {
     id: &'static str,
@@ -151,6 +343,26 @@ fn yaml_suite_parity_sources_match_manifest_ledger() {
         &manifest.parity.shared_reference,
         &manifest.parity.shared_reference_deferred,
         &cases_by_id,
+    );
+}
+
+#[test]
+fn yaml_suite_deferred_parity_cases_are_explicit_divergences() {
+    let manifest = yaml_suite_manifest();
+    assert_deferred_cases_have_records(
+        "event",
+        &manifest.parity.event_deferred,
+        EVENT_DEFERRED_DIVERGENCES,
+    );
+    assert_deferred_cases_have_records(
+        "tree",
+        &manifest.parity.tree_deferred,
+        TREE_DEFERRED_DIVERGENCES,
+    );
+    assert_deferred_cases_have_records(
+        "shared-reference",
+        &manifest.parity.shared_reference_deferred,
+        SHARED_REFERENCE_DIVERGENCES,
     );
 }
 
@@ -516,6 +728,40 @@ fn assert_parity_partition(
             case.expected,
             ExpectedOutcome::Accept,
             "{surface} parity ledger must only include accepted cases",
+        );
+    }
+}
+
+fn assert_deferred_cases_have_records(
+    surface: &str,
+    deferred: &[String],
+    expected: &[DeferredDivergenceCase],
+) {
+    let actual: BTreeSet<_> = deferred.iter().map(String::as_str).collect();
+    let expected_ids: BTreeSet<_> = expected.iter().map(|case| case.id).collect();
+    assert_eq!(
+        actual, expected_ids,
+        "{surface} deferred cases must be exactly the documented divergence set",
+    );
+
+    for case in expected {
+        let expected_record = format!("case = \"{}\"", case.record_case);
+        assert!(
+            case.record_source.contains(&expected_record),
+            "{surface} deferred case {} must link to divergence record {}",
+            case.id,
+            case.record_case,
+        );
+        assert!(
+            case.record_source.contains(case.id),
+            "{surface} deferred case {} must be named in divergence record {}",
+            case.id,
+            case.record_case,
+        );
+        assert!(
+            case.record_source.contains("decision"),
+            "{surface} deferred case {} record must document the decision",
+            case.id,
         );
     }
 }

@@ -54,6 +54,17 @@ expected_docs = 1
 gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
 
 [[fixture]]
+path = "docker-compose/awesome-nginx-flask-mysql.yaml"
+domain = "docker-compose"
+source_type = "upstream-snapshot"
+source = "Copied unchanged from https://github.com/docker/awesome-compose/blob/18f59bdb09ecf520dd5758fbf90dec314baec545/nginx-flask-mysql/compose.yaml"
+version = "docker/awesome-compose nginx-flask-mysql/compose.yaml at commit 18f59bdb09ecf520dd5758fbf90dec314baec545"
+license = "CC0 1.0 Universal."
+reduction = "None; upstream snapshot preserves comments, build forms, secrets, networks, list environment values, healthcheck command, and depends_on list/map shapes."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
 path = "docker-compose/compose-anchors.yaml"
 domain = "docker-compose"
 source_type = "synthetic"

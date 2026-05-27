@@ -342,6 +342,11 @@ const CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "docker_compose_awesome_nginx_flask_mysql",
+        input: include_str!("fixtures/real-world/docker-compose/awesome-nginx-flask-mysql.yaml"),
+        docs: 1,
+    },
+    Case {
         name: "docker_compose_anchors",
         input: include_str!("fixtures/real-world/docker-compose/compose-anchors.yaml"),
         docs: 1,

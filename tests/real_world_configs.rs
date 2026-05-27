@@ -471,6 +471,55 @@ struct ComposeResources {
     reservations: BTreeMap<String, String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct AwesomeCompose {
+    services: BTreeMap<String, AwesomeComposeService>,
+    volumes: BTreeMap<String, Option<yaml::Value>>,
+    secrets: BTreeMap<String, SecretFile>,
+    networks: BTreeMap<String, Option<yaml::Value>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AwesomeComposeService {
+    image: Option<String>,
+    build: Option<BuildConfig>,
+    command: Option<Command>,
+    restart: Option<String>,
+    healthcheck: Option<Healthcheck>,
+    secrets: Option<Vec<String>>,
+    volumes: Option<Vec<String>>,
+    networks: Option<Vec<String>>,
+    environment: Option<Environment>,
+    expose: Option<Vec<u32>>,
+    ports: Option<Vec<String>>,
+    depends_on: Option<ComposeDependsOn>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum BuildConfig {
+    Path(String),
+    Context(BuildContext),
+}
+
+#[derive(Debug, Deserialize)]
+struct BuildContext {
+    context: String,
+    target: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum ComposeDependsOn {
+    List(Vec<String>),
+    Conditions(BTreeMap<String, DependsOn>),
+}
+
+#[derive(Debug, Deserialize)]
+struct SecretFile {
+    file: String,
+}
+
 #[test]
 fn rw_parse_docker_compose__service_config() {
     let input = include_str!("fixtures/real-world/docker-compose/compose.yaml");
@@ -493,6 +542,99 @@ fn rw_parse_docker_compose__service_config() {
         compose.services["worker"].command.as_ref().unwrap(),
         &["worker", "--queue", "default"]
     );
+}
+
+#[test]
+fn rw_parse_docker_compose__awesome_nginx_flask_mysql_upstream_snapshot() {
+    let input = include_str!("fixtures/real-world/docker-compose/awesome-nginx-flask-mysql.yaml");
+
+    let value: yaml::Value = yaml::from_str(input).expect("deserialize upstream compose value");
+    assert_eq!(
+        value["services"]["db"]["image"].as_str(),
+        Some("mariadb:10-focal")
+    );
+    assert_eq!(
+        value["services"]["db"]["healthcheck"]["test"][0].as_str(),
+        Some("CMD-SHELL")
+    );
+    assert_eq!(
+        value["services"]["db"]["healthcheck"]["test"][1].as_str(),
+        Some(
+            r#"mysqladmin ping -h 127.0.0.1 --password="$$(cat /run/secrets/db-password)" --silent"#
+        )
+    );
+    assert_eq!(
+        value["services"]["backend"]["depends_on"]["db"]["condition"].as_str(),
+        Some("service_healthy")
+    );
+    assert_eq!(
+        value["services"]["proxy"]["depends_on"][0].as_str(),
+        Some("backend")
+    );
+    assert_eq!(
+        value["secrets"]["db-password"]["file"].as_str(),
+        Some("db/password.txt")
+    );
+
+    let compose: AwesomeCompose =
+        yaml::from_str(input).expect("deserialize upstream compose typed config");
+    assert_eq!(compose.services.len(), 3);
+
+    let db = &compose.services["db"];
+    assert_eq!(db.image.as_deref(), Some("mariadb:10-focal"));
+    assert_eq!(
+        db.command.as_ref().map(command_text),
+        Some("--default-authentication-plugin=mysql_native_password")
+    );
+    assert_eq!(db.restart.as_deref(), Some("always"));
+    assert_eq!(db.secrets.as_ref().unwrap(), &["db-password"]);
+    assert_eq!(db.volumes.as_ref().unwrap(), &["db-data:/var/lib/mysql"]);
+    assert_eq!(db.networks.as_ref().unwrap(), &["backnet"]);
+    assert_eq!(db.expose.as_ref().unwrap(), &[3306, 33060]);
+    assert!(matches!(
+        db.environment,
+        Some(Environment::List(ref items))
+            if items == &[
+                "MYSQL_DATABASE=example",
+                "MYSQL_ROOT_PASSWORD_FILE=/run/secrets/db-password"
+            ]
+    ));
+    assert!(matches!(
+        db.healthcheck.as_ref().unwrap().test,
+        HealthcheckTest::List(ref items)
+            if items[0] == "CMD-SHELL"
+                && items[1].contains("mysqladmin ping")
+                && items[1].contains("db-password")
+    ));
+
+    let backend = &compose.services["backend"];
+    assert!(matches!(
+        backend.build,
+        Some(BuildConfig::Context(ref build))
+            if build.context == "backend" && build.target.as_deref() == Some("builder")
+    ));
+    assert_eq!(backend.ports.as_ref().unwrap(), &["8000:8000"]);
+    assert!(matches!(
+        backend.depends_on,
+        Some(ComposeDependsOn::Conditions(ref depends_on))
+            if depends_on["db"].condition == "service_healthy"
+    ));
+
+    let proxy = &compose.services["proxy"];
+    assert!(matches!(
+        proxy.build,
+        Some(BuildConfig::Path(ref path)) if path == "proxy"
+    ));
+    assert_eq!(proxy.ports.as_ref().unwrap(), &["80:80"]);
+    assert!(matches!(
+        proxy.depends_on,
+        Some(ComposeDependsOn::List(ref depends_on)) if depends_on == &["backend"]
+    ));
+
+    assert!(compose.volumes["db-data"].is_none());
+    assert_eq!(compose.secrets["db-password"].file, "db/password.txt");
+    assert!(compose.networks["backnet"].is_none());
+    assert!(compose.networks["frontnet"].is_none());
 }
 
 #[test]
@@ -651,6 +793,13 @@ struct VolumeMount {
 enum Command {
     String(String),
     List(Vec<String>),
+}
+
+fn command_text(command: &Command) -> &str {
+    match command {
+        Command::String(command) => command,
+        Command::List(_) => panic!("expected string command"),
+    }
 }
 
 #[test]

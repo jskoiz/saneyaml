@@ -358,7 +358,9 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   aliases, literal merge keys, and polymorphic service fields such as
   environment maps/lists, healthcheck command strings/lists, env files,
   profiles, depends_on condition maps, typed volume mounts, service platforms,
-  and deploy resource limits/reservations
+  deploy resource limits/reservations, and a pinned upstream
+  `docker/awesome-compose` nginx/flask/mysql snapshot with secrets, networks,
+  build forms, and list/map depends_on shapes
 - Kubernetes multi-document manifests, including Helm-rendered streams with
   comment-only empty documents, explicit stream terminators, block scalar data,
   CRDs with embedded OpenAPI v3 schemas and custom resources, and YAML 1.2
@@ -371,10 +373,11 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
 - Ansible-style playbooks, including `!vault` and `!unsafe` tagged values and
   raw event coverage for tag/style metadata
 - the real-world fixture registry in `tests/fixtures/real-world/SOURCE.toml`,
-  currently 20 files and 26 YAML documents, with per-fixture domain, source
+  currently 21 files and 27 YAML documents, with per-fixture domain, source
   type, version surface, license/redaction note, reduction note, expected
   document count, and gate coverage; at least one fixture must be
-  non-synthetic upstream/adapted provenance
+  non-synthetic upstream/adapted provenance, with current non-synthetic
+  coverage for GitHub Actions and Docker Compose
 - shared-reference acceptance for every registered real-world fixture against
   this crate, `serde_yaml` 0.9.34, `yaml-rust2` 0.11.0, and `saphyr` 0.0.6
   as pinned in `Cargo.toml`

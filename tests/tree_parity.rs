@@ -167,6 +167,10 @@ const REAL_WORLD_TREE_CASES: &[TreeCase] = &[
         input: include_str!("fixtures/real-world/docker-compose/compose.yaml"),
     },
     TreeCase {
+        name: "docker_compose_awesome_nginx_flask_mysql",
+        input: include_str!("fixtures/real-world/docker-compose/awesome-nginx-flask-mysql.yaml"),
+    },
+    TreeCase {
         name: "docker_compose_anchors",
         input: include_str!("fixtures/real-world/docker-compose/compose-anchors.yaml"),
     },

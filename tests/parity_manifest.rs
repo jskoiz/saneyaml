@@ -4,6 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 const EVENT_PARITY_SOURCE: &str = include_str!("event_parity.rs");
 const TREE_PARITY_SOURCE: &str = include_str!("tree_parity.rs");
 const COMPATIBILITY_HARNESS_SOURCE: &str = include_str!("compatibility_harness.rs");
+const REAL_WORLD_CONFIGS_SOURCE: &str = include_str!("real_world_configs.rs");
 const YAML_SUITE_MANIFEST: &str = include_str!("fixtures/yaml-test-suite/manifest.toml");
 const REAL_WORLD_SOURCE: &str = include_str!("fixtures/real-world/SOURCE.toml");
 
@@ -122,6 +123,7 @@ fn yaml_suite_tree_only_duplicate_key_exclusions_are_explicit() {
 
 #[test]
 fn real_world_parity_sources_match_manifest_gates() {
+    let typed_paths = real_world_paths(REAL_WORLD_CONFIGS_SOURCE);
     let event_paths = real_world_paths(source_section(EVENT_PARITY_SOURCE, "const CASES"));
     let tree_paths = real_world_paths(source_section(
         TREE_PARITY_SOURCE,
@@ -132,6 +134,11 @@ fn real_world_parity_sources_match_manifest_gates() {
         "const SHARED_ACCEPT_CASES",
     ));
 
+    assert_eq!(
+        typed_paths,
+        real_world_paths_for_gate("typed-config"),
+        "typed real-world config tests must match SOURCE.toml typed-config gates",
+    );
     assert_eq!(
         event_paths,
         real_world_paths_for_gate("event-parity"),

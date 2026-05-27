@@ -142,6 +142,52 @@ fn yaml_suite_tree_only_duplicate_key_exclusions_are_explicit() {
 }
 
 #[test]
+fn yaml_suite_tag_anchor_metadata_cases_are_reference_gated() {
+    let cases_by_id = yaml_suite_cases_by_id();
+    let event_dirs = yts_fixture_dirs(source_section(EVENT_PARITY_SOURCE, "const CASES"));
+    let tree_dirs = yts_fixture_dirs(source_section(
+        TREE_PARITY_SOURCE,
+        "const VALUE_SHAPE_CASES",
+    ));
+    let compatibility_dirs = yts_fixture_dirs(source_section(
+        COMPATIBILITY_HARNESS_SOURCE,
+        "const SHARED_ACCEPT_CASES",
+    ));
+
+    let tag_anchor_cases: BTreeSet<&str> = cases_by_id
+        .values()
+        .filter(|case| {
+            case.expected == ExpectedOutcome::Accept
+                && case.features.iter().any(|feature| feature == "tag")
+                && case.features.iter().any(|feature| feature == "anchor")
+        })
+        .map(|case| case.id.as_str())
+        .collect();
+    assert_eq!(
+        tag_anchor_cases,
+        BTreeSet::from(["9KAX", "BU8L"]),
+        "all accepted tag+anchor YAML-suite cases must be explicitly audited",
+    );
+
+    for id in tag_anchor_cases {
+        let case = cases_by_id
+            .get(id)
+            .unwrap_or_else(|| panic!("missing tag+anchor case {id}"));
+        let fixture_dir = case.fixture_dir();
+        for (surface, dirs) in [
+            ("event parity", &event_dirs),
+            ("tree parity", &tree_dirs),
+            ("compatibility harness", &compatibility_dirs),
+        ] {
+            assert!(
+                dirs.contains(&fixture_dir),
+                "{surface} must reference-gate tag+anchor YAML-suite case {id}",
+            );
+        }
+    }
+}
+
+#[test]
 fn yaml_suite_rust_reference_divergences_are_event_and_tree_gated() {
     let cases_by_id = yaml_suite_cases_by_id();
     let event_dirs = yts_fixture_dirs(source_section(EVENT_PARITY_SOURCE, "const CASES"));

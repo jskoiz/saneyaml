@@ -320,6 +320,8 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   3GZX, W4TN, U3C3, 6CK3, 6LVF, and FTA2
 - `%TAG` shorthand resolution with URI percent-decoding in suffixes, including
   YAML-suite 6CK3
+- tag and anchor property combinations are reference-gated against event,
+  loaded-tree, and shared-acceptance harnesses for YAML-suite BU8L and 9KAX
 - YAML 1.2 bare document streams, including YAML-suite M7A3, with a recorded
   `serde_yaml`/libyaml divergence rather than inclusion in the shared
   acceptance set

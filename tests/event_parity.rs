@@ -142,6 +142,11 @@ const CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "yts_9kax_tag_anchor_property_combinations",
+        input: include_str!("fixtures/yaml-test-suite/data/9KAX/in.yaml"),
+        docs: 8,
+    },
+    Case {
         name: "multidoc_boundaries",
         input: "---\nkind: first\n---\nkind: second\n...\n",
         docs: 2,

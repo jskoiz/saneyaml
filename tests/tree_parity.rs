@@ -47,6 +47,14 @@ const VALUE_SHAPE_CASES: &[TreeCase] = &[
         input: "key: &key alias-key\nroot: {&direct direct-key: v, ? *key : alias-v, ? &seq [a, b] : seq-v, !Thing tagged-key: tagged-v}\n",
     },
     TreeCase {
+        name: "yts_bu8l_node_anchor_and_tag_on_separate_lines",
+        input: include_str!("fixtures/yaml-test-suite/data/BU8L/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_9kax_tag_anchor_property_combinations",
+        input: include_str!("fixtures/yaml-test-suite/data/9KAX/in.yaml"),
+    },
+    TreeCase {
         name: "yts_qf4y_multiline_single_pair_flow_mapping",
         input: include_str!("fixtures/yaml-test-suite/data/QF4Y/in.yaml"),
     },

@@ -828,6 +828,52 @@ fn compatibility_alias_nodes_match_reference_expectation() {
 }
 
 #[test]
+fn compatibility_tagged_anchor_aliases_preserve_property_wrapped_nodes() {
+    for (name, input) in [
+        (
+            "block value anchor before tag",
+            "first: &a !Thing value\nsecond: *a\n",
+        ),
+        (
+            "block value tag before anchor",
+            "first: !Thing &a value\nsecond: *a\n",
+        ),
+    ] {
+        let doc = parse_str(input).unwrap_or_else(|error| panic!("{name} parses: {error}"));
+        let entries = mapping_entries(&doc);
+        assert_tagged_scalar(&entries[0].1, "Thing", "value");
+        assert_tagged_scalar(&entries[1].1, "Thing", "value");
+    }
+
+    let flow_value = parse_str("root: {first: !Thing &a value, second: *a}\n")
+        .expect("parse flow tagged anchor value");
+    let root = mapping_entries(&flow_value);
+    let Value::Mapping(flow_entries) = &root[0].1.value else {
+        panic!("expected flow root mapping");
+    };
+    assert_tagged_scalar(&flow_entries[0].1, "Thing", "value");
+    assert_tagged_scalar(&flow_entries[1].1, "Thing", "value");
+
+    let block_key = parse_str("root:\n  ? !Thing &a tagged-key\n  : first\nalias_value: *a\n")
+        .expect("parse block tagged anchor key");
+    let entries = mapping_entries(&block_key);
+    let Value::Mapping(root_entries) = &entries[0].1.value else {
+        panic!("expected block root mapping");
+    };
+    assert_tagged_scalar(&root_entries[0].0, "Thing", "tagged-key");
+    assert_tagged_scalar(&entries[1].1, "Thing", "tagged-key");
+
+    let flow_key = parse_str("root: {? !Thing &a tagged-key : first, alias: *a}\n")
+        .expect("parse flow tagged anchor key");
+    let entries = mapping_entries(&flow_key);
+    let Value::Mapping(root_entries) = &entries[0].1.value else {
+        panic!("expected flow root mapping");
+    };
+    assert_tagged_scalar(&root_entries[0].0, "Thing", "tagged-key");
+    assert_tagged_scalar(&root_entries[1].1, "Thing", "tagged-key");
+}
+
+#[test]
 fn compatibility_merge_key_is_preserved_literal_with_alias_value() {
     let input = "defaults: &defaults\n  retries: 3\njob:\n  <<: *defaults\n  name: deploy\n";
     let doc = parse_str(input).expect("parse literal merge key");
@@ -1994,4 +2040,12 @@ fn mapping_entries(node: &Node) -> &[(Node, Node)] {
         panic!("expected mapping");
     };
     entries
+}
+
+fn assert_tagged_scalar(node: &Node, tag: &str, value: &str) {
+    let Value::Tagged(tagged) = &node.value else {
+        panic!("expected tagged scalar node");
+    };
+    assert_eq!(tagged.tag, yaml::Tag::new(tag));
+    assert_eq!(tagged.value.as_str(), Some(value));
 }

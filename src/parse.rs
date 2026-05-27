@@ -239,12 +239,18 @@ struct TagToken<'a> {
     rest_start: usize,
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Default)]
 struct NodePropertyState {
     anchor: Option<Span>,
     tag: Option<Span>,
     latest: Option<Span>,
     allow_document_root_continuation: bool,
+    pending_anchor: Option<PendingAnchor>,
+}
+
+struct PendingAnchor {
+    name: String,
+    generation: usize,
 }
 
 impl NodePropertyState {
@@ -267,6 +273,11 @@ impl NodePropertyState {
         self.tag = Some(span);
         self.latest = Some(span);
         Ok(())
+    }
+
+    fn defer_anchor_finish(&mut self, name: String, generation: usize) {
+        debug_assert!(self.pending_anchor.is_none());
+        self.pending_anchor = Some(PendingAnchor { name, generation });
     }
 }
 
@@ -766,6 +777,7 @@ impl Parser {
             return self.anchors.resolve(&alias.name, alias.span, depth);
         }
         if let Some(anchor) = parse_metadata_token(text, line, local_start, '&')? {
+            let anchor_after_tag = properties.tag.is_some();
             properties.record_anchor(anchor.span)?;
             reject_alias_with_node_properties(anchor.rest, line, anchor.rest_start)?;
             reject_same_line_block_sequence_after_property(anchor.rest, line, anchor.rest_start)?;
@@ -783,6 +795,10 @@ impl Parser {
                     properties,
                 )?
             };
+            if anchor_after_tag {
+                properties.defer_anchor_finish(anchor.name, generation);
+                return Ok(node);
+            }
             self.anchors.finish(&anchor.name, generation, node.clone());
             return Ok(node);
         }
@@ -804,7 +820,9 @@ impl Parser {
                     properties,
                 )?
             };
-            return Ok(tagged_node(tag_value, tag.span, node));
+            let node = tagged_node(tag_value, tag.span, node);
+            self.finish_deferred_anchor(properties, &node);
+            return Ok(node);
         }
         if let Some(header) = parse_block_scalar_header(text, line, local_start)? {
             return self.parse_block_scalar(
@@ -843,6 +861,13 @@ impl Parser {
             }
         }
         self.parse_inline_value(text, line, local_start, parent_indent, depth + 1)
+    }
+
+    fn finish_deferred_anchor(&mut self, properties: &mut NodePropertyState, node: &Node) {
+        if let Some(anchor) = properties.pending_anchor.take() {
+            self.anchors
+                .finish(&anchor.name, anchor.generation, node.clone());
+        }
     }
 
     fn parse_document_root_or_null(&mut self, span: Span, depth: usize) -> Result<Node> {
@@ -1514,6 +1539,7 @@ impl Parser {
         let local_start = local_start + leading_ws;
 
         if let Some(anchor) = parse_metadata_token(text, line, local_start, '&')? {
+            let anchor_after_tag = properties.tag.is_some();
             properties.record_anchor(anchor.span)?;
             reject_alias_with_node_properties(anchor.rest, line, anchor.rest_start)?;
             reject_same_line_block_sequence_after_property(anchor.rest, line, anchor.rest_start)?;
@@ -1527,6 +1553,10 @@ impl Parser {
                 depth + 1,
                 properties,
             )?;
+            if anchor_after_tag {
+                properties.defer_anchor_finish(anchor.name, generation);
+                return Ok(Some(node));
+            }
             self.anchors.finish(&anchor.name, generation, node.clone());
             return Ok(Some(node));
         }
@@ -1545,7 +1575,9 @@ impl Parser {
                 depth + 1,
                 properties,
             )?;
-            return Ok(Some(tagged_node(tag_value, tag.span, node)));
+            let node = tagged_node(tag_value, tag.span, node);
+            self.finish_deferred_anchor(properties, &node);
+            return Ok(Some(node));
         }
 
         Ok(None)
@@ -2115,6 +2147,7 @@ impl Parser {
             return self.anchors.resolve(&alias.name, alias.span, depth);
         }
         if let Some(anchor) = parse_metadata_token(text, line, local_start, '&')? {
+            let anchor_after_tag = properties.tag.is_some();
             properties.record_anchor(anchor.span)?;
             reject_alias_with_node_properties(anchor.rest, line, anchor.rest_start)?;
             reject_same_line_block_sequence_after_property(anchor.rest, line, anchor.rest_start)?;
@@ -2136,6 +2169,10 @@ impl Parser {
                     properties,
                 )?
             };
+            if anchor_after_tag {
+                properties.defer_anchor_finish(anchor.name, generation);
+                return Ok(node);
+            }
             self.anchors.finish(&anchor.name, generation, node.clone());
             return Ok(node);
         }
@@ -2161,7 +2198,9 @@ impl Parser {
                     properties,
                 )?
             };
-            return Ok(tagged_node(tag_value, tag.span, node));
+            let node = tagged_node(tag_value, tag.span, node);
+            self.finish_deferred_anchor(properties, &node);
+            return Ok(node);
         }
         if let Some(header) = parse_block_scalar_header(text, line, local_start)? {
             return self.parse_block_scalar(
@@ -3496,6 +3535,7 @@ struct FlowParser<'a> {
     anchors: Option<&'a mut AnchorRegistry>,
     events: Option<&'a mut EventRecorder>,
     active_tag_handles: &'a HashMap<String, String>,
+    pending_anchor: Option<PendingAnchor>,
 }
 
 impl<'a> FlowParser<'a> {
@@ -3513,6 +3553,7 @@ impl<'a> FlowParser<'a> {
             anchors: Some(anchors),
             events,
             active_tag_handles,
+            pending_anchor: None,
         }
     }
 
@@ -3602,6 +3643,16 @@ impl<'a> FlowParser<'a> {
         }
     }
 
+    fn finish_deferred_anchor(&mut self, node: &Node) -> Result<()> {
+        if let Some(anchor) = self.pending_anchor.take() {
+            self.with_anchors(node.span, |anchors| {
+                anchors.finish(&anchor.name, anchor.generation, node.clone());
+                Ok(())
+            })?;
+        }
+        Ok(())
+    }
+
     fn recording_events(&self) -> bool {
         self.events.is_some()
     }
@@ -3633,7 +3684,7 @@ impl<'a> FlowParser<'a> {
                 self.emit_scalar_node(&node, ScalarStyle::SingleQuoted);
                 Ok(node)
             }
-            Some('&') => self.parse_anchor_value(),
+            Some('&') => self.parse_anchor_value(false),
             Some('*') => self.parse_alias_value(),
             Some('!') => self.parse_tag_value(),
             Some(_) => {
@@ -3703,7 +3754,7 @@ impl<'a> FlowParser<'a> {
         }
     }
 
-    fn parse_anchor_value(&mut self) -> Result<Node> {
+    fn parse_anchor_value(&mut self, defer_finish: bool) -> Result<Node> {
         let Some(anchor) = self.take_metadata_token('&')? else {
             unreachable!("parse_anchor_value is only called at an anchor token");
         };
@@ -3719,10 +3770,18 @@ impl<'a> FlowParser<'a> {
         } else {
             self.with_depth(|parser| parser.parse_value())?
         };
-        self.with_anchors(anchor.span, |anchors| {
-            anchors.finish(&anchor.name, generation, node.clone());
-            Ok(())
-        })?;
+        if defer_finish {
+            debug_assert!(self.pending_anchor.is_none());
+            self.pending_anchor = Some(PendingAnchor {
+                name: anchor.name,
+                generation,
+            });
+        } else {
+            self.with_anchors(anchor.span, |anchors| {
+                anchors.finish(&anchor.name, generation, node.clone());
+                Ok(())
+            })?;
+        }
         Ok(node)
     }
 
@@ -3754,10 +3813,14 @@ impl<'a> FlowParser<'a> {
         let node = if matches!(self.peek(), None | Some(',' | ']' | '}')) {
             self.emit_null_scalar(tag.span);
             Node::null(tag.span)
+        } else if self.peek() == Some('&') {
+            self.parse_anchor_value(true)?
         } else {
             self.with_depth(|parser| parser.parse_value())?
         };
-        Ok(tagged_node(tag_value, tag.span, node))
+        let node = tagged_node(tag_value, tag.span, node);
+        self.finish_deferred_anchor(&node)?;
+        Ok(node)
     }
 
     fn parse_mapping(&mut self) -> Result<Node> {
@@ -3882,7 +3945,7 @@ impl<'a> FlowParser<'a> {
                 self.emit_scalar_node(&node, ScalarStyle::SingleQuoted);
                 Ok(node)
             }
-            Some('&') => self.parse_anchor_key(),
+            Some('&') => self.parse_anchor_key(false),
             Some('*') => self.parse_alias_key(),
             Some('!') => self.parse_tag_key(),
             Some(_) => {
@@ -3905,7 +3968,7 @@ impl<'a> FlowParser<'a> {
         }
     }
 
-    fn parse_anchor_key(&mut self) -> Result<Node> {
+    fn parse_anchor_key(&mut self, defer_finish: bool) -> Result<Node> {
         let Some(anchor) = self.take_metadata_token('&')? else {
             unreachable!("parse_anchor_key is only called at an anchor token");
         };
@@ -3921,10 +3984,18 @@ impl<'a> FlowParser<'a> {
         } else {
             self.with_depth(|parser| parser.parse_flow_key())?
         };
-        self.with_anchors(anchor.span, |anchors| {
-            anchors.finish(&anchor.name, generation, key.clone());
-            Ok(())
-        })?;
+        if defer_finish {
+            debug_assert!(self.pending_anchor.is_none());
+            self.pending_anchor = Some(PendingAnchor {
+                name: anchor.name,
+                generation,
+            });
+        } else {
+            self.with_anchors(anchor.span, |anchors| {
+                anchors.finish(&anchor.name, generation, key.clone());
+                Ok(())
+            })?;
+        }
         Ok(key)
     }
 
@@ -3956,10 +4027,14 @@ impl<'a> FlowParser<'a> {
         let key = if self.at_flow_key_terminator() {
             self.emit_null_scalar(tag.span);
             Node::null(tag.span)
+        } else if self.peek() == Some('&') {
+            self.parse_anchor_key(true)?
         } else {
             self.with_depth(|parser| parser.parse_flow_key())?
         };
-        Ok(tagged_node(tag_value, tag.span, key))
+        let key = tagged_node(tag_value, tag.span, key);
+        self.finish_deferred_anchor(&key)?;
+        Ok(key)
     }
 
     fn consume_explicit_flow_key_indicator(&mut self) -> bool {

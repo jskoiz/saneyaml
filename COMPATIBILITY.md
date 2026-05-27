@@ -245,11 +245,12 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
 - indentless block sequences as mapping values
 - tagged block collection nodes, including YAML-suite 57H4
 - acyclic anchors and aliases, including anchor redefinition, scalar
-  mapping-key anchors, anchor-only flow nodes that resolve to null, scalar
-  block mapping-key aliases in raw events, YAML-suite 2SXE colon-bearing block
-  anchor and alias names, and YAML-suite PW8X anchors on empty scalar nodes.
-  Colon-bearing anchor names and anchor-only empty scalar nodes are covered as
-  documented tree-shape divergences where reference loaders disagree
+  mapping-key anchors, tag/anchor property-order preservation for aliases,
+  anchor-only flow nodes that resolve to null, scalar block mapping-key aliases
+  in raw events, YAML-suite 2SXE colon-bearing block anchor and alias names, and
+  YAML-suite PW8X anchors on empty scalar nodes. Colon-bearing anchor names and
+  anchor-only empty scalar nodes are covered as documented tree-shape
+  divergences where reference loaders disagree
 - merge-key spelling preserved as a literal key with alias-expanded value
 - block scalar indentation and chomping headers
 - zero-indented root block scalars, including block scalar headers on explicit

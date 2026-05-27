@@ -191,6 +191,15 @@ fn apply_merge_fuzz_corpus_does_not_panic() {
 }
 
 #[test]
+fn apply_merge_semantic_corpus_matches_serde_yaml() {
+    for (name, input) in apply_merge_semantic_inputs().chain(fuzz_corpus_inputs("apply_merge")) {
+        std::panic::catch_unwind(|| assert_apply_merge_semantics(&input)).unwrap_or_else(|_| {
+            panic!("Value::apply_merge semantics must match serde_yaml for {name}")
+        });
+    }
+}
+
+#[test]
 fn malformed_block_scalar_header_corpus_rejects_with_in_bounds_spans() {
     for (name, input) in malformed_block_scalar_header_inputs() {
         for error in [
@@ -432,6 +441,41 @@ fn apply_merge_synthetic_inputs() -> impl Iterator<Item = (String, Vec<u8>)> {
     .map(|(name, input)| (name.to_string(), input.to_vec()))
 }
 
+fn apply_merge_semantic_inputs() -> impl Iterator<Item = (String, Vec<u8>)> {
+    [
+        (
+            "apply-merge-block-style",
+            b"base: &base\n  retries: 3\n  timeout: 10\ntarget:\n  <<: *base\n  timeout: 20\n"
+                .as_slice(),
+        ),
+        (
+            "apply-merge-list-precedence",
+            b"first: &first {shared: first, a: 1}\nsecond: &second {shared: second, b: 2}\ntarget:\n  <<: [*first, *second]\n  b: explicit\n"
+                .as_slice(),
+        ),
+        (
+            "apply-merge-nested-source",
+            b"base: &base\n  <<: {a: 1}\n  b: 2\ntarget:\n  <<: *base\n"
+                .as_slice(),
+        ),
+        (
+            "apply-merge-sequence-recursive",
+            b"base: &base {retries: 3, timeout: 10}\njobs:\n  - name: build\n    config:\n      <<: *base\n      timeout: 20\n"
+                .as_slice(),
+        ),
+        (
+            "apply-merge-invalid-scalar",
+            b"target: {<<: scalar}\n".as_slice(),
+        ),
+        (
+            "apply-merge-invalid-sequence-element",
+            b"target: {<<: [scalar]}\n".as_slice(),
+        ),
+    ]
+    .into_iter()
+    .map(|(name, input)| (name.to_string(), input.to_vec()))
+}
+
 #[derive(Debug, Deserialize)]
 struct BorrowedConfig<'a> {
     name: &'a str,
@@ -488,9 +532,63 @@ fn assert_apply_merge_invariants(input: &[u8]) {
         return;
     };
 
-    if let Err(error) = value.apply_merge() {
-        assert!(!error.to_string().is_empty());
-        assert_eq!(error.location(), None);
+    match value.apply_merge() {
+        Ok(()) => {
+            value
+                .apply_merge()
+                .expect("repeated apply_merge should keep succeeding");
+        }
+        Err(error) => {
+            assert!(!error.to_string().is_empty());
+            assert_eq!(error.location(), None);
+        }
+    }
+}
+
+fn assert_apply_merge_semantics(input: &[u8]) {
+    let Ok(mut value) = yaml::from_slice::<Value>(input) else {
+        return;
+    };
+    let Ok(input) = std::str::from_utf8(input) else {
+        return;
+    };
+    let Ok(mut reference) = serde_yaml::from_str::<serde_yaml::Value>(input) else {
+        return;
+    };
+
+    match (value.apply_merge(), reference.apply_merge()) {
+        (Ok(()), Ok(())) => {
+            let reference =
+                yaml::to_value(reference).expect("serde_yaml value converts to yaml::Value");
+            assert!(value.equivalent(&reference));
+
+            let mut repeated_value = value.clone();
+            repeated_value
+                .apply_merge()
+                .expect("repeated yaml apply_merge should keep succeeding");
+            let mut repeated_reference =
+                serde_yaml::from_str::<serde_yaml::Value>(input).expect("reference reparses");
+            repeated_reference
+                .apply_merge()
+                .expect("first serde_yaml merge should keep succeeding");
+            repeated_reference
+                .apply_merge()
+                .expect("repeated serde_yaml apply_merge should keep succeeding");
+            let repeated_reference = yaml::to_value(repeated_reference)
+                .expect("repeated serde_yaml value converts to yaml::Value");
+            assert!(repeated_value.equivalent(&repeated_reference));
+        }
+        (Err(error), Err(reference_error)) => {
+            assert!(!error.to_string().is_empty());
+            assert_eq!(error.location(), None);
+            assert!(reference_error.location().is_none());
+        }
+        (Ok(()), Err(reference_error)) => {
+            panic!("yaml applied merge but serde_yaml rejected it: {reference_error}");
+        }
+        (Err(error), Ok(())) => {
+            panic!("yaml rejected merge but serde_yaml applied it: {error}");
+        }
     }
 }
 

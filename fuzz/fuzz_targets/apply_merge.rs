@@ -4,12 +4,52 @@ use libfuzzer_sys::fuzz_target;
 use yaml::Value;
 
 fuzz_target!(|input: &[u8]| {
+    assert_apply_merge_invariants(input);
+});
+
+fn assert_apply_merge_invariants(input: &[u8]) {
     let Ok(mut value) = yaml::from_slice::<Value>(input) else {
         return;
     };
 
-    if let Err(error) = value.apply_merge() {
-        assert!(!error.to_string().is_empty());
-        assert_eq!(error.location(), None);
+    match value.apply_merge() {
+        Ok(()) => {
+            value
+                .apply_merge()
+                .expect("repeated apply_merge should keep succeeding");
+
+            if should_compare_shared_merge_subset(input) {
+                assert_matches_serde_yaml(input);
+            }
+        }
+        Err(error) => {
+            assert!(!error.to_string().is_empty());
+            assert_eq!(error.location(), None);
+        }
     }
-});
+}
+
+fn should_compare_shared_merge_subset(input: &[u8]) -> bool {
+    let Ok(input) = std::str::from_utf8(input) else {
+        return false;
+    };
+    input.contains("<<") && !input.contains('!') && !input.contains('%')
+}
+
+fn assert_matches_serde_yaml(input: &[u8]) {
+    let input = std::str::from_utf8(input).expect("shared merge subset is UTF-8");
+    let Ok(mut value) = yaml::from_str::<Value>(input) else {
+        return;
+    };
+    let Ok(mut reference) = serde_yaml::from_str::<serde_yaml::Value>(input) else {
+        return;
+    };
+    value
+        .apply_merge()
+        .expect("yaml applies merge for shared subset");
+    reference
+        .apply_merge()
+        .expect("serde_yaml applies merge for shared subset");
+    let reference = yaml::to_value(reference).expect("serde_yaml value converts to yaml::Value");
+    assert!(value.equivalent(&reference));
+}

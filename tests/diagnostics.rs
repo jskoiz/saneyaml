@@ -10,6 +10,7 @@ d: &d [*c, *c, *c, *c, *c, *c, *c, *c]
 e: &e [*d, *d, *d, *d, *d, *d, *d, *d]
 boom: *e
 ";
+const TEST_MAX_DEPTH: usize = 128;
 
 struct FailingReader;
 
@@ -246,6 +247,86 @@ fn parser_rejects_excessive_flow_nesting_with_span() {
 }
 
 #[test]
+fn parser_depth_boundaries_cover_block_and_flow_shapes() {
+    for (name, input) in [
+        (
+            "block sequence below depth limit",
+            nested_block_sequence(TEST_MAX_DEPTH - 1),
+        ),
+        (
+            "flow sequence below depth limit",
+            nested_flow_sequence(TEST_MAX_DEPTH - 1),
+        ),
+    ] {
+        parse_str(&input).unwrap_or_else(|error| panic!("{name} should parse: {error}"));
+        yaml::from_str::<Value>(&input)
+            .unwrap_or_else(|error| panic!("{name} should deserialize: {error}"));
+    }
+
+    for (name, input) in [
+        (
+            "block sequence above depth limit",
+            nested_block_sequence(TEST_MAX_DEPTH + 1),
+        ),
+        (
+            "flow sequence above depth limit",
+            nested_flow_sequence(TEST_MAX_DEPTH + 1),
+        ),
+    ] {
+        let error = parse_str(&input).expect_err(&format!("{name} should reject"));
+        assert_depth_limit_error(&error);
+
+        let error = yaml::from_str::<Value>(&input)
+            .expect_err(&format!("{name} serde entrypoint should reject"));
+        assert_depth_limit_error(&error);
+    }
+}
+
+#[test]
+fn alias_expansion_boundary_keeps_raw_events_safe() {
+    let below = alias_expansion_chain(4);
+    parse_str(&below).expect("four-level alias expansion chain stays below budget");
+    yaml::from_str::<Value>(&below).expect("serde reads below-budget alias chain");
+    assert!(
+        yaml::parse_events(&below)
+            .expect("raw events expose below-budget aliases")
+            .iter()
+            .any(|event| matches!(event, yaml::Event::Alias { anchor } if anchor.name == "d"))
+    );
+
+    let above = alias_expansion_chain(5);
+    let error = parse_str(&above).expect_err("five-level alias expansion chain crosses budget");
+    assert!(error.to_string().contains("alias expansion limit exceeded"));
+    assert!(error.location().is_some());
+    let error =
+        yaml::from_str::<Value>(&above).expect_err("serde rejects above-budget alias chain");
+    assert!(error.to_string().contains("alias expansion limit exceeded"));
+    assert!(error.location().is_some());
+    assert!(
+        yaml::parse_events(&above)
+            .expect("raw events remain safe because aliases are not expanded")
+            .iter()
+            .any(|event| matches!(event, yaml::Event::Alias { anchor } if anchor.name == "e"))
+    );
+}
+
+#[test]
+fn alias_expanded_duplicate_key_boundaries_report_errors() {
+    let key = nested_flow_sequence(TEST_MAX_DEPTH / 2);
+    let input = format!("key: &key {key}\nroot:\n  ? *key\n  : first\n  ? {key}\n  : second\n");
+    let error = parse_str(&input).expect_err("alias-expanded duplicate key should reject safely");
+    let display = error.to_string();
+    assert!(
+        display.contains("duplicate mapping key")
+            || display.contains("maximum YAML nesting depth exceeded"),
+        "{display}"
+    );
+    assert!(error.location().is_some());
+
+    yaml::parse_events(&input).expect("raw events stay available without duplicate-key expansion");
+}
+
+#[test]
 fn parser_rejects_alias_expansion_bomb_with_alias_span() {
     let error = parse_str(ALIAS_EXPANSION_BOMB).expect_err("alias expansion limit");
     assert_alias_expansion_error(&error);
@@ -308,4 +389,46 @@ fn assert_alias_expansion_error(error: &yaml::Error) {
         &ALIAS_EXPANSION_BOMB[error.span().start..error.span().end],
         "*d"
     );
+}
+
+fn assert_depth_limit_error(error: &yaml::Error) {
+    assert!(
+        error
+            .to_string()
+            .contains("maximum YAML nesting depth exceeded")
+    );
+    assert!(error.location().is_some());
+}
+
+fn nested_block_sequence(depth: usize) -> String {
+    let mut input = String::new();
+    for level in 0..depth {
+        input.push_str(&"  ".repeat(level));
+        input.push_str("-\n");
+    }
+    input
+}
+
+fn nested_flow_sequence(depth: usize) -> String {
+    let mut input = "[".repeat(depth);
+    input.push('0');
+    input.push_str(&"]".repeat(depth));
+    input
+}
+
+fn alias_expansion_chain(levels: usize) -> String {
+    let names = ["a", "b", "c", "d", "e", "f"];
+    assert!(levels > 0 && levels <= names.len());
+    let mut input = "a: &a [lol, lol, lol, lol, lol, lol, lol, lol]\n".to_string();
+    for index in 1..levels {
+        let name = names[index];
+        let previous = names[index - 1];
+        let aliases = (0..8)
+            .map(|_| format!("*{previous}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        input.push_str(&format!("{name}: &{name} [{aliases}]\n"));
+    }
+    input.push_str(&format!("boom: *{}\n", names[levels - 1]));
+    input
 }

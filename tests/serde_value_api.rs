@@ -4,6 +4,7 @@ use serde::{
     ser::SerializeTupleStruct, ser::SerializeTupleVariant,
 };
 use std::borrow::Cow;
+use std::cell::Cell;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashSet, hash_map::DefaultHasher};
 use std::hash::{Hash, Hasher};
@@ -324,6 +325,122 @@ impl Serialize for SerializableBytes {
         S: serde::Serializer,
     {
         serializer.serialize_bytes(self.0)
+    }
+}
+
+#[derive(Clone, Copy)]
+struct OneShotScalar<'a> {
+    calls: &'a Cell<usize>,
+    first: &'static str,
+    later: &'static str,
+}
+
+impl<'a> OneShotScalar<'a> {
+    fn new(calls: &'a Cell<usize>, first: &'static str, later: &'static str) -> Self {
+        Self {
+            calls,
+            first,
+            later,
+        }
+    }
+}
+
+impl Serialize for OneShotScalar<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let calls = self.calls.get();
+        self.calls.set(calls + 1);
+        if calls == 0 {
+            serializer.serialize_str(self.first)
+        } else {
+            serializer.serialize_str(self.later)
+        }
+    }
+}
+
+struct OneShotMap<'a> {
+    key_calls: &'a Cell<usize>,
+    value_calls: &'a Cell<usize>,
+}
+
+impl Serialize for OneShotMap<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let key = OneShotScalar::new(self.key_calls, "first_key", "later_key");
+        let value = OneShotScalar::new(self.value_calls, "first_value", "later_value");
+        let mut map = serializer.serialize_map(Some(1))?;
+        map.serialize_entry(&key, &value)?;
+        map.end()
+    }
+}
+
+struct OneShotStruct<'a> {
+    value_calls: &'a Cell<usize>,
+}
+
+impl Serialize for OneShotStruct<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let value = OneShotScalar::new(self.value_calls, "first_field", "later_field");
+        let mut fields = serializer.serialize_struct("OneShotStruct", 1)?;
+        fields.serialize_field("field", &value)?;
+        fields.end()
+    }
+}
+
+struct OneShotNewtypeVariant<'a> {
+    value_calls: &'a Cell<usize>,
+}
+
+impl Serialize for OneShotNewtypeVariant<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let value = OneShotScalar::new(self.value_calls, "first_newtype", "later_newtype");
+        serializer.serialize_newtype_variant("OneShotEnum", 0, "Newtype", &value)
+    }
+}
+
+struct OneShotTupleVariant<'a> {
+    value_calls: &'a Cell<usize>,
+}
+
+impl Serialize for OneShotTupleVariant<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let value = OneShotScalar::new(self.value_calls, "first_tuple", "later_tuple");
+        let mut tuple = serializer.serialize_tuple_variant("OneShotEnum", 0, "Tuple", 1)?;
+        tuple.serialize_field(&value)?;
+        tuple.end()
+    }
+}
+
+struct OneShotStructVariant<'a> {
+    value_calls: &'a Cell<usize>,
+}
+
+impl Serialize for OneShotStructVariant<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let value = OneShotScalar::new(
+            self.value_calls,
+            "first_struct_variant",
+            "later_struct_variant",
+        );
+        let mut fields = serializer.serialize_struct_variant("OneShotEnum", 0, "Struct", 1)?;
+        fields.serialize_field("field", &value)?;
+        fields.end()
     }
 }
 
@@ -964,6 +1081,146 @@ fn serde_api_document_writers_reject_bytes_like_serde_yaml() {
         .expect_err("yaml streaming serializer rejects nested bytes");
     assert_eq!(nested_streaming_error.to_string(), reference.to_string());
     assert!(nested_buffer.is_empty());
+}
+
+#[test]
+fn serde_api_document_writers_serialize_top_level_values_once() {
+    let calls = Cell::new(0);
+    let value = OneShotScalar::new(&calls, "first", "later");
+    let emitted = yaml::to_string(&value).expect("yaml to_string");
+    assert_eq!(calls.get(), 1);
+
+    let reference_calls = Cell::new(0);
+    let reference = OneShotScalar::new(&reference_calls, "first", "later");
+    assert_eq!(
+        emitted,
+        serde_yaml::to_string(&reference).expect("serde_yaml to_string")
+    );
+    assert_eq!(reference_calls.get(), 1);
+
+    let writer_calls = Cell::new(0);
+    let writer_value = OneShotScalar::new(&writer_calls, "first", "later");
+    let mut written = Vec::new();
+    yaml::to_writer(&mut written, &writer_value).expect("yaml to_writer");
+    assert_eq!(writer_calls.get(), 1);
+    assert_eq!(
+        String::from_utf8(written).expect("utf8 writer output"),
+        emitted
+    );
+
+    let streaming_calls = Cell::new(0);
+    let streaming_value = OneShotScalar::new(&streaming_calls, "first", "later");
+    let mut buffer = Vec::new();
+    let mut serializer = yaml::Serializer::new(&mut buffer);
+    streaming_value
+        .serialize(&mut serializer)
+        .expect("yaml streaming serializer");
+    assert_eq!(streaming_calls.get(), 1);
+    assert_eq!(
+        String::from_utf8(buffer).expect("utf8 streaming output"),
+        emitted
+    );
+}
+
+#[test]
+fn serde_api_document_writers_serialize_nested_map_entries_once() {
+    let key_calls = Cell::new(0);
+    let value_calls = Cell::new(0);
+    let value = OneShotMap {
+        key_calls: &key_calls,
+        value_calls: &value_calls,
+    };
+    let emitted = yaml::to_string(&value).expect("yaml map");
+    assert_eq!(key_calls.get(), 1);
+    assert_eq!(value_calls.get(), 1);
+
+    let reference_key_calls = Cell::new(0);
+    let reference_value_calls = Cell::new(0);
+    let reference = OneShotMap {
+        key_calls: &reference_key_calls,
+        value_calls: &reference_value_calls,
+    };
+    assert_eq!(
+        emitted,
+        serde_yaml::to_string(&reference).expect("serde_yaml map")
+    );
+    assert_eq!(reference_key_calls.get(), 1);
+    assert_eq!(reference_value_calls.get(), 1);
+}
+
+#[test]
+fn serde_api_document_writers_serialize_struct_fields_once() {
+    let value_calls = Cell::new(0);
+    let value = OneShotStruct {
+        value_calls: &value_calls,
+    };
+    let emitted = yaml::to_string(&value).expect("yaml struct");
+    assert_eq!(value_calls.get(), 1);
+
+    let reference_value_calls = Cell::new(0);
+    let reference = OneShotStruct {
+        value_calls: &reference_value_calls,
+    };
+    assert_eq!(
+        emitted,
+        serde_yaml::to_string(&reference).expect("serde_yaml struct")
+    );
+    assert_eq!(reference_value_calls.get(), 1);
+}
+
+#[test]
+fn serde_api_document_writers_serialize_enum_variant_payloads_once() {
+    let newtype_calls = Cell::new(0);
+    let newtype = OneShotNewtypeVariant {
+        value_calls: &newtype_calls,
+    };
+    let emitted_newtype = yaml::to_string(&newtype).expect("yaml newtype variant");
+    assert_eq!(newtype_calls.get(), 1);
+    let reference_newtype_calls = Cell::new(0);
+    let reference_newtype = OneShotNewtypeVariant {
+        value_calls: &reference_newtype_calls,
+    };
+    assert_eq!(
+        emitted_newtype,
+        serde_yaml::to_string(&reference_newtype).expect("serde_yaml newtype variant")
+    );
+    assert_eq!(reference_newtype_calls.get(), 1);
+
+    let tuple_calls = Cell::new(0);
+    let tuple = OneShotTupleVariant {
+        value_calls: &tuple_calls,
+    };
+    let emitted_tuple = yaml::to_string(&tuple).expect("yaml tuple variant");
+    assert_eq!(tuple_calls.get(), 1);
+    assert!(emitted_tuple.contains("first_tuple"));
+    assert!(!emitted_tuple.contains("later_tuple"));
+    let reference_tuple_calls = Cell::new(0);
+    let reference_tuple = OneShotTupleVariant {
+        value_calls: &reference_tuple_calls,
+    };
+    let reference_tuple_output =
+        serde_yaml::to_string(&reference_tuple).expect("serde_yaml tuple variant");
+    assert!(reference_tuple_output.contains("first_tuple"));
+    assert!(!reference_tuple_output.contains("later_tuple"));
+    assert_eq!(reference_tuple_calls.get(), 1);
+
+    let struct_calls = Cell::new(0);
+    let struct_variant = OneShotStructVariant {
+        value_calls: &struct_calls,
+    };
+    let emitted_struct = yaml::to_string(&struct_variant).expect("yaml struct variant");
+    assert_eq!(struct_calls.get(), 1);
+    assert!(emitted_struct.contains("first_struct_variant"));
+    assert!(!emitted_struct.contains("later_struct_variant"));
+    let reference_struct_calls = Cell::new(0);
+    let reference_struct = OneShotStructVariant {
+        value_calls: &reference_struct_calls,
+    };
+    let reference_struct_output =
+        serde_yaml::to_string(&reference_struct).expect("serde_yaml struct variant");
+    assert!(reference_struct_output.contains("first_struct_variant"));
+    assert!(!reference_struct_output.contains("later_struct_variant"));
+    assert_eq!(reference_struct_calls.get(), 1);
 }
 
 #[test]

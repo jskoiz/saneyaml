@@ -46,8 +46,7 @@ fn serialized_node<T>(value: &T) -> Result<Node>
 where
     T: ?Sized + Serialize,
 {
-    reject_document_bytes(value)?;
-    let value = value.serialize(ValueSerializer)?;
+    let value = value.serialize(DocumentValueSerializer)?;
     Ok(Node::new(value.into(), Default::default()))
 }
 
@@ -217,17 +216,16 @@ where
         T: ?Sized + Serialize,
     {
         validate_variant_tag(variant)?;
-        reject_document_bytes(value)?;
         self.write_value(Value::Tagged(Box::new(TaggedValue {
             tag: Tag::new(variant),
-            value: value.serialize(ValueSerializer)?,
+            value: value.serialize(DocumentValueSerializer)?,
         })))
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<DocumentSequenceSerializer<'a, W>> {
         Ok(DocumentSequenceSerializer {
             serializer: self,
-            inner: sequence_serializer_with_capacity(len),
+            inner: sequence_serializer_with_capacity(len, true),
         })
     }
 
@@ -253,14 +251,14 @@ where
         validate_variant_tag(variant)?;
         Ok(DocumentTupleVariantSerializer {
             serializer: self,
-            inner: tuple_variant_serializer_with_capacity(variant, len),
+            inner: tuple_variant_serializer_with_capacity(variant, len, true),
         })
     }
 
     fn serialize_map(self, len: Option<usize>) -> Result<DocumentMappingSerializer<'a, W>> {
         Ok(DocumentMappingSerializer {
             serializer: self,
-            inner: MappingSerializer::new(len, len == Some(1)),
+            inner: MappingSerializer::new(len, len == Some(1), true),
         })
     }
 
@@ -273,6 +271,7 @@ where
             serializer: self,
             inner: StructSerializer {
                 entries: mapping_with_hinted_capacity(Some(len)),
+                reject_bytes: true,
             },
         })
     }
@@ -290,6 +289,7 @@ where
             inner: StructVariantSerializer {
                 variant,
                 entries: mapping_with_hinted_capacity(Some(len)),
+                reject_bytes: true,
             },
         })
     }
@@ -318,7 +318,6 @@ where
     where
         T: ?Sized + Serialize,
     {
-        reject_document_bytes(value)?;
         SerializeSeq::serialize_element(&mut self.inner, value)
     }
 
@@ -382,7 +381,6 @@ where
     where
         T: ?Sized + Serialize,
     {
-        reject_document_bytes(value)?;
         self.inner.serialize_field(value)
     }
 
@@ -408,7 +406,6 @@ where
     where
         T: ?Sized + Serialize,
     {
-        reject_document_bytes(key)?;
         self.inner.serialize_key(key)
     }
 
@@ -416,7 +413,6 @@ where
     where
         T: ?Sized + Serialize,
     {
-        reject_document_bytes(value)?;
         self.inner.serialize_value(value)
     }
 
@@ -425,8 +421,6 @@ where
         K: ?Sized + Serialize,
         V: ?Sized + Serialize,
     {
-        reject_document_bytes(key)?;
-        reject_document_bytes(value)?;
         self.inner.serialize_entry(key, value)
     }
 
@@ -452,7 +446,6 @@ where
     where
         T: ?Sized + Serialize,
     {
-        reject_document_bytes(value)?;
         self.inner.serialize_field(key, value)
     }
 
@@ -478,7 +471,6 @@ where
     where
         T: ?Sized + Serialize,
     {
-        reject_document_bytes(value)?;
         self.inner.serialize_field(key, value)
     }
 
@@ -633,7 +625,7 @@ impl ser::Serializer for ValueSerializer {
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<SequenceSerializer> {
-        Ok(sequence_serializer_with_capacity(len))
+        Ok(sequence_serializer_with_capacity(len, false))
     }
 
     fn serialize_tuple(self, len: usize) -> Result<SequenceSerializer> {
@@ -652,16 +644,17 @@ impl ser::Serializer for ValueSerializer {
         len: usize,
     ) -> Result<TupleVariantSerializer> {
         validate_variant_tag(variant)?;
-        Ok(tuple_variant_serializer_with_capacity(variant, len))
+        Ok(tuple_variant_serializer_with_capacity(variant, len, false))
     }
 
     fn serialize_map(self, len: Option<usize>) -> Result<MappingSerializer> {
-        Ok(MappingSerializer::new(len, len == Some(1)))
+        Ok(MappingSerializer::new(len, len == Some(1), false))
     }
 
     fn serialize_struct(self, _name: &'static str, len: usize) -> Result<StructSerializer> {
         Ok(StructSerializer {
             entries: mapping_with_hinted_capacity(Some(len)),
+            reject_bytes: false,
         })
     }
 
@@ -676,6 +669,7 @@ impl ser::Serializer for ValueSerializer {
         Ok(StructVariantSerializer {
             variant,
             entries: mapping_with_hinted_capacity(Some(len)),
+            reject_bytes: false,
         })
     }
 
@@ -687,23 +681,226 @@ impl ser::Serializer for ValueSerializer {
     }
 }
 
+struct DocumentValueSerializer;
+
+impl ser::Serializer for DocumentValueSerializer {
+    type Ok = Value;
+    type Error = Error;
+    type SerializeSeq = SequenceSerializer;
+    type SerializeTuple = SequenceSerializer;
+    type SerializeTupleStruct = SequenceSerializer;
+    type SerializeTupleVariant = TupleVariantSerializer;
+    type SerializeMap = MappingSerializer;
+    type SerializeStruct = StructSerializer;
+    type SerializeStructVariant = StructVariantSerializer;
+
+    fn serialize_bool(self, value: bool) -> Result<Value> {
+        ValueSerializer.serialize_bool(value)
+    }
+
+    fn serialize_i8(self, value: i8) -> Result<Value> {
+        ValueSerializer.serialize_i8(value)
+    }
+
+    fn serialize_i16(self, value: i16) -> Result<Value> {
+        ValueSerializer.serialize_i16(value)
+    }
+
+    fn serialize_i32(self, value: i32) -> Result<Value> {
+        ValueSerializer.serialize_i32(value)
+    }
+
+    fn serialize_i64(self, value: i64) -> Result<Value> {
+        ValueSerializer.serialize_i64(value)
+    }
+
+    fn serialize_i128(self, value: i128) -> Result<Value> {
+        ValueSerializer.serialize_i128(value)
+    }
+
+    fn serialize_u8(self, value: u8) -> Result<Value> {
+        ValueSerializer.serialize_u8(value)
+    }
+
+    fn serialize_u16(self, value: u16) -> Result<Value> {
+        ValueSerializer.serialize_u16(value)
+    }
+
+    fn serialize_u32(self, value: u32) -> Result<Value> {
+        ValueSerializer.serialize_u32(value)
+    }
+
+    fn serialize_u64(self, value: u64) -> Result<Value> {
+        ValueSerializer.serialize_u64(value)
+    }
+
+    fn serialize_u128(self, value: u128) -> Result<Value> {
+        ValueSerializer.serialize_u128(value)
+    }
+
+    fn serialize_f32(self, value: f32) -> Result<Value> {
+        ValueSerializer.serialize_f32(value)
+    }
+
+    fn serialize_f64(self, value: f64) -> Result<Value> {
+        ValueSerializer.serialize_f64(value)
+    }
+
+    fn serialize_char(self, value: char) -> Result<Value> {
+        ValueSerializer.serialize_char(value)
+    }
+
+    fn serialize_str(self, value: &str) -> Result<Value> {
+        ValueSerializer.serialize_str(value)
+    }
+
+    fn serialize_bytes(self, _value: &[u8]) -> Result<Value> {
+        Err(bytes_unsupported_error())
+    }
+
+    fn serialize_none(self) -> Result<Value> {
+        self.serialize_unit()
+    }
+
+    fn serialize_some<T>(self, value: &T) -> Result<Value>
+    where
+        T: ?Sized + Serialize,
+    {
+        value.serialize(self)
+    }
+
+    fn serialize_unit(self) -> Result<Value> {
+        ValueSerializer.serialize_unit()
+    }
+
+    fn serialize_unit_struct(self, _name: &'static str) -> Result<Value> {
+        self.serialize_unit()
+    }
+
+    fn serialize_unit_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        variant: &'static str,
+    ) -> Result<Value> {
+        ValueSerializer.serialize_unit_variant("", 0, variant)
+    }
+
+    fn serialize_newtype_struct<T>(self, name: &'static str, value: &T) -> Result<Value>
+    where
+        T: ?Sized + Serialize,
+    {
+        if name == NUMBER_STRUCT {
+            return value.serialize(PreserveNumberSerializer);
+        }
+        value.serialize(self)
+    }
+
+    fn serialize_newtype_variant<T>(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        variant: &'static str,
+        value: &T,
+    ) -> Result<Value>
+    where
+        T: ?Sized + Serialize,
+    {
+        validate_variant_tag(variant)?;
+        Ok(Value::Tagged(Box::new(TaggedValue {
+            tag: Tag::new(variant),
+            value: value.serialize(self)?,
+        })))
+    }
+
+    fn serialize_seq(self, len: Option<usize>) -> Result<SequenceSerializer> {
+        Ok(sequence_serializer_with_capacity(len, true))
+    }
+
+    fn serialize_tuple(self, len: usize) -> Result<SequenceSerializer> {
+        self.serialize_seq(Some(len))
+    }
+
+    fn serialize_tuple_struct(self, _name: &'static str, len: usize) -> Result<SequenceSerializer> {
+        self.serialize_seq(Some(len))
+    }
+
+    fn serialize_tuple_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        variant: &'static str,
+        len: usize,
+    ) -> Result<TupleVariantSerializer> {
+        validate_variant_tag(variant)?;
+        Ok(tuple_variant_serializer_with_capacity(variant, len, true))
+    }
+
+    fn serialize_map(self, len: Option<usize>) -> Result<MappingSerializer> {
+        Ok(MappingSerializer::new(len, len == Some(1), true))
+    }
+
+    fn serialize_struct(self, _name: &'static str, len: usize) -> Result<StructSerializer> {
+        Ok(StructSerializer {
+            entries: mapping_with_hinted_capacity(Some(len)),
+            reject_bytes: true,
+        })
+    }
+
+    fn serialize_struct_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        variant: &'static str,
+        len: usize,
+    ) -> Result<StructVariantSerializer> {
+        validate_variant_tag(variant)?;
+        Ok(StructVariantSerializer {
+            variant,
+            entries: mapping_with_hinted_capacity(Some(len)),
+            reject_bytes: true,
+        })
+    }
+
+    fn collect_str<T>(self, value: &T) -> Result<Value>
+    where
+        T: ?Sized + std::fmt::Display,
+    {
+        ValueSerializer.collect_str(value)
+    }
+}
+
+fn serialize_nested_value<T>(value: &T, reject_bytes: bool) -> Result<Value>
+where
+    T: ?Sized + Serialize,
+{
+    if reject_bytes {
+        value.serialize(DocumentValueSerializer)
+    } else {
+        value.serialize(ValueSerializer)
+    }
+}
+
 fn hinted_capacity(len: Option<usize>) -> usize {
     len.unwrap_or(0).min(MAX_SERIALIZE_HINT_PREALLOC)
 }
 
-fn sequence_serializer_with_capacity(len: Option<usize>) -> SequenceSerializer {
+fn sequence_serializer_with_capacity(len: Option<usize>, reject_bytes: bool) -> SequenceSerializer {
     SequenceSerializer {
         items: Vec::with_capacity(hinted_capacity(len)),
+        reject_bytes,
     }
 }
 
 fn tuple_variant_serializer_with_capacity(
     variant: &'static str,
     len: usize,
+    reject_bytes: bool,
 ) -> TupleVariantSerializer {
     TupleVariantSerializer {
         variant,
         items: Vec::with_capacity(hinted_capacity(Some(len))),
+        reject_bytes,
     }
 }
 
@@ -713,6 +910,7 @@ fn mapping_with_hinted_capacity(len: Option<usize>) -> Mapping {
 
 pub struct SequenceSerializer {
     items: Vec<Value>,
+    reject_bytes: bool,
 }
 
 impl SerializeSeq for SequenceSerializer {
@@ -723,7 +921,8 @@ impl SerializeSeq for SequenceSerializer {
     where
         T: ?Sized + Serialize,
     {
-        self.items.push(value.serialize(ValueSerializer)?);
+        self.items
+            .push(serialize_nested_value(value, self.reject_bytes)?);
         Ok(())
     }
 
@@ -767,6 +966,7 @@ impl SerializeTupleStruct for SequenceSerializer {
 pub struct TupleVariantSerializer {
     variant: &'static str,
     items: Vec<Value>,
+    reject_bytes: bool,
 }
 
 impl SerializeTupleVariant for TupleVariantSerializer {
@@ -777,7 +977,8 @@ impl SerializeTupleVariant for TupleVariantSerializer {
     where
         T: ?Sized + Serialize,
     {
-        self.items.push(value.serialize(ValueSerializer)?);
+        self.items
+            .push(serialize_nested_value(value, self.reject_bytes)?);
         Ok(())
     }
 
@@ -794,6 +995,7 @@ pub struct MappingSerializer {
     next_key: Option<SerializedKey>,
     tagged: Option<TaggedValue>,
     detect_tag: bool,
+    reject_bytes: bool,
 }
 
 enum SerializedKey {
@@ -823,7 +1025,11 @@ impl SerializeMap for MappingSerializer {
                 "serialize_key called before serialize_value",
             ));
         }
-        self.next_key = Some(serialize_mapping_key(key, self.should_detect_tag())?);
+        self.next_key = Some(serialize_mapping_key(
+            key,
+            self.should_detect_tag(),
+            self.reject_bytes,
+        )?);
         Ok(())
     }
 
@@ -835,7 +1041,8 @@ impl SerializeMap for MappingSerializer {
             .next_key
             .take()
             .ok_or_else(|| serialize_error("serialize_value called before serialize_key"))?;
-        self.insert_entry(key, value.serialize(ValueSerializer)?)
+        let value = serialize_nested_value(value, self.reject_bytes)?;
+        self.insert_entry(key, value)
     }
 
     fn serialize_entry<K, V>(&mut self, key: &K, value: &V) -> Result<()>
@@ -843,8 +1050,8 @@ impl SerializeMap for MappingSerializer {
         K: ?Sized + Serialize,
         V: ?Sized + Serialize,
     {
-        let key = serialize_mapping_key(key, self.should_detect_tag())?;
-        let value = value.serialize(ValueSerializer)?;
+        let key = serialize_mapping_key(key, self.should_detect_tag(), self.reject_bytes)?;
+        let value = serialize_nested_value(value, self.reject_bytes)?;
         self.insert_entry(key, value)
     }
 
@@ -865,12 +1072,13 @@ impl SerializeMap for MappingSerializer {
 }
 
 impl MappingSerializer {
-    fn new(len: Option<usize>, detect_tag: bool) -> Self {
+    fn new(len: Option<usize>, detect_tag: bool, reject_bytes: bool) -> Self {
         Self {
             entries: mapping_with_hinted_capacity(len),
             next_key: None,
             tagged: None,
             detect_tag,
+            reject_bytes,
         }
     }
 
@@ -903,18 +1111,24 @@ impl MappingSerializer {
     }
 }
 
-fn serialize_mapping_key<T>(key: &T, detect_tag: bool) -> Result<SerializedKey>
+fn serialize_mapping_key<T>(key: &T, detect_tag: bool, reject_bytes: bool) -> Result<SerializedKey>
 where
     T: ?Sized + Serialize,
 {
     if detect_tag {
-        key.serialize(TagDetectingKeySerializer)
+        key.serialize(TagDetectingKeySerializer { reject_bytes })
     } else {
-        Ok(SerializedKey::Value(key.serialize(ValueSerializer)?))
+        Ok(SerializedKey::Value(serialize_nested_value(
+            key,
+            reject_bytes,
+        )?))
     }
 }
 
-struct TagDetectingKeySerializer;
+#[derive(Clone, Copy)]
+struct TagDetectingKeySerializer {
+    reject_bytes: bool,
+}
 
 impl ser::Serializer for TagDetectingKeySerializer {
     type Ok = SerializedKey;
@@ -988,6 +1202,9 @@ impl ser::Serializer for TagDetectingKeySerializer {
     }
 
     fn serialize_bytes(self, value: &[u8]) -> Result<SerializedKey> {
+        if self.reject_bytes {
+            return Err(bytes_unsupported_error());
+        }
         Ok(SerializedKey::Value(Value::Sequence(
             value.iter().copied().map(Value::from).collect(),
         )))
@@ -1047,19 +1264,21 @@ impl ser::Serializer for TagDetectingKeySerializer {
         validate_variant_tag(variant)?;
         Ok(SerializedKey::Value(Value::Tagged(Box::new(TaggedValue {
             tag: Tag::new(variant),
-            value: value.serialize(ValueSerializer)?,
+            value: serialize_nested_value(value, self.reject_bytes)?,
         }))))
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq> {
         Ok(KeySequenceSerializer(sequence_serializer_with_capacity(
             len,
+            self.reject_bytes,
         )))
     }
 
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple> {
         Ok(KeySequenceSerializer(sequence_serializer_with_capacity(
             Some(len),
+            self.reject_bytes,
         )))
     }
 
@@ -1070,6 +1289,7 @@ impl ser::Serializer for TagDetectingKeySerializer {
     ) -> Result<Self::SerializeTupleStruct> {
         Ok(KeySequenceSerializer(sequence_serializer_with_capacity(
             Some(len),
+            self.reject_bytes,
         )))
     }
 
@@ -1082,7 +1302,7 @@ impl ser::Serializer for TagDetectingKeySerializer {
     ) -> Result<Self::SerializeTupleVariant> {
         validate_variant_tag(variant)?;
         Ok(KeyTupleVariantSerializer(
-            tuple_variant_serializer_with_capacity(variant, len),
+            tuple_variant_serializer_with_capacity(variant, len, self.reject_bytes),
         ))
     }
 
@@ -1090,12 +1310,14 @@ impl ser::Serializer for TagDetectingKeySerializer {
         Ok(KeyMappingSerializer(MappingSerializer::new(
             len,
             len == Some(1),
+            self.reject_bytes,
         )))
     }
 
     fn serialize_struct(self, _name: &'static str, len: usize) -> Result<Self::SerializeStruct> {
         Ok(KeyStructSerializer(StructSerializer {
             entries: mapping_with_hinted_capacity(Some(len)),
+            reject_bytes: self.reject_bytes,
         }))
     }
 
@@ -1110,6 +1332,7 @@ impl ser::Serializer for TagDetectingKeySerializer {
         Ok(KeyStructVariantSerializer(StructVariantSerializer {
             variant,
             entries: mapping_with_hinted_capacity(Some(len)),
+            reject_bytes: self.reject_bytes,
         }))
     }
 
@@ -1299,6 +1522,7 @@ impl SerializeStructVariant for KeyStructVariantSerializer {
 
 pub struct StructSerializer {
     entries: Mapping,
+    reject_bytes: bool,
 }
 
 impl SerializeStruct for StructSerializer {
@@ -1312,7 +1536,7 @@ impl SerializeStruct for StructSerializer {
         insert_unique(
             &mut self.entries,
             Value::String(key.to_string()),
-            value.serialize(ValueSerializer)?,
+            serialize_nested_value(value, self.reject_bytes)?,
         )
     }
 
@@ -1324,6 +1548,7 @@ impl SerializeStruct for StructSerializer {
 pub struct StructVariantSerializer {
     variant: &'static str,
     entries: Mapping,
+    reject_bytes: bool,
 }
 
 impl SerializeStructVariant for StructVariantSerializer {
@@ -1337,7 +1562,7 @@ impl SerializeStructVariant for StructVariantSerializer {
         insert_unique(
             &mut self.entries,
             Value::String(key.to_string()),
-            value.serialize(ValueSerializer)?,
+            serialize_nested_value(value, self.reject_bytes)?,
         )
     }
 
@@ -1378,327 +1603,6 @@ fn validate_variant_tag(tag: &str) -> Result<()> {
         return Err(serialize_error("empty YAML tag is not allowed"));
     }
     Ok(())
-}
-
-fn reject_document_bytes<T>(value: &T) -> Result<()>
-where
-    T: ?Sized + Serialize,
-{
-    value.serialize(RejectBytesSerializer)
-}
-
-struct RejectBytesSerializer;
-
-impl ser::Serializer for RejectBytesSerializer {
-    type Ok = ();
-    type Error = Error;
-    type SerializeSeq = RejectBytesSeq;
-    type SerializeTuple = RejectBytesSeq;
-    type SerializeTupleStruct = RejectBytesSeq;
-    type SerializeTupleVariant = RejectBytesTupleVariant;
-    type SerializeMap = RejectBytesMap;
-    type SerializeStruct = RejectBytesStruct;
-    type SerializeStructVariant = RejectBytesStructVariant;
-
-    fn serialize_bool(self, _value: bool) -> Result<()> {
-        Ok(())
-    }
-
-    fn serialize_i8(self, _value: i8) -> Result<()> {
-        Ok(())
-    }
-
-    fn serialize_i16(self, _value: i16) -> Result<()> {
-        Ok(())
-    }
-
-    fn serialize_i32(self, _value: i32) -> Result<()> {
-        Ok(())
-    }
-
-    fn serialize_i64(self, _value: i64) -> Result<()> {
-        Ok(())
-    }
-
-    fn serialize_i128(self, _value: i128) -> Result<()> {
-        Ok(())
-    }
-
-    fn serialize_u8(self, _value: u8) -> Result<()> {
-        Ok(())
-    }
-
-    fn serialize_u16(self, _value: u16) -> Result<()> {
-        Ok(())
-    }
-
-    fn serialize_u32(self, _value: u32) -> Result<()> {
-        Ok(())
-    }
-
-    fn serialize_u64(self, _value: u64) -> Result<()> {
-        Ok(())
-    }
-
-    fn serialize_u128(self, _value: u128) -> Result<()> {
-        Ok(())
-    }
-
-    fn serialize_f32(self, _value: f32) -> Result<()> {
-        Ok(())
-    }
-
-    fn serialize_f64(self, _value: f64) -> Result<()> {
-        Ok(())
-    }
-
-    fn serialize_char(self, _value: char) -> Result<()> {
-        Ok(())
-    }
-
-    fn serialize_str(self, _value: &str) -> Result<()> {
-        Ok(())
-    }
-
-    fn serialize_bytes(self, _value: &[u8]) -> Result<()> {
-        Err(bytes_unsupported_error())
-    }
-
-    fn serialize_none(self) -> Result<()> {
-        Ok(())
-    }
-
-    fn serialize_some<T>(self, value: &T) -> Result<()>
-    where
-        T: ?Sized + Serialize,
-    {
-        reject_document_bytes(value)
-    }
-
-    fn serialize_unit(self) -> Result<()> {
-        Ok(())
-    }
-
-    fn serialize_unit_struct(self, _name: &'static str) -> Result<()> {
-        Ok(())
-    }
-
-    fn serialize_unit_variant(
-        self,
-        _name: &'static str,
-        _variant_index: u32,
-        _variant: &'static str,
-    ) -> Result<()> {
-        Ok(())
-    }
-
-    fn serialize_newtype_struct<T>(self, _name: &'static str, value: &T) -> Result<()>
-    where
-        T: ?Sized + Serialize,
-    {
-        reject_document_bytes(value)
-    }
-
-    fn serialize_newtype_variant<T>(
-        self,
-        _name: &'static str,
-        _variant_index: u32,
-        variant: &'static str,
-        value: &T,
-    ) -> Result<()>
-    where
-        T: ?Sized + Serialize,
-    {
-        validate_variant_tag(variant)?;
-        reject_document_bytes(value)
-    }
-
-    fn serialize_seq(self, _len: Option<usize>) -> Result<RejectBytesSeq> {
-        Ok(RejectBytesSeq)
-    }
-
-    fn serialize_tuple(self, _len: usize) -> Result<RejectBytesSeq> {
-        Ok(RejectBytesSeq)
-    }
-
-    fn serialize_tuple_struct(self, _name: &'static str, _len: usize) -> Result<RejectBytesSeq> {
-        Ok(RejectBytesSeq)
-    }
-
-    fn serialize_tuple_variant(
-        self,
-        _name: &'static str,
-        _variant_index: u32,
-        variant: &'static str,
-        _len: usize,
-    ) -> Result<RejectBytesTupleVariant> {
-        validate_variant_tag(variant)?;
-        Ok(RejectBytesTupleVariant)
-    }
-
-    fn serialize_map(self, _len: Option<usize>) -> Result<RejectBytesMap> {
-        Ok(RejectBytesMap)
-    }
-
-    fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<RejectBytesStruct> {
-        Ok(RejectBytesStruct)
-    }
-
-    fn serialize_struct_variant(
-        self,
-        _name: &'static str,
-        _variant_index: u32,
-        variant: &'static str,
-        _len: usize,
-    ) -> Result<RejectBytesStructVariant> {
-        validate_variant_tag(variant)?;
-        Ok(RejectBytesStructVariant)
-    }
-
-    fn collect_str<T>(self, _value: &T) -> Result<()>
-    where
-        T: ?Sized + std::fmt::Display,
-    {
-        Ok(())
-    }
-}
-
-struct RejectBytesSeq;
-
-impl SerializeSeq for RejectBytesSeq {
-    type Ok = ();
-    type Error = Error;
-
-    fn serialize_element<T>(&mut self, value: &T) -> Result<()>
-    where
-        T: ?Sized + Serialize,
-    {
-        reject_document_bytes(value)
-    }
-
-    fn end(self) -> Result<()> {
-        Ok(())
-    }
-}
-
-impl SerializeTuple for RejectBytesSeq {
-    type Ok = ();
-    type Error = Error;
-
-    fn serialize_element<T>(&mut self, value: &T) -> Result<()>
-    where
-        T: ?Sized + Serialize,
-    {
-        reject_document_bytes(value)
-    }
-
-    fn end(self) -> Result<()> {
-        Ok(())
-    }
-}
-
-impl SerializeTupleStruct for RejectBytesSeq {
-    type Ok = ();
-    type Error = Error;
-
-    fn serialize_field<T>(&mut self, value: &T) -> Result<()>
-    where
-        T: ?Sized + Serialize,
-    {
-        reject_document_bytes(value)
-    }
-
-    fn end(self) -> Result<()> {
-        Ok(())
-    }
-}
-
-struct RejectBytesTupleVariant;
-
-impl SerializeTupleVariant for RejectBytesTupleVariant {
-    type Ok = ();
-    type Error = Error;
-
-    fn serialize_field<T>(&mut self, value: &T) -> Result<()>
-    where
-        T: ?Sized + Serialize,
-    {
-        reject_document_bytes(value)
-    }
-
-    fn end(self) -> Result<()> {
-        Ok(())
-    }
-}
-
-struct RejectBytesMap;
-
-impl SerializeMap for RejectBytesMap {
-    type Ok = ();
-    type Error = Error;
-
-    fn serialize_key<T>(&mut self, key: &T) -> Result<()>
-    where
-        T: ?Sized + Serialize,
-    {
-        reject_document_bytes(key)
-    }
-
-    fn serialize_value<T>(&mut self, value: &T) -> Result<()>
-    where
-        T: ?Sized + Serialize,
-    {
-        reject_document_bytes(value)
-    }
-
-    fn serialize_entry<K, V>(&mut self, key: &K, value: &V) -> Result<()>
-    where
-        K: ?Sized + Serialize,
-        V: ?Sized + Serialize,
-    {
-        reject_document_bytes(key)?;
-        reject_document_bytes(value)
-    }
-
-    fn end(self) -> Result<()> {
-        Ok(())
-    }
-}
-
-struct RejectBytesStruct;
-
-impl SerializeStruct for RejectBytesStruct {
-    type Ok = ();
-    type Error = Error;
-
-    fn serialize_field<T>(&mut self, _key: &'static str, value: &T) -> Result<()>
-    where
-        T: ?Sized + Serialize,
-    {
-        reject_document_bytes(value)
-    }
-
-    fn end(self) -> Result<()> {
-        Ok(())
-    }
-}
-
-struct RejectBytesStructVariant;
-
-impl SerializeStructVariant for RejectBytesStructVariant {
-    type Ok = ();
-    type Error = Error;
-
-    fn serialize_field<T>(&mut self, _key: &'static str, value: &T) -> Result<()>
-    where
-        T: ?Sized + Serialize,
-    {
-        reject_document_bytes(value)
-    }
-
-    fn end(self) -> Result<()> {
-        Ok(())
-    }
 }
 
 impl Serialize for Value {

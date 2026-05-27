@@ -127,8 +127,10 @@ constructors and empty Serde variant tags are rejected like `serde_yaml`, while
 parser-backed explicit non-specific `!` tags remain preserved. Value-backed byte
 serialization follows `serde_yaml::value::Serializer` by producing a numeric
 sequence, while document writers reject `serialize_bytes` inputs like
-`serde_yaml`. Parser-backed `yaml::Value` reads still retain widened
-`i128`/`u128` numbers. `yaml::to_string`, `yaml::to_writer`, and
+`serde_yaml` during the normal value serialization pass, so custom
+`Serialize` implementations are not invoked a second time for byte preflight.
+Parser-backed `yaml::Value` reads still retain widened `i128`/`u128` numbers.
+`yaml::to_string`, `yaml::to_writer`, and
 `yaml::Serializer<W>` omit an explicit `---` for the first ordinary document and
 insert `---` before later stream documents, matching `serde_yaml`'s public writer
 boundary policy; byte-for-byte emitter parity with `serde_yaml` remains outside

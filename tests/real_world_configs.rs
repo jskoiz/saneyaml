@@ -123,6 +123,32 @@ struct MatrixStep {
 }
 
 #[derive(Debug, Deserialize)]
+struct StarterNodeWorkflow {
+    name: String,
+    on: BTreeMap<String, EventFilter>,
+    jobs: BTreeMap<String, StarterNodeJob>,
+}
+
+#[derive(Debug, Deserialize)]
+struct StarterNodeJob {
+    #[serde(rename = "runs-on")]
+    runs_on: String,
+    strategy: StarterNodeStrategy,
+    steps: Vec<Step>,
+}
+
+#[derive(Debug, Deserialize)]
+struct StarterNodeStrategy {
+    matrix: StarterNodeMatrix,
+}
+
+#[derive(Debug, Deserialize)]
+struct StarterNodeMatrix {
+    #[serde(rename = "node-version")]
+    node_version: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
 struct PolymorphicWorkflow {
     name: String,
     on: WorkflowOn,
@@ -277,6 +303,52 @@ fn rw_parse_github_actions__matrix_ci() {
         Some("${{ matrix.coverage == true }}")
     );
     assert_eq!(job.steps[3].run.as_deref(), Some("npm test -- --coverage"));
+}
+
+#[test]
+fn rw_parse_github_actions__starter_node_ci_upstream_snapshot() {
+    let input = include_str!("fixtures/real-world/github-actions/starter-node-ci.yml");
+
+    let value: yaml::Value = yaml::from_str(input).expect("deserialize starter workflow value");
+    assert_eq!(value["name"].as_str(), Some("Node.js CI"));
+    assert_eq!(
+        value["on"]["push"]["branches"][0].as_str(),
+        Some("$default-branch")
+    );
+    assert_eq!(
+        value["jobs"]["build"]["strategy"]["matrix"]["node-version"][2].as_str(),
+        Some("22.x")
+    );
+    assert_eq!(
+        value["jobs"]["build"]["steps"][1]["with"]["cache"].as_str(),
+        Some("npm")
+    );
+
+    let workflow: StarterNodeWorkflow =
+        yaml::from_str(input).expect("deserialize upstream starter workflow");
+    assert_eq!(workflow.name, "Node.js CI");
+    assert_eq!(workflow.on["push"].branches, ["$default-branch"]);
+    assert_eq!(workflow.on["pull_request"].branches, ["$default-branch"]);
+    let job = &workflow.jobs["build"];
+    assert_eq!(job.runs_on, "ubuntu-latest");
+    assert_eq!(job.strategy.matrix.node_version, ["18.x", "20.x", "22.x"]);
+    assert_eq!(job.steps[0].uses.as_deref(), Some("actions/checkout@v4"));
+    assert_eq!(
+        job.steps[1].name.as_deref(),
+        Some("Use Node.js ${{ matrix.node-version }}")
+    );
+    assert_eq!(job.steps[1].uses.as_deref(), Some("actions/setup-node@v4"));
+    assert_eq!(
+        job.steps[1].with.as_ref().unwrap()["node-version"],
+        "${{ matrix.node-version }}"
+    );
+    assert_eq!(job.steps[1].with.as_ref().unwrap()["cache"], "npm");
+    assert_eq!(job.steps[2].run.as_deref(), Some("npm ci"));
+    assert_eq!(
+        job.steps[3].run.as_deref(),
+        Some("npm run build --if-present")
+    );
+    assert_eq!(job.steps[4].run.as_deref(), Some("npm test"));
 }
 
 #[test]

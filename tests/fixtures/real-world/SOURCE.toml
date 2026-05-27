@@ -21,6 +21,17 @@ expected_docs = 1
 gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
 
 [[fixture]]
+path = "github-actions/starter-node-ci.yml"
+domain = "github-actions"
+source_type = "upstream-snapshot"
+source = "Copied unchanged from https://github.com/actions/starter-workflows/blob/53d347c66d8b0618d2e4616e1b841b649349c6d7/ci/node.js.yml"
+version = "actions/starter-workflows ci/node.js.yml at commit 53d347c66d8b0618d2e4616e1b841b649349c6d7"
+license = "MIT; Copyright (c) 2020 GitHub."
+reduction = "None; upstream snapshot preserves comments, default-branch placeholders, Node version strings, and npm cache settings."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
 path = "github-actions/polymorphic-workflow.yaml"
 domain = "github-actions"
 source_type = "synthetic"

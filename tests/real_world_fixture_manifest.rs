@@ -29,7 +29,7 @@ struct FixtureRecord {
 fn real_world_fixture_manifest_covers_files_counts_and_reference_gates() {
     let manifest: FixtureManifest =
         toml::from_str(SOURCE).expect("real-world fixture source manifest parses");
-    assert_eq!(manifest.fixture.len(), 19);
+    assert_eq!(manifest.fixture.len(), 20);
 
     let root = Path::new(FIXTURE_ROOT);
     let manifest_paths: BTreeSet<_> = manifest
@@ -41,6 +41,7 @@ fn real_world_fixture_manifest_covers_files_counts_and_reference_gates() {
     assert_eq!(manifest_paths, actual_paths);
 
     let mut domain_counts = BTreeMap::new();
+    let mut source_type_counts = BTreeMap::new();
     let mut total_docs = 0usize;
     for fixture in &manifest.fixture {
         assert_metadata_is_complete(fixture);
@@ -59,22 +60,31 @@ fn real_world_fixture_manifest_covers_files_counts_and_reference_gates() {
         *domain_counts
             .entry(fixture.domain.as_str())
             .or_insert(0usize) += 1;
+        *source_type_counts
+            .entry(fixture.source_type.as_str())
+            .or_insert(0usize) += 1;
 
         assert_shared_reference_acceptance(fixture, &input);
     }
 
-    assert_eq!(total_docs, 25);
+    assert_eq!(total_docs, 26);
     assert_eq!(
         domain_counts,
         BTreeMap::from([
             ("ansible", 2),
             ("docker-compose", 4),
-            ("github-actions", 3),
+            ("github-actions", 4),
             ("helm", 2),
             ("kubernetes", 5),
             ("openapi", 2),
             ("wrangler", 1),
         ])
+    );
+    assert!(
+        source_type_counts
+            .iter()
+            .any(|(source_type, count)| *source_type != "synthetic" && *count > 0),
+        "real-world fixture registry must include at least one non-synthetic upstream or adapted fixture"
     );
 }
 
@@ -169,5 +179,8 @@ fn collect_yaml_fixture_paths(root: &Path, dir: &Path, paths: &mut BTreeSet<Stri
 }
 
 fn is_yaml(path: &Path) -> bool {
-    path.extension().and_then(|extension| extension.to_str()) == Some("yaml")
+    matches!(
+        path.extension().and_then(|extension| extension.to_str()),
+        Some("yaml" | "yml")
+    )
 }

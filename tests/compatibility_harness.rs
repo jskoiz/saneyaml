@@ -305,6 +305,11 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "github_actions_starter_node_ci",
+        input: include_str!("fixtures/real-world/github-actions/starter-node-ci.yml"),
+        docs: 1,
+    },
+    Case {
         name: "github_actions_polymorphic",
         input: include_str!("fixtures/real-world/github-actions/polymorphic-workflow.yaml"),
         docs: 1,

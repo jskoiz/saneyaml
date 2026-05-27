@@ -151,6 +151,10 @@ const REAL_WORLD_TREE_CASES: &[TreeCase] = &[
         input: include_str!("fixtures/real-world/github-actions/matrix-ci.yaml"),
     },
     TreeCase {
+        name: "github_actions_starter_node_ci",
+        input: include_str!("fixtures/real-world/github-actions/starter-node-ci.yml"),
+    },
+    TreeCase {
         name: "github_actions_minimal",
         input: include_str!("fixtures/real-world/github-actions/minimal-ci.yaml"),
     },

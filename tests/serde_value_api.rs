@@ -1,12 +1,19 @@
 use serde::{
-    Deserialize, Serialize, de::IntoDeserializer, ser::SerializeMap, ser::SerializeSeq,
-    ser::SerializeStruct, ser::SerializeStructVariant, ser::SerializeTuple,
-    ser::SerializeTupleStruct, ser::SerializeTupleVariant,
+    Deserialize, Serialize,
+    de::{self, IntoDeserializer, Visitor},
+    ser::SerializeMap,
+    ser::SerializeSeq,
+    ser::SerializeStruct,
+    ser::SerializeStructVariant,
+    ser::SerializeTuple,
+    ser::SerializeTupleStruct,
+    ser::SerializeTupleVariant,
 };
 use std::borrow::Cow;
 use std::cell::Cell;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashSet, hash_map::DefaultHasher};
+use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::io::Cursor;
 use yaml::{Mapping, Number, Sequence, Tag, TaggedValue, Value};
@@ -325,6 +332,65 @@ impl Serialize for SerializableBytes {
         S: serde::Serializer,
     {
         serializer.serialize_bytes(self.0)
+    }
+}
+
+#[derive(Debug, PartialEq)]
+struct BytesFromDeserializeBytes(Vec<u8>);
+
+#[derive(Debug, PartialEq)]
+struct BytesFromDeserializeByteBuf(Vec<u8>);
+
+struct ByteVisitor;
+
+impl<'de> Visitor<'de> for ByteVisitor {
+    type Value = Vec<u8>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("bytes")
+    }
+
+    fn visit_bytes<E>(self, value: &[u8]) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(value.to_vec())
+    }
+
+    fn visit_borrowed_bytes<E>(self, value: &'de [u8]) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(value.to_vec())
+    }
+
+    fn visit_byte_buf<E>(self, value: Vec<u8>) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(value)
+    }
+}
+
+impl<'de> Deserialize<'de> for BytesFromDeserializeBytes {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer
+            .deserialize_bytes(ByteVisitor)
+            .map(BytesFromDeserializeBytes)
+    }
+}
+
+impl<'de> Deserialize<'de> for BytesFromDeserializeByteBuf {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer
+            .deserialize_byte_buf(ByteVisitor)
+            .map(BytesFromDeserializeByteBuf)
     }
 }
 
@@ -990,6 +1056,190 @@ fn serde_api_to_value_serializes_bytes_like_serde_yaml_value_serializer() {
     assert_eq!(sequence.len(), reference_sequence.len());
     for (item, reference_item) in sequence.iter().zip(reference_sequence.iter()) {
         assert_eq!(item.as_u64(), reference_item.as_u64());
+    }
+}
+
+#[test]
+fn serde_api_value_byte_deserialization_matches_serde_yaml_value_policy() {
+    let expected = vec![0, 65, 255];
+    let bytes = SerializableBytes(b"\0A\xff");
+    let value = yaml::to_value(bytes).expect("yaml to_value bytes");
+    let reference = serde_yaml::to_value(bytes).expect("serde_yaml to_value bytes");
+
+    let ours_vec: Vec<u8> = yaml::from_value(value.clone()).expect("yaml byte sequence to Vec<u8>");
+    let reference_vec: Vec<u8> =
+        serde_yaml::from_value(reference.clone()).expect("serde_yaml byte sequence to Vec<u8>");
+    assert_eq!(ours_vec, expected);
+    assert_eq!(ours_vec, reference_vec);
+
+    assert!(
+        serde_yaml::from_value::<BytesFromDeserializeBytes>(reference.clone()).is_err(),
+        "serde_yaml rejects byte visitors for value sequences"
+    );
+    assert!(
+        yaml::from_value::<BytesFromDeserializeBytes>(value.clone()).is_err(),
+        "yaml rejects byte visitors for value sequences"
+    );
+    assert!(
+        BytesFromDeserializeBytes::deserialize(&value).is_err(),
+        "borrowed yaml Value rejects byte visitors for value sequences"
+    );
+
+    assert!(
+        serde_yaml::from_value::<BytesFromDeserializeByteBuf>(reference).is_err(),
+        "serde_yaml rejects byte_buf visitors for value sequences"
+    );
+    assert!(
+        yaml::from_value::<BytesFromDeserializeByteBuf>(value.clone()).is_err(),
+        "yaml rejects byte_buf visitors for value sequences"
+    );
+    assert!(
+        BytesFromDeserializeByteBuf::deserialize(&value).is_err(),
+        "borrowed yaml Value rejects byte_buf visitors for value sequences"
+    );
+}
+
+#[test]
+fn serde_api_value_byte_deserialization_rejects_strings_like_serde_yaml() {
+    let value = Value::String("abc".to_string());
+    let reference = serde_yaml::Value::String("abc".to_string());
+
+    assert!(
+        serde_yaml::from_value::<BytesFromDeserializeBytes>(reference.clone()).is_err(),
+        "serde_yaml rejects string values for deserialize_bytes"
+    );
+    assert!(
+        yaml::from_value::<BytesFromDeserializeBytes>(value.clone()).is_err(),
+        "yaml rejects string values for deserialize_bytes"
+    );
+    assert!(
+        BytesFromDeserializeBytes::deserialize(&value).is_err(),
+        "borrowed yaml Value rejects string values for deserialize_bytes"
+    );
+
+    assert!(
+        serde_yaml::from_value::<BytesFromDeserializeByteBuf>(reference).is_err(),
+        "serde_yaml rejects string values for deserialize_byte_buf"
+    );
+    assert!(
+        yaml::from_value::<BytesFromDeserializeByteBuf>(value.clone()).is_err(),
+        "yaml rejects string values for deserialize_byte_buf"
+    );
+    assert!(
+        BytesFromDeserializeByteBuf::deserialize(&value).is_err(),
+        "borrowed yaml Value rejects string values for deserialize_byte_buf"
+    );
+}
+
+#[test]
+fn serde_api_parser_backed_byte_deserialization_rejects_like_serde_yaml() {
+    for input in ["abc\n", "\"abc\"\n", "!!binary AAH/\n"] {
+        assert!(
+            serde_yaml::from_str::<BytesFromDeserializeBytes>(input).is_err(),
+            "serde_yaml rejects parser-backed deserialize_bytes for {input:?}"
+        );
+        assert!(
+            serde_yaml::from_str::<BytesFromDeserializeByteBuf>(input).is_err(),
+            "serde_yaml rejects parser-backed deserialize_byte_buf for {input:?}"
+        );
+
+        assert_parser_backed_deserialize_bytes_rejected(input);
+        assert_parser_backed_deserialize_byte_buf_rejected(input);
+    }
+
+    let ours_vec: Vec<u8> = yaml::from_str("[0, 65, 255]\n").expect("yaml sequence to Vec<u8>");
+    let reference_vec: Vec<u8> =
+        serde_yaml::from_str("[0, 65, 255]\n").expect("serde_yaml sequence to Vec<u8>");
+    assert_eq!(ours_vec, reference_vec);
+}
+
+fn assert_parser_backed_deserialize_bytes_rejected(input: &str) {
+    let from_reader: yaml::Result<BytesFromDeserializeBytes> =
+        yaml::from_reader(Cursor::new(input.as_bytes()));
+    let node = yaml::parse_str(input).expect("parse byte rejection input");
+
+    for (label, result) in [
+        (
+            "from_str",
+            yaml::from_str::<BytesFromDeserializeBytes>(input),
+        ),
+        (
+            "from_slice",
+            yaml::from_slice::<BytesFromDeserializeBytes>(input.as_bytes()),
+        ),
+        ("from_reader", from_reader),
+        (
+            "direct from_str",
+            BytesFromDeserializeBytes::deserialize(yaml::Deserializer::from_str(input)),
+        ),
+        (
+            "direct from_slice",
+            BytesFromDeserializeBytes::deserialize(yaml::Deserializer::from_slice(
+                input.as_bytes(),
+            )),
+        ),
+        (
+            "direct from_reader",
+            BytesFromDeserializeBytes::deserialize(yaml::Deserializer::from_reader(Cursor::new(
+                input.as_bytes(),
+            ))),
+        ),
+        (
+            "from_node",
+            yaml::from_node::<BytesFromDeserializeBytes>(&node),
+        ),
+        ("node ref", BytesFromDeserializeBytes::deserialize(&node)),
+        (
+            "node owned",
+            BytesFromDeserializeBytes::deserialize(node.clone()),
+        ),
+    ] {
+        assert!(result.is_err(), "{label} rejects bytes for {input:?}");
+    }
+}
+
+fn assert_parser_backed_deserialize_byte_buf_rejected(input: &str) {
+    let from_reader: yaml::Result<BytesFromDeserializeByteBuf> =
+        yaml::from_reader(Cursor::new(input.as_bytes()));
+    let node = yaml::parse_str(input).expect("parse byte buffer rejection input");
+
+    for (label, result) in [
+        (
+            "from_str",
+            yaml::from_str::<BytesFromDeserializeByteBuf>(input),
+        ),
+        (
+            "from_slice",
+            yaml::from_slice::<BytesFromDeserializeByteBuf>(input.as_bytes()),
+        ),
+        ("from_reader", from_reader),
+        (
+            "direct from_str",
+            BytesFromDeserializeByteBuf::deserialize(yaml::Deserializer::from_str(input)),
+        ),
+        (
+            "direct from_slice",
+            BytesFromDeserializeByteBuf::deserialize(yaml::Deserializer::from_slice(
+                input.as_bytes(),
+            )),
+        ),
+        (
+            "direct from_reader",
+            BytesFromDeserializeByteBuf::deserialize(yaml::Deserializer::from_reader(Cursor::new(
+                input.as_bytes(),
+            ))),
+        ),
+        (
+            "from_node",
+            yaml::from_node::<BytesFromDeserializeByteBuf>(&node),
+        ),
+        ("node ref", BytesFromDeserializeByteBuf::deserialize(&node)),
+        (
+            "node owned",
+            BytesFromDeserializeByteBuf::deserialize(node.clone()),
+        ),
+    ] {
+        assert!(result.is_err(), "{label} rejects byte_buf for {input:?}");
     }
 }
 

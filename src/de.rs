@@ -879,28 +879,18 @@ impl<'de, 'tree> de::Deserializer<'de> for InputNode<'tree, 'de> {
         }
     }
 
-    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_bytes<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        if let Some(value) = self.borrowed_str() {
-            return visitor.visit_borrowed_bytes(value.as_bytes());
-        }
-        if let Some(value) = self.transient_str() {
-            return visitor.visit_bytes(value.as_bytes());
-        }
         Err(type_error("bytes", self.untag().node))
     }
 
-    fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_byte_buf<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        let node = self.untag().node;
-        match &node.value {
-            NodeValue::String(value) => visitor.visit_byte_buf(value.as_bytes().to_vec()),
-            _ => Err(type_error("bytes", node)),
-        }
+        Err(type_error("bytes", self.untag().node))
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -1349,26 +1339,18 @@ impl<'de> de::Deserializer<'de> for &'de Node {
         }
     }
 
-    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_bytes<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        let node = untag_node(self);
-        match &node.value {
-            NodeValue::String(value) => visitor.visit_borrowed_bytes(value.as_bytes()),
-            _ => Err(type_error("bytes", node)),
-        }
+        Err(type_error("bytes", untag_node(self)))
     }
 
-    fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_byte_buf<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        let node = untag_node(self);
-        match &node.value {
-            NodeValue::String(value) => visitor.visit_byte_buf(value.as_bytes().to_vec()),
-            _ => Err(type_error("bytes", node)),
-        }
+        Err(type_error("bytes", untag_node(self)))
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -1790,15 +1772,12 @@ impl<'de> de::Deserializer<'de> for Node {
         }
     }
 
-    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_bytes<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
         let node = untag_node_owned(self);
-        match node.value {
-            NodeValue::String(value) => visitor.visit_byte_buf(value.into_bytes()),
-            other => Err(type_error_owned("bytes", &other, node.span)),
-        }
+        Err(type_error_owned("bytes", &node.value, node.span))
     }
 
     fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -2184,14 +2163,12 @@ impl<'de> de::Deserializer<'de> for Value {
         }
     }
 
-    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_bytes<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        match untag_value_owned(self) {
-            Value::String(value) => visitor.visit_byte_buf(value.into_bytes()),
-            other => Err(type_error_value("bytes", &other)),
-        }
+        let value = untag_value_owned(self);
+        Err(type_error_value("bytes", &value))
     }
 
     fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -3467,26 +3444,20 @@ impl<'de> de::Deserializer<'de> for &'de Value {
         }
     }
 
-    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_bytes<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
         let value = untag_value(self);
-        match value {
-            Value::String(value) => visitor.visit_borrowed_bytes(value.as_bytes()),
-            other => Err(type_error_value("bytes", other)),
-        }
+        Err(type_error_value("bytes", value))
     }
 
-    fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_byte_buf<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
         let value = untag_value(self);
-        match value {
-            Value::String(value) => visitor.visit_byte_buf(value.as_bytes().to_vec()),
-            other => Err(type_error_value("bytes", other)),
-        }
+        Err(type_error_value("bytes", value))
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>

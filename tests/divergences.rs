@@ -204,6 +204,17 @@ fn divergence_complex_key_duplicate_policy_record_is_present() {
 }
 
 #[test]
+fn divergence_byte_deserialization_record_is_present() {
+    let record = include_str!("fixtures/divergences/records/byte-deserialization.toml");
+    assert!(record.contains("byte-deserialization"));
+    assert!(record.contains("deserialize_bytes"));
+    assert!(record.contains("deserialize_byte_buf"));
+    assert!(record.contains("serde_yaml 0.9.34"));
+    assert!(record.contains("!!binary"));
+    assert!(record.contains("decision"));
+}
+
+#[test]
 fn divergence_duplicate_scalar_keys_record_is_present() {
     let record = include_str!("fixtures/divergences/records/duplicate-scalar-keys.toml");
     assert!(record.contains("duplicate-scalar-keys"));

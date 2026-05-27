@@ -1,0 +1,7 @@
+case = "byte-deserialization"
+policy = "serde_yaml-style byte visitor reads"
+prototype = "Value-backed numeric byte sequences deserialize to Vec<u8> through normal sequence handling. Direct deserialize_bytes and deserialize_byte_buf visitors reject parser-backed YAML scalars, value strings, and value sequences, matching serde_yaml's byte visitor surface rather than treating YAML strings as raw byte buffers."
+serde_yaml = "serde_yaml 0.9.34 serializes bytes to numeric value sequences and deserializes those sequences to Vec<u8>, but direct byte visitors reject both parser-backed scalars and serde_yaml::Value sequences."
+libyaml = "libyaml exposes scalar bytes at the parser layer, but it does not define Serde byte visitor behavior."
+yaml_rust2_saphyr = "yaml-rust2 and saphyr expose parser/tree data rather than Serde byte visitor APIs."
+decision = "Keep bytes as a Serde value-sequence concern. Do not add parser-backed YAML string byte decoding or !!binary schema coercion without a future explicit compatibility milestone."

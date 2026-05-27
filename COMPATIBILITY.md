@@ -129,6 +129,10 @@ serialization follows `serde_yaml::value::Serializer` by producing a numeric
 sequence, while document writers reject `serialize_bytes` inputs like
 `serde_yaml` during the normal value serialization pass, so custom
 `Serialize` implementations are not invoked a second time for byte preflight.
+Read-side byte visitors follow `serde_yaml`: parser-backed YAML scalars reject
+`deserialize_bytes`/`deserialize_byte_buf`, value-backed numeric byte sequences
+deserialize to `Vec<u8>` through normal sequence handling, and direct byte
+visitors reject both value strings and value sequences.
 Parser-backed `yaml::Value` reads still retain widened `i128`/`u128` numbers.
 `yaml::to_string`, `yaml::to_writer`, and
 `yaml::Serializer<W>` omit an explicit `---` for the first ordinary document and

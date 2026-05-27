@@ -29,7 +29,7 @@ struct FixtureRecord {
 fn real_world_fixture_manifest_covers_files_counts_and_reference_gates() {
     let manifest: FixtureManifest =
         toml::from_str(SOURCE).expect("real-world fixture source manifest parses");
-    assert_eq!(manifest.fixture.len(), 21);
+    assert_eq!(manifest.fixture.len(), 26);
 
     let root = Path::new(FIXTURE_ROOT);
     let manifest_paths: BTreeSet<_> = manifest
@@ -67,17 +67,17 @@ fn real_world_fixture_manifest_covers_files_counts_and_reference_gates() {
         assert_shared_reference_acceptance(fixture, &input);
     }
 
-    assert_eq!(total_docs, 27);
+    assert_eq!(total_docs, 32);
     assert_eq!(
         domain_counts,
         BTreeMap::from([
-            ("ansible", 2),
+            ("ansible", 3),
             ("docker-compose", 5),
             ("github-actions", 4),
-            ("helm", 2),
-            ("kubernetes", 5),
-            ("openapi", 2),
-            ("wrangler", 1),
+            ("helm", 3),
+            ("kubernetes", 6),
+            ("openapi", 3),
+            ("wrangler", 2),
         ])
     );
     assert!(
@@ -93,7 +93,15 @@ fn real_world_fixture_manifest_covers_files_counts_and_reference_gates() {
         .filter(|fixture| fixture.source_type != "synthetic")
         .map(|fixture| fixture.domain.as_str())
         .collect();
-    for required in ["docker-compose", "github-actions"] {
+    for required in [
+        "ansible",
+        "docker-compose",
+        "github-actions",
+        "helm",
+        "kubernetes",
+        "openapi",
+        "wrangler",
+    ] {
         assert!(
             non_synthetic_domains.contains(required),
             "real-world fixture registry must include non-synthetic provenance for {required}"

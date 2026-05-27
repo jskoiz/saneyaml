@@ -207,12 +207,22 @@ const REAL_WORLD_TREE_CASES: &[TreeCase] = &[
         input: include_str!("fixtures/real-world/kubernetes/custom-resource-definition.yaml"),
     },
     TreeCase {
+        name: "kubernetes_upstream_guestbook_frontend_deployment",
+        input: include_str!(
+            "fixtures/real-world/kubernetes/upstream-guestbook-frontend-deployment.yaml"
+        ),
+    },
+    TreeCase {
         name: "helm_values",
         input: include_str!("fixtures/real-world/helm/values.yaml"),
     },
     TreeCase {
         name: "helm_chart_metadata",
         input: include_str!("fixtures/real-world/helm/Chart.yaml"),
+    },
+    TreeCase {
+        name: "helm_upstream_hello_world_chart",
+        input: include_str!("fixtures/real-world/helm/upstream-hello-world-Chart.yaml"),
     },
     TreeCase {
         name: "openapi_petstore_fragment",
@@ -223,8 +233,16 @@ const REAL_WORLD_TREE_CASES: &[TreeCase] = &[
         input: include_str!("fixtures/real-world/openapi/operations-and-polymorphism.yaml"),
     },
     TreeCase {
+        name: "openapi_upstream_petstore",
+        input: include_str!("fixtures/real-world/openapi/upstream-petstore.yaml"),
+    },
+    TreeCase {
         name: "wrangler_yaml",
         input: include_str!("fixtures/real-world/cloudflare/wrangler.yaml"),
+    },
+    TreeCase {
+        name: "wrangler_adapted_durable_objects",
+        input: include_str!("fixtures/real-world/cloudflare/adapted-durable-objects-wrangler.yaml"),
     },
     TreeCase {
         name: "ansible_playbook",
@@ -233,6 +251,10 @@ const REAL_WORLD_TREE_CASES: &[TreeCase] = &[
     TreeCase {
         name: "ansible_vault_and_unsafe_tags",
         input: include_str!("fixtures/real-world/ansible/vault-and-unsafe-tags.yaml"),
+    },
+    TreeCase {
+        name: "ansible_upstream_lamp_simple_site",
+        input: include_str!("fixtures/real-world/ansible/upstream-lamp-simple-site.yml"),
     },
 ];
 

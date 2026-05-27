@@ -347,7 +347,25 @@ fn yts_fixture_dirs(source: &str) -> BTreeSet<String> {
 }
 
 fn real_world_paths(source: &str) -> BTreeSet<String> {
-    extract_between_all(source, "include_str!(\"fixtures/real-world/", "\")")
+    let mut values = BTreeSet::new();
+    let mut rest = source;
+    let marker = "include_str!(";
+
+    while let Some(marker_start) = rest.find(marker) {
+        let after_marker = &rest[marker_start + marker.len()..];
+        let after_whitespace = after_marker.trim_start();
+        if let Some(after_quote) = after_whitespace.strip_prefix('"')
+            && let Some(path) = after_quote.strip_prefix("fixtures/real-world/")
+        {
+            let end = path
+                .find('"')
+                .unwrap_or_else(|| panic!("missing closing quote after real-world fixture path"));
+            values.insert(path[..end].to_owned());
+        }
+        rest = after_marker;
+    }
+
+    values
 }
 
 fn source_section<'a>(source: &'a str, marker: &str) -> &'a str {

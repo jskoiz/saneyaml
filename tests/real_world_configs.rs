@@ -1696,6 +1696,66 @@ fn rw_parse_ansible__vault_and_unsafe_tags_preserve_value_tags_and_typed_reads()
     );
 }
 
+#[test]
+fn rw_parse_upstream_and_adapted_real_world_snapshots() {
+    let kubernetes: yaml::Value = yaml::from_str(include_str!(
+        "fixtures/real-world/kubernetes/upstream-guestbook-frontend-deployment.yaml"
+    ))
+    .expect("deserialize upstream Kubernetes guestbook deployment");
+    assert_eq!(kubernetes["kind"].as_str(), Some("Deployment"));
+    assert_eq!(kubernetes["metadata"]["name"].as_str(), Some("frontend"));
+    assert_eq!(kubernetes["spec"]["replicas"].as_u64(), Some(3));
+    assert_eq!(
+        kubernetes["spec"]["template"]["spec"]["containers"][0]["env"][0]["value"].as_str(),
+        Some("dns")
+    );
+
+    let helm: yaml::Value = yaml::from_str(include_str!(
+        "fixtures/real-world/helm/upstream-hello-world-Chart.yaml"
+    ))
+    .expect("deserialize upstream Helm chart metadata");
+    assert_eq!(helm["name"].as_str(), Some("hello-world"));
+    assert_eq!(helm["appVersion"].as_str(), Some("1.16.0"));
+    assert_eq!(helm["type"].as_str(), Some("application"));
+
+    let openapi: yaml::Value = yaml::from_str(include_str!(
+        "fixtures/real-world/openapi/upstream-petstore.yaml"
+    ))
+    .expect("deserialize upstream OpenAPI petstore spec");
+    assert_eq!(openapi["openapi"].as_str(), Some("3.0.0"));
+    assert_eq!(openapi["info"]["title"].as_str(), Some("Swagger Petstore"));
+    assert_eq!(
+        openapi["paths"]["/pets"]["get"]["operationId"].as_str(),
+        Some("listPets")
+    );
+    assert_eq!(
+        openapi["components"]["schemas"]["Pet"]["properties"]["id"]["format"].as_str(),
+        Some("int64")
+    );
+
+    let wrangler: yaml::Value = yaml::from_str(include_str!(
+        "fixtures/real-world/cloudflare/adapted-durable-objects-wrangler.yaml"
+    ))
+    .expect("deserialize adapted Wrangler durable objects config");
+    assert_eq!(wrangler["name"].as_str(), Some("durable-objects"));
+    assert_eq!(
+        wrangler["durable_objects"]["bindings"][1]["class_name"].as_str(),
+        Some("SQLiteDurableObject")
+    );
+    assert_eq!(
+        wrangler["migrations"][0]["new_classes"][0].as_str(),
+        Some("Counter")
+    );
+
+    let ansible: yaml::Value = yaml::from_str(include_str!(
+        "fixtures/real-world/ansible/upstream-lamp-simple-site.yml"
+    ))
+    .expect("deserialize upstream Ansible LAMP playbook");
+    assert_eq!(ansible.as_sequence().expect("plays").len(), 3);
+    assert_eq!(ansible[0]["hosts"].as_str(), Some("all"));
+    assert_eq!(ansible[2]["roles"][0].as_str(), Some("db"));
+}
+
 #[derive(Debug, Deserialize, PartialEq)]
 struct EnumConfig {
     mode: Mode,

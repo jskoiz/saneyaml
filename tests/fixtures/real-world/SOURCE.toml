@@ -153,6 +153,17 @@ expected_docs = 1
 gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
 
 [[fixture]]
+path = "kubernetes/upstream-guestbook-frontend-deployment.yaml"
+domain = "kubernetes"
+source_type = "adapted"
+source = "Adapted from https://github.com/kubernetes/examples/blob/d6b8cd27eacb51e651a1aa6f7c190a28713eff6e/web/guestbook/frontend-deployment.yaml"
+version = "kubernetes/examples web/guestbook/frontend-deployment.yaml at commit d6b8cd27eacb51e651a1aa6f7c190a28713eff6e"
+license = "Apache-2.0."
+reduction = "Trailing whitespace normalized; content otherwise preserves inline comments, Kubernetes resource units, env entries, probes, and container port structure."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
 path = "helm/values.yaml"
 domain = "helm"
 source_type = "synthetic"
@@ -171,6 +182,17 @@ source = "Locally synthesized from Helm Chart.yaml metadata and dependency conve
 version = "Helm v3 Chart.yaml, 2026-05 fixture surface"
 license = "Local test fixture; no copied production data."
 reduction = "Chart metadata fixture preserving semver strings, annotations, maintainers, and dependencies."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
+path = "helm/upstream-hello-world-Chart.yaml"
+domain = "helm"
+source_type = "upstream-snapshot"
+source = "Copied unchanged from https://github.com/helm/examples/blob/4888ba8fb8180dd0c36d1e84c1fcafc6efd81532/charts/hello-world/Chart.yaml"
+version = "helm/examples charts/hello-world/Chart.yaml at commit 4888ba8fb8180dd0c36d1e84c1fcafc6efd81532"
+license = "Apache-2.0."
+reduction = "None; upstream snapshot preserves chart metadata comments, semver-like chart version, and quoted appVersion."
 expected_docs = 1
 gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
 
@@ -197,6 +219,17 @@ expected_docs = 1
 gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
 
 [[fixture]]
+path = "openapi/upstream-petstore.yaml"
+domain = "openapi"
+source_type = "adapted"
+source = "Adapted from https://github.com/OAI/OpenAPI-Specification/blob/da4d0a0e0e075865ab538df4154ddc91e8e5cbce/_archive_/schemas/v3.0/pass/petstore.yaml"
+version = "OAI/OpenAPI-Specification _archive_/schemas/v3.0/pass/petstore.yaml at commit da4d0a0e0e075865ab538df4154ddc91e8e5cbce"
+license = "Apache-2.0."
+reduction = "Trailing whitespace normalized; content otherwise preserves path templates, quoted response codes, media-type keys, $ref scalars, and schema maps."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
 path = "cloudflare/wrangler.yaml"
 domain = "wrangler"
 source_type = "synthetic"
@@ -208,6 +241,17 @@ expected_docs = 1
 gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
 
 [[fixture]]
+path = "cloudflare/adapted-durable-objects-wrangler.yaml"
+domain = "wrangler"
+source_type = "adapted"
+source = "Adapted to YAML from https://github.com/cloudflare/workers-sdk/blob/c8c7ec0bde012ffe9fefe01cb15c7b0d030a6777/fixtures/vitest-pool-workers-examples/durable-objects/wrangler.jsonc"
+version = "cloudflare/workers-sdk durable-objects wrangler.jsonc at commit c8c7ec0bde012ffe9fefe01cb15c7b0d030a6777"
+license = "Apache-2.0 OR MIT; Copyright (c) 2020 Cloudflare, Inc."
+reduction = "JSONC comments and trailing commas removed while preserving durable object bindings, migration tags, and class-list shapes in YAML form."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
 path = "ansible/playbook.yaml"
 domain = "ansible"
 source_type = "synthetic"
@@ -215,6 +259,17 @@ source = "Locally synthesized from Ansible playbook conventions."
 version = "Ansible playbook YAML, 2026-05 fixture surface"
 license = "Local test fixture; no copied production data."
 reduction = "Playbook fixture preserving task lists, module keys, variables, and scalar templates."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+
+[[fixture]]
+path = "ansible/upstream-lamp-simple-site.yml"
+domain = "ansible"
+source_type = "upstream-snapshot"
+source = "Copied unchanged from https://github.com/ansible/ansible-examples/blob/b50586543c6c4be907fdc88f9f78a2b35d2a895f/lamp_simple/site.yml"
+version = "ansible/ansible-examples lamp_simple/site.yml at commit b50586543c6c4be907fdc88f9f78a2b35d2a895f"
+license = "Creative Commons Attribution 3.0 Unported; Copyright (C) 2013 AnsibleWorks, Inc."
+reduction = "None; upstream snapshot preserves explicit document start, play list structure, roles, hosts, and remote_user scalars."
 expected_docs = 1
 gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
 

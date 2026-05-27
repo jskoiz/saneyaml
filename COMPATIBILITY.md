@@ -375,11 +375,11 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
 - Ansible-style playbooks, including `!vault` and `!unsafe` tagged values and
   raw event coverage for tag/style metadata
 - the real-world fixture registry in `tests/fixtures/real-world/SOURCE.toml`,
-  currently 21 files and 27 YAML documents, with per-fixture domain, source
+  currently 26 files and 32 YAML documents, with per-fixture domain, source
   type, version surface, license/redaction note, reduction note, expected
-  document count, and gate coverage; at least one fixture must be
-  non-synthetic upstream/adapted provenance, with current non-synthetic
-  coverage for GitHub Actions and Docker Compose
+  document count, and gate coverage; every registered domain must include
+  non-synthetic upstream/adapted provenance, currently covering GitHub Actions,
+  Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and Ansible
 - shared-reference acceptance for every registered real-world fixture against
   this crate, `serde_yaml` 0.9.34, `yaml-rust2` 0.11.0, and `saphyr` 0.0.6
   as pinned in `Cargo.toml`

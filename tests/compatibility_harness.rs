@@ -365,6 +365,13 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "kubernetes_upstream_guestbook_frontend_deployment",
+        input: include_str!(
+            "fixtures/real-world/kubernetes/upstream-guestbook-frontend-deployment.yaml"
+        ),
+        docs: 1,
+    },
+    Case {
         name: "helm_values",
         input: include_str!("fixtures/real-world/helm/values.yaml"),
         docs: 1,
@@ -372,6 +379,11 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
     Case {
         name: "helm_chart_metadata",
         input: include_str!("fixtures/real-world/helm/Chart.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "helm_upstream_hello_world_chart",
+        input: include_str!("fixtures/real-world/helm/upstream-hello-world-Chart.yaml"),
         docs: 1,
     },
     Case {
@@ -385,8 +397,18 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "openapi_upstream_petstore",
+        input: include_str!("fixtures/real-world/openapi/upstream-petstore.yaml"),
+        docs: 1,
+    },
+    Case {
         name: "wrangler_yaml",
         input: include_str!("fixtures/real-world/cloudflare/wrangler.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "wrangler_adapted_durable_objects",
+        input: include_str!("fixtures/real-world/cloudflare/adapted-durable-objects-wrangler.yaml"),
         docs: 1,
     },
     Case {
@@ -397,6 +419,11 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
     Case {
         name: "ansible_vault_and_unsafe_tags",
         input: include_str!("fixtures/real-world/ansible/vault-and-unsafe-tags.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "ansible_upstream_lamp_simple_site",
+        input: include_str!("fixtures/real-world/ansible/upstream-lamp-simple-site.yml"),
         docs: 1,
     },
 ];

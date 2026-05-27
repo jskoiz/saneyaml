@@ -211,6 +211,9 @@ Serde numeric policy:
   `Display`/`FromStr`, direct `Number` deserializer support, and
   `serde_yaml`-style public comparison/hash traits for `Value`, `Mapping`,
   `TaggedValue`, `Tag`, and `Number` where the upstream types expose them.
+- writer and value serializers cap initial allocation from caller-provided
+  Serde collection length hints; actual serialized collection size can still
+  grow normally as elements arrive.
 - `yaml::mapping` exposes `serde_yaml`-style public iterator names
   (`Iter`, `IterMut`, `IntoIter`, `Keys`, `IntoKeys`, `Values`,
   `ValuesMut`, and `IntoValues`), and those iterators implement

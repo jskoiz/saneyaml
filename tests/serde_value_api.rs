@@ -1,6 +1,7 @@
 use serde::{
-    Deserialize, Serialize, de::IntoDeserializer, ser::SerializeMap, ser::SerializeStructVariant,
-    ser::SerializeTupleVariant,
+    Deserialize, Serialize, de::IntoDeserializer, ser::SerializeMap, ser::SerializeSeq,
+    ser::SerializeStruct, ser::SerializeStructVariant, ser::SerializeTuple,
+    ser::SerializeTupleStruct, ser::SerializeTupleVariant,
 };
 use std::borrow::Cow;
 use std::cmp::Ordering;
@@ -323,6 +324,120 @@ impl Serialize for SerializableBytes {
         S: serde::Serializer,
     {
         serializer.serialize_bytes(self.0)
+    }
+}
+
+#[derive(Clone, Copy)]
+struct HostileSequenceLengthHint;
+
+impl Serialize for HostileSequenceLengthHint {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut sequence = serializer.serialize_seq(Some(usize::MAX))?;
+        sequence.serialize_element(&"x")?;
+        sequence.end()
+    }
+}
+
+#[derive(Clone, Copy)]
+struct HostileTupleLengthHint;
+
+impl Serialize for HostileTupleLengthHint {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut tuple = serializer.serialize_tuple(usize::MAX)?;
+        tuple.serialize_element(&"x")?;
+        tuple.end()
+    }
+}
+
+#[derive(Clone, Copy)]
+struct HostileTupleStructLengthHint;
+
+impl Serialize for HostileTupleStructLengthHint {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut tuple = serializer.serialize_tuple_struct("HostileTuple", usize::MAX)?;
+        tuple.serialize_field(&"x")?;
+        tuple.end()
+    }
+}
+
+#[derive(Clone, Copy)]
+struct HostileTupleVariantLengthHint;
+
+impl Serialize for HostileTupleVariantLengthHint {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut tuple =
+            serializer.serialize_tuple_variant("HostileVariant", 0, "Tuple", usize::MAX)?;
+        tuple.serialize_field(&"x")?;
+        tuple.end()
+    }
+}
+
+#[derive(Clone, Copy)]
+struct HostileMapLengthHint;
+
+impl Serialize for HostileMapLengthHint {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(usize::MAX))?;
+        map.serialize_entry("k", &"v")?;
+        map.end()
+    }
+}
+
+#[derive(Clone, Copy)]
+struct HostileStructLengthHint;
+
+impl Serialize for HostileStructLengthHint {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut fields = serializer.serialize_struct("HostileStruct", usize::MAX)?;
+        fields.serialize_field("k", &"v")?;
+        fields.end()
+    }
+}
+
+#[derive(Clone, Copy)]
+struct HostileStructVariantLengthHint;
+
+impl Serialize for HostileStructVariantLengthHint {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut fields =
+            serializer.serialize_struct_variant("HostileVariant", 0, "Struct", usize::MAX)?;
+        fields.serialize_field("k", &"v")?;
+        fields.end()
+    }
+}
+
+#[derive(Clone, Copy)]
+struct HostileMappingKeyLengthHint;
+
+impl Serialize for HostileMappingKeyLengthHint {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(1))?;
+        map.serialize_entry(&HostileSequenceLengthHint, &"v")?;
+        map.end()
     }
 }
 
@@ -715,6 +830,79 @@ fn serde_api_to_value_serializes_bytes_like_serde_yaml_value_serializer() {
     for (item, reference_item) in sequence.iter().zip(reference_sequence.iter()) {
         assert_eq!(item.as_u64(), reference_item.as_u64());
     }
+}
+
+#[test]
+fn serde_api_to_value_bounds_hostile_sequence_and_tuple_length_hints() {
+    for value in [
+        yaml::to_value(HostileSequenceLengthHint).expect("hostile sequence hint"),
+        yaml::to_value(HostileTupleLengthHint).expect("hostile tuple hint"),
+        yaml::to_value(HostileTupleStructLengthHint).expect("hostile tuple struct hint"),
+        HostileSequenceLengthHint
+            .serialize(yaml::value::Serializer)
+            .expect("direct value serializer hostile sequence hint"),
+    ] {
+        let sequence = value.as_sequence().expect("sequence value");
+        assert_eq!(sequence.len(), 1);
+        assert_eq!(sequence[0].as_str(), Some("x"));
+    }
+}
+
+#[test]
+fn serde_api_to_string_bounds_hostile_sequence_length_hint() {
+    let emitted = yaml::to_string(&HostileSequenceLengthHint).expect("hostile sequence output");
+    let value: Value = yaml::from_str(&emitted).expect("parse hostile sequence output");
+    let sequence = value.as_sequence().expect("sequence output");
+    assert_eq!(sequence.len(), 1);
+    assert_eq!(sequence[0].as_str(), Some("x"));
+}
+
+#[test]
+fn serde_api_writer_serializer_bounds_hostile_map_length_hint() {
+    let mut buffer = Vec::new();
+    let mut serializer = yaml::Serializer::new(&mut buffer);
+    HostileMapLengthHint
+        .serialize(&mut serializer)
+        .expect("hostile map writer");
+    let emitted = String::from_utf8(buffer).expect("utf8 writer output");
+    let value: Value = yaml::from_str(&emitted).expect("parse hostile map output");
+    assert_eq!(value["k"].as_str(), Some("v"));
+}
+
+#[test]
+fn serde_api_value_serializer_bounds_tuple_variant_length_hint() {
+    let value = HostileTupleVariantLengthHint
+        .serialize(yaml::value::Serializer)
+        .expect("hostile tuple variant hint");
+    let tagged = value.as_tagged().expect("tuple variant tag");
+    assert_eq!(tagged.tag, Tag::new("Tuple"));
+    let items = tagged.value.as_sequence().expect("tuple variant sequence");
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].as_str(), Some("x"));
+}
+
+#[test]
+fn serde_api_mapping_key_serializer_bounds_nested_key_length_hint() {
+    let value = yaml::to_value(HostileMappingKeyLengthHint).expect("hostile mapping key hint");
+    let mapping = value.as_mapping().expect("mapping output");
+    let [(key, value)] = mapping.as_slice() else {
+        panic!("expected one mapping entry");
+    };
+    let sequence = key.as_sequence().expect("sequence key");
+    assert_eq!(sequence.len(), 1);
+    assert_eq!(sequence[0].as_str(), Some("x"));
+    assert_eq!(value.as_str(), Some("v"));
+}
+
+#[test]
+fn serde_api_struct_and_variant_serializers_bound_length_hints() {
+    let fields = yaml::to_value(HostileStructLengthHint).expect("hostile struct hint");
+    assert_eq!(fields["k"].as_str(), Some("v"));
+
+    let variant = yaml::to_value(HostileStructVariantLengthHint).expect("hostile variant hint");
+    let tagged = variant.as_tagged().expect("struct variant tag");
+    assert_eq!(tagged.tag, Tag::new("Struct"));
+    assert_eq!(tagged.value["k"].as_str(), Some("v"));
 }
 
 #[test]

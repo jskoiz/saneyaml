@@ -11,6 +11,7 @@ use std::io::Write;
 const NUMBER_STRUCT: &str = "$yaml::Number";
 const BYTES_UNSUPPORTED: &str =
     "serialization and deserialization of bytes in YAML is not implemented";
+const MAX_SERIALIZE_HINT_PREALLOC: usize = 4096;
 
 pub fn to_value<T>(value: T) -> Result<Value>
 where
@@ -226,9 +227,7 @@ where
     fn serialize_seq(self, len: Option<usize>) -> Result<DocumentSequenceSerializer<'a, W>> {
         Ok(DocumentSequenceSerializer {
             serializer: self,
-            inner: SequenceSerializer {
-                items: Vec::with_capacity(len.unwrap_or(0)),
-            },
+            inner: sequence_serializer_with_capacity(len),
         })
     }
 
@@ -254,10 +253,7 @@ where
         validate_variant_tag(variant)?;
         Ok(DocumentTupleVariantSerializer {
             serializer: self,
-            inner: TupleVariantSerializer {
-                variant,
-                items: Vec::with_capacity(len),
-            },
+            inner: tuple_variant_serializer_with_capacity(variant, len),
         })
     }
 
@@ -276,7 +272,7 @@ where
         Ok(DocumentStructSerializer {
             serializer: self,
             inner: StructSerializer {
-                entries: Mapping::with_capacity(len),
+                entries: mapping_with_hinted_capacity(Some(len)),
             },
         })
     }
@@ -293,7 +289,7 @@ where
             serializer: self,
             inner: StructVariantSerializer {
                 variant,
-                entries: Mapping::with_capacity(len),
+                entries: mapping_with_hinted_capacity(Some(len)),
             },
         })
     }
@@ -637,9 +633,7 @@ impl ser::Serializer for ValueSerializer {
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<SequenceSerializer> {
-        Ok(SequenceSerializer {
-            items: Vec::with_capacity(len.unwrap_or(0)),
-        })
+        Ok(sequence_serializer_with_capacity(len))
     }
 
     fn serialize_tuple(self, len: usize) -> Result<SequenceSerializer> {
@@ -658,10 +652,7 @@ impl ser::Serializer for ValueSerializer {
         len: usize,
     ) -> Result<TupleVariantSerializer> {
         validate_variant_tag(variant)?;
-        Ok(TupleVariantSerializer {
-            variant,
-            items: Vec::with_capacity(len),
-        })
+        Ok(tuple_variant_serializer_with_capacity(variant, len))
     }
 
     fn serialize_map(self, len: Option<usize>) -> Result<MappingSerializer> {
@@ -670,7 +661,7 @@ impl ser::Serializer for ValueSerializer {
 
     fn serialize_struct(self, _name: &'static str, len: usize) -> Result<StructSerializer> {
         Ok(StructSerializer {
-            entries: Mapping::with_capacity(len),
+            entries: mapping_with_hinted_capacity(Some(len)),
         })
     }
 
@@ -684,7 +675,7 @@ impl ser::Serializer for ValueSerializer {
         validate_variant_tag(variant)?;
         Ok(StructVariantSerializer {
             variant,
-            entries: Mapping::with_capacity(len),
+            entries: mapping_with_hinted_capacity(Some(len)),
         })
     }
 
@@ -694,6 +685,30 @@ impl ser::Serializer for ValueSerializer {
     {
         Ok(Value::String(value.to_string()))
     }
+}
+
+fn hinted_capacity(len: Option<usize>) -> usize {
+    len.unwrap_or(0).min(MAX_SERIALIZE_HINT_PREALLOC)
+}
+
+fn sequence_serializer_with_capacity(len: Option<usize>) -> SequenceSerializer {
+    SequenceSerializer {
+        items: Vec::with_capacity(hinted_capacity(len)),
+    }
+}
+
+fn tuple_variant_serializer_with_capacity(
+    variant: &'static str,
+    len: usize,
+) -> TupleVariantSerializer {
+    TupleVariantSerializer {
+        variant,
+        items: Vec::with_capacity(hinted_capacity(Some(len))),
+    }
+}
+
+fn mapping_with_hinted_capacity(len: Option<usize>) -> Mapping {
+    Mapping::with_capacity(hinted_capacity(len))
 }
 
 pub struct SequenceSerializer {
@@ -852,7 +867,7 @@ impl SerializeMap for MappingSerializer {
 impl MappingSerializer {
     fn new(len: Option<usize>, detect_tag: bool) -> Self {
         Self {
-            entries: Mapping::with_capacity(len.unwrap_or(0)),
+            entries: mapping_with_hinted_capacity(len),
             next_key: None,
             tagged: None,
             detect_tag,
@@ -1037,15 +1052,15 @@ impl ser::Serializer for TagDetectingKeySerializer {
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq> {
-        Ok(KeySequenceSerializer(SequenceSerializer {
-            items: Vec::with_capacity(len.unwrap_or(0)),
-        }))
+        Ok(KeySequenceSerializer(sequence_serializer_with_capacity(
+            len,
+        )))
     }
 
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple> {
-        Ok(KeySequenceSerializer(SequenceSerializer {
-            items: Vec::with_capacity(len),
-        }))
+        Ok(KeySequenceSerializer(sequence_serializer_with_capacity(
+            Some(len),
+        )))
     }
 
     fn serialize_tuple_struct(
@@ -1053,9 +1068,9 @@ impl ser::Serializer for TagDetectingKeySerializer {
         _name: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleStruct> {
-        Ok(KeySequenceSerializer(SequenceSerializer {
-            items: Vec::with_capacity(len),
-        }))
+        Ok(KeySequenceSerializer(sequence_serializer_with_capacity(
+            Some(len),
+        )))
     }
 
     fn serialize_tuple_variant(
@@ -1066,10 +1081,9 @@ impl ser::Serializer for TagDetectingKeySerializer {
         len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
         validate_variant_tag(variant)?;
-        Ok(KeyTupleVariantSerializer(TupleVariantSerializer {
-            variant,
-            items: Vec::with_capacity(len),
-        }))
+        Ok(KeyTupleVariantSerializer(
+            tuple_variant_serializer_with_capacity(variant, len),
+        ))
     }
 
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
@@ -1081,7 +1095,7 @@ impl ser::Serializer for TagDetectingKeySerializer {
 
     fn serialize_struct(self, _name: &'static str, len: usize) -> Result<Self::SerializeStruct> {
         Ok(KeyStructSerializer(StructSerializer {
-            entries: Mapping::with_capacity(len),
+            entries: mapping_with_hinted_capacity(Some(len)),
         }))
     }
 
@@ -1095,7 +1109,7 @@ impl ser::Serializer for TagDetectingKeySerializer {
         validate_variant_tag(variant)?;
         Ok(KeyStructVariantSerializer(StructVariantSerializer {
             variant,
-            entries: Mapping::with_capacity(len),
+            entries: mapping_with_hinted_capacity(Some(len)),
         }))
     }
 

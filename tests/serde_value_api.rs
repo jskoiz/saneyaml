@@ -88,6 +88,43 @@ struct TaggedConfig {
     optional: Option<String>,
 }
 
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+struct TaggedAnchorScalarRead {
+    first: String,
+    second: String,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+struct TaggedAnchorSequenceRead {
+    first: Vec<String>,
+    second: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+struct TaggedAnchorMappingRead {
+    first: BTreeMap<String, String>,
+    second: BTreeMap<String, String>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+struct TaggedAnchorKeyRead {
+    root: BTreeMap<String, String>,
+    alias_value: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum TaggedAnchorPayload {
+    Text(String),
+    List(Vec<String>),
+    Map(BTreeMap<String, String>),
+}
+
+#[derive(Clone, Debug)]
+enum TaggedAnchorShape {
+    ValuePair(TaggedAnchorPayload),
+    KeyPair,
+}
+
 #[derive(Debug, Deserialize, PartialEq)]
 struct BorrowedConfig<'a> {
     name: &'a str,
@@ -3028,6 +3065,344 @@ optional: !Maybe null
     assert_eq!(from_node, expected);
     assert_eq!(from_value, expected);
     assert_eq!(from_value_ref, expected);
+}
+
+#[test]
+fn serde_api_tagged_anchor_alias_matrix_preserves_tags_across_entrypoints() {
+    struct Case {
+        name: &'static str,
+        input: &'static str,
+        shape: TaggedAnchorShape,
+    }
+
+    let scalar = TaggedAnchorPayload::Text("value".to_string());
+    let sequence = TaggedAnchorPayload::List(vec!["one".to_string(), "two".to_string()]);
+    let mapping =
+        TaggedAnchorPayload::Map(BTreeMap::from([("name".to_string(), "prod".to_string())]));
+
+    let cases = [
+        Case {
+            name: "block scalar value anchor before tag",
+            input: "first: &a !Thing value\nsecond: *a\n",
+            shape: TaggedAnchorShape::ValuePair(scalar.clone()),
+        },
+        Case {
+            name: "block scalar value tag before anchor",
+            input: "first: !Thing &a value\nsecond: *a\n",
+            shape: TaggedAnchorShape::ValuePair(scalar.clone()),
+        },
+        Case {
+            name: "block sequence value anchor before tag",
+            input: "first: &a !Thing [one, two]\nsecond: *a\n",
+            shape: TaggedAnchorShape::ValuePair(sequence.clone()),
+        },
+        Case {
+            name: "block sequence value tag before anchor",
+            input: "first: !Thing &a [one, two]\nsecond: *a\n",
+            shape: TaggedAnchorShape::ValuePair(sequence),
+        },
+        Case {
+            name: "block mapping value anchor before tag",
+            input: "first: &a !Thing {name: prod}\nsecond: *a\n",
+            shape: TaggedAnchorShape::ValuePair(mapping.clone()),
+        },
+        Case {
+            name: "block mapping value tag before anchor",
+            input: "first: !Thing &a {name: prod}\nsecond: *a\n",
+            shape: TaggedAnchorShape::ValuePair(mapping),
+        },
+        Case {
+            name: "block scalar key anchor before tag",
+            input: "root:\n  ? &a !Thing tagged-key\n  : first\nalias_value: *a\n",
+            shape: TaggedAnchorShape::KeyPair,
+        },
+        Case {
+            name: "block scalar key tag before anchor",
+            input: "root:\n  ? !Thing &a tagged-key\n  : first\nalias_value: *a\n",
+            shape: TaggedAnchorShape::KeyPair,
+        },
+        Case {
+            name: "flow scalar key anchor before tag",
+            input: "root: {? &a !Thing tagged-key : first}\nalias_value: *a\n",
+            shape: TaggedAnchorShape::KeyPair,
+        },
+        Case {
+            name: "flow scalar key tag before anchor",
+            input: "root: {? !Thing &a tagged-key : first}\nalias_value: *a\n",
+            shape: TaggedAnchorShape::KeyPair,
+        },
+    ];
+
+    for case in cases {
+        let node = yaml::parse_str(case.input)
+            .unwrap_or_else(|error| panic!("parse {}: {error}", case.name));
+        assert_tagged_anchor_shape(case.name, &Value::from(&node), &case.shape);
+
+        let from_node: Value = yaml::from_node(&node)
+            .unwrap_or_else(|error| panic!("from_node {}: {error}", case.name));
+        assert_tagged_anchor_shape(case.name, &from_node, &case.shape);
+
+        let from_str: Value = yaml::from_str(case.input)
+            .unwrap_or_else(|error| panic!("from_str {}: {error}", case.name));
+        assert_tagged_anchor_shape(case.name, &from_str, &case.shape);
+
+        let from_slice: Value = yaml::from_slice(case.input.as_bytes())
+            .unwrap_or_else(|error| panic!("from_slice {}: {error}", case.name));
+        assert_tagged_anchor_shape(case.name, &from_slice, &case.shape);
+
+        let from_reader: Value = yaml::from_reader(Cursor::new(case.input.as_bytes()))
+            .unwrap_or_else(|error| panic!("from_reader {}: {error}", case.name));
+        assert_tagged_anchor_shape(case.name, &from_reader, &case.shape);
+
+        let from_value: Value = yaml::from_value(from_str.clone())
+            .unwrap_or_else(|error| panic!("from_value {}: {error}", case.name));
+        assert_tagged_anchor_shape(case.name, &from_value, &case.shape);
+
+        let from_value_ref = Value::deserialize(&from_str)
+            .unwrap_or_else(|error| panic!("&Value {}: {error}", case.name));
+        assert_tagged_anchor_shape(case.name, &from_value_ref, &case.shape);
+
+        let document = yaml::Deserializer::from_str(case.input)
+            .next()
+            .unwrap_or_else(|| panic!("Deserializer::from_str {} yields one doc", case.name));
+        let direct_str = Value::deserialize(document)
+            .unwrap_or_else(|error| panic!("direct str deserializer {}: {error}", case.name));
+        assert_tagged_anchor_shape(case.name, &direct_str, &case.shape);
+
+        let document = yaml::Deserializer::from_slice(case.input.as_bytes())
+            .next()
+            .unwrap_or_else(|| panic!("Deserializer::from_slice {} yields one doc", case.name));
+        let direct_slice = Value::deserialize(document)
+            .unwrap_or_else(|error| panic!("direct slice deserializer {}: {error}", case.name));
+        assert_tagged_anchor_shape(case.name, &direct_slice, &case.shape);
+
+        let document = yaml::Deserializer::from_reader(Cursor::new(case.input.as_bytes()))
+            .next()
+            .unwrap_or_else(|| panic!("Deserializer::from_reader {} yields one doc", case.name));
+        let direct_reader = Value::deserialize(document)
+            .unwrap_or_else(|error| panic!("direct reader deserializer {}: {error}", case.name));
+        assert_tagged_anchor_shape(case.name, &direct_reader, &case.shape);
+
+        for (surface, docs) in [
+            (
+                "from_documents_str",
+                yaml::from_documents_str::<Value>(case.input),
+            ),
+            (
+                "from_documents_slice",
+                yaml::from_documents_slice::<Value>(case.input.as_bytes()),
+            ),
+            (
+                "from_documents_reader",
+                yaml::from_documents_reader::<Value, _>(Cursor::new(case.input.as_bytes())),
+            ),
+        ] {
+            let docs = docs.unwrap_or_else(|error| panic!("{surface} {}: {error}", case.name));
+            assert_eq!(docs.len(), 1, "{surface} {} doc count", case.name);
+            assert_tagged_anchor_shape(case.name, &docs[0], &case.shape);
+        }
+
+        match &case.shape {
+            TaggedAnchorShape::ValuePair(expected) => {
+                assert_tagged_anchor_value_typed_entrypoints(case.name, case.input, expected)
+            }
+            TaggedAnchorShape::KeyPair => {
+                assert_tagged_anchor_key_typed_entrypoints(case.name, case.input)
+            }
+        }
+    }
+}
+
+fn assert_tagged_anchor_shape(name: &str, value: &Value, shape: &TaggedAnchorShape) {
+    match shape {
+        TaggedAnchorShape::ValuePair(expected) => {
+            assert_tagged_anchor_value_pair(name, value, expected);
+        }
+        TaggedAnchorShape::KeyPair => assert_tagged_anchor_key_pair(name, value),
+    }
+}
+
+fn assert_tagged_anchor_value_pair(name: &str, value: &Value, expected: &TaggedAnchorPayload) {
+    let first = assert_tagged_value(&value["first"], name, "first");
+    let second = assert_tagged_value(&value["second"], name, "second");
+    assert_eq!(
+        first.value, second.value,
+        "{name} alias value must retain the same tagged payload",
+    );
+    assert_tagged_payload(name, "first", &first.value, expected);
+    assert_tagged_payload(name, "second", &second.value, expected);
+}
+
+fn assert_tagged_anchor_key_pair(name: &str, value: &Value) {
+    let root = value["root"]
+        .as_mapping()
+        .unwrap_or_else(|| panic!("{name} root must be a mapping"));
+    let (tagged_key, entry_value) = root
+        .iter()
+        .find_map(|(key, value)| key.as_tagged().map(|tagged| (tagged, value)))
+        .unwrap_or_else(|| panic!("{name} root must contain a tagged key"));
+    assert_eq!(tagged_key.tag, Tag::new("Thing"), "{name} key tag");
+    assert_eq!(tagged_key.value.as_str(), Some("tagged-key"));
+    assert_eq!(entry_value.as_str(), Some("first"));
+
+    let alias = assert_tagged_value(&value["alias_value"], name, "alias_value");
+    assert_eq!(alias.value.as_str(), Some("tagged-key"));
+}
+
+fn assert_tagged_value<'a>(value: &'a Value, name: &str, field: &str) -> &'a TaggedValue {
+    let tagged = value
+        .as_tagged()
+        .unwrap_or_else(|| panic!("{name} {field} must be tagged"));
+    assert_eq!(tagged.tag, Tag::new("Thing"), "{name} {field} tag");
+    tagged
+}
+
+fn assert_tagged_payload(name: &str, field: &str, value: &Value, expected: &TaggedAnchorPayload) {
+    match expected {
+        TaggedAnchorPayload::Text(expected) => {
+            assert_eq!(value.as_str(), Some(expected.as_str()), "{name} {field}");
+        }
+        TaggedAnchorPayload::List(expected) => {
+            let actual = value
+                .as_sequence()
+                .unwrap_or_else(|| panic!("{name} {field} must be a sequence"));
+            let actual = actual
+                .iter()
+                .map(|item| item.as_str().expect("sequence item string").to_string())
+                .collect::<Vec<_>>();
+            assert_eq!(actual.as_slice(), expected.as_slice(), "{name} {field}");
+        }
+        TaggedAnchorPayload::Map(expected) => {
+            let actual = value
+                .as_mapping()
+                .unwrap_or_else(|| panic!("{name} {field} must be a mapping"));
+            assert_eq!(actual.len(), expected.len(), "{name} {field} map len");
+            for (key, expected_value) in expected {
+                assert_eq!(
+                    actual
+                        .get(Value::String(key.clone()))
+                        .and_then(Value::as_str),
+                    Some(expected_value.as_str()),
+                    "{name} {field}.{key}",
+                );
+            }
+        }
+    }
+}
+
+fn assert_tagged_anchor_value_typed_entrypoints(
+    name: &str,
+    input: &str,
+    expected: &TaggedAnchorPayload,
+) {
+    match expected {
+        TaggedAnchorPayload::Text(expected) => {
+            assert_typed_anchor_entrypoints::<TaggedAnchorScalarRead>(
+                name,
+                input,
+                TaggedAnchorScalarRead {
+                    first: expected.clone(),
+                    second: expected.clone(),
+                },
+            );
+        }
+        TaggedAnchorPayload::List(expected) => {
+            assert_typed_anchor_entrypoints::<TaggedAnchorSequenceRead>(
+                name,
+                input,
+                TaggedAnchorSequenceRead {
+                    first: expected.clone(),
+                    second: expected.clone(),
+                },
+            );
+        }
+        TaggedAnchorPayload::Map(expected) => {
+            assert_typed_anchor_entrypoints::<TaggedAnchorMappingRead>(
+                name,
+                input,
+                TaggedAnchorMappingRead {
+                    first: expected.clone(),
+                    second: expected.clone(),
+                },
+            );
+        }
+    }
+}
+
+fn assert_tagged_anchor_key_typed_entrypoints(name: &str, input: &str) {
+    let expected = TaggedAnchorKeyRead {
+        root: BTreeMap::from([("tagged-key".to_string(), "first".to_string())]),
+        alias_value: "tagged-key".to_string(),
+    };
+    assert_typed_anchor_entrypoints::<TaggedAnchorKeyRead>(name, input, expected);
+}
+
+fn assert_typed_anchor_entrypoints<T>(name: &str, input: &str, expected: T)
+where
+    T: Clone + fmt::Debug + PartialEq + for<'de> Deserialize<'de>,
+{
+    let from_str =
+        yaml::from_str::<T>(input).unwrap_or_else(|error| panic!("{name} from_str: {error}"));
+    assert_eq!(from_str, expected, "{name} from_str");
+
+    let from_slice = yaml::from_slice::<T>(input.as_bytes())
+        .unwrap_or_else(|error| panic!("{name} from_slice: {error}"));
+    assert_eq!(from_slice, expected, "{name} from_slice");
+
+    let from_reader = yaml::from_reader::<_, T>(Cursor::new(input.as_bytes()))
+        .unwrap_or_else(|error| panic!("{name} from_reader: {error}"));
+    assert_eq!(from_reader, expected, "{name} from_reader");
+
+    let node = yaml::parse_str(input).unwrap_or_else(|error| panic!("{name} parse node: {error}"));
+    let from_node =
+        yaml::from_node::<T>(&node).unwrap_or_else(|error| panic!("{name} from_node: {error}"));
+    assert_eq!(from_node, expected, "{name} from_node");
+
+    let value =
+        yaml::from_str::<Value>(input).unwrap_or_else(|error| panic!("{name} value: {error}"));
+    let from_value = yaml::from_value::<T>(value.clone())
+        .unwrap_or_else(|error| panic!("{name} from_value: {error}"));
+    assert_eq!(from_value, expected, "{name} from_value");
+
+    let from_value_ref = T::deserialize(&value)
+        .unwrap_or_else(|error| panic!("{name} deserialize from &Value: {error}"));
+    assert_eq!(from_value_ref, expected, "{name} &Value");
+
+    let document = yaml::Deserializer::from_str(input)
+        .next()
+        .unwrap_or_else(|| panic!("{name} Deserializer::from_str doc"));
+    let direct_str = T::deserialize(document)
+        .unwrap_or_else(|error| panic!("{name} direct str deserializer: {error}"));
+    assert_eq!(direct_str, expected, "{name} direct str");
+
+    let document = yaml::Deserializer::from_slice(input.as_bytes())
+        .next()
+        .unwrap_or_else(|| panic!("{name} Deserializer::from_slice doc"));
+    let direct_slice = T::deserialize(document)
+        .unwrap_or_else(|error| panic!("{name} direct slice deserializer: {error}"));
+    assert_eq!(direct_slice, expected, "{name} direct slice");
+
+    let document = yaml::Deserializer::from_reader(Cursor::new(input.as_bytes()))
+        .next()
+        .unwrap_or_else(|| panic!("{name} Deserializer::from_reader doc"));
+    let direct_reader = T::deserialize(document)
+        .unwrap_or_else(|error| panic!("{name} direct reader deserializer: {error}"));
+    assert_eq!(direct_reader, expected, "{name} direct reader");
+
+    for (surface, docs) in [
+        ("from_documents_str", yaml::from_documents_str::<T>(input)),
+        (
+            "from_documents_slice",
+            yaml::from_documents_slice::<T>(input.as_bytes()),
+        ),
+        (
+            "from_documents_reader",
+            yaml::from_documents_reader::<T, _>(Cursor::new(input.as_bytes())),
+        ),
+    ] {
+        let docs = docs.unwrap_or_else(|error| panic!("{name} {surface}: {error}"));
+        assert_eq!(docs, vec![expected.clone()], "{name} {surface}");
+    }
 }
 
 #[test]

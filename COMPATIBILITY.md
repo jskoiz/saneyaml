@@ -267,7 +267,9 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   in raw events, YAML-suite 2SXE colon-bearing block anchor and alias names, and
   YAML-suite PW8X anchors on empty scalar nodes. Colon-bearing anchor names and
   anchor-only empty scalar nodes are covered as documented tree-shape
-  divergences where reference loaders disagree
+  divergences where reference loaders disagree. The Serde API matrix also
+  checks tag/anchor alias preservation across parser nodes, retained `Value`,
+  direct deserializers, reader/document helpers, and concrete typed reads
 - merge-key spelling preserved as a literal key with alias-expanded value
 - block scalar indentation and chomping headers
 - zero-indented root block scalars, including block scalar headers on explicit

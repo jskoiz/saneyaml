@@ -272,6 +272,11 @@ const CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "yts_m7a3_bare_documents",
+        input: include_str!("fixtures/yaml-test-suite/data/M7A3/in.yaml"),
+        docs: 2,
+    },
+    Case {
         name: "yts_fta2_document_start_anchor",
         input: include_str!("fixtures/yaml-test-suite/data/FTA2/in.yaml"),
         docs: 1,

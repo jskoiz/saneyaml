@@ -7,6 +7,9 @@ const COMPATIBILITY_HARNESS_SOURCE: &str = include_str!("compatibility_harness.r
 const REAL_WORLD_CONFIGS_SOURCE: &str = include_str!("real_world_configs.rs");
 const YAML_SUITE_MANIFEST: &str = include_str!("fixtures/yaml-test-suite/manifest.toml");
 const REAL_WORLD_SOURCE: &str = include_str!("fixtures/real-world/SOURCE.toml");
+const RUST_REFERENCE_DIVERGENCE_CASES: &[&str] = &[
+    "M7A3", // serde_yaml rejects the full bare-document stream; Rust parser references accept.
+];
 
 #[derive(Debug, Deserialize)]
 struct SuiteManifest {
@@ -118,6 +121,46 @@ fn yaml_suite_tree_only_duplicate_key_exclusions_are_explicit() {
                 "{surface} must not silently include tree-only exclusion {id}",
             );
         }
+    }
+}
+
+#[test]
+fn yaml_suite_rust_reference_divergences_are_event_and_tree_gated() {
+    let cases_by_id = yaml_suite_cases_by_id();
+    let event_dirs = yts_fixture_dirs(source_section(EVENT_PARITY_SOURCE, "const CASES"));
+    let tree_dirs = yts_fixture_dirs(source_section(
+        TREE_PARITY_SOURCE,
+        "const VALUE_SHAPE_CASES",
+    ));
+    let compatibility_dirs = yts_fixture_dirs(source_section(
+        COMPATIBILITY_HARNESS_SOURCE,
+        "const SHARED_ACCEPT_CASES",
+    ));
+
+    for id in RUST_REFERENCE_DIVERGENCE_CASES {
+        let case = cases_by_id
+            .get(*id)
+            .unwrap_or_else(|| panic!("missing Rust-reference divergence case {id}"));
+        assert_eq!(case.expected, ExpectedOutcome::Accept);
+        assert_eq!(case.policy, "raw-events-tree-serde-accept");
+
+        let fixture_dir = case.fixture_dir();
+        assert!(
+            event_dirs.contains(&fixture_dir),
+            "Rust-reference divergence {id} must stay in event parity",
+        );
+        assert!(
+            tree_dirs.contains(&fixture_dir),
+            "Rust-reference divergence {id} must stay in tree parity",
+        );
+        assert!(
+            !compatibility_dirs.contains(&fixture_dir),
+            "Rust-reference divergence {id} must not be treated as shared serde_yaml acceptance",
+        );
+        assert!(
+            COMPATIBILITY_HARNESS_SOURCE.contains(&format!("data/{fixture_dir}/in.yaml")),
+            "Rust-reference divergence {id} must keep dedicated compatibility coverage",
+        );
     }
 }
 

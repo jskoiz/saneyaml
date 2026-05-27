@@ -135,6 +135,10 @@ const VALUE_SHAPE_CASES: &[TreeCase] = &[
         input: include_str!("fixtures/yaml-test-suite/data/DK3J/in.yaml"),
     },
     TreeCase {
+        name: "yts_m7a3_bare_documents",
+        input: include_str!("fixtures/yaml-test-suite/data/M7A3/in.yaml"),
+    },
+    TreeCase {
         name: "yts_57h4_tagged_block_collections",
         input: include_str!("fixtures/yaml-test-suite/data/57H4/in.yaml"),
     },

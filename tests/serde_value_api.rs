@@ -1194,6 +1194,56 @@ fn serde_api_value_public_traits_match_serde_yaml_adoption_surface() {
 }
 
 #[test]
+fn serde_api_nonnegative_signed_unsigned_number_identity_matches_serde_yaml() {
+    let signed = Number::from(1i64);
+    let unsigned = Number::from(1u64);
+    assert_eq!(signed, unsigned);
+    assert_eq!(hash_of(&signed), hash_of(&unsigned));
+    assert_eq!(signed.partial_cmp(&unsigned), Some(Ordering::Equal));
+
+    let signed_value = Value::from(1i64);
+    let unsigned_value = Value::from(1u64);
+    assert_eq!(signed_value, unsigned_value);
+    assert_eq!(hash_of(&signed_value), hash_of(&unsigned_value));
+    assert_eq!(
+        signed_value.partial_cmp(&unsigned_value),
+        Some(Ordering::Equal)
+    );
+    assert_ne!(Value::from(-1i64), Value::from(1u64));
+    assert_ne!(Value::from("1"), signed_value);
+
+    let mut mapping = Mapping::new();
+    assert_eq!(
+        mapping.insert(signed_value.clone(), Value::from("signed")),
+        None
+    );
+    assert_eq!(
+        mapping.insert(unsigned_value.clone(), Value::from("unsigned")),
+        Some(Value::from("signed"))
+    );
+    assert_eq!(mapping.len(), 1);
+    assert_eq!(
+        mapping.get(signed_value).and_then(Value::as_str),
+        Some("unsigned")
+    );
+    assert_eq!(
+        mapping
+            .entry(unsigned_value)
+            .or_insert(Value::from("unreachable"))
+            .as_str(),
+        Some("unsigned")
+    );
+
+    let mut reference = serde_yaml::Mapping::new();
+    assert_eq!(reference.insert(1i64.into(), "signed".into()), None);
+    assert_eq!(
+        reference.insert(1u64.into(), "unsigned".into()),
+        Some("signed".into())
+    );
+    assert_eq!(reference.len(), mapping.len());
+}
+
+#[test]
 fn serde_api_value_mutation_and_defaults_match_read_side_expectations() {
     let mut value: Value = yaml::from_str("items: [one]\n").expect("value");
     value

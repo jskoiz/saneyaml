@@ -123,6 +123,30 @@ fn emitter_preserves_number_kinds() {
 }
 
 #[test]
+fn emitter_rejects_signed_unsigned_duplicate_numeric_keys() {
+    let node = Node::new(
+        Value::Mapping(vec![
+            (
+                Node::new(Value::Number(Number::Integer(1)), Span::default()),
+                Node::new(Value::String("signed".to_string()), Span::default()),
+            ),
+            (
+                Node::new(Value::Number(Number::Unsigned(1)), Span::default()),
+                Node::new(Value::String("unsigned".to_string()), Span::default()),
+            ),
+        ]),
+        Span::default(),
+    );
+
+    let error = to_string(&node).expect_err("duplicate numeric keys are rejected");
+    let message = error.to_string();
+    assert!(
+        message.contains("duplicate key") || message.contains("duplicate mapping key `1`"),
+        "{message}"
+    );
+}
+
+#[test]
 fn emitter_round_trips_special_floats() {
     for input in [".nan\n", ".inf\n", "+.inf\n", "-.inf\n"] {
         let node = parse_str(input).expect("parse special float");

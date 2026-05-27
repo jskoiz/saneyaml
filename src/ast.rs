@@ -5,7 +5,7 @@ use std::cmp::Ordering;
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::mem::{self, discriminant};
+use std::mem;
 use std::ops::{Index as StdIndex, IndexMut as StdIndexMut};
 use std::str::FromStr;
 
@@ -1744,11 +1744,10 @@ pub enum Number {
 impl PartialEq for Number {
     fn eq(&self, other: &Self) -> bool {
         match (*self, *other) {
-            (Number::Integer(left), Number::Integer(right)) => left == right,
-            (Number::Unsigned(left), Number::Unsigned(right)) => left == right,
             (Number::Float(left), Number::Float(right)) if left.is_nan() && right.is_nan() => true,
             (Number::Float(left), Number::Float(right)) => left == right,
-            _ => false,
+            (Number::Float(_), _) | (_, Number::Float(_)) => false,
+            _ => total_number_cmp(self, other) == Ordering::Equal,
         }
     }
 }
@@ -1770,11 +1769,20 @@ impl PartialOrd for Number {
 #[allow(clippy::derived_hash_with_manual_eq)]
 impl Hash for Number {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        discriminant(self).hash(state);
         match self {
-            Number::Integer(value) => value.hash(state),
-            Number::Unsigned(value) => value.hash(state),
-            Number::Float(_) => 3.hash(state),
+            Number::Integer(value) if *value < 0 => {
+                0u8.hash(state);
+                value.hash(state);
+            }
+            Number::Integer(value) => {
+                1u8.hash(state);
+                (*value as u128).hash(state);
+            }
+            Number::Unsigned(value) => {
+                1u8.hash(state);
+                value.hash(state);
+            }
+            Number::Float(_) => 2u8.hash(state),
         }
     }
 }

@@ -73,7 +73,8 @@ fn duplicate_key_identity(key: &Node) -> Option<DuplicateKey> {
     match &key.value {
         Value::Null => Some(DuplicateKey::Null),
         Value::Bool(value) => Some(DuplicateKey::Bool(*value)),
-        Value::Number(Number::Integer(value)) => Some(DuplicateKey::Integer(*value)),
+        Value::Number(Number::Integer(value)) if *value < 0 => Some(DuplicateKey::Integer(*value)),
+        Value::Number(Number::Integer(value)) => Some(DuplicateKey::Unsigned(*value as u128)),
         Value::Number(Number::Unsigned(value)) => Some(DuplicateKey::Unsigned(*value)),
         Value::Number(Number::Float(value)) => Some(DuplicateKey::Float(value.to_bits())),
         Value::String(value) => Some(DuplicateKey::String(value.clone())),

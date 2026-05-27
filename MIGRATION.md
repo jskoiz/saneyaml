@@ -1,0 +1,151 @@
+# serde_yaml Migration Readiness Report
+
+This report describes the current adoption surface for moving common
+config-loading code from `serde_yaml` to this crate.
+
+Status: adoption-candidate for config-shaped Serde read paths, with structural
+write support. This is not a blanket drop-in claim for every YAML document,
+every emitter formatting choice, or YAML 1.1/libyaml compatibility mode.
+
+## Migration Shape
+
+For local evaluation:
+
+```toml
+[dependencies]
+yaml = { path = "/Users/jk/Desktop/yaml" }
+```
+
+Typical import rewrites:
+
+```rust
+// before
+let config: Config = serde_yaml::from_str(input)?;
+let value: serde_yaml::Value = serde_yaml::from_slice(bytes)?;
+
+// after
+let config: Config = yaml::from_str(input)?;
+let value: yaml::Value = yaml::from_slice(bytes)?;
+```
+
+The low-friction path is to replace owned config reads and common
+`serde_yaml::Value` usage first. Keep compatibility-sensitive code covered by
+tests that exercise the actual downstream YAML files.
+
+## API Matrix
+
+| serde_yaml surface | yaml surface | Status |
+|---|---|---|
+| `serde_yaml::from_str` | `yaml::from_str` | Covered for typed config reads, `Value`, borrowed string targets, and diagnostics |
+| `serde_yaml::from_slice` | `yaml::from_slice` | Covered for typed config reads, `Value`, UTF-8 errors, and borrowed string targets |
+| `serde_yaml::from_reader` | `yaml::from_reader` | Covered for owned typed reads; borrowed targets remain owned-only |
+| `serde_yaml::Deserializer::from_str` | `yaml::Deserializer::from_str` | Covered for single-document Serde use and multi-document iteration |
+| `serde_yaml::Deserializer::from_slice` | `yaml::Deserializer::from_slice` | Covered for direct Serde use and diagnostics |
+| `serde_yaml::Deserializer::from_reader` | `yaml::Deserializer::from_reader` | Covered for owned direct Serde use; no borrowed output from consumed readers |
+| `serde_yaml::Value` | `yaml::Value` | Covered for common reads, mutation, indexing, merge expansion, tags, traits, and `Deserialize` |
+| `serde_yaml::Mapping` | `yaml::Mapping` | Covered for insertion, lookup, entry API, iteration, equality, hashing, and ordering |
+| `serde_yaml::Number` | `yaml::Number` | Covered for helpers, parsing, display, direct deserialization, and widened integer targets |
+| `serde_yaml::value::to_value` | `yaml::value::to_value` | Covered for common config-shaped serialization |
+| `serde_yaml::value::Serializer` | `yaml::value::Serializer` | Covered for value-backed serialization, bytes, tags, and 128-bit integer policy |
+| `serde_yaml::to_string` | `yaml::to_string` | Structural output covered; byte-for-byte formatting parity is out of scope |
+| `serde_yaml::to_writer` | `yaml::to_writer` | Structural output covered; byte-for-byte formatting parity is out of scope |
+| `serde_yaml::Serializer` | `yaml::Serializer` | Covered for multi-document writer usage and document marker policy |
+| `serde_yaml::with::singleton_map` | `yaml::with::singleton_map` | Covered for read and write enum-field annotations |
+| `serde_yaml::with::singleton_map_recursive` | `yaml::with::singleton_map_recursive` | Covered for nested read and write enum-field annotations |
+
+Additional crate surfaces useful during migration:
+
+- `yaml::from_node` preserves parser spans while deserializing from a loaded tree.
+- `yaml::from_documents_str`, `from_documents_slice`, and
+  `from_documents_reader` return typed vectors for YAML streams.
+- `yaml::parse_events` and `yaml::parse_documents` expose parser/event proof
+  surfaces that `serde_yaml` does not provide directly.
+
+## Executable Proof
+
+`tests/serde_yaml_swap_harness.rs` is the migration-facing proof harness. It
+currently covers:
+
+- typed config reads through `from_str`, `from_slice`, `from_reader`, and direct
+  `Deserializer` use
+- stream document iteration
+- `Value`, `Mapping`, and `Number` patch-style usage
+- `to_value`, `to_string`, and `to_writer` structural writer paths
+- `with::singleton_map` enum field annotations
+- merge expansion through `Value::apply_merge`
+- value-backed bytes and writer byte rejection policy
+- empty input behavior
+- real-world GitHub Actions, Docker Compose, Kubernetes, and Wrangler fixture
+  fields compared against `serde_yaml`
+
+Focused proof command:
+
+```sh
+cargo test --test serde_yaml_swap_harness
+```
+
+Broader migration proof:
+
+```sh
+cargo test --test serde_yaml_swap_harness --test serde_value_api --test compatibility_harness --test real_world_configs
+cargo test --test yaml_test_suite --test event_parity --test tree_parity --test parity_manifest
+cargo test --test divergence_manifest --test divergences --test baseline_audit
+cargo clippy --all-targets -- -D warnings
+```
+
+## Real-World Fixture Coverage
+
+Current real-world gates cover 26 files / 32 YAML documents across:
+
+- GitHub Actions
+- Docker Compose
+- Kubernetes
+- Helm
+- OpenAPI
+- Wrangler
+- Ansible
+
+These fixtures prove config-shaped parsing, Serde reads, event/tree parity, and
+reference acceptance for the selected suite. They are not a substitute for
+testing each adopter's own YAML corpus.
+
+## Required Call-Site Changes
+
+- Replace `serde_yaml::Value`, `serde_yaml::Mapping`, and
+  `serde_yaml::Number` imports with `yaml::Value`, `yaml::Mapping`, and
+  `yaml::Number`.
+- Replace `serde_yaml::with::singleton_map` and
+  `serde_yaml::with::singleton_map_recursive` attribute paths with the matching
+  `yaml::with` paths.
+- Replace `serde_yaml::Error` handling with `yaml::Error`. Parser and Serde
+  errors expose line/column locations, but spanless `Value` and reader I/O
+  errors cannot recover source spans.
+- Treat writer output as structural YAML. Do not compare emitted bytes against
+  `serde_yaml` formatting.
+
+## Known Migration Limits
+
+- YAML 1.1 implicit booleans, timestamps, octal/hex/binary numeric typing, and
+  default merge-key expansion are intentionally not enabled.
+- Merge keys are preserved literally by default. Call `Value::apply_merge()` for
+  `serde_yaml::Value::apply_merge()`-style expansion.
+- `yaml::Deserializer::from_str("")` yields zero iterator items, while
+  `serde_yaml::Deserializer::from_str("")` yields one null document. Direct
+  `from_str::<Value>("")` and direct `Value::deserialize(...)` treat empty input
+  as null in both crates.
+- Aliases are expanded into loaded trees; graph identity is not preserved.
+- Comments and original formatting are discarded.
+- `yaml::Index` is public for this prototype. Downstream code should use the
+  normal string/usize indexing and lookup APIs rather than implementing the
+  trait as a stable extension point.
+- Full upstream YAML test-suite coverage is not claimed; selected-suite scope
+  and deferred parity cases remain documented in `BASELINE.md` and
+  `COMPATIBILITY.md`.
+
+## Next Adoption Blockers
+
+- Add migration-impact wording directly to every divergence record.
+- Add version-pinned libyaml/Psych probe artifacts for records that rely on
+  external libyaml behavior.
+- Extend the swap harness with more downstream fixture families before claiming
+  broad ecosystem replacement readiness.

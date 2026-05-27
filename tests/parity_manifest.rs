@@ -5,12 +5,28 @@ const EVENT_PARITY_SOURCE: &str = include_str!("event_parity.rs");
 const TREE_PARITY_SOURCE: &str = include_str!("tree_parity.rs");
 const COMPATIBILITY_HARNESS_SOURCE: &str = include_str!("compatibility_harness.rs");
 const REAL_WORLD_CONFIGS_SOURCE: &str = include_str!("real_world_configs.rs");
+const COMPATIBILITY_SOURCE: &str = include_str!("../COMPATIBILITY.md");
 const YAML_SUITE_MANIFEST: &str = include_str!("fixtures/yaml-test-suite/manifest.toml");
 const REAL_WORLD_SOURCE: &str = include_str!("fixtures/real-world/SOURCE.toml");
+const EMPTY_SCALAR_ANCHORS_RECORD: &str =
+    include_str!("fixtures/divergences/records/empty-scalar-anchors.toml");
 const RUST_REFERENCE_DIVERGENCE_CASES: &[&str] = &[
     "M7A3", // serde_yaml rejects the full bare-document stream; Rust parser references accept.
     "UT92", // serde_yaml rejects directive-looking lines inside open flow content; Rust parser references accept.
 ];
+const TREE_SHAPE_DIVERGENCE_CASES: &[TreeShapeDivergenceCase] = &[TreeShapeDivergenceCase {
+    id: "PW8X",
+    record_case: "empty-scalar-anchors",
+    record_source: EMPTY_SCALAR_ANCHORS_RECORD,
+    compatibility_terms: &["PW8X", "empty scalar nodes", "tree-shape divergences"],
+}];
+
+struct TreeShapeDivergenceCase {
+    id: &'static str,
+    record_case: &'static str,
+    record_source: &'static str,
+    compatibility_terms: &'static [&'static str],
+}
 
 #[derive(Debug, Deserialize)]
 struct SuiteManifest {
@@ -162,6 +178,73 @@ fn yaml_suite_rust_reference_divergences_are_event_and_tree_gated() {
             COMPATIBILITY_HARNESS_SOURCE.contains(&format!("data/{fixture_dir}/in.yaml")),
             "Rust-reference divergence {id} must keep dedicated compatibility coverage",
         );
+    }
+}
+
+#[test]
+fn yaml_suite_tree_shape_divergences_are_explicitly_gated() {
+    let cases_by_id = yaml_suite_cases_by_id();
+    let event_dirs = yts_fixture_dirs(source_section(EVENT_PARITY_SOURCE, "const CASES"));
+    let tree_dirs = yts_fixture_dirs(source_section(
+        TREE_PARITY_SOURCE,
+        "const VALUE_SHAPE_CASES",
+    ));
+    let compatibility_dirs = yts_fixture_dirs(source_section(
+        COMPATIBILITY_HARNESS_SOURCE,
+        "const SHARED_ACCEPT_CASES",
+    ));
+
+    for divergence in TREE_SHAPE_DIVERGENCE_CASES {
+        let case = cases_by_id.get(divergence.id).unwrap_or_else(|| {
+            panic!(
+                "missing tree-shape divergence YAML-suite case {}",
+                divergence.id
+            )
+        });
+        assert_eq!(case.expected, ExpectedOutcome::Accept);
+        assert_eq!(case.policy, "raw-events-tree-serde-accept");
+
+        let fixture_dir = case.fixture_dir();
+        assert!(
+            event_dirs.contains(&fixture_dir),
+            "tree-shape divergence {} must stay in event parity",
+            divergence.id,
+        );
+        assert!(
+            !tree_dirs.contains(&fixture_dir),
+            "tree-shape divergence {} must not silently enter loaded-tree value-shape parity",
+            divergence.id,
+        );
+        assert!(
+            compatibility_dirs.contains(&fixture_dir),
+            "tree-shape divergence {} must keep shared-reference acceptance coverage",
+            divergence.id,
+        );
+
+        let expected_record = format!("case = \"{}\"", divergence.record_case);
+        assert!(
+            divergence.record_source.contains(&expected_record),
+            "tree-shape divergence {} must link to divergence record {}",
+            divergence.id,
+            divergence.record_case,
+        );
+        assert!(
+            divergence.record_source.contains("saphyr"),
+            "tree-shape divergence {} record must document saphyr behavior",
+            divergence.id,
+        );
+        assert!(
+            divergence.record_source.contains("decision"),
+            "tree-shape divergence {} record must document the compatibility decision",
+            divergence.id,
+        );
+        for term in divergence.compatibility_terms {
+            assert!(
+                COMPATIBILITY_SOURCE.contains(term),
+                "tree-shape divergence {} must keep COMPATIBILITY.md term {term:?}",
+                divergence.id,
+            );
+        }
     }
 }
 

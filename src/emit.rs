@@ -1,5 +1,5 @@
 use crate::{
-    Error, Node, NodeValue as Value, Number, Result, key_identity::check_duplicate,
+    Error, Node, NodeValue as Value, Number, Result, key_identity::check_duplicate_at_depth,
     parse::MAX_DEPTH,
 };
 use std::collections::HashMap;
@@ -26,7 +26,7 @@ fn validate_emittable_at(node: &Node, depth: usize) -> Result<()> {
         Value::Mapping(entries) => {
             let mut seen = HashMap::new();
             for (key, value) in entries {
-                check_duplicate(&mut seen, key)?;
+                check_duplicate_at_depth(&mut seen, key, depth.saturating_add(1))?;
                 validate_emittable_at(key, depth + 1)?;
                 validate_emittable_at(value, depth + 1)?;
             }

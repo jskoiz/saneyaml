@@ -1,4 +1,4 @@
-use crate::{Error, Node, NodeValue as Value, Number, Result, Span};
+use crate::{Error, Node, NodeValue as Value, Number, Result, Span, parse::MAX_DEPTH};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -54,7 +54,15 @@ pub(crate) fn check_duplicate_for_mode(
 }
 
 pub(crate) fn check_duplicate(seen: &mut HashMap<DuplicateKey, Span>, key: &Node) -> Result<()> {
-    let Some(key_identity) = duplicate_key_identity(key) else {
+    check_duplicate_at_depth(seen, key, 1)
+}
+
+pub(crate) fn check_duplicate_at_depth(
+    seen: &mut HashMap<DuplicateKey, Span>,
+    key: &Node,
+    depth: usize,
+) -> Result<()> {
+    let Some(key_identity) = duplicate_key_identity_at(key, depth)? else {
         return Ok(());
     };
     if let Some(previous) = seen.insert(key_identity.clone(), key.span) {
@@ -69,8 +77,12 @@ pub(crate) fn check_duplicate(seen: &mut HashMap<DuplicateKey, Span>, key: &Node
     Ok(())
 }
 
-fn duplicate_key_identity(key: &Node) -> Option<DuplicateKey> {
-    match &key.value {
+fn duplicate_key_identity_at(key: &Node, depth: usize) -> Result<Option<DuplicateKey>> {
+    if depth > MAX_DEPTH {
+        return Err(Error::new("maximum YAML nesting depth exceeded", key.span));
+    }
+
+    Ok(match &key.value {
         Value::Null => Some(DuplicateKey::Null),
         Value::Bool(value) => Some(DuplicateKey::Bool(*value)),
         Value::Number(Number::Integer(value)) if *value < 0 => Some(DuplicateKey::Integer(*value)),
@@ -78,18 +90,40 @@ fn duplicate_key_identity(key: &Node) -> Option<DuplicateKey> {
         Value::Number(Number::Unsigned(value)) => Some(DuplicateKey::Unsigned(*value)),
         Value::Number(Number::Float(value)) => Some(DuplicateKey::Float(value.to_bits())),
         Value::String(value) => Some(DuplicateKey::String(value.clone())),
-        Value::Sequence(items) => items
-            .iter()
-            .map(duplicate_key_identity)
-            .collect::<Option<Vec<_>>>()
-            .map(DuplicateKey::Sequence),
-        Value::Mapping(entries) => entries
-            .iter()
-            .map(|(key, value)| {
-                Some((duplicate_key_identity(key)?, duplicate_key_identity(value)?))
-            })
-            .collect::<Option<Vec<_>>>()
-            .map(DuplicateKey::Mapping),
-        Value::Tagged(tagged) => duplicate_key_identity(&tagged.value),
+        Value::Sequence(items) => duplicate_sequence_identity(items, next_depth(depth))?,
+        Value::Mapping(entries) => duplicate_mapping_identity(entries, next_depth(depth))?,
+        Value::Tagged(tagged) => duplicate_key_identity_at(&tagged.value, next_depth(depth))?,
+    })
+}
+
+fn duplicate_sequence_identity(items: &[Node], depth: usize) -> Result<Option<DuplicateKey>> {
+    let mut identities = Vec::with_capacity(items.len());
+    for item in items {
+        let Some(identity) = duplicate_key_identity_at(item, depth)? else {
+            return Ok(None);
+        };
+        identities.push(identity);
     }
+    Ok(Some(DuplicateKey::Sequence(identities)))
+}
+
+fn duplicate_mapping_identity(
+    entries: &[(Node, Node)],
+    depth: usize,
+) -> Result<Option<DuplicateKey>> {
+    let mut identities = Vec::with_capacity(entries.len());
+    for (key, value) in entries {
+        let Some(key_identity) = duplicate_key_identity_at(key, depth)? else {
+            return Ok(None);
+        };
+        let Some(value_identity) = duplicate_key_identity_at(value, depth)? else {
+            return Ok(None);
+        };
+        identities.push((key_identity, value_identity));
+    }
+    Ok(Some(DuplicateKey::Mapping(identities)))
+}
+
+fn next_depth(depth: usize) -> usize {
+    depth.saturating_add(1)
 }

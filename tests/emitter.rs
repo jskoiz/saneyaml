@@ -1,4 +1,4 @@
-use yaml::{Node, NodeValue as Value, Number, Span, parse_str, to_string};
+use yaml::{Node, NodeValue as Value, Number, Span, Tag, TaggedNode, parse_str, to_string};
 
 fn nested_sequence(depth: usize) -> Node {
     let mut node = Node::null(Span::default());
@@ -6,6 +6,28 @@ fn nested_sequence(depth: usize) -> Node {
         node = Node::new(Value::Sequence(vec![node]), Span::default());
     }
     node
+}
+
+fn nested_mapping_key(depth: usize) -> Node {
+    let mut node = Node::null(Span::default());
+    for _ in 0..depth {
+        node = Node::new(
+            Value::Mapping(vec![(node, Node::null(Span::default()))]),
+            Span::default(),
+        );
+    }
+    node
+}
+
+fn tagged_node(tag: &str, value: Node) -> Node {
+    Node::new(
+        Value::Tagged(Box::new(TaggedNode {
+            tag: Tag::new(tag),
+            tag_span: Span::default(),
+            value,
+        })),
+        Span::default(),
+    )
 }
 
 #[test]
@@ -47,6 +69,29 @@ fn emitter_rejects_overdepth_caller_built_trees_before_writing_yaml() {
         message.contains("maximum YAML nesting depth exceeded"),
         "{message}"
     );
+}
+
+#[test]
+fn emitter_rejects_overdepth_mapping_keys_before_key_identity_recursion() {
+    for (name, key) in [
+        ("sequence key", nested_sequence(140)),
+        ("mapping key", nested_mapping_key(140)),
+        (
+            "tagged sequence key",
+            tagged_node("Thing", nested_sequence(140)),
+        ),
+    ] {
+        let node = Node::new(
+            Value::Mapping(vec![(key, Node::null(Span::default()))]),
+            Span::default(),
+        );
+        let error = to_string(&node).expect_err("over-depth mapping keys are not emittable");
+        let message = error.to_string();
+        assert!(
+            message.contains("maximum YAML nesting depth exceeded"),
+            "{name}: {message}"
+        );
+    }
 }
 
 #[test]

@@ -1,0 +1,4 @@
+%TAG !e! tag:example.com,2026:
+---
+first: &a !e!Thing value
+second: *a

@@ -1,0 +1,2 @@
+first: !!int &a 7
+second: *a

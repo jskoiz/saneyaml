@@ -107,6 +107,18 @@ struct TaggedAnchorMappingRead {
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]
+struct TaggedAnchorUnsignedRead {
+    first: u64,
+    second: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+struct TaggedAnchorFloatRead {
+    first: f64,
+    second: f64,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 struct TaggedAnchorKeyRead {
     root: BTreeMap<String, String>,
     alias_value: String,
@@ -117,6 +129,8 @@ enum TaggedAnchorPayload {
     Text(String),
     List(Vec<String>),
     Map(BTreeMap<String, String>),
+    CoreUnsigned { text: &'static str, value: u64 },
+    CoreFloat { text: &'static str, value: f64 },
 }
 
 #[derive(Clone, Debug)]
@@ -3072,6 +3086,7 @@ fn serde_api_tagged_anchor_alias_matrix_preserves_tags_across_entrypoints() {
     struct Case {
         name: &'static str,
         input: &'static str,
+        tag: &'static str,
         shape: TaggedAnchorShape,
     }
 
@@ -3079,109 +3094,188 @@ fn serde_api_tagged_anchor_alias_matrix_preserves_tags_across_entrypoints() {
     let sequence = TaggedAnchorPayload::List(vec!["one".to_string(), "two".to_string()]);
     let mapping =
         TaggedAnchorPayload::Map(BTreeMap::from([("name".to_string(), "prod".to_string())]));
+    let unsigned = TaggedAnchorPayload::CoreUnsigned {
+        text: "7",
+        value: 7,
+    };
+    let float = TaggedAnchorPayload::CoreFloat {
+        text: "1.5",
+        value: 1.5,
+    };
 
     let cases = [
         Case {
             name: "block scalar value anchor before tag",
             input: "first: &a !Thing value\nsecond: *a\n",
+            tag: "Thing",
             shape: TaggedAnchorShape::ValuePair(scalar.clone()),
         },
         Case {
             name: "block scalar value tag before anchor",
             input: "first: !Thing &a value\nsecond: *a\n",
+            tag: "Thing",
             shape: TaggedAnchorShape::ValuePair(scalar.clone()),
         },
         Case {
-            name: "block sequence value anchor before tag",
+            name: "flow sequence value anchor before tag",
             input: "first: &a !Thing [one, two]\nsecond: *a\n",
+            tag: "Thing",
             shape: TaggedAnchorShape::ValuePair(sequence.clone()),
         },
         Case {
-            name: "block sequence value tag before anchor",
+            name: "flow sequence value tag before anchor",
             input: "first: !Thing &a [one, two]\nsecond: *a\n",
+            tag: "Thing",
+            shape: TaggedAnchorShape::ValuePair(sequence.clone()),
+        },
+        Case {
+            name: "indented sequence value anchor before tag",
+            input: "first: &a !Thing\n  - one\n  - two\nsecond: *a\n",
+            tag: "Thing",
+            shape: TaggedAnchorShape::ValuePair(sequence.clone()),
+        },
+        Case {
+            name: "indented sequence value tag before anchor",
+            input: "first: !Thing &a\n  - one\n  - two\nsecond: *a\n",
+            tag: "Thing",
             shape: TaggedAnchorShape::ValuePair(sequence),
         },
         Case {
-            name: "block mapping value anchor before tag",
+            name: "flow mapping value anchor before tag",
             input: "first: &a !Thing {name: prod}\nsecond: *a\n",
+            tag: "Thing",
             shape: TaggedAnchorShape::ValuePair(mapping.clone()),
         },
         Case {
-            name: "block mapping value tag before anchor",
+            name: "flow mapping value tag before anchor",
             input: "first: !Thing &a {name: prod}\nsecond: *a\n",
+            tag: "Thing",
+            shape: TaggedAnchorShape::ValuePair(mapping.clone()),
+        },
+        Case {
+            name: "indented mapping value anchor before tag",
+            input: "first: &a !Thing\n  name: prod\nsecond: *a\n",
+            tag: "Thing",
+            shape: TaggedAnchorShape::ValuePair(mapping.clone()),
+        },
+        Case {
+            name: "indented mapping value tag before anchor",
+            input: "first: !Thing &a\n  name: prod\nsecond: *a\n",
+            tag: "Thing",
             shape: TaggedAnchorShape::ValuePair(mapping),
+        },
+        Case {
+            name: "directive tag value anchor before tag",
+            input: "%TAG !e! tag:example.com,2026:\n---\nfirst: &a !e!Thing value\nsecond: *a\n",
+            tag: "!<tag:example.com,2026:Thing>",
+            shape: TaggedAnchorShape::ValuePair(scalar.clone()),
+        },
+        Case {
+            name: "directive tag value tag before anchor",
+            input: "%TAG !e! tag:example.com,2026:\n---\nfirst: !e!Thing &a value\nsecond: *a\n",
+            tag: "!<tag:example.com,2026:Thing>",
+            shape: TaggedAnchorShape::ValuePair(scalar.clone()),
+        },
+        Case {
+            name: "explicit int value anchor before tag",
+            input: "first: &a !!int 7\nsecond: *a\n",
+            tag: "!!int",
+            shape: TaggedAnchorShape::ValuePair(unsigned.clone()),
+        },
+        Case {
+            name: "explicit int value tag before anchor",
+            input: "first: !!int &a 7\nsecond: *a\n",
+            tag: "!!int",
+            shape: TaggedAnchorShape::ValuePair(unsigned),
+        },
+        Case {
+            name: "explicit float value anchor before tag",
+            input: "first: &a !!float 1.5\nsecond: *a\n",
+            tag: "!!float",
+            shape: TaggedAnchorShape::ValuePair(float.clone()),
+        },
+        Case {
+            name: "explicit float value tag before anchor",
+            input: "first: !!float &a 1.5\nsecond: *a\n",
+            tag: "!!float",
+            shape: TaggedAnchorShape::ValuePair(float),
         },
         Case {
             name: "block scalar key anchor before tag",
             input: "root:\n  ? &a !Thing tagged-key\n  : first\nalias_value: *a\n",
+            tag: "Thing",
             shape: TaggedAnchorShape::KeyPair,
         },
         Case {
             name: "block scalar key tag before anchor",
             input: "root:\n  ? !Thing &a tagged-key\n  : first\nalias_value: *a\n",
+            tag: "Thing",
             shape: TaggedAnchorShape::KeyPair,
         },
         Case {
             name: "flow scalar key anchor before tag",
             input: "root: {? &a !Thing tagged-key : first}\nalias_value: *a\n",
+            tag: "Thing",
             shape: TaggedAnchorShape::KeyPair,
         },
         Case {
             name: "flow scalar key tag before anchor",
             input: "root: {? !Thing &a tagged-key : first}\nalias_value: *a\n",
+            tag: "Thing",
             shape: TaggedAnchorShape::KeyPair,
         },
     ];
 
     for case in cases {
+        let expected_tag = Tag::new(case.tag);
         let node = yaml::parse_str(case.input)
             .unwrap_or_else(|error| panic!("parse {}: {error}", case.name));
-        assert_tagged_anchor_shape(case.name, &Value::from(&node), &case.shape);
+        assert_tagged_anchor_shape(case.name, &Value::from(&node), &expected_tag, &case.shape);
 
         let from_node: Value = yaml::from_node(&node)
             .unwrap_or_else(|error| panic!("from_node {}: {error}", case.name));
-        assert_tagged_anchor_shape(case.name, &from_node, &case.shape);
+        assert_tagged_anchor_shape(case.name, &from_node, &expected_tag, &case.shape);
 
         let from_str: Value = yaml::from_str(case.input)
             .unwrap_or_else(|error| panic!("from_str {}: {error}", case.name));
-        assert_tagged_anchor_shape(case.name, &from_str, &case.shape);
+        assert_tagged_anchor_shape(case.name, &from_str, &expected_tag, &case.shape);
 
         let from_slice: Value = yaml::from_slice(case.input.as_bytes())
             .unwrap_or_else(|error| panic!("from_slice {}: {error}", case.name));
-        assert_tagged_anchor_shape(case.name, &from_slice, &case.shape);
+        assert_tagged_anchor_shape(case.name, &from_slice, &expected_tag, &case.shape);
 
         let from_reader: Value = yaml::from_reader(Cursor::new(case.input.as_bytes()))
             .unwrap_or_else(|error| panic!("from_reader {}: {error}", case.name));
-        assert_tagged_anchor_shape(case.name, &from_reader, &case.shape);
+        assert_tagged_anchor_shape(case.name, &from_reader, &expected_tag, &case.shape);
 
         let from_value: Value = yaml::from_value(from_str.clone())
             .unwrap_or_else(|error| panic!("from_value {}: {error}", case.name));
-        assert_tagged_anchor_shape(case.name, &from_value, &case.shape);
+        assert_tagged_anchor_shape(case.name, &from_value, &expected_tag, &case.shape);
 
         let from_value_ref = Value::deserialize(&from_str)
             .unwrap_or_else(|error| panic!("&Value {}: {error}", case.name));
-        assert_tagged_anchor_shape(case.name, &from_value_ref, &case.shape);
+        assert_tagged_anchor_shape(case.name, &from_value_ref, &expected_tag, &case.shape);
 
         let document = yaml::Deserializer::from_str(case.input)
             .next()
             .unwrap_or_else(|| panic!("Deserializer::from_str {} yields one doc", case.name));
         let direct_str = Value::deserialize(document)
             .unwrap_or_else(|error| panic!("direct str deserializer {}: {error}", case.name));
-        assert_tagged_anchor_shape(case.name, &direct_str, &case.shape);
+        assert_tagged_anchor_shape(case.name, &direct_str, &expected_tag, &case.shape);
 
         let document = yaml::Deserializer::from_slice(case.input.as_bytes())
             .next()
             .unwrap_or_else(|| panic!("Deserializer::from_slice {} yields one doc", case.name));
         let direct_slice = Value::deserialize(document)
             .unwrap_or_else(|error| panic!("direct slice deserializer {}: {error}", case.name));
-        assert_tagged_anchor_shape(case.name, &direct_slice, &case.shape);
+        assert_tagged_anchor_shape(case.name, &direct_slice, &expected_tag, &case.shape);
 
         let document = yaml::Deserializer::from_reader(Cursor::new(case.input.as_bytes()))
             .next()
             .unwrap_or_else(|| panic!("Deserializer::from_reader {} yields one doc", case.name));
         let direct_reader = Value::deserialize(document)
             .unwrap_or_else(|error| panic!("direct reader deserializer {}: {error}", case.name));
-        assert_tagged_anchor_shape(case.name, &direct_reader, &case.shape);
+        assert_tagged_anchor_shape(case.name, &direct_reader, &expected_tag, &case.shape);
 
         for (surface, docs) in [
             (
@@ -3199,7 +3293,7 @@ fn serde_api_tagged_anchor_alias_matrix_preserves_tags_across_entrypoints() {
         ] {
             let docs = docs.unwrap_or_else(|error| panic!("{surface} {}: {error}", case.name));
             assert_eq!(docs.len(), 1, "{surface} {} doc count", case.name);
-            assert_tagged_anchor_shape(case.name, &docs[0], &case.shape);
+            assert_tagged_anchor_shape(case.name, &docs[0], &expected_tag, &case.shape);
         }
 
         match &case.shape {
@@ -3213,18 +3307,28 @@ fn serde_api_tagged_anchor_alias_matrix_preserves_tags_across_entrypoints() {
     }
 }
 
-fn assert_tagged_anchor_shape(name: &str, value: &Value, shape: &TaggedAnchorShape) {
+fn assert_tagged_anchor_shape(
+    name: &str,
+    value: &Value,
+    expected_tag: &Tag,
+    shape: &TaggedAnchorShape,
+) {
     match shape {
         TaggedAnchorShape::ValuePair(expected) => {
-            assert_tagged_anchor_value_pair(name, value, expected);
+            assert_tagged_anchor_value_pair(name, value, expected_tag, expected);
         }
-        TaggedAnchorShape::KeyPair => assert_tagged_anchor_key_pair(name, value),
+        TaggedAnchorShape::KeyPair => assert_tagged_anchor_key_pair(name, value, expected_tag),
     }
 }
 
-fn assert_tagged_anchor_value_pair(name: &str, value: &Value, expected: &TaggedAnchorPayload) {
-    let first = assert_tagged_value(&value["first"], name, "first");
-    let second = assert_tagged_value(&value["second"], name, "second");
+fn assert_tagged_anchor_value_pair(
+    name: &str,
+    value: &Value,
+    expected_tag: &Tag,
+    expected: &TaggedAnchorPayload,
+) {
+    let first = assert_tagged_value(&value["first"], name, "first", expected_tag);
+    let second = assert_tagged_value(&value["second"], name, "second", expected_tag);
     assert_eq!(
         first.value, second.value,
         "{name} alias value must retain the same tagged payload",
@@ -3233,7 +3337,7 @@ fn assert_tagged_anchor_value_pair(name: &str, value: &Value, expected: &TaggedA
     assert_tagged_payload(name, "second", &second.value, expected);
 }
 
-fn assert_tagged_anchor_key_pair(name: &str, value: &Value) {
+fn assert_tagged_anchor_key_pair(name: &str, value: &Value, expected_tag: &Tag) {
     let root = value["root"]
         .as_mapping()
         .unwrap_or_else(|| panic!("{name} root must be a mapping"));
@@ -3241,19 +3345,24 @@ fn assert_tagged_anchor_key_pair(name: &str, value: &Value) {
         .iter()
         .find_map(|(key, value)| key.as_tagged().map(|tagged| (tagged, value)))
         .unwrap_or_else(|| panic!("{name} root must contain a tagged key"));
-    assert_eq!(tagged_key.tag, Tag::new("Thing"), "{name} key tag");
+    assert_eq!(&tagged_key.tag, expected_tag, "{name} key tag");
     assert_eq!(tagged_key.value.as_str(), Some("tagged-key"));
     assert_eq!(entry_value.as_str(), Some("first"));
 
-    let alias = assert_tagged_value(&value["alias_value"], name, "alias_value");
+    let alias = assert_tagged_value(&value["alias_value"], name, "alias_value", expected_tag);
     assert_eq!(alias.value.as_str(), Some("tagged-key"));
 }
 
-fn assert_tagged_value<'a>(value: &'a Value, name: &str, field: &str) -> &'a TaggedValue {
+fn assert_tagged_value<'a>(
+    value: &'a Value,
+    name: &str,
+    field: &str,
+    expected_tag: &Tag,
+) -> &'a TaggedValue {
     let tagged = value
         .as_tagged()
         .unwrap_or_else(|| panic!("{name} {field} must be tagged"));
-    assert_eq!(tagged.tag, Tag::new("Thing"), "{name} {field} tag");
+    assert_eq!(&tagged.tag, expected_tag, "{name} {field} tag");
     tagged
 }
 
@@ -3286,6 +3395,12 @@ fn assert_tagged_payload(name: &str, field: &str, value: &Value, expected: &Tagg
                     "{name} {field}.{key}",
                 );
             }
+        }
+        TaggedAnchorPayload::CoreUnsigned { text, .. } => {
+            assert_eq!(value.as_str(), Some(*text), "{name} {field}");
+        }
+        TaggedAnchorPayload::CoreFloat { text, .. } => {
+            assert_eq!(value.as_str(), Some(*text), "{name} {field}");
         }
     }
 }
@@ -3323,6 +3438,26 @@ fn assert_tagged_anchor_value_typed_entrypoints(
                 TaggedAnchorMappingRead {
                     first: expected.clone(),
                     second: expected.clone(),
+                },
+            );
+        }
+        TaggedAnchorPayload::CoreUnsigned { value, .. } => {
+            assert_typed_anchor_entrypoints::<TaggedAnchorUnsignedRead>(
+                name,
+                input,
+                TaggedAnchorUnsignedRead {
+                    first: *value,
+                    second: *value,
+                },
+            );
+        }
+        TaggedAnchorPayload::CoreFloat { value, .. } => {
+            assert_typed_anchor_entrypoints::<TaggedAnchorFloatRead>(
+                name,
+                input,
+                TaggedAnchorFloatRead {
+                    first: *value,
+                    second: *value,
                 },
             );
         }

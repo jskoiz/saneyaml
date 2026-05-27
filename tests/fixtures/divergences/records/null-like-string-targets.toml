@@ -1,5 +1,6 @@
 case = "null-like-string-targets"
 policy = "Match serde_yaml for source-backed typed String reads while preserving tree and Value null semantics"
+prototype = "Spanful Node-backed typed String deserialization preserves source spelling for null-like scalars when the target type is String, while yaml::Value and Option<T> keep null semantics."
 serde_yaml = "serde_yaml 0.9.34 resolves these as Null in Value, but BTreeMap<String, String> reads EMPTY as an empty string and preserves ~, null, and NULL spelling."
 yaml_rust2 = "yaml-rust2 0.11.0 resolves EMPTY, ~, and null as Null; uppercase NULL remains String(\"NULL\")."
 saphyr = "saphyr 0.0.6 resolves EMPTY, ~, null, and NULL as Null."

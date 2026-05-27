@@ -84,6 +84,16 @@ fn divergence_custom_tags_are_preserved_without_schema_coercion() {
 }
 
 #[test]
+fn divergence_custom_tags_record_is_present() {
+    let record = include_str!("fixtures/divergences/records/custom-tags.toml");
+    assert!(record.contains("custom-tags"));
+    assert!(record.contains("flow mapping keys"));
+    assert!(record.contains("parse_events"));
+    assert!(record.contains("libyaml"));
+    assert!(record.contains("decision"));
+}
+
+#[test]
 fn divergence_block_merge_key_is_a_literal_key() {
     let node = parse_str("job:\n  <<: {retries: 3}\n").expect("parse literal merge key");
     let yaml::NodeValue::Mapping(entries) = node.value else {

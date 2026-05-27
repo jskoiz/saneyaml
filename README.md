@@ -32,10 +32,13 @@ Intentional first-milestone non-goals:
 ## Verification
 
 ```sh
+cargo test --test baseline_audit
 cargo test
 cargo clippy --all-targets -- -D warnings
-cargo fuzz run parse_bytes
+PATH=/Users/jk/.rustup/toolchains/nightly-aarch64-apple-darwin/bin:$PATH cargo fuzz run parse_bytes -- -runs=1000
 ```
 
-`cargo fuzz` is optional. Parser safety properties are also exercised by
+`tests/baseline_audit.rs` verifies that `BASELINE.md` matches the committed
+manifest, registry, corpus, and command evidence. `cargo fuzz` is optional for
+ordinary development. Parser safety properties are also exercised by
 `tests/parser_properties.rs`, which runs with plain `cargo test`.

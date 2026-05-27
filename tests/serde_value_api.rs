@@ -378,6 +378,50 @@ impl Serialize for OneShotMap<'_> {
     }
 }
 
+struct OneShotCollectStrKey<'a> {
+    calls: &'a Cell<usize>,
+}
+
+impl std::fmt::Display for OneShotCollectStrKey<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let calls = self.calls.get();
+        self.calls.set(calls + 1);
+        formatter.write_str("!")?;
+        if calls == 0 {
+            formatter.write_str("First")
+        } else {
+            formatter.write_str("Second")
+        }
+    }
+}
+
+impl Serialize for OneShotCollectStrKey<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.collect_str(self)
+    }
+}
+
+struct OneShotCollectStrMap<'a> {
+    key_calls: &'a Cell<usize>,
+}
+
+impl Serialize for OneShotCollectStrMap<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let key = OneShotCollectStrKey {
+            calls: self.key_calls,
+        };
+        let mut map = serializer.serialize_map(Some(1))?;
+        map.serialize_entry(&key, &"value")?;
+        map.end()
+    }
+}
+
 struct OneShotStruct<'a> {
     value_calls: &'a Cell<usize>,
 }
@@ -1146,6 +1190,52 @@ fn serde_api_document_writers_serialize_nested_map_entries_once() {
     );
     assert_eq!(reference_key_calls.get(), 1);
     assert_eq!(reference_value_calls.get(), 1);
+}
+
+#[test]
+fn serde_api_collect_str_mapping_keys_format_display_once() {
+    let value_key_calls = Cell::new(0);
+    let value = yaml::to_value(OneShotCollectStrMap {
+        key_calls: &value_key_calls,
+    })
+    .expect("yaml collect_str value");
+    assert_eq!(value_key_calls.get(), 1);
+    let tagged = value.as_tagged().expect("collect_str key becomes tag");
+    assert_eq!(tagged.tag, Tag::new("!First"));
+    assert_eq!(tagged.value.as_str(), Some("value"));
+
+    let reference_key_calls = Cell::new(0);
+    let reference = serde_yaml::to_value(OneShotCollectStrMap {
+        key_calls: &reference_key_calls,
+    })
+    .expect("serde_yaml collect_str value");
+    assert_eq!(reference_key_calls.get(), 1);
+    let serde_yaml::Value::Tagged(reference_tagged) = reference else {
+        panic!("serde_yaml collect_str key should become tag");
+    };
+    assert_eq!(reference_tagged.tag.to_string(), "!First");
+
+    let string_key_calls = Cell::new(0);
+    let emitted = yaml::to_string(&OneShotCollectStrMap {
+        key_calls: &string_key_calls,
+    })
+    .expect("yaml collect_str string");
+    assert_eq!(string_key_calls.get(), 1);
+    assert!(emitted.contains("First"), "{emitted}");
+    assert!(!emitted.contains("Second"), "{emitted}");
+
+    let mut buffer = Vec::new();
+    let streaming_key_calls = Cell::new(0);
+    let mut serializer = yaml::Serializer::new(&mut buffer);
+    OneShotCollectStrMap {
+        key_calls: &streaming_key_calls,
+    }
+    .serialize(&mut serializer)
+    .expect("yaml collect_str streaming writer");
+    assert_eq!(streaming_key_calls.get(), 1);
+    let streaming_output = String::from_utf8(buffer).expect("utf8 streaming output");
+    assert!(streaming_output.contains("First"), "{streaming_output}");
+    assert!(!streaming_output.contains("Second"), "{streaming_output}");
 }
 
 #[test]

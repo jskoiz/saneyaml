@@ -1340,8 +1340,7 @@ impl ser::Serializer for TagDetectingKeySerializer {
     where
         T: ?Sized + std::fmt::Display,
     {
-        let is_tag = display_writes_like_serde_yaml_tag(value);
-        let value = value.to_string();
+        let (value, is_tag) = display_text_and_tag(value);
         if is_tag {
             Ok(SerializedKey::Tag(Tag::new(value)))
         } else {
@@ -1350,37 +1349,60 @@ impl ser::Serializer for TagDetectingKeySerializer {
     }
 }
 
-fn display_writes_like_serde_yaml_tag<T>(value: &T) -> bool
+#[derive(Clone, Copy)]
+enum DisplayTagState {
+    Empty,
+    Bang,
+    Tag,
+    NotTag,
+}
+
+impl DisplayTagState {
+    fn observe(&mut self, text: &str) {
+        if text.is_empty() {
+            if matches!(self, DisplayTagState::Bang) {
+                *self = DisplayTagState::Tag;
+            }
+            return;
+        }
+        *self = match self {
+            DisplayTagState::Empty if text == "!" => DisplayTagState::Bang,
+            DisplayTagState::Bang => DisplayTagState::Tag,
+            DisplayTagState::Tag | DisplayTagState::NotTag | DisplayTagState::Empty => {
+                DisplayTagState::NotTag
+            }
+        };
+    }
+
+    fn is_tag(self) -> bool {
+        matches!(self, DisplayTagState::Tag)
+    }
+}
+
+struct DisplayTagCapture {
+    text: String,
+    state: DisplayTagState,
+}
+
+impl std::fmt::Write for DisplayTagCapture {
+    fn write_str(&mut self, text: &str) -> std::fmt::Result {
+        self.state.observe(text);
+        self.text.push_str(text);
+        Ok(())
+    }
+}
+
+fn display_text_and_tag<T>(value: &T) -> (String, bool)
 where
     T: ?Sized + std::fmt::Display,
 {
-    enum CheckForTag {
-        Empty,
-        Bang,
-        Tag,
-        NotTag,
-    }
-
-    impl std::fmt::Write for CheckForTag {
-        fn write_str(&mut self, text: &str) -> std::fmt::Result {
-            if text.is_empty() {
-                if matches!(self, CheckForTag::Bang) {
-                    *self = CheckForTag::Tag;
-                }
-                return Ok(());
-            }
-            *self = match self {
-                CheckForTag::Empty if text == "!" => CheckForTag::Bang,
-                CheckForTag::Bang => CheckForTag::Tag,
-                CheckForTag::Tag | CheckForTag::NotTag | CheckForTag::Empty => CheckForTag::NotTag,
-            };
-            Ok(())
-        }
-    }
-
-    let mut state = CheckForTag::Empty;
-    std::fmt::write(&mut state, format_args!("{value}")).expect("formatting into state succeeds");
-    matches!(state, CheckForTag::Tag)
+    let mut capture = DisplayTagCapture {
+        text: String::new(),
+        state: DisplayTagState::Empty,
+    };
+    std::fmt::write(&mut capture, format_args!("{value}"))
+        .expect("formatting into capture succeeds");
+    (capture.text, capture.state.is_tag())
 }
 
 struct KeySequenceSerializer(SequenceSerializer);

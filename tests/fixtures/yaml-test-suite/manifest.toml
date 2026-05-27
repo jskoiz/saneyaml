@@ -740,7 +740,7 @@ name = "aliases in flow objects"
 expected = "tree-error"
 source = "selected-yaml-test-suite-fixture"
 policy = "raw-events-accept-tree-serde-reject"
-features = ["anchor", "alias", "complex-key", "flow", "mapping", "sequence"]
+features = ["anchor", "alias", "complex-key", "flow", "mapping", "sequence", "duplicate-key"]
 
 [[case]]
 id = "6BFJ"

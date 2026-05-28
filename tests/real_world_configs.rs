@@ -638,7 +638,7 @@ fn rw_parse_docker_compose__awesome_nginx_flask_mysql_upstream_snapshot() {
 }
 
 #[test]
-fn rw_parse_docker_compose__extension_anchors_and_literal_merge_keys() {
+fn rw_parse_docker_compose__extension_anchors_and_default_merge_keys() {
     let input = include_str!("fixtures/real-world/docker-compose/compose-anchors.yaml");
     let compose: Compose = yaml::from_str(input).expect("deserialize compose with anchors");
     assert_eq!(compose.version, "3.9");
@@ -658,11 +658,15 @@ fn rw_parse_docker_compose__extension_anchors_and_literal_merge_keys() {
         value["x-service-defaults"]["restart"].as_str(),
         Some("unless-stopped")
     );
+    assert!(value["services"]["web"]["<<"].is_null());
     assert_eq!(
-        value["services"]["web"]["<<"]["logging"]["driver"].as_str(),
+        value["services"]["web"]["logging"]["driver"].as_str(),
         Some("json-file")
     );
-    assert_eq!(value["services"]["web"]["restart"].as_str(), None);
+    assert_eq!(
+        value["services"]["web"]["restart"].as_str(),
+        Some("unless-stopped")
+    );
 }
 
 #[test]

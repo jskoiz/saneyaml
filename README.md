@@ -15,9 +15,11 @@ The first milestone focuses on:
 - Ordered mappings, block/flow collections, quoted/plain scalars, and basic
   literal/folded block scalars.
 - Acyclic anchors and aliases expanded into the loaded tree.
+- Default YAML merge-key expansion for loaded trees and Serde reads, while raw
+  parser events still expose `<<` and alias events.
 - Deterministic structural emission with `parse(emit(tree)) == tree` for
-  emittable trees; duplicate-effective mapping keys, over-depth trees, and
-  directly nested tags are rejected before output.
+  emittable trees; duplicate-effective mapping keys, untagged literal merge
+  keys, over-depth trees, and directly nested tags are rejected before output.
 - Serde read support through `yaml::from_str` and a spanless
   `serde_yaml`-style `yaml::Value`, including source-backed string reads and
   typed `i128`/`u128` integer targets for large config identifiers, plus
@@ -38,8 +40,8 @@ The first milestone focuses on:
 Intentional first-milestone non-goals:
 
 - YAML 1.1 implicit booleans and timestamps.
-- YAML graph identity, YAML 1.1 merge-key expansion, comment preservation,
-  lossless formatting, and directive-preserving emission.
+- YAML graph identity, comment preservation, lossless formatting, and
+  directive-preserving emission.
 - Kubernetes schema validation or automated ecosystem migration tooling.
 
 ## Verification

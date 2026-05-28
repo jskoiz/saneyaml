@@ -26,6 +26,12 @@ fn validate_emittable_at(node: &Node, depth: usize) -> Result<()> {
         Value::Mapping(entries) => {
             let mut seen = HashMap::new();
             for (key, value) in entries {
+                if is_literal_merge_key(key) {
+                    return Err(Error::new(
+                        "literal YAML merge keys cannot be emitted without an explicit tag",
+                        key.span,
+                    ));
+                }
                 check_duplicate_at_depth(&mut seen, key, depth.saturating_add(1))?;
                 validate_emittable_at(key, depth + 1)?;
                 validate_emittable_at(value, depth + 1)?;
@@ -56,6 +62,10 @@ fn tag_span_or_node_span(node: &Node, tag_span: crate::Span) -> crate::Span {
     } else {
         node.span
     }
+}
+
+fn is_literal_merge_key(key: &Node) -> bool {
+    matches!(&key.value, Value::String(value) if value == "<<")
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

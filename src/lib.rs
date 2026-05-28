@@ -1,9 +1,10 @@
 //! Pure-Rust YAML parser, emitter, and Serde integration for
 //! configuration-shaped YAML.
 //!
-//! The preview API focuses on YAML 1.2 parser events, loaded document trees,
-//! `serde_yaml`-style `Value`/`Mapping`/`Number` workflows, typed Serde reads,
-//! structural writes, and line/column diagnostics. See `MIGRATION.md`,
+//! The preview API focuses on YAML 1.2 parser events, loaded document trees
+//! with default merge-key expansion, `serde_yaml`-style
+//! `Value`/`Mapping`/`Number` workflows, typed Serde reads, structural writes,
+//! and line/column diagnostics. See `MIGRATION.md`,
 //! `COMPATIBILITY.md`, and `DEVELOPER_PREVIEW.md` for the current adoption
 //! contract and intentional non-goals.
 //!

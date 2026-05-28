@@ -249,14 +249,32 @@ pub fn parse_str(input: &str) -> Result<Node> {
 /// Parses all documents in a YAML stream.
 pub fn parse_documents(input: &str) -> Result<Vec<Node>> {
     let mut parser = Parser::new(input)?;
-    parser.parse_documents()
+    let mut documents = parser.parse_documents()?;
+    apply_default_merge_keys(&mut documents)?;
+    Ok(documents)
 }
 
 pub(crate) fn parse_document_results(input: &str) -> Vec<Result<Node>> {
     match Parser::new(input) {
-        Ok(mut parser) => parser.parse_document_results(),
+        Ok(mut parser) => parser
+            .parse_document_results()
+            .into_iter()
+            .map(|result| {
+                result.and_then(|mut node| {
+                    node.apply_merge_keys()?;
+                    Ok(node)
+                })
+            })
+            .collect(),
         Err(error) => vec![Err(error)],
     }
+}
+
+fn apply_default_merge_keys(documents: &mut [Node]) -> Result<()> {
+    for document in documents {
+        document.apply_merge_keys()?;
+    }
+    Ok(())
 }
 
 /// Parses a YAML stream and returns raw structural events.

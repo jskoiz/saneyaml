@@ -88,6 +88,23 @@ fn emitter_quotes_ambiguous_yaml_1_2_scalars() {
 }
 
 #[test]
+fn emitter_rejects_untagged_literal_merge_keys() {
+    let node = Node::new(
+        Value::Mapping(vec![(
+            Node::new(Value::String("<<".to_string()), Span::default()),
+            Node::new(Value::String("literal".to_string()), Span::default()),
+        )]),
+        Span::default(),
+    );
+
+    let error = to_string(&node).expect_err("untagged merge key is semantic YAML");
+    assert!(
+        error.to_string().contains("literal YAML merge keys"),
+        "{error}"
+    );
+}
+
+#[test]
 fn emitter_rejects_overdepth_caller_built_trees_before_writing_yaml() {
     let node = nested_sequence(140);
     let error = to_string(&node).expect_err("over-depth trees are not emittable");

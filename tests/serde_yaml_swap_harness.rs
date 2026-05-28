@@ -221,6 +221,8 @@ fn swap_harness_merge_null_bytes_and_empty_input_decisions_are_explicit() {
         "defaults: &defaults\n  retries: 3\njob:\n  <<: *defaults\n  name: deploy\n",
     )
     .expect("serde_yaml merge value");
+    assert!(value["job"]["<<"].is_null());
+    assert_eq!(value["job"]["retries"].as_u64(), Some(3));
     value.apply_merge().expect("yaml apply_merge");
     reference.apply_merge().expect("serde_yaml apply_merge");
     assert_eq!(

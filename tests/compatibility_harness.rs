@@ -200,7 +200,7 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
         docs: 1,
     },
     Case {
-        name: "literal_merge_key_with_alias_value",
+        name: "default_merge_key_with_alias_value",
         input: "defaults: &defaults\n  retries: 3\njob:\n  <<: *defaults\n  name: deploy\n",
         docs: 1,
     },
@@ -1006,55 +1006,55 @@ fn compatibility_tagged_anchor_aliases_preserve_property_wrapped_nodes() {
 }
 
 #[test]
-fn compatibility_merge_key_is_preserved_literal_with_alias_value() {
+fn compatibility_merge_key_expands_by_default_with_alias_value() {
     let input = "defaults: &defaults\n  retries: 3\njob:\n  <<: *defaults\n  name: deploy\n";
-    let doc = parse_str(input).expect("parse literal merge key");
+    let doc = parse_str(input).expect("parse default merge key");
     let entries = mapping_entries(&doc);
     let Value::Mapping(job) = &entries[1].1.value else {
         panic!("expected job mapping");
     };
-    assert_eq!(job[0].0.as_str(), Some("<<"));
-    let Value::Mapping(merge_value) = &job[0].1.value else {
-        panic!("expected literal merge key value mapping");
-    };
-    assert_eq!(merge_value[0].0.as_str(), Some("retries"));
+    assert!(job.iter().all(|(key, _)| key.as_str() != Some("<<")));
+    assert_eq!(job[0].0.as_str(), Some("name"));
+    assert_eq!(job[0].1.as_str(), Some("deploy"));
+    assert_eq!(job[1].0.as_str(), Some("retries"));
     assert!(matches!(
-        merge_value[0].1.value,
+        job[1].1.value,
         Value::Number(yaml::Number::Integer(3))
     ));
-    assert_eq!(job[1].0.as_str(), Some("name"));
-    assert_eq!(job[1].1.as_str(), Some("deploy"));
 
-    let reference: serde_yaml::Value =
-        serde_yaml::from_str(input).expect("serde_yaml parses literal merge key");
-    assert_eq!(reference["job"]["<<"]["retries"].as_i64(), Some(3));
-    assert!(reference["job"]["retries"].is_null());
+    let mut reference: serde_yaml::Value =
+        serde_yaml::from_str(input).expect("serde_yaml parses merge key");
+    reference
+        .apply_merge()
+        .expect("serde_yaml applies merge key");
+    assert_eq!(reference["job"]["retries"].as_i64(), Some(3));
+    assert_eq!(reference["job"]["name"].as_str(), Some("deploy"));
 }
 
 #[test]
-fn compatibility_merge_list_is_preserved_literal_like_rust_references() {
+fn compatibility_merge_list_expands_by_default() {
     let input = "base1: &base1 {a: 1, b: 1, shared: first}\nbase2: &base2 {b: 2, c: 2, shared: second}\nmerged:\n  <<: [*base1, *base2]\n  b: explicit\n";
-    let doc = parse_str(input).expect("parse literal merge-list key");
+    let doc = parse_str(input).expect("parse default merge-list key");
     let entries = mapping_entries(&doc);
     let Value::Mapping(merged) = &entries[2].1.value else {
         panic!("expected merged mapping");
     };
-    assert_eq!(merged[0].0.as_str(), Some("<<"));
-    assert!(matches!(merged[0].1.value, Value::Sequence(_)));
-    assert_eq!(merged[1].0.as_str(), Some("b"));
-    assert_eq!(merged[1].1.as_str(), Some("explicit"));
-    assert!(
-        merged
-            .iter()
-            .all(|(key, _)| { !matches!(key.as_str(), Some("a" | "c" | "shared")) })
-    );
+    assert!(merged.iter().all(|(key, _)| key.as_str() != Some("<<")));
+    assert_eq!(merged[0].0.as_str(), Some("b"));
+    assert_eq!(merged[0].1.as_str(), Some("explicit"));
+    assert_eq!(merged[1].0.as_str(), Some("a"));
+    assert_eq!(merged[2].0.as_str(), Some("shared"));
+    assert_eq!(merged[2].1.as_str(), Some("first"));
+    assert_eq!(merged[3].0.as_str(), Some("c"));
 
-    let reference: serde_yaml::Value =
+    let mut reference: serde_yaml::Value =
         serde_yaml::from_str(input).expect("serde_yaml preserves merge list literally");
-    assert!(reference["merged"]["<<"].is_sequence());
-    assert!(reference["merged"]["a"].is_null());
-    assert!(reference["merged"]["c"].is_null());
-    assert!(reference["merged"]["shared"].is_null());
+    reference
+        .apply_merge()
+        .expect("serde_yaml applies merge list");
+    assert_eq!(reference["merged"]["a"].as_i64(), Some(1));
+    assert_eq!(reference["merged"]["c"].as_i64(), Some(2));
+    assert_eq!(reference["merged"]["shared"].as_str(), Some("first"));
     assert_eq!(reference["merged"]["b"].as_str(), Some("explicit"));
     yaml_rust2::YamlLoader::load_from_str(input).expect("yaml-rust2 parses merge list");
     saphyr::Yaml::load_from_str(input).expect("saphyr parses merge list");

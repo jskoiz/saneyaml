@@ -1,4 +1,4 @@
-use crate::{Error, Span};
+use crate::{Error, Span, key_identity::same_key_identity};
 use serde::de::{self, EnumAccess, MapAccess, SeqAccess, VariantAccess, Visitor};
 use std::borrow::Cow;
 use std::cmp::Ordering;
@@ -64,6 +64,10 @@ impl Node {
     /// Converts this spanful node into a spanless [`Value`].
     pub fn into_value(self) -> Value {
         self.value.into()
+    }
+
+    pub(crate) fn apply_merge_keys(&mut self) -> crate::Result<()> {
+        apply_merge_keys_in_node(self)
     }
 }
 
@@ -1968,6 +1972,103 @@ fn merge_mapping(mapping: &mut Mapping, merge: Mapping) {
 
 fn merge_error(message: &'static str) -> Error {
     Error::new(message, Span::default())
+}
+
+fn apply_merge_keys_in_node(root: &mut Node) -> crate::Result<()> {
+    let mut values = vec![root];
+    while let Some(node) = values.pop() {
+        match &mut node.value {
+            NodeValue::Mapping(entries) => {
+                apply_merge_entries(entries)?;
+                values.extend(entries.iter_mut().map(|(_, value)| value));
+            }
+            NodeValue::Sequence(items) => values.extend(items),
+            NodeValue::Tagged(tagged) => values.push(&mut tagged.value),
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn apply_merge_entries(entries: &mut Vec<(Node, Node)>) -> crate::Result<()> {
+    if let Some(merge) = shift_remove_merge_node(entries) {
+        merge_node_mapping(entries, merge)?;
+    }
+    Ok(())
+}
+
+fn shift_remove_merge_node(entries: &mut Vec<(Node, Node)>) -> Option<Node> {
+    entries
+        .iter()
+        .position(|(key, _)| matches!(&key.value, NodeValue::String(value) if value == "<<"))
+        .map(|index| entries.remove(index).1)
+}
+
+fn merge_node_mapping(entries: &mut Vec<(Node, Node)>, merge: Node) -> crate::Result<()> {
+    let span = merge.span;
+    match merge.value {
+        NodeValue::Mapping(mut merge_entries) => {
+            apply_merge_entries(&mut merge_entries)?;
+            insert_missing_node_entries(entries, merge_entries)
+        }
+        NodeValue::Sequence(sequence) => {
+            for value in sequence {
+                let span = value.span;
+                match value.value {
+                    NodeValue::Mapping(mut merge_entries) => {
+                        apply_merge_entries(&mut merge_entries)?;
+                        insert_missing_node_entries(entries, merge_entries)?
+                    }
+                    NodeValue::Sequence(_) => {
+                        return Err(merge_node_error(
+                            "expected a mapping for merging, but found sequence",
+                            span,
+                        ));
+                    }
+                    NodeValue::Tagged(_) => {
+                        return Err(merge_node_error("unexpected tagged value in merge", span));
+                    }
+                    _ => {
+                        return Err(merge_node_error(
+                            "expected a mapping for merging, but found scalar",
+                            span,
+                        ));
+                    }
+                }
+            }
+            Ok(())
+        }
+        NodeValue::Tagged(_) => Err(merge_node_error("unexpected tagged value in merge", span)),
+        _ => Err(merge_node_error(
+            "expected a mapping or list of mappings for merging, but found scalar",
+            span,
+        )),
+    }
+}
+
+fn insert_missing_node_entries(
+    entries: &mut Vec<(Node, Node)>,
+    merge_entries: Vec<(Node, Node)>,
+) -> crate::Result<()> {
+    for (key, value) in merge_entries {
+        if !node_mapping_contains_key(entries, &key)? {
+            entries.push((key, value));
+        }
+    }
+    Ok(())
+}
+
+fn node_mapping_contains_key(entries: &[(Node, Node)], key: &Node) -> crate::Result<bool> {
+    for (existing, _) in entries {
+        if same_key_identity(existing, key)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn merge_node_error(message: &'static str, span: Span) -> Error {
+    Error::new(message, span)
 }
 
 /// YAML number representation.

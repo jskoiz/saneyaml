@@ -16,55 +16,57 @@ fn divergence_yaml_1_1_boolean_words_are_strings() {
 }
 
 #[test]
-fn divergence_merge_keys_are_preserved_literally_instead_of_expanded() {
+fn divergence_merge_keys_expand_by_default_in_loaded_trees() {
     let node =
         parse_str("defaults: &defaults\n  retries: 3\njob:\n  <<: *defaults\n  name: deploy\n")
-            .expect("merge key preserved literally");
+            .expect("merge key expands by default");
     let yaml::NodeValue::Mapping(entries) = node.value else {
         panic!("expected top-level mapping");
     };
     let yaml::NodeValue::Mapping(job) = &entries[1].1.value else {
         panic!("expected job mapping");
     };
-    assert_eq!(job[0].0.as_str(), Some("<<"));
-    assert!(matches!(job[0].1.value, yaml::NodeValue::Mapping(_)));
-    assert_eq!(job[1].0.as_str(), Some("name"));
+    assert!(job.iter().all(|(key, _)| key.as_str() != Some("<<")));
+    assert_eq!(job[0].0.as_str(), Some("name"));
     assert!(
-        job.iter().all(|(key, _)| key.as_str() != Some("retries")),
-        "merge key is not expanded into job.retries"
+        job.iter()
+            .any(|(key, value)| key.as_str() == Some("retries")
+                && matches!(
+                    value.value,
+                    yaml::NodeValue::Number(yaml::Number::Integer(3))
+                )),
+        "merge key expands into job.retries"
     );
 }
 
 #[test]
-fn divergence_merge_list_is_preserved_literally_instead_of_expanded() {
+fn divergence_merge_list_expands_by_default_in_loaded_trees() {
     let node = parse_str(
         "base1: &base1 {a: 1, b: 1, shared: first}\nbase2: &base2 {b: 2, c: 2, shared: second}\nmerged:\n  <<: [*base1, *base2]\n  b: explicit\n",
     )
-    .expect("merge-list key preserved literally");
+    .expect("merge-list key expands by default");
     let yaml::NodeValue::Mapping(entries) = node.value else {
         panic!("expected top-level mapping");
     };
     let yaml::NodeValue::Mapping(merged) = &entries[2].1.value else {
         panic!("expected merged mapping");
     };
-    assert_eq!(merged[0].0.as_str(), Some("<<"));
-    assert!(matches!(merged[0].1.value, yaml::NodeValue::Sequence(_)));
-    assert_eq!(merged[1].0.as_str(), Some("b"));
-    assert_eq!(merged[1].1.as_str(), Some("explicit"));
+    assert!(merged.iter().all(|(key, _)| key.as_str() != Some("<<")));
+    assert_eq!(merged[0].0.as_str(), Some("b"));
+    assert_eq!(merged[0].1.as_str(), Some("explicit"));
     assert!(
         merged
             .iter()
-            .all(|(key, _)| !matches!(key.as_str(), Some("a" | "c" | "shared"))),
-        "merge-list keys are not expanded into the target mapping"
+            .any(|(key, value)| key.as_str() == Some("shared") && value.as_str() == Some("first")),
+        "earlier merge-list mappings win"
     );
 }
 
 #[test]
 fn divergence_merge_key_record_documents_default_and_opt_in_policy() {
     let record = include_str!("fixtures/divergences/records/merge-keys.toml");
-    assert!(record.contains("literal keys by default"));
-    assert!(record.contains("opt in with yaml::Value::apply_merge()"));
-    assert!(record.contains("serde_yaml::Value::apply_merge"));
+    assert!(record.contains("expand untagged block, flow, and merge-list key << forms by default"));
+    assert!(record.contains("Value::apply_merge() remains available"));
     assert!(record.contains("Psych 3.1.0/libyaml 0.2.1"));
     assert!(record.contains("earlier merge-list mappings"));
     assert!(record.contains("explicit target keys override"));
@@ -94,19 +96,19 @@ fn divergence_custom_tags_record_is_present() {
 }
 
 #[test]
-fn divergence_block_merge_key_is_a_literal_key() {
-    let node = parse_str("job:\n  <<: {retries: 3}\n").expect("parse literal merge key");
+fn divergence_block_merge_key_expands_by_default() {
+    let node = parse_str("job:\n  <<: {retries: 3}\n").expect("parse default merge key");
     let yaml::NodeValue::Mapping(entries) = node.value else {
         panic!("expected top-level mapping");
     };
     let yaml::NodeValue::Mapping(job) = &entries[0].1.value else {
         panic!("expected job mapping");
     };
-    assert_eq!(job[0].0.as_str(), Some("<<"));
+    assert_eq!(job[0].0.as_str(), Some("retries"));
 }
 
 #[test]
-fn divergence_flow_merge_key_is_a_literal_key() {
+fn divergence_flow_merge_key_expands_by_default() {
     let node = parse_str("job: {<<: {retries: 3}, name: deploy}\n").expect("parse flow merge key");
     let yaml::NodeValue::Mapping(entries) = node.value else {
         panic!("expected top-level mapping");
@@ -114,8 +116,8 @@ fn divergence_flow_merge_key_is_a_literal_key() {
     let yaml::NodeValue::Mapping(job) = &entries[0].1.value else {
         panic!("expected job mapping");
     };
-    assert_eq!(job[0].0.as_str(), Some("<<"));
-    assert_eq!(job[1].0.as_str(), Some("name"));
+    assert_eq!(job[0].0.as_str(), Some("name"));
+    assert_eq!(job[1].0.as_str(), Some("retries"));
 }
 
 #[test]

@@ -57,6 +57,10 @@ pub(crate) fn check_duplicate(seen: &mut HashMap<DuplicateKey, Span>, key: &Node
     check_duplicate_at_depth(seen, key, 1)
 }
 
+pub(crate) fn same_key_identity(left: &Node, right: &Node) -> Result<bool> {
+    Ok(duplicate_key_identity_at(left, 1)? == duplicate_key_identity_at(right, 1)?)
+}
+
 pub(crate) fn check_duplicate_at_depth(
     seen: &mut HashMap<DuplicateKey, Span>,
     key: &Node,

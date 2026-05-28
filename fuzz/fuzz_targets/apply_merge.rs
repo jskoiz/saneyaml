@@ -37,33 +37,18 @@ fn should_compare_shared_merge_subset(input: &[u8]) -> bool {
         return false;
     }
 
-    let Ok(value) = yaml::from_str::<Value>(input) else {
-        return false;
-    };
-    contains_literal_merge_key(&value)
-}
-
-fn contains_literal_merge_key(value: &Value) -> bool {
-    match value {
-        Value::Mapping(mapping) => mapping.iter().any(|(key, value)| {
-            key.as_str() == Some("<<")
-                || contains_literal_merge_key(key)
-                || contains_literal_merge_key(value)
-        }),
-        Value::Sequence(sequence) => sequence.iter().any(contains_literal_merge_key),
-        Value::Tagged(tagged) => contains_literal_merge_key(&tagged.value),
-        _ => false,
-    }
+    input.contains("<<")
 }
 
 fn assert_matches_serde_yaml(input: &[u8]) {
     let input = std::str::from_utf8(input).expect("shared merge subset is UTF-8");
-    let Ok(mut value) = yaml::from_str::<Value>(input) else {
+    let Ok(reference_unmerged) = serde_yaml::from_str::<serde_yaml::Value>(input) else {
         return;
     };
-    let Ok(mut reference) = serde_yaml::from_str::<serde_yaml::Value>(input) else {
+    let Ok(mut value) = yaml::to_value(reference_unmerged.clone()) else {
         return;
     };
+    let mut reference = reference_unmerged;
     value
         .apply_merge()
         .expect("yaml applies merge for shared subset");

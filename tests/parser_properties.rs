@@ -68,6 +68,7 @@ proptest! {
         let emitted = match yaml::to_string(&node) {
             Ok(emitted) => emitted,
             Err(error) if error.to_string().contains("duplicate mapping key") => return Ok(()),
+            Err(error) if error.to_string().contains("literal YAML merge keys") => return Ok(()),
             Err(error)
                 if error
                     .to_string()
@@ -593,15 +594,16 @@ fn assert_apply_merge_invariants(input: &[u8]) {
 }
 
 fn assert_apply_merge_semantics(input: &[u8]) {
-    let Ok(mut value) = yaml::from_slice::<Value>(input) else {
-        return;
-    };
     let Ok(input) = std::str::from_utf8(input) else {
         return;
     };
-    let Ok(mut reference) = serde_yaml::from_str::<serde_yaml::Value>(input) else {
+    let Ok(reference_unmerged) = serde_yaml::from_str::<serde_yaml::Value>(input) else {
         return;
     };
+    let Ok(mut value) = yaml::to_value(reference_unmerged.clone()) else {
+        return;
+    };
+    let mut reference = reference_unmerged;
 
     match (value.apply_merge(), reference.apply_merge()) {
         (Ok(()), Ok(())) => {

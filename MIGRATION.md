@@ -76,7 +76,8 @@ currently covers:
 - `Value`, `Mapping`, and `Number` patch-style usage
 - `to_value`, `to_string`, and `to_writer` structural writer paths
 - `with::singleton_map` enum field annotations
-- merge expansion through `Value::apply_merge`
+- default merge-key expansion plus idempotent `Value::apply_merge` for
+  caller-built values
 - value-backed bytes and writer byte rejection policy
 - empty input behavior
 - real-world GitHub Actions, Docker Compose, Kubernetes, Helm, OpenAPI,
@@ -161,10 +162,11 @@ testing each adopter's own YAML corpus.
 
 ## Known Migration Limits
 
-- YAML 1.1 implicit booleans, timestamps, octal/hex/binary numeric typing, and
-  default merge-key expansion are intentionally not enabled.
-- Merge keys are preserved literally by default. Call `Value::apply_merge()` for
-  `serde_yaml::Value::apply_merge()`-style expansion.
+- YAML 1.1 implicit booleans, timestamps, and octal/hex/binary numeric typing
+  are intentionally not enabled.
+- Untagged merge keys are expanded by default in loaded trees and Serde reads.
+  `Value::apply_merge()` remains available for caller-built values and is
+  idempotent for values parsed by this crate.
 - `yaml::Deserializer::from_str("")` yields zero iterator items, while
   `serde_yaml::Deserializer::from_str("")` yields one null document. Direct
   `from_str::<Value>("")` and direct `Value::deserialize(...)` treat empty input
@@ -186,6 +188,6 @@ testing each adopter's own YAML corpus.
 - Add migration-impact wording directly to every divergence record.
 - Add real external crate build trials before claiming broad ecosystem
   replacement readiness.
-- Keep growing `apply_merge` coverage with sustained fuzz runs and minimized
-  discoveries beyond the curated seed corpus.
+- Keep growing default merge and `apply_merge` coverage with sustained fuzz
+  runs and minimized discoveries beyond the curated seed corpus.
 - Choose the public package name and final license before publishing.

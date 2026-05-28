@@ -4014,7 +4014,7 @@ fn serde_api_value_index_missing_returns_null_sentinel() {
 }
 
 #[test]
-fn serde_api_value_apply_merge_keeps_default_literal_then_expands_single_merge() {
+fn serde_api_value_reads_expand_merge_keys_by_default() {
     let input = "\
 defaults: &defaults
   retries: 3
@@ -4024,9 +4024,9 @@ job:
   command: smoke
 ";
 
-    let mut value: Value = yaml::from_str(input).expect("value with literal merge");
-    assert_eq!(value["job"]["<<"]["retries"].as_u64(), Some(3));
-    assert_eq!(value["job"]["retries"].as_u64(), None);
+    let mut value: Value = yaml::from_str(input).expect("value with default merge");
+    assert!(value["job"]["<<"].is_null());
+    assert_eq!(value["job"]["retries"].as_u64(), Some(3));
 
     let mut reference: serde_yaml::Value =
         serde_yaml::from_str(input).expect("serde_yaml value with literal merge");
@@ -4168,7 +4168,7 @@ target:
 }
 
 #[test]
-fn serde_api_value_apply_merge_does_not_pre_expand_merge_source_mappings() {
+fn serde_api_default_merge_pre_expands_merge_source_mappings() {
     let input = "\
 base: &base
   <<: {a: 1}
@@ -4178,27 +4178,18 @@ target:
 ";
 
     let mut value: Value = yaml::from_str(input).expect("nested merge source value");
-    let mut reference: serde_yaml::Value =
-        serde_yaml::from_str(input).expect("serde_yaml nested merge source value");
 
-    value.apply_merge().expect("yaml nested merge source");
-    reference
-        .apply_merge()
-        .expect("serde_yaml nested merge source");
-
-    assert_eq!(value["base"]["a"].as_u64(), reference["base"]["a"].as_u64());
+    assert_eq!(value["base"]["a"].as_u64(), Some(1));
     assert!(value["base"]["<<"].is_null());
-    assert_eq!(
-        value["target"]["b"].as_u64(),
-        reference["target"]["b"].as_u64()
-    );
-    assert_eq!(
-        value["target"]["<<"]["a"].as_u64(),
-        reference["target"]["<<"]["a"].as_u64()
-    );
-    assert_eq!(value["target"]["a"].as_u64(), None);
-    assert_eq!(value["target"]["<<"]["a"].as_u64(), Some(1));
+    assert_eq!(value["target"]["a"].as_u64(), Some(1));
     assert_eq!(value["target"]["b"].as_u64(), Some(2));
+    assert!(value["target"]["<<"].is_null());
+
+    let before = value.clone();
+    value
+        .apply_merge()
+        .expect("default nested merge expansion is idempotent");
+    assert!(value.equivalent(&before));
 }
 
 #[test]
@@ -4223,9 +4214,8 @@ fn serde_api_value_apply_merge_reports_invalid_merge_payloads() {
     ];
 
     for (input, expected) in cases {
-        let mut value: Value = yaml::from_str(input).expect("invalid merge payload parses");
-        let error = value.apply_merge().expect_err("yaml merge error");
-        assert_eq!(error.location(), None);
+        let error = yaml::from_str::<Value>(input).expect_err("invalid default merge payload");
+        assert!(error.location().is_some());
         assert!(
             error.to_string().contains(expected),
             "yaml error `{error}` should contain `{expected}`"

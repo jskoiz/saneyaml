@@ -73,7 +73,7 @@ version = "Compose Specification, 2026-05 fixture surface"
 license = "Local test fixture; no copied production data."
 reduction = "Anchor and merge-key fixture reduced to extension defaults and service overrides."
 expected_docs = 1
-gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+gates = ["typed-config", "event-parity", "parser-properties", "shared-reference-acceptance"]
 
 [[fixture]]
 path = "docker-compose/compose-platform-resources.yaml"

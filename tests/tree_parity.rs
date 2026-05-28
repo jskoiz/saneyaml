@@ -35,14 +35,6 @@ const VALUE_SHAPE_CASES: &[TreeCase] = &[
         input: "a: &x 1\nb: &x {n: 2}\nc: *x\n",
     },
     TreeCase {
-        name: "literal_merge_key_alias_value",
-        input: "defaults: &defaults\n  retries: 3\njob:\n  <<: *defaults\n  name: deploy\n",
-    },
-    TreeCase {
-        name: "literal_merge_list_alias_values",
-        input: "base1: &base1 {a: 1, b: 1, shared: first}\nbase2: &base2 {b: 2, c: 2, shared: second}\nmerged:\n  <<: [*base1, *base2]\n  b: explicit\n",
-    },
-    TreeCase {
         name: "flow_mapping_key_metadata",
         input: "key: &key alias-key\nroot: {&direct direct-key: v, ? *key : alias-v, ? &seq [a, b] : seq-v, !Thing tagged-key: tagged-v}\n",
     },
@@ -385,10 +377,6 @@ const REAL_WORLD_TREE_CASES: &[TreeCase] = &[
     TreeCase {
         name: "docker_compose_awesome_nginx_flask_mysql",
         input: include_str!("fixtures/real-world/docker-compose/awesome-nginx-flask-mysql.yaml"),
-    },
-    TreeCase {
-        name: "docker_compose_anchors",
-        input: include_str!("fixtures/real-world/docker-compose/compose-anchors.yaml"),
     },
     TreeCase {
         name: "docker_compose_polymorphic",

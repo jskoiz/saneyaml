@@ -177,6 +177,11 @@ const CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "yts_k858_empty_block_scalar_chomping",
+        input: include_str!("fixtures/yaml-test-suite/data/K858/in.yaml"),
+        docs: 1,
+    },
+    Case {
         name: "yts_4q9f_folded_block_scalar_empty_lines_explicit_start",
         input: include_str!("fixtures/yaml-test-suite/data/4Q9F/in.yaml"),
         docs: 1,
@@ -344,6 +349,11 @@ const CASES: &[Case] = &[
     Case {
         name: "yts_cfd4_empty_implicit_flow_sequence_keys",
         input: include_str!("fixtures/yaml-test-suite/data/CFD4/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_m2n8_00_question_mark_edge_empty_compact_mapping_key",
+        input: include_str!("fixtures/yaml-test-suite/data/M2N8-00/in.yaml"),
         docs: 1,
     },
     Case {
@@ -1124,7 +1134,7 @@ fn normalize_ours(
                 Event::Scalar {
                     value, style, meta, ..
                 } => NormEvent::Scalar {
-                    value,
+                    value: normalize_our_scalar_value(value, style),
                     style: normalize_our_style(style),
                     anchor: meta
                         .anchor
@@ -1323,6 +1333,14 @@ fn normalize_saphyr_style(style: saphyr_parser::ScalarStyle) -> NormStyle {
         saphyr_parser::ScalarStyle::DoubleQuoted => NormStyle::DoubleQuoted,
         saphyr_parser::ScalarStyle::Literal => NormStyle::Literal,
         saphyr_parser::ScalarStyle::Folded => NormStyle::Folded,
+    }
+}
+
+fn normalize_our_scalar_value(value: String, style: ScalarStyle) -> String {
+    if matches!(style, ScalarStyle::Literal | ScalarStyle::Folded) {
+        normalize_null_scalar(value)
+    } else {
+        value
     }
 }
 

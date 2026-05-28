@@ -1470,6 +1470,7 @@ impl Parser {
             depth + 1,
         )?;
         let mut value = Node::null(line.local_span(marker_start, marker_start + 1));
+        let mut emitted_value = false;
         self.skip_blanks();
         if let Some((next, value_rest_start, value_rest)) = self.peek_content().and_then(|next| {
             (next.indent == item_indent)
@@ -1488,6 +1489,10 @@ impl Parser {
                 item_indent,
                 depth + 1,
             )?;
+            emitted_value = true;
+        }
+        if !emitted_value {
+            self.emit_null_scalar(value.span);
         }
         let span = Span::new(
             line.start + line.indent + marker_start,

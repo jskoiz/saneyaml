@@ -304,7 +304,7 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   remain available. The manifest also owns the selected-suite parity ledger:
   `parity.event`, `parity.tree`, and `parity.shared_reference` must match the
   Rust source gates exactly. Current selected-suite ledgers cover event parity
-  for 78 accepted cases with 2 documented event-shape deferrals, loaded-tree
+  for all 80 accepted cases with no event-shape deferrals, loaded-tree
   value-shape parity for 77 accepted cases with 3 documented tree-shape
   deferrals, and shared-reference acceptance for 57 accepted cases with 23
   documented `serde_yaml`/libyaml divergence deferrals
@@ -346,7 +346,8 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   recorded `serde_yaml`/libyaml divergence for the root/tab separation cases
 - block scalar trailing-line chomping, including literal keep chomping with a
   spaces-only content line from YAML-suite 6FWR and empty scalar chomping from
-  YAML-suite K858
+  YAML-suite K858, with empty block scalar event spelling normalized against
+  yaml-rust2 and saphyr while preserving loaded string values
 - folded block scalars with leading blank, paragraph breaks, more-indented
   lines, spaces-only blank lines, and tab-leading detected-indentation content,
   including YAML-suite F6MC, 6VJK, 4Q9F, TS54, 7T8X, 93WF, K527, and R4YG.
@@ -392,7 +393,8 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   divergence
 - empty implicit mapping keys as null keys in selected block and flow forms,
   including YAML-suite S3PD, CFD4, M2N8-00, and UKK6-00, while retaining
-  duplicate-null-key rejection
+  duplicate-null-key rejection and parser-event parity for compact explicit
+  mapping null values
 - explicit non-specific tag cases: YAML-suite UKK6/02 and S4JQ are accepted in
   event/shared-reference gates where the references agree, but remain
   documented tree-shape divergences because loaders disagree on the empty/tagged

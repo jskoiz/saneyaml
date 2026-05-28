@@ -18,8 +18,6 @@ const DIRECTIVE_LOOKING_FLOW_CONTENT_RECORD: &str =
     include_str!("fixtures/divergences/records/directive-looking-flow-content.toml");
 const DOCUMENT_START_BLOCK_SCALARS_RECORD: &str =
     include_str!("fixtures/divergences/records/document-start-block-scalars.toml");
-const EMPTY_BLOCK_SCALAR_EVENT_SHAPE_RECORD: &str =
-    include_str!("fixtures/divergences/records/empty-block-scalar-event-shape.toml");
 const EMPTY_IMPLICIT_KEYS_RECORD: &str =
     include_str!("fixtures/divergences/records/empty-implicit-keys.toml");
 const EMPTY_SCALAR_ANCHORS_RECORD: &str =
@@ -40,18 +38,7 @@ const RUST_REFERENCE_DIVERGENCE_CASES: &[&str] = &[
     "M7A3", // serde_yaml rejects the full bare-document stream; Rust parser references accept.
     "UT92", // serde_yaml rejects directive-looking lines inside open flow content; Rust parser references accept.
 ];
-const EVENT_DEFERRED_DIVERGENCES: &[DeferredDivergenceCase] = &[
-    DeferredDivergenceCase {
-        id: "M2N8/00",
-        record_case: "empty-implicit-keys",
-        record_source: EMPTY_IMPLICIT_KEYS_RECORD,
-    },
-    DeferredDivergenceCase {
-        id: "K858",
-        record_case: "empty-block-scalar-event-shape",
-        record_source: EMPTY_BLOCK_SCALAR_EVENT_SHAPE_RECORD,
-    },
-];
+const EVENT_DEFERRED_DIVERGENCES: &[DeferredDivergenceCase] = &[];
 const TREE_DEFERRED_DIVERGENCES: &[DeferredDivergenceCase] = &[
     DeferredDivergenceCase {
         id: "UKK6/02",

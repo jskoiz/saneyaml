@@ -993,6 +993,7 @@ event = [
     "9MMW",
     "6VJK",
     "6FWR",
+    "K858",
     "4Q9F",
     "TS54",
     "7T8X",
@@ -1027,6 +1028,7 @@ event = [
     "7W2P",
     "S3PD",
     "CFD4",
+    "M2N8/00",
     "UKK6/00",
     "UKK6/02",
     "2EBW",
@@ -1067,10 +1069,7 @@ event = [
     "6CK3",
 ]
 
-event_deferred = [
-    "M2N8/00",
-    "K858",
-]
+event_deferred = []
 
 tree = [
     "BU8L",

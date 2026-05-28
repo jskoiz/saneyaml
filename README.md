@@ -65,6 +65,7 @@ cargo test --test external_downstream_migration
 cargo test --test libyaml_probe_manifest
 cargo test --test lossless_roundtrip --test graph_identity
 scripts/downstream-build-trials.sh rust-i18n
+scripts/downstream-build-trials.sh cfn-guard
 cargo test --test baseline_audit
 RUSTDOCFLAGS='-D missing_docs' cargo doc --no-deps
 cargo test

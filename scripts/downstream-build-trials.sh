@@ -68,13 +68,13 @@ EOF
   cargo check --manifest-path "$smoke/Cargo.toml" --quiet
 }
 
-patch_workspace_serde_yaml_dependency() {
+patch_serde_yaml_dependency() {
   local manifest="$1"
   YAML_PACKAGE_DIR="$package_dir" perl -0pi -e \
     's/^serde_yaml\s*=\s*"[^"]+"/serde_yaml = { package = "yaml", path = "$ENV{YAML_PACKAGE_DIR}" }/m' \
     "$manifest"
   if ! grep -q 'serde_yaml = { package = "yaml"' "$manifest"; then
-    echo "failed to rewrite serde_yaml workspace dependency in $manifest" >&2
+    echo "failed to rewrite serde_yaml dependency in $manifest" >&2
     return 1
   fi
 }
@@ -83,11 +83,20 @@ run_rust_i18n_trial() {
   local checkout="$tmp/rust-i18n"
   git clone --quiet https://github.com/longbridge/rust-i18n.git "$checkout"
   git -C "$checkout" checkout --quiet 97cf091c24e4bc09a0acb397a8d9d7da8b6abc56
-  patch_workspace_serde_yaml_dependency "$checkout/Cargo.toml"
+  patch_serde_yaml_dependency "$checkout/Cargo.toml"
 
   cargo check --manifest-path "$checkout/Cargo.toml" -p rust-i18n-support --features codegen
   cargo check --manifest-path "$checkout/Cargo.toml" -p rust-i18n-macro
   cargo check --manifest-path "$checkout/Cargo.toml" -p rust-i18n-extract
+}
+
+run_cfn_guard_trial() {
+  local checkout="$tmp/cfn-guard"
+  git clone --quiet https://github.com/aws-cloudformation/cloudformation-guard.git "$checkout"
+  git -C "$checkout" checkout --quiet ae35f4e6a5618ffb1f3653c084c450f82fc2fc51
+  patch_serde_yaml_dependency "$checkout/guard/Cargo.toml"
+
+  cargo check --manifest-path "$checkout/Cargo.toml" -p cfn-guard
 }
 
 package_current_crate
@@ -97,11 +106,14 @@ case "$trial" in
   rust-i18n)
     run_rust_i18n_trial
     ;;
+  cfn-guard)
+    run_cfn_guard_trial
+    ;;
   smoke-only)
     ;;
   *)
     echo "unknown downstream build trial: $trial" >&2
-    echo "available trials: rust-i18n, smoke-only" >&2
+    echo "available trials: rust-i18n, cfn-guard, smoke-only" >&2
     exit 2
     ;;
 esac

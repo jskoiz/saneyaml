@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::collections::{BTreeMap, BTreeSet};
 use yaml::{Date, LoadOptions, Schema, Tag, Time, TimeZoneOffset, Timestamp, Value};
 
 #[test]
@@ -114,6 +115,43 @@ date: !yaml!timestamp 2026-05-24
     let tagged = value["count"].as_tagged().expect("resolved int tag");
     assert_eq!(tagged.tag.handle, "!");
     assert_eq!(tagged.tag.suffix, "tag:yaml.org,2002:int");
+}
+
+#[test]
+fn yaml11_schema_modes_support_collection_core_tags() {
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct CollectionTags {
+        set: BTreeSet<String>,
+        omap: BTreeMap<String, i64>,
+        pairs: Vec<(String, i64)>,
+    }
+
+    let input = "\
+%YAML 1.1
+%TAG !yaml! tag:yaml.org,2002:
+---
+set: !yaml!set {alpha: null, beta: null}
+omap: !yaml!omap [{first: 1}, {second: 2}]
+pairs: !yaml!pairs [{repeat: 1}, {repeat: 2}]
+";
+    let expected = CollectionTags {
+        set: BTreeSet::from(["alpha".to_string(), "beta".to_string()]),
+        omap: BTreeMap::from([("first".to_string(), 1), ("second".to_string(), 2)]),
+        pairs: vec![("repeat".to_string(), 1), ("repeat".to_string(), 2)],
+    };
+
+    let yaml11: CollectionTags = LoadOptions::yaml_1_1()
+        .from_str(input)
+        .expect("YAML 1.1 collection tags in YAML 1.1 mode");
+    let directive: CollectionTags = LoadOptions::yaml_version_directive()
+        .from_str(input)
+        .expect("YAML 1.1 collection tags in directive-driven mode");
+    let default: CollectionTags =
+        yaml::from_str(input).expect("explicit collection tags in default mode");
+
+    assert_eq!(yaml11, expected);
+    assert_eq!(directive, expected);
+    assert_eq!(default, expected);
 }
 
 #[test]

@@ -14,11 +14,11 @@
           {
             "key": {
               "class": "TrueClass",
-              "value": "true"
+              "value": true
             },
             "value": {
               "class": "TrueClass",
-              "value": "true"
+              "value": true
             }
           },
           {
@@ -74,7 +74,7 @@
           {
             "key": {
               "class": "TrueClass",
-              "value": "true"
+              "value": true
             },
             "value": {
               "class": "Hash",
@@ -338,6 +338,119 @@
             "value": {
               "class": "NilClass",
               "value": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "yaml11-collection-tags",
+      "record": "tests/fixtures/divergences/records/yaml11-collection-tags.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "set"
+            },
+            "value": {
+              "class": "Psych::Set",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "alpha"
+                  },
+                  "value": {
+                    "class": "NilClass",
+                    "value": null
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "beta"
+                  },
+                  "value": {
+                    "class": "NilClass",
+                    "value": null
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "omap"
+            },
+            "value": {
+              "class": "Psych::Omap",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "first"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "1"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "second"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "2"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "pairs"
+            },
+            "value": {
+              "class": "Array",
+              "items": [
+                {
+                  "class": "Hash",
+                  "entries": [
+                    {
+                      "key": {
+                        "class": "String",
+                        "value": "repeat"
+                      },
+                      "value": {
+                        "class": "Integer",
+                        "value": "1"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "class": "Hash",
+                  "entries": [
+                    {
+                      "key": {
+                        "class": "String",
+                        "value": "repeat"
+                      },
+                      "value": {
+                        "class": "Integer",
+                        "value": "2"
+                      }
+                    }
+                  ]
+                }
+              ]
             }
           }
         ]

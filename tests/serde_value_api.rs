@@ -12,7 +12,7 @@ use serde::{
 use std::borrow::Cow;
 use std::cell::Cell;
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, HashSet, hash_map::DefaultHasher};
+use std::collections::{BTreeMap, BTreeSet, HashSet, hash_map::DefaultHasher};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::io::Cursor;
@@ -3290,6 +3290,88 @@ canonical_timestamp: !<tag:yaml.org,2002:timestamp> 2026-05-25
         value["canonical_timestamp"].as_timestamp(),
         yaml::Timestamp::parse_yaml_1_1("2026-05-25")
     );
+}
+
+#[test]
+fn serde_api_yaml11_collection_tags_have_typed_read_contract() {
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct CollectionTags {
+        set: BTreeSet<String>,
+        omap: Vec<(String, i64)>,
+        pairs: Vec<(String, i64)>,
+        canonical_set: BTreeSet<String>,
+        resolved_omap: BTreeMap<String, i64>,
+        resolved_pairs: Vec<(String, i64)>,
+    }
+
+    let input = "\
+%TAG !yaml! tag:yaml.org,2002:
+---
+set: !!set
+  ? alpha
+  ? beta
+omap: !!omap
+  - first: 1
+  - second: 2
+pairs: !!pairs
+  - repeat: 1
+  - repeat: 2
+canonical_set: !<tag:yaml.org,2002:set> {left: null, right: null}
+resolved_omap: !yaml!omap [{left: 1}, {right: 2}]
+resolved_pairs: !yaml!pairs [{same: 1}, {same: 2}]
+";
+    let expected = CollectionTags {
+        set: BTreeSet::from(["alpha".to_string(), "beta".to_string()]),
+        omap: vec![("first".to_string(), 1), ("second".to_string(), 2)],
+        pairs: vec![("repeat".to_string(), 1), ("repeat".to_string(), 2)],
+        canonical_set: BTreeSet::from(["left".to_string(), "right".to_string()]),
+        resolved_omap: BTreeMap::from([("left".to_string(), 1), ("right".to_string(), 2)]),
+        resolved_pairs: vec![("same".to_string(), 1), ("same".to_string(), 2)],
+    };
+
+    let typed: CollectionTags = yaml::from_str(input).expect("YAML 1.1 collection tags");
+    let direct = CollectionTags::deserialize(yaml::Deserializer::from_str(input))
+        .expect("direct YAML 1.1 collection tags");
+    let node = yaml::parse_str(input).expect("YAML 1.1 collection tag node");
+    let from_node: CollectionTags =
+        yaml::from_node(&node).expect("YAML 1.1 collection tags from node");
+    let value: Value = yaml::from_str(input).expect("YAML 1.1 collection tag value");
+    let from_value: CollectionTags =
+        yaml::from_value(value.clone()).expect("YAML 1.1 collection tags from value");
+    let from_value_ref =
+        CollectionTags::deserialize(&value).expect("YAML 1.1 collection tags by ref");
+
+    assert_eq!(typed, expected);
+    assert_eq!(direct, expected);
+    assert_eq!(from_node, expected);
+    assert_eq!(from_value, expected);
+    assert_eq!(from_value_ref, expected);
+
+    let set = value["set"].as_tagged().expect("set tag is retained");
+    assert_eq!(set.tag.handle, "!!");
+    assert_eq!(set.tag.suffix, "set");
+    assert!(matches!(set.value, Value::Mapping(_)));
+
+    let canonical_set = value["canonical_set"]
+        .as_tagged()
+        .expect("canonical set tag is retained");
+    assert_eq!(canonical_set.tag.handle, "!");
+    assert_eq!(canonical_set.tag.suffix, "tag:yaml.org,2002:set");
+    assert!(matches!(canonical_set.value, Value::Mapping(_)));
+
+    let resolved_omap = value["resolved_omap"]
+        .as_tagged()
+        .expect("resolved omap tag is retained");
+    assert_eq!(resolved_omap.tag.handle, "!");
+    assert_eq!(resolved_omap.tag.suffix, "tag:yaml.org,2002:omap");
+    assert!(matches!(resolved_omap.value, Value::Sequence(_)));
+
+    let resolved_pairs = value["resolved_pairs"]
+        .as_tagged()
+        .expect("resolved pairs tag is retained");
+    assert_eq!(resolved_pairs.tag.handle, "!");
+    assert_eq!(resolved_pairs.tag.suffix, "tag:yaml.org,2002:pairs");
+    assert!(matches!(resolved_pairs.value, Value::Sequence(_)));
 }
 
 #[test]

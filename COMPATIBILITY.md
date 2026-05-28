@@ -34,6 +34,7 @@ The compatibility target is intentionally split:
 | Numeric, timestamp, and binary extensions | Decimal ints/floats plus underscores and YAML special floats are resolved by default; explicit YAML 1.1 construction also resolves leading-zero octal, hex, binary numeric, and two/three-part sexagesimal int/float forms that fit `Number`, retains timestamp-shaped plain scalars as `!!timestamp` tagged strings with `yaml::Timestamp` typed reads, and decodes explicit `!!binary` only for typed byte targets | YAML 1.1 has broad numeric/timestamp/binary typing, including sexagesimal and legacy radix forms in libyaml/Psych paths | YAML 1.2 core support varies by crate | Data-model dependent |
 | Directives | Numeric `%YAML` version directives and `%TAG` are accepted as syntax/event inputs; reserved unknown directives are ignored but still require an explicit document start; default loading does not switch scalar schema, while `LoadOptions::yaml_version_directive()` lets `%YAML 1.1` select legacy construction per document; directive metadata is exposed on `DocumentStart` events | Exposed and may affect version/schema handling | Exposed by parser layers | Usually not a Serde value |
 | Explicit core tags | Tree and `Value` loading preserve explicit `!!binary`, `!!str`, `!!bool`, `!!null`, `!!timestamp`, `!!int`, and `!!float` tags, including canonical `tag:yaml.org,2002:*` forms written verbatim or through `%TAG` handles; typed Serde reads coerce explicit `!!str`, `!!bool`, `!!null`, `!!int`, and `!!float` targets, including legacy boolean/null, radix, and sexagesimal spellings; retained `Value` numeric helpers parse explicit `!!int`/`!!float` spellings without erasing tag/source metadata; explicit `!!timestamp` is exposed as `yaml::Timestamp`, and explicit `!!binary` byte targets decode while preserving tags in retained values | YAML 1.1 typed binary/timestamp/string/bool/null/numeric support is common | Tag-aware behavior varies, including `BadValue` for some explicit core tags | Partial/lossy |
+| YAML 1.1 collection tags | Tree and `Value` loading preserve explicit `!!set`, `!!omap`, and `!!pairs` as tagged mapping/sequence payloads, including canonical `tag:yaml.org,2002:*` spellings. Typed Serde reads expose `!!set` as set-like sequence targets from null-valued mapping keys, `!!omap` as pair sequences or map targets, and `!!pairs` as pair sequences that preserve duplicates. | Psych/libyaml constructs `Psych::Set`, `Psych::Omap`, and pair arrays | Parser/event tag information is available, but loaded-tree and typed-Serde contracts differ | Tag metadata is not retained |
 
 ## Public API Compatibility Surface
 
@@ -116,6 +117,10 @@ trees, but typed byte targets such as `Vec<u8>`, `deserialize_bytes`, and
 tags may be spelled with short handles such as `!!int`, verbatim canonical URIs
 such as `!<tag:yaml.org,2002:int>`, or declared `%TAG` handles that resolve to
 `tag:yaml.org,2002:*`.
+YAML 1.1 collection tags use the same tag spelling rules: retained `Node` and
+`Value` trees keep `!!set`, `!!omap`, and `!!pairs` as tagged collections, while
+typed Serde reads map `!!set` to set-like targets, `!!omap` to ordered pair or
+map targets, and `!!pairs` to pair sequences without collapsing duplicate keys.
 For non-enum typed reads, tags are transparent metadata: `!Env prod` can
 deserialize into `String`, `!Ports [80, 443]` into `Vec<u16>`, and
 `!Maybe null` into `Option<T>`. `Value::default()` is null, `Value` can drive

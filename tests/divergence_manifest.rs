@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const EXPECTED_RECORDS: usize = 33;
+const EXPECTED_RECORDS: usize = 34;
 const REQUIRED_FIELDS: &[&str] = &["case", "policy", "prototype", "decision"];
 const REFERENCE_FIELDS: &[&str] = &[
     "serde_yaml",

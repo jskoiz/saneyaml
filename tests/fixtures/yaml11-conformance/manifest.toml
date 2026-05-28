@@ -1,0 +1,48 @@
+[[case]]
+id = "set-short"
+path = "set-short.yaml"
+kind = "set"
+tag = "!!set"
+expected = "accept"
+
+[[case]]
+id = "set-canonical"
+path = "set-canonical.yaml"
+kind = "set"
+tag = "tag:yaml.org,2002:set"
+expected = "accept"
+
+[[case]]
+id = "omap-short"
+path = "omap-short.yaml"
+kind = "omap"
+tag = "!!omap"
+expected = "accept"
+
+[[case]]
+id = "pairs-short"
+path = "pairs-short.yaml"
+kind = "pairs"
+tag = "!!pairs"
+expected = "accept"
+
+[[case]]
+id = "resolved-tag-handle"
+path = "resolved-tag-handle.yaml"
+kind = "bundle"
+tag = "%TAG !yaml! tag:yaml.org,2002:"
+expected = "accept"
+
+[[case]]
+id = "set-rejects-non-null-values"
+path = "set-rejects-non-null-values.yaml"
+kind = "set"
+tag = "!!set"
+expected = "error"
+
+[[case]]
+id = "omap-rejects-non-singleton-entry"
+path = "omap-rejects-non-singleton-entry.yaml"
+kind = "omap"
+tag = "!!omap"
+expected = "error"

@@ -1,0 +1,26 @@
+# Release Notes
+
+## 0.1.0 release-candidate work in progress
+
+This crate is still a local developer preview and is not published. Current
+release blockers are the public crate name, final license, version decision,
+and explicit user approval for a crates.io push.
+
+Notable completed release-candidate behavior:
+
+- Default loaded-tree and Serde reads expand untagged merge keys while raw
+  parser events retain merge syntax.
+- Explicit YAML core scalar tags retain tag/source metadata and support typed
+  Serde reads for strings, booleans, nulls, integers, floats, timestamps, and
+  binary byte targets.
+- YAML 1.1 collection tags `!!set`, `!!omap`, and `!!pairs` retain tagged
+  collection payloads in `Node`/`Value` and support typed Serde reads for
+  set-like targets, ordered pair sequences, `!!omap` map targets, and
+  duplicate-preserving `!!pairs` pair sequences.
+- `parse_lossless` / `LosslessStream` preserve comments, trivia, anchors,
+  aliases, and stable graph ids for source-backed inspection and replay.
+
+Known release-candidate gaps remain tracked in `BASELINE.md`,
+`COMPATIBILITY.md`, and `MIGRATION.md`: complete YAML 1.1 ecosystem parity,
+editable lossless formatting for modified documents, semantic `Node`/`Value`
+graph identity, final package metadata, and external publication.

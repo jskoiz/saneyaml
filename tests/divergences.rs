@@ -436,6 +436,82 @@ fn divergence_explicit_core_tags_reference_matrix_matches_record() {
 }
 
 #[test]
+fn divergence_yaml11_collection_tags_record_is_present() {
+    let record = include_str!("fixtures/divergences/records/yaml11-collection-tags.toml");
+    assert!(record.contains("yaml11-collection-tags"));
+    assert!(record.contains("!!set"));
+    assert!(record.contains("!!omap"));
+    assert!(record.contains("!!pairs"));
+    assert!(record.contains("tag:yaml.org,2002:*"));
+    assert!(record.contains("serde_yaml 0.9.34"));
+    assert!(record.contains("yaml-rust2 0.11.0"));
+    assert!(record.contains("saphyr 0.0.6"));
+    assert!(record.contains("Psych 3.1.0/libyaml 0.2.1"));
+    assert!(record.contains("Psych::Set"));
+    assert!(record.contains("Psych::Omap"));
+    assert!(record.contains("duplicate keys are preserved"));
+    assert!(record.contains("decision"));
+}
+
+#[test]
+fn divergence_yaml11_collection_tags_reference_matrix_matches_record() {
+    use std::collections::{BTreeMap, BTreeSet};
+
+    let input = "\
+set: !!set {alpha: null, beta: null}
+omap: !!omap [{first: 1}, {second: 2}]
+pairs: !!pairs [{repeat: 1}, {repeat: 2}]
+";
+
+    #[derive(Debug, serde::Deserialize, PartialEq)]
+    struct Typed {
+        set: BTreeSet<String>,
+        omap: BTreeMap<String, i64>,
+        pairs: Vec<(String, i64)>,
+    }
+
+    let ours: Typed = yaml::from_str(input).expect("ours YAML 1.1 collection tags");
+    assert_eq!(
+        ours.set,
+        BTreeSet::from(["alpha".to_string(), "beta".to_string()])
+    );
+    assert_eq!(
+        ours.omap,
+        BTreeMap::from([("first".to_string(), 1), ("second".to_string(), 2)])
+    );
+    assert_eq!(
+        ours.pairs,
+        vec![("repeat".to_string(), 1), ("repeat".to_string(), 2)]
+    );
+
+    let retained: yaml::Value = yaml::from_str(input).expect("ours retained collection tags");
+    assert_eq!(
+        retained["set"].as_tagged().expect("set tag").tag,
+        yaml::Tag::new("!!set")
+    );
+    assert_eq!(
+        retained["omap"].as_tagged().expect("omap tag").tag,
+        yaml::Tag::new("!!omap")
+    );
+    assert_eq!(
+        retained["pairs"].as_tagged().expect("pairs tag").tag,
+        yaml::Tag::new("!!pairs")
+    );
+
+    let serde_yaml: serde_yaml::Value =
+        serde_yaml::from_str(input).expect("serde_yaml YAML 1.1 collection tags");
+    assert!(serde_yaml["set"].is_mapping());
+    assert!(serde_yaml["omap"].is_sequence());
+    assert!(serde_yaml["pairs"].is_sequence());
+
+    let yaml_rust2 =
+        yaml_rust2::YamlLoader::load_from_str(input).expect("yaml-rust2 collection tags");
+    assert!(yaml_rust2[0]["set"].is_hash());
+    assert!(yaml_rust2[0]["omap"].is_array());
+    assert!(yaml_rust2[0]["pairs"].is_array());
+}
+
+#[test]
 fn divergence_adjacent_flow_mapping_scalars_record_is_present() {
     let record = include_str!("fixtures/divergences/records/adjacent-flow-mapping-scalars.toml");
     assert!(record.contains("adjacent-flow-mapping-scalars"));

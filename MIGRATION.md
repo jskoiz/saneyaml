@@ -204,6 +204,13 @@ testing each adopter's own YAML corpus.
   `LoadOptions::yaml_version_directive()`, where `%YAML 1.1` selects the legacy
   construction mode and absent, `%YAML 1.2`, or newer numeric directives keep
   YAML 1.2-oriented construction.
+- YAML 1.1 collection tags are retained as tagged collections in `Node` and
+  `Value`, not converted to new public value variants. Typed Serde reads
+  understand `!!set` as set-like sequence targets from mapping keys, `!!omap`
+  as ordered pair sequences or map targets, and `!!pairs` as pair sequences
+  that preserve duplicate keys. Non-null `!!set` entry values and non-singleton
+  `!!omap`/`!!pairs` entries are rejected for those typed reads instead of being
+  silently dropped or flattened.
 - Untagged merge keys are expanded by default in loaded trees and Serde reads.
   `Value::apply_merge()` remains available for caller-built values and is
   idempotent for values parsed by this crate.

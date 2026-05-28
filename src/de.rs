@@ -581,6 +581,212 @@ fn explicit_core_tagged_value<'a>(mut value: &'a Value, suffix: &str) -> Option<
     None
 }
 
+fn take_explicit_core_tagged_node(mut node: Node, suffix: &str) -> Option<Node> {
+    loop {
+        match node.value {
+            NodeValue::Tagged(tagged) if tagged.tag.is_yaml_core(suffix) => {
+                return Some(tagged.value);
+            }
+            NodeValue::Tagged(tagged) => node = tagged.value,
+            _ => return None,
+        }
+    }
+}
+
+fn take_explicit_core_tagged_value(mut value: Value, suffix: &str) -> Option<Value> {
+    loop {
+        match value {
+            Value::Tagged(tagged) if tagged.tag.is_yaml_core(suffix) => return Some(tagged.value),
+            Value::Tagged(tagged) => value = tagged.value,
+            _ => return None,
+        }
+    }
+}
+
+fn yaml11_set_entries_node(node: &Node) -> Result<Option<&[(Node, Node)]>, Error> {
+    let Some(value) = explicit_core_tagged_node(node, "set") else {
+        return Ok(None);
+    };
+    match &value.value {
+        NodeValue::Mapping(entries) => Ok(Some(entries)),
+        _ => Err(type_error("mapping for explicit !!set", value)),
+    }
+}
+
+fn yaml11_set_entries_value(value: &Value) -> Result<Option<&[(Value, Value)]>, Error> {
+    let Some(value) = explicit_core_tagged_value(value, "set") else {
+        return Ok(None);
+    };
+    match value {
+        Value::Mapping(entries) => Ok(Some(entries.as_slice())),
+        other => Err(type_error_value("mapping for explicit !!set", other)),
+    }
+}
+
+fn yaml11_pair_items_node<'a>(
+    node: &'a Node,
+    suffix: &'static str,
+) -> Result<Option<&'a [Node]>, Error> {
+    let Some(value) = explicit_core_tagged_node(node, suffix) else {
+        return Ok(None);
+    };
+    match &value.value {
+        NodeValue::Sequence(items) => Ok(Some(items)),
+        _ => Err(Error::new(
+            format!("expected sequence for explicit !!{suffix}"),
+            Some(value.span),
+        )),
+    }
+}
+
+fn yaml11_pair_items_value<'a>(
+    value: &'a Value,
+    suffix: &'static str,
+) -> Result<Option<&'a [Value]>, Error> {
+    let Some(value) = explicit_core_tagged_value(value, suffix) else {
+        return Ok(None);
+    };
+    match value {
+        Value::Sequence(items) => Ok(Some(items)),
+        _ => Err(Error::new(
+            format!("expected sequence for explicit !!{suffix}"),
+            None,
+        )),
+    }
+}
+
+fn take_yaml11_set_entries_node(node: Node) -> Option<Vec<(Node, Node)>> {
+    let value = take_explicit_core_tagged_node(node, "set")?;
+    match value.value {
+        NodeValue::Mapping(entries) => Some(entries),
+        _ => None,
+    }
+}
+
+fn take_yaml11_set_entries_value(value: Value) -> Option<Mapping> {
+    match take_explicit_core_tagged_value(value, "set")? {
+        Value::Mapping(entries) => Some(entries),
+        _ => None,
+    }
+}
+
+fn take_yaml11_pair_items_node(node: Node, suffix: &'static str) -> Option<Vec<Node>> {
+    let value = take_explicit_core_tagged_node(node, suffix)?;
+    match value.value {
+        NodeValue::Sequence(items) => Some(items),
+        _ => None,
+    }
+}
+
+fn take_yaml11_pair_items_value(value: Value, suffix: &'static str) -> Option<Vec<Value>> {
+    match take_explicit_core_tagged_value(value, suffix)? {
+        Value::Sequence(items) => Some(items),
+        _ => None,
+    }
+}
+
+fn ensure_yaml11_set_null_node(value: &Node) -> Result<(), Error> {
+    if explicit_core_null_node(value)? || matches!(untag_node(value).value, NodeValue::Null) {
+        Ok(())
+    } else {
+        Err(Error::new(
+            "expected explicit !!set entry value to be null",
+            Some(value.span),
+        ))
+    }
+}
+
+fn ensure_yaml11_set_null_value(value: &Value) -> Result<(), Error> {
+    if explicit_core_null_value(value)? || matches!(untag_value(value), Value::Null) {
+        Ok(())
+    } else {
+        Err(Error::new(
+            "expected explicit !!set entry value to be null",
+            None,
+        ))
+    }
+}
+
+fn yaml11_singleton_pair_node<'a>(
+    node: &'a Node,
+    suffix: &'static str,
+) -> Result<(&'a Node, &'a Node), Error> {
+    let node = untag_node(node);
+    match &node.value {
+        NodeValue::Mapping(entries) if entries.len() == 1 => Ok((&entries[0].0, &entries[0].1)),
+        NodeValue::Mapping(_) => Err(Error::new(
+            format!("expected explicit !!{suffix} entry to contain exactly one pair"),
+            Some(node.span),
+        )),
+        _ => Err(Error::new(
+            format!("expected single-pair mapping entry for explicit !!{suffix}"),
+            Some(node.span),
+        )),
+    }
+}
+
+fn yaml11_singleton_pair_value<'a>(
+    value: &'a Value,
+    suffix: &'static str,
+) -> Result<(&'a Value, &'a Value), Error> {
+    let value = untag_value(value);
+    match value {
+        Value::Mapping(entries) if entries.len() == 1 => {
+            let entries = entries.as_slice();
+            Ok((&entries[0].0, &entries[0].1))
+        }
+        Value::Mapping(_) => Err(Error::new(
+            format!("expected explicit !!{suffix} entry to contain exactly one pair"),
+            None,
+        )),
+        _ => Err(Error::new(
+            format!("expected single-pair mapping entry for explicit !!{suffix}"),
+            None,
+        )),
+    }
+}
+
+fn take_yaml11_singleton_pair_node(
+    node: Node,
+    suffix: &'static str,
+) -> Result<(Node, Node), Error> {
+    let node = untag_node_owned(node);
+    match node.value {
+        NodeValue::Mapping(entries) if entries.len() == 1 => {
+            let mut entries = entries.into_iter();
+            Ok(entries.next().expect("length checked"))
+        }
+        NodeValue::Mapping(_) => Err(Error::new(
+            format!("expected explicit !!{suffix} entry to contain exactly one pair"),
+            Some(node.span),
+        )),
+        _ => Err(Error::new(
+            format!("expected single-pair mapping entry for explicit !!{suffix}"),
+            Some(node.span),
+        )),
+    }
+}
+
+fn take_yaml11_singleton_pair_value(
+    value: Value,
+    suffix: &'static str,
+) -> Result<(Value, Value), Error> {
+    match untag_value_owned(value) {
+        Value::Mapping(entries) if entries.len() == 1 => {
+            let mut entries = entries.into_iter();
+            Ok(entries.next().expect("length checked"))
+        }
+        Value::Mapping(_) => Err(Error::new(
+            format!("expected explicit !!{suffix} entry to contain exactly one pair"),
+            None,
+        )),
+        _ => Err(Error::new(
+            format!("expected single-pair mapping entry for explicit !!{suffix}"),
+            None,
+        )),
+    }
+}
+
 fn parse_explicit_core_int_text(raw: &str, span: Option<Span>) -> Result<Number, Error> {
     yaml11::parse_explicit_int_number(raw)
         .ok_or_else(|| Error::new("failed to parse explicit !!int scalar", span))
@@ -1211,6 +1417,29 @@ impl<'de, 'tree> de::Deserializer<'de> for InputNode<'tree, 'de> {
         if let Some(bytes) = explicit_core_binary_bytes_node(self.node)? {
             return visitor.visit_seq(ByteBufSeqDeserializer::new(bytes));
         }
+        if let Some(entries) = yaml11_set_entries_node(self.node)? {
+            return visitor.visit_seq(InputSetKeySeqDeserializer {
+                entries,
+                input: self.input,
+                index: 0,
+            });
+        }
+        if let Some(items) = yaml11_pair_items_node(self.node, "omap")? {
+            return visitor.visit_seq(InputYaml11PairSeqDeserializer {
+                items,
+                input: self.input,
+                index: 0,
+                suffix: "omap",
+            });
+        }
+        if let Some(items) = yaml11_pair_items_node(self.node, "pairs")? {
+            return visitor.visit_seq(InputYaml11PairSeqDeserializer {
+                items,
+                input: self.input,
+                index: 0,
+                suffix: "pairs",
+            });
+        }
         let node = self.untag();
         if is_empty_null_node(node.node) {
             return visitor.visit_seq(InputSeqDeserializer {
@@ -1252,6 +1481,14 @@ impl<'de, 'tree> de::Deserializer<'de> for InputNode<'tree, 'de> {
     where
         V: Visitor<'de>,
     {
+        if let Some(items) = yaml11_pair_items_node(self.node, "omap")? {
+            return visitor.visit_map(InputYaml11OmapDeserializer {
+                items,
+                input: self.input,
+                index: 0,
+                value: None,
+            });
+        }
         let node = self.untag();
         if is_empty_null_node(node.node) {
             return visitor.visit_map(InputMapDeserializer {
@@ -1689,6 +1926,23 @@ impl<'de> de::Deserializer<'de> for &'de Node {
         if let Some(bytes) = explicit_core_binary_bytes_node(self)? {
             return visitor.visit_seq(ByteBufSeqDeserializer::new(bytes));
         }
+        if let Some(entries) = yaml11_set_entries_node(self)? {
+            return visitor.visit_seq(SetKeySeqDeserializer { entries, index: 0 });
+        }
+        if let Some(items) = yaml11_pair_items_node(self, "omap")? {
+            return visitor.visit_seq(Yaml11PairSeqDeserializer {
+                items,
+                index: 0,
+                suffix: "omap",
+            });
+        }
+        if let Some(items) = yaml11_pair_items_node(self, "pairs")? {
+            return visitor.visit_seq(Yaml11PairSeqDeserializer {
+                items,
+                index: 0,
+                suffix: "pairs",
+            });
+        }
         let node = untag_node(self);
         if is_empty_null_node(node) {
             return visitor.visit_seq(SeqDeserializer {
@@ -1725,6 +1979,13 @@ impl<'de> de::Deserializer<'de> for &'de Node {
     where
         V: Visitor<'de>,
     {
+        if let Some(items) = yaml11_pair_items_node(self, "omap")? {
+            return visitor.visit_map(Yaml11OmapDeserializer {
+                items,
+                index: 0,
+                value: None,
+            });
+        }
         let node = untag_node(self);
         if is_empty_null_node(node) {
             return visitor.visit_map(MapDeserializer {
@@ -2142,6 +2403,27 @@ impl<'de> de::Deserializer<'de> for Node {
         if let Some(bytes) = explicit_core_binary_bytes_node(&self)? {
             return visitor.visit_seq(ByteBufSeqDeserializer::new(bytes));
         }
+        if yaml11_set_entries_node(&self)?.is_some() {
+            let entries = take_yaml11_set_entries_node(self).expect("checked explicit !!set");
+            return visitor.visit_seq(OwnedSetKeySeqDeserializer {
+                entries: entries.into_iter(),
+            });
+        }
+        if yaml11_pair_items_node(&self, "omap")?.is_some() {
+            let items = take_yaml11_pair_items_node(self, "omap").expect("checked explicit !!omap");
+            return visitor.visit_seq(OwnedYaml11PairSeqDeserializer {
+                items: items.into_iter(),
+                suffix: "omap",
+            });
+        }
+        if yaml11_pair_items_node(&self, "pairs")?.is_some() {
+            let items =
+                take_yaml11_pair_items_node(self, "pairs").expect("checked explicit !!pairs");
+            return visitor.visit_seq(OwnedYaml11PairSeqDeserializer {
+                items: items.into_iter(),
+                suffix: "pairs",
+            });
+        }
         let node = untag_node_owned(self);
         if is_empty_null_node(&node) {
             return visitor.visit_seq(OwnedSeqDeserializer {
@@ -2179,6 +2461,13 @@ impl<'de> de::Deserializer<'de> for Node {
     where
         V: Visitor<'de>,
     {
+        if yaml11_pair_items_node(&self, "omap")?.is_some() {
+            let items = take_yaml11_pair_items_node(self, "omap").expect("checked explicit !!omap");
+            return visitor.visit_map(OwnedYaml11OmapDeserializer {
+                items: items.into_iter(),
+                value: None,
+            });
+        }
         let node = untag_node_owned(self);
         if is_empty_null_node(&node) {
             return visitor.visit_map(OwnedMapDeserializer {
@@ -2542,6 +2831,28 @@ impl<'de> de::Deserializer<'de> for Value {
         if let Some(bytes) = explicit_core_binary_bytes_value(&self)? {
             return visitor.visit_seq(ByteBufSeqDeserializer::new(bytes));
         }
+        if yaml11_set_entries_value(&self)?.is_some() {
+            let entries = take_yaml11_set_entries_value(self).expect("checked explicit !!set");
+            return visitor.visit_seq(ValueSetKeySeqDeserializer {
+                entries: entries.into_iter(),
+            });
+        }
+        if yaml11_pair_items_value(&self, "omap")?.is_some() {
+            let items =
+                take_yaml11_pair_items_value(self, "omap").expect("checked explicit !!omap");
+            return visitor.visit_seq(ValueYaml11PairSeqDeserializer {
+                items: items.into_iter(),
+                suffix: "omap",
+            });
+        }
+        if yaml11_pair_items_value(&self, "pairs")?.is_some() {
+            let items =
+                take_yaml11_pair_items_value(self, "pairs").expect("checked explicit !!pairs");
+            return visitor.visit_seq(ValueYaml11PairSeqDeserializer {
+                items: items.into_iter(),
+                suffix: "pairs",
+            });
+        }
         match untag_value_owned(self) {
             Value::Null => visitor.visit_seq(ValueSeqDeserializer {
                 items: Vec::new().into_iter(),
@@ -2576,6 +2887,14 @@ impl<'de> de::Deserializer<'de> for Value {
     where
         V: Visitor<'de>,
     {
+        if yaml11_pair_items_value(&self, "omap")?.is_some() {
+            let items =
+                take_yaml11_pair_items_value(self, "omap").expect("checked explicit !!omap");
+            return visitor.visit_map(ValueYaml11OmapDeserializer {
+                items: items.into_iter(),
+                value: None,
+            });
+        }
         match untag_value_owned(self) {
             Value::Null => visitor.visit_map(ValueMapDeserializer {
                 entries: Mapping::new().into_iter(),
@@ -3844,6 +4163,23 @@ impl<'de> de::Deserializer<'de> for &'de Value {
         if let Some(bytes) = explicit_core_binary_bytes_value(self)? {
             return visitor.visit_seq(ByteBufSeqDeserializer::new(bytes));
         }
+        if let Some(entries) = yaml11_set_entries_value(self)? {
+            return visitor.visit_seq(ValueRefSetKeySeqDeserializer { entries, index: 0 });
+        }
+        if let Some(items) = yaml11_pair_items_value(self, "omap")? {
+            return visitor.visit_seq(ValueRefYaml11PairSeqDeserializer {
+                items,
+                index: 0,
+                suffix: "omap",
+            });
+        }
+        if let Some(items) = yaml11_pair_items_value(self, "pairs")? {
+            return visitor.visit_seq(ValueRefYaml11PairSeqDeserializer {
+                items,
+                index: 0,
+                suffix: "pairs",
+            });
+        }
         let value = untag_value(self);
         match value {
             Value::Null => visitor.visit_seq(ValueRefSeqDeserializer {
@@ -3861,6 +4197,13 @@ impl<'de> de::Deserializer<'de> for &'de Value {
     where
         V: Visitor<'de>,
     {
+        if let Some(items) = yaml11_pair_items_value(self, "omap")? {
+            return visitor.visit_map(ValueRefYaml11OmapDeserializer {
+                items,
+                index: 0,
+                value: None,
+            });
+        }
         let value = untag_value(self);
         match value {
             Value::Null => visitor.visit_map(ValueRefMapDeserializer {
@@ -4201,6 +4544,88 @@ impl ByteBufSeqDeserializer {
     }
 }
 
+struct InputSetKeySeqDeserializer<'tree, 'de> {
+    entries: &'tree [(Node, Node)],
+    input: &'de str,
+    index: usize,
+}
+
+struct SetKeySeqDeserializer<'a> {
+    entries: &'a [(Node, Node)],
+    index: usize,
+}
+
+struct OwnedSetKeySeqDeserializer {
+    entries: std::vec::IntoIter<(Node, Node)>,
+}
+
+struct ValueSetKeySeqDeserializer {
+    entries: crate::ast::IntoIter,
+}
+
+struct ValueRefSetKeySeqDeserializer<'a> {
+    entries: &'a [(Value, Value)],
+    index: usize,
+}
+
+struct InputYaml11PairSeqDeserializer<'tree, 'de> {
+    items: &'tree [Node],
+    input: &'de str,
+    index: usize,
+    suffix: &'static str,
+}
+
+struct Yaml11PairSeqDeserializer<'a> {
+    items: &'a [Node],
+    index: usize,
+    suffix: &'static str,
+}
+
+struct OwnedYaml11PairSeqDeserializer {
+    items: std::vec::IntoIter<Node>,
+    suffix: &'static str,
+}
+
+struct ValueYaml11PairSeqDeserializer {
+    items: std::vec::IntoIter<Value>,
+    suffix: &'static str,
+}
+
+struct ValueRefYaml11PairSeqDeserializer<'a> {
+    items: &'a [Value],
+    index: usize,
+    suffix: &'static str,
+}
+
+struct InputYaml11OmapDeserializer<'tree, 'de> {
+    items: &'tree [Node],
+    input: &'de str,
+    index: usize,
+    value: Option<InputNode<'tree, 'de>>,
+}
+
+struct Yaml11OmapDeserializer<'a> {
+    items: &'a [Node],
+    index: usize,
+    value: Option<&'a Node>,
+}
+
+struct OwnedYaml11OmapDeserializer {
+    items: std::vec::IntoIter<Node>,
+    value: Option<Node>,
+}
+
+struct ValueYaml11OmapDeserializer {
+    items: std::vec::IntoIter<Value>,
+    value: Option<Value>,
+}
+
+struct ValueRefYaml11OmapDeserializer<'a> {
+    items: &'a [Value],
+    index: usize,
+    value: Option<&'a Value>,
+}
+
 impl<'de> SeqAccess<'de> for ByteBufSeqDeserializer {
     type Error = Error;
 
@@ -4212,6 +4637,94 @@ impl<'de> SeqAccess<'de> for ByteBufSeqDeserializer {
             return Ok(None);
         };
         seed.deserialize(byte.into_deserializer()).map(Some)
+    }
+}
+
+impl<'de, 'tree> SeqAccess<'de> for InputSetKeySeqDeserializer<'tree, 'de> {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        let Some((key, value)) = self.entries.get(self.index) else {
+            return Ok(None);
+        };
+        self.index += 1;
+        ensure_yaml11_set_null_node(value)?;
+        seed.deserialize(InputNode {
+            node: key,
+            input: self.input,
+        })
+        .map(Some)
+        .map_err(|error| error.with_span_if_missing(key.span))
+    }
+}
+
+impl<'de> SeqAccess<'de> for SetKeySeqDeserializer<'de> {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        let Some((key, value)) = self.entries.get(self.index) else {
+            return Ok(None);
+        };
+        self.index += 1;
+        ensure_yaml11_set_null_node(value)?;
+        seed.deserialize(key)
+            .map(Some)
+            .map_err(|error| error.with_span_if_missing(key.span))
+    }
+}
+
+impl<'de> SeqAccess<'de> for OwnedSetKeySeqDeserializer {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        let Some((key, value)) = self.entries.next() else {
+            return Ok(None);
+        };
+        ensure_yaml11_set_null_node(&value)?;
+        let span = key.span;
+        seed.deserialize(key)
+            .map(Some)
+            .map_err(|error| error.with_span_if_missing(span))
+    }
+}
+
+impl<'de> SeqAccess<'de> for ValueSetKeySeqDeserializer {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        let Some((key, value)) = self.entries.next() else {
+            return Ok(None);
+        };
+        ensure_yaml11_set_null_value(&value)?;
+        seed.deserialize(key).map(Some)
+    }
+}
+
+impl<'de> SeqAccess<'de> for ValueRefSetKeySeqDeserializer<'de> {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        let Some((key, value)) = self.entries.get(self.index) else {
+            return Ok(None);
+        };
+        self.index += 1;
+        ensure_yaml11_set_null_value(value)?;
+        seed.deserialize(key).map(Some)
     }
 }
 
@@ -4249,6 +4762,470 @@ impl<'de> SeqAccess<'de> for SeqDeserializer<'de> {
         seed.deserialize(item)
             .map(Some)
             .map_err(|error| error.with_span_if_missing(item.span))
+    }
+}
+
+impl<'de, 'tree> SeqAccess<'de> for InputYaml11PairSeqDeserializer<'tree, 'de> {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        let Some(item) = self.items.get(self.index) else {
+            return Ok(None);
+        };
+        self.index += 1;
+        let (key, value) = yaml11_singleton_pair_node(item, self.suffix)?;
+        seed.deserialize(InputYaml11PairDeserializer {
+            key: InputNode {
+                node: key,
+                input: self.input,
+            },
+            value: InputNode {
+                node: value,
+                input: self.input,
+            },
+        })
+        .map(Some)
+        .map_err(|error| error.with_span_if_missing(item.span))
+    }
+}
+
+impl<'de> SeqAccess<'de> for Yaml11PairSeqDeserializer<'de> {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        let Some(item) = self.items.get(self.index) else {
+            return Ok(None);
+        };
+        self.index += 1;
+        let (key, value) = yaml11_singleton_pair_node(item, self.suffix)?;
+        seed.deserialize(Yaml11PairDeserializer { key, value })
+            .map(Some)
+            .map_err(|error| error.with_span_if_missing(item.span))
+    }
+}
+
+impl<'de> SeqAccess<'de> for OwnedYaml11PairSeqDeserializer {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        let Some(item) = self.items.next() else {
+            return Ok(None);
+        };
+        let span = item.span;
+        let (key, value) = take_yaml11_singleton_pair_node(item, self.suffix)?;
+        seed.deserialize(OwnedYaml11PairDeserializer {
+            key: Some(key),
+            value: Some(value),
+        })
+        .map(Some)
+        .map_err(|error| error.with_span_if_missing(span))
+    }
+}
+
+impl<'de> SeqAccess<'de> for ValueYaml11PairSeqDeserializer {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        let Some(item) = self.items.next() else {
+            return Ok(None);
+        };
+        let (key, value) = take_yaml11_singleton_pair_value(item, self.suffix)?;
+        seed.deserialize(ValueYaml11PairDeserializer {
+            key: Some(key),
+            value: Some(value),
+        })
+        .map(Some)
+    }
+}
+
+impl<'de> SeqAccess<'de> for ValueRefYaml11PairSeqDeserializer<'de> {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        let Some(item) = self.items.get(self.index) else {
+            return Ok(None);
+        };
+        self.index += 1;
+        let (key, value) = yaml11_singleton_pair_value(item, self.suffix)?;
+        seed.deserialize(ValueRefYaml11PairDeserializer { key, value })
+            .map(Some)
+    }
+}
+
+struct InputYaml11PairDeserializer<'tree, 'de> {
+    key: InputNode<'tree, 'de>,
+    value: InputNode<'tree, 'de>,
+}
+
+struct Yaml11PairDeserializer<'a> {
+    key: &'a Node,
+    value: &'a Node,
+}
+
+struct OwnedYaml11PairDeserializer {
+    key: Option<Node>,
+    value: Option<Node>,
+}
+
+struct ValueYaml11PairDeserializer {
+    key: Option<Value>,
+    value: Option<Value>,
+}
+
+struct ValueRefYaml11PairDeserializer<'a> {
+    key: &'a Value,
+    value: &'a Value,
+}
+
+struct InputYaml11PairAccess<'tree, 'de> {
+    key: Option<InputNode<'tree, 'de>>,
+    value: Option<InputNode<'tree, 'de>>,
+}
+
+struct Yaml11PairAccess<'a> {
+    key: Option<&'a Node>,
+    value: Option<&'a Node>,
+}
+
+struct OwnedYaml11PairAccess {
+    key: Option<Node>,
+    value: Option<Node>,
+}
+
+struct ValueYaml11PairAccess {
+    key: Option<Value>,
+    value: Option<Value>,
+}
+
+struct ValueRefYaml11PairAccess<'a> {
+    key: Option<&'a Value>,
+    value: Option<&'a Value>,
+}
+
+macro_rules! pair_deserializer_forward {
+    () => {
+        forward_to_deserialize_any! {
+            bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+            bytes byte_buf option unit unit_struct newtype_struct map struct enum identifier ignored_any
+        }
+    };
+}
+
+impl<'de, 'tree> de::Deserializer<'de> for InputYaml11PairDeserializer<'tree, 'de> {
+    type Error = Error;
+
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_seq(InputYaml11PairAccess {
+            key: Some(self.key),
+            value: Some(self.value),
+        })
+    }
+
+    fn deserialize_tuple<V>(self, _len: usize, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_tuple_struct<V>(
+        self,
+        _name: &'static str,
+        _len: usize,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    pair_deserializer_forward!();
+}
+
+impl<'de> de::Deserializer<'de> for Yaml11PairDeserializer<'de> {
+    type Error = Error;
+
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_seq(Yaml11PairAccess {
+            key: Some(self.key),
+            value: Some(self.value),
+        })
+    }
+
+    fn deserialize_tuple<V>(self, _len: usize, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_tuple_struct<V>(
+        self,
+        _name: &'static str,
+        _len: usize,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    pair_deserializer_forward!();
+}
+
+impl<'de> de::Deserializer<'de> for OwnedYaml11PairDeserializer {
+    type Error = Error;
+
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_seq(OwnedYaml11PairAccess {
+            key: self.key,
+            value: self.value,
+        })
+    }
+
+    fn deserialize_tuple<V>(self, _len: usize, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_tuple_struct<V>(
+        self,
+        _name: &'static str,
+        _len: usize,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    pair_deserializer_forward!();
+}
+
+impl<'de> de::Deserializer<'de> for ValueYaml11PairDeserializer {
+    type Error = Error;
+
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_seq(ValueYaml11PairAccess {
+            key: self.key,
+            value: self.value,
+        })
+    }
+
+    fn deserialize_tuple<V>(self, _len: usize, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_tuple_struct<V>(
+        self,
+        _name: &'static str,
+        _len: usize,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    pair_deserializer_forward!();
+}
+
+impl<'de> de::Deserializer<'de> for ValueRefYaml11PairDeserializer<'de> {
+    type Error = Error;
+
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_seq(ValueRefYaml11PairAccess {
+            key: Some(self.key),
+            value: Some(self.value),
+        })
+    }
+
+    fn deserialize_tuple<V>(self, _len: usize, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_tuple_struct<V>(
+        self,
+        _name: &'static str,
+        _len: usize,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    pair_deserializer_forward!();
+}
+
+impl<'de, 'tree> SeqAccess<'de> for InputYaml11PairAccess<'tree, 'de> {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        if let Some(key) = self.key.take() {
+            return seed.deserialize(key).map(Some);
+        }
+        if let Some(value) = self.value.take() {
+            return seed.deserialize(value).map(Some);
+        }
+        Ok(None)
+    }
+}
+
+impl<'de> SeqAccess<'de> for Yaml11PairAccess<'de> {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        if let Some(key) = self.key.take() {
+            return seed.deserialize(key).map(Some);
+        }
+        if let Some(value) = self.value.take() {
+            return seed.deserialize(value).map(Some);
+        }
+        Ok(None)
+    }
+}
+
+impl<'de> SeqAccess<'de> for OwnedYaml11PairAccess {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        if let Some(key) = self.key.take() {
+            let span = key.span;
+            return seed
+                .deserialize(key)
+                .map(Some)
+                .map_err(|error| error.with_span_if_missing(span));
+        }
+        if let Some(value) = self.value.take() {
+            let span = value.span;
+            return seed
+                .deserialize(value)
+                .map(Some)
+                .map_err(|error| error.with_span_if_missing(span));
+        }
+        Ok(None)
+    }
+}
+
+impl<'de> SeqAccess<'de> for ValueYaml11PairAccess {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        if let Some(key) = self.key.take() {
+            return seed.deserialize(key).map(Some);
+        }
+        if let Some(value) = self.value.take() {
+            return seed.deserialize(value).map(Some);
+        }
+        Ok(None)
+    }
+}
+
+impl<'de> SeqAccess<'de> for ValueRefYaml11PairAccess<'de> {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        if let Some(key) = self.key.take() {
+            return seed.deserialize(key).map(Some);
+        }
+        if let Some(value) = self.value.take() {
+            return seed.deserialize(value).map(Some);
+        }
+        Ok(None)
     }
 }
 
@@ -4328,6 +5305,161 @@ impl<'de> MapAccess<'de> for MapDeserializer<'de> {
             .ok_or_else(|| Error::new("value requested before key", None))?;
         seed.deserialize(value)
             .map_err(|error| error.with_span_if_missing(value.span))
+    }
+}
+
+impl<'de, 'tree> MapAccess<'de> for InputYaml11OmapDeserializer<'tree, 'de> {
+    type Error = Error;
+
+    fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error>
+    where
+        K: de::DeserializeSeed<'de>,
+    {
+        let Some(item) = self.items.get(self.index) else {
+            return Ok(None);
+        };
+        self.index += 1;
+        let (key, value) = yaml11_singleton_pair_node(item, "omap")?;
+        self.value = Some(InputNode {
+            node: value,
+            input: self.input,
+        });
+        seed.deserialize(InputNode {
+            node: key,
+            input: self.input,
+        })
+        .map(Some)
+        .map_err(|error| error.with_span_if_missing(key.span))
+    }
+
+    fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
+    where
+        V: de::DeserializeSeed<'de>,
+    {
+        let value = self
+            .value
+            .take()
+            .ok_or_else(|| Error::new("value requested before key", None))?;
+        seed.deserialize(value)
+            .map_err(|error| error.with_span_if_missing(value.node.span))
+    }
+}
+
+impl<'de> MapAccess<'de> for Yaml11OmapDeserializer<'de> {
+    type Error = Error;
+
+    fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error>
+    where
+        K: de::DeserializeSeed<'de>,
+    {
+        let Some(item) = self.items.get(self.index) else {
+            return Ok(None);
+        };
+        self.index += 1;
+        let (key, value) = yaml11_singleton_pair_node(item, "omap")?;
+        self.value = Some(value);
+        seed.deserialize(key)
+            .map(Some)
+            .map_err(|error| error.with_span_if_missing(key.span))
+    }
+
+    fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
+    where
+        V: de::DeserializeSeed<'de>,
+    {
+        let value = self
+            .value
+            .take()
+            .ok_or_else(|| Error::new("value requested before key", None))?;
+        seed.deserialize(value)
+            .map_err(|error| error.with_span_if_missing(value.span))
+    }
+}
+
+impl<'de> MapAccess<'de> for OwnedYaml11OmapDeserializer {
+    type Error = Error;
+
+    fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error>
+    where
+        K: de::DeserializeSeed<'de>,
+    {
+        let Some(item) = self.items.next() else {
+            return Ok(None);
+        };
+        let (key, value) = take_yaml11_singleton_pair_node(item, "omap")?;
+        let key_span = key.span;
+        self.value = Some(value);
+        seed.deserialize(key)
+            .map(Some)
+            .map_err(|error| error.with_span_if_missing(key_span))
+    }
+
+    fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
+    where
+        V: de::DeserializeSeed<'de>,
+    {
+        let value = self
+            .value
+            .take()
+            .ok_or_else(|| Error::new("value requested before key", None))?;
+        let span = value.span;
+        seed.deserialize(value)
+            .map_err(|error| error.with_span_if_missing(span))
+    }
+}
+
+impl<'de> MapAccess<'de> for ValueYaml11OmapDeserializer {
+    type Error = Error;
+
+    fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error>
+    where
+        K: de::DeserializeSeed<'de>,
+    {
+        let Some(item) = self.items.next() else {
+            return Ok(None);
+        };
+        let (key, value) = take_yaml11_singleton_pair_value(item, "omap")?;
+        self.value = Some(value);
+        seed.deserialize(key).map(Some)
+    }
+
+    fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
+    where
+        V: de::DeserializeSeed<'de>,
+    {
+        let value = self
+            .value
+            .take()
+            .ok_or_else(|| Error::new("value requested before key", None))?;
+        seed.deserialize(value)
+    }
+}
+
+impl<'de> MapAccess<'de> for ValueRefYaml11OmapDeserializer<'de> {
+    type Error = Error;
+
+    fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error>
+    where
+        K: de::DeserializeSeed<'de>,
+    {
+        let Some(item) = self.items.get(self.index) else {
+            return Ok(None);
+        };
+        self.index += 1;
+        let (key, value) = yaml11_singleton_pair_value(item, "omap")?;
+        self.value = Some(value);
+        seed.deserialize(key).map(Some)
+    }
+
+    fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
+    where
+        V: de::DeserializeSeed<'de>,
+    {
+        let value = self
+            .value
+            .take()
+            .ok_or_else(|| Error::new("value requested before key", None))?;
+        seed.deserialize(value)
     }
 }
 

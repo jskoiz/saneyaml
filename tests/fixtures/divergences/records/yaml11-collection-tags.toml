@@ -1,0 +1,8 @@
+case = "yaml11-collection-tags"
+policy = "Retain YAML 1.1 collection tags in Node/Value while supporting typed Serde reads"
+prototype = "Preserves explicit !!set, !!omap, and !!pairs as tagged collection nodes, including canonical tag:yaml.org,2002:* forms written verbatim or through %TAG handles. Typed Serde reads expose !!set as a sequence of mapping keys for set-like targets, expose !!omap as either ordered pair sequences or map targets, and expose !!pairs as pair sequences without flattening duplicate keys into maps."
+serde_yaml = "serde_yaml 0.9.34 constructs !!set as a mapping-like value, constructs !!omap and !!pairs from sequence-of-singleton-map payloads for common Serde targets, and does not preserve tag metadata in serde_yaml::Value."
+yaml_rust2 = "yaml-rust2 0.11.0 keeps the tagged collection syntax at parser/event level but its loaded tree does not provide this crate's retained-tag Value contract or typed Serde bridge."
+saphyr = "saphyr 0.0.6 preserves parser/event tag information for collection nodes but does not expose this crate's typed Serde collection-tag contract."
+libyaml = "Ruby Psych 3.1.0/libyaml 0.2.1 constructs !!set as Psych::Set, !!omap as Psych::Omap, and !!pairs as an Array of single-pair Hash entries."
+decision = "Keep the public Value and Node model stable by representing YAML 1.1 collection tags as retained tagged mappings/sequences. Add tag-aware typed Serde reads instead of new Value variants: !!set feeds set-like sequence targets from mapping keys after validating null values, !!omap feeds ordered pair sequences and map targets from sequence-of-singleton-maps, and !!pairs feeds pair sequences so duplicate keys are preserved."

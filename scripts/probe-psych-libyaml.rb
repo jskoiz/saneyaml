@@ -79,6 +79,21 @@ CASES = [
     YAML
   },
   {
+    id: "yaml11-collection-tags",
+    record: "tests/fixtures/divergences/records/yaml11-collection-tags.toml",
+    yaml: <<~YAML
+      set: !!set
+        ? alpha
+        ? beta
+      omap: !!omap
+        - first: 1
+        - second: 2
+      pairs: !!pairs
+        - repeat: 1
+        - repeat: 2
+    YAML
+  },
+  {
     id: "null-like-string-targets",
     record: "tests/fixtures/divergences/records/null-like-string-targets.toml",
     yaml: <<~YAML
@@ -135,6 +150,8 @@ def scalar_summary(value)
       value.iso8601
     when NilClass
       nil
+    when TrueClass, FalseClass
+      value
     else
       value.to_s
     end

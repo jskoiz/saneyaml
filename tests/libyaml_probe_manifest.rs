@@ -1,6 +1,7 @@
 use serde_json::Value as Json;
 use std::collections::BTreeSet;
 use std::path::Path;
+use std::process::Command;
 
 const PROBE_SCRIPT: &str = include_str!("../scripts/probe-psych-libyaml.rb");
 const PROBE_ARTIFACT: &str =
@@ -17,6 +18,7 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "legacy-scalar-resolution",
         "merge-keys",
         "explicit-core-tags",
+        "yaml11-collection-tags",
     ] {
         assert!(
             PROBE_SCRIPT.contains(term),
@@ -31,7 +33,7 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_eq!(artifact["libyaml"], "0.2.1");
 
     let cases = artifact["cases"].as_array().expect("probe cases array");
-    assert_eq!(cases.len(), 10);
+    assert_eq!(cases.len(), 11);
 
     let expected_ids = BTreeSet::from([
         "adjacent-flow-mapping-scalars",
@@ -44,6 +46,7 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "numeric-key-identity",
         "rw-github-actions-on-key",
         "tab-token-separation",
+        "yaml11-collection-tags",
     ]);
     let actual_ids = cases
         .iter()
@@ -75,6 +78,9 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_case_summary_contains(&artifact, "explicit-core-tags", "string_null");
     assert_case_summary_contains(&artifact, "explicit-core-tags", "TrueClass");
     assert_case_summary_contains(&artifact, "explicit-core-tags", "NilClass");
+    assert_case_summary_contains(&artifact, "yaml11-collection-tags", "Psych::Set");
+    assert_case_summary_contains(&artifact, "yaml11-collection-tags", "Psych::Omap");
+    assert_case_summary_contains(&artifact, "yaml11-collection-tags", "repeat");
     assert_case_summary_contains(&artifact, "null-like-string-targets", "NilClass");
     assert_case_summary_contains(&artifact, "numeric-key-identity", "Float");
 
@@ -83,6 +89,23 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         assert_eq!(case["status"], "error", "{id}");
         assert_eq!(case["error_class"], "Psych::SyntaxError", "{id}");
     }
+}
+
+#[test]
+fn psych_libyaml_probe_reproduces_artifact_when_pinned_runtime_is_available() {
+    let output = Command::new("ruby")
+        .arg("scripts/probe-psych-libyaml.rb")
+        .current_dir(ROOT)
+        .output()
+        .expect("ruby command runs");
+    if !output.status.success() {
+        return;
+    }
+
+    let regenerated: Json =
+        serde_json::from_slice(&output.stdout).expect("regenerated probe JSON parses");
+    let checked: Json = serde_json::from_str(PROBE_ARTIFACT).expect("checked probe JSON parses");
+    assert_eq!(regenerated, checked);
 }
 
 fn assert_case_summary_contains(artifact: &Json, id: &str, expected: &str) {

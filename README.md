@@ -19,7 +19,9 @@ The first milestone focuses on:
   `LoadOptions::yaml_version_directive()` for callers that want `%YAML 1.1`
   document headers to select that legacy construction mode. Explicit YAML core
   tags are recognized in both short `!!int` and canonical
-  `tag:yaml.org,2002:int` forms.
+  `tag:yaml.org,2002:int` forms, including typed Serde reads for YAML 1.1
+  `!!set`, `!!omap`, and `!!pairs` collection tags while retaining the tags in
+  `Node`/`Value`.
 - Ordered mappings, block/flow collections, quoted/plain scalars, and basic
   literal/folded block scalars.
 - Acyclic anchors and aliases expanded into the loaded tree.
@@ -53,8 +55,9 @@ The first milestone focuses on:
 
 Intentional first-milestone non-goals:
 
-- Full YAML 1.1 compatibility: broader libyaml-era behavior and schema/API
-  completeness decisions still remain.
+- Full YAML 1.1 compatibility: collection tags and explicit scalar tags are
+  covered, but broader libyaml-era behavior and schema/API completeness
+  decisions still remain.
 - Editable lossless formatting for modified documents, directive-preserving
   structural emission, and graph identity in the semantic `Node`/`Value`
   loaders.
@@ -67,6 +70,7 @@ cargo test --test serde_yaml_swap_harness
 cargo test --test downstream_migration_harness
 cargo test --test external_downstream_migration
 cargo test --test libyaml_probe_manifest
+cargo test --test yaml11_conformance
 cargo test --test lossless_roundtrip --test graph_identity
 scripts/downstream-build-trials.sh pingora
 scripts/downstream-build-trials.sh rust-i18n

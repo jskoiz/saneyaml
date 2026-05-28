@@ -86,10 +86,21 @@ currently covers:
 for GitHub Actions, Docker Compose, Kubernetes streams, Helm, OpenAPI,
 Wrangler, and Ansible, and compares each result against `serde_yaml`.
 
+`tests/external_downstream_migration.rs` adds pinned external replay fixtures
+from real `serde_yaml` users:
+
+- `cloudflare/pingora` at commit
+  `c0845a8693b0792a6ccd0626e8475990f7269af2`, Apache-2.0, covering typed
+  server/proxy configuration reads and structural rewrites.
+- `longbridge/rust-i18n` at commit
+  `97cf091c24e4bc09a0acb397a8d9d7da8b6abc56`, MIT, covering locale maps,
+  nested translation trees, Unicode text, and interpolation placeholders.
+
 Focused proof command:
 
 ```sh
 cargo test --test serde_yaml_swap_harness --test downstream_migration_harness
+cargo test --test external_downstream_migration
 ```
 
 Broader migration proof:
@@ -166,6 +177,6 @@ testing each adopter's own YAML corpus.
 - Add migration-impact wording directly to every divergence record.
 - Add version-pinned libyaml/Psych probe artifacts for records that rely on
   external libyaml behavior.
-- Run the migration harness against real external downstream crates before
+- Add a third ecosystem replay and real external crate build trials before
   claiming broad ecosystem replacement readiness.
 - Choose the public package name and final license before publishing.

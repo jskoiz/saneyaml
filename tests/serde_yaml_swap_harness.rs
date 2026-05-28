@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::io::Cursor;
-use yaml::{Mapping, Number, Value};
+use yaml::{LoadOptions, Mapping, Number, Timestamp, Value};
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 struct AppConfig {
@@ -23,6 +23,16 @@ struct DefaultedCollections {
     ports: Vec<u16>,
     #[serde(default)]
     labels: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct LegacyYaml11Migration {
+    flag: bool,
+    truthy: bool,
+    hex: i64,
+    octal: i64,
+    clock: i64,
+    date: Timestamp,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -292,6 +302,65 @@ job:
     reference.apply_merge().expect("serde_yaml apply_merge");
     assert_eq!(reference["job"]["retries"].as_u64(), Some(3));
     assert_eq!(reference["job"]["timeout"].as_u64(), Some(10));
+}
+
+#[test]
+fn swap_harness_yaml_11_schema_mode_is_an_explicit_migration_choice() {
+    let input = "\
+%YAML 1.1
+---
+flag: ON
+truthy: yes
+hex: 0x10
+octal: 0123
+clock: 1:20
+date: 2026-05-24
+";
+    let default: Value = yaml::from_str(input).expect("default YAML 1.2-oriented value");
+    assert_eq!(default["flag"].as_str(), Some("ON"));
+    assert_eq!(default["truthy"].as_str(), Some("yes"));
+    assert_eq!(default["hex"].as_str(), Some("0x10"));
+    assert_eq!(default["octal"].as_i64(), Some(123));
+    assert_eq!(default["clock"].as_str(), Some("1:20"));
+    assert_eq!(default["date"].as_str(), Some("2026-05-24"));
+    assert!(default["date"].as_timestamp().is_none());
+
+    let reference: serde_yaml::Value =
+        serde_yaml::from_str(input).expect("serde_yaml partial legacy value");
+    assert_eq!(reference["flag"].as_str(), Some("ON"));
+    assert_eq!(reference["truthy"].as_str(), Some("yes"));
+    assert_eq!(reference["hex"].as_i64(), Some(16));
+    assert_eq!(reference["octal"].as_str(), Some("0123"));
+    assert_eq!(reference["clock"].as_str(), Some("1:20"));
+    assert_eq!(reference["date"].as_str(), Some("2026-05-24"));
+
+    let expected = LegacyYaml11Migration {
+        flag: true,
+        truthy: true,
+        hex: 16,
+        octal: 83,
+        clock: 4800,
+        date: Timestamp::parse_yaml_1_1("2026-05-24").expect("date timestamp"),
+    };
+    let directive: Value = LoadOptions::yaml_version_directive()
+        .from_str(input)
+        .expect("directive-driven YAML 1.1 value");
+    assert_eq!(directive["flag"].as_bool(), Some(true));
+    assert_eq!(directive["truthy"].as_bool(), Some(true));
+    assert_eq!(directive["hex"].as_i64(), Some(16));
+    assert_eq!(directive["octal"].as_i64(), Some(83));
+    assert_eq!(directive["clock"].as_i64(), Some(4800));
+    assert_eq!(directive["date"].as_timestamp(), Some(expected.date));
+
+    let typed: LegacyYaml11Migration = LoadOptions::yaml_version_directive()
+        .from_str(input)
+        .expect("directive-driven typed YAML 1.1 config");
+    let direct = LegacyYaml11Migration::deserialize(
+        LoadOptions::yaml_version_directive().deserializer_from_str(input),
+    )
+    .expect("direct directive-driven typed YAML 1.1 config");
+    assert_eq!(typed, expected);
+    assert_eq!(direct, expected);
 }
 
 #[test]

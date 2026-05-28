@@ -210,7 +210,9 @@ testing each adopter's own YAML corpus.
   Directive-driven loading is available through
   `LoadOptions::yaml_version_directive()`, where `%YAML 1.1` selects the legacy
   construction mode and absent, `%YAML 1.2`, or newer numeric directives keep
-  YAML 1.2-oriented construction.
+  YAML 1.2-oriented construction. Default loading still treats decimal-looking
+  leading-zero scalars such as `0123` as decimal integers; YAML 1.1 opt-in
+  treats the same spelling as octal.
 - YAML 1.1 collection tags are retained as tagged collections in `Node` and
   `Value`, not converted to new public value variants. Typed Serde reads
   understand `!!set` as set-like sequence targets from mapping keys, `!!omap`

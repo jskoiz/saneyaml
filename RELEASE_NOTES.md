@@ -17,6 +17,9 @@ Notable completed release-candidate behavior:
   collection payloads in `Node`/`Value` and support typed Serde reads for
   set-like targets, ordered pair sequences, `!!omap` map targets, and
   duplicate-preserving `!!pairs` pair sequences.
+- The migration harness records YAML 1.1 scalar construction as an explicit
+  call-site choice, including the default decimal treatment of `0123` versus
+  YAML 1.1 octal interpretation under `LoadOptions`.
 - `parse_lossless` / `LosslessStream` preserve comments, trivia, anchors,
   aliases, and stable graph ids for source-backed inspection, replay, and
   validated node source edits that preserve untouched bytes.

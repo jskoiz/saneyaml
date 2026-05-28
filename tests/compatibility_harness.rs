@@ -574,12 +574,13 @@ fn compatibility_core_schema_resolution_is_stable_for_config_values() {
 
 #[test]
 fn compatibility_yaml_11_schema_is_explicit_not_directive_implicit() {
-    let input = "%YAML 1.1\n---\nflag: ON\ncount: 0x10\nclock: 1:20\n";
+    let input = "%YAML 1.1\n---\nflag: ON\ncount: 0x10\noctal: 0123\nclock: 1:20\n";
     let default_doc = parse_str(input).expect("default schema accepts YAML 1.1 directive");
     let default_entries = mapping_entries(&default_doc);
     assert_eq!(default_entries[0].1.as_str(), Some("ON"));
     assert_eq!(default_entries[1].1.as_str(), Some("0x10"));
-    assert_eq!(default_entries[2].1.as_str(), Some("1:20"));
+    assert_eq!(yaml::Value::from(&default_entries[2].1).as_i64(), Some(123));
+    assert_eq!(default_entries[3].1.as_str(), Some("1:20"));
 
     let legacy_doc = LoadOptions::yaml_1_1()
         .parse_str(input)
@@ -588,12 +589,13 @@ fn compatibility_yaml_11_schema_is_explicit_not_directive_implicit() {
     assert!(matches!(legacy_entries[0].1.value, Value::Bool(true)));
     assert!(matches!(legacy_entries[1].1.value, Value::Number(_)));
     assert_eq!(yaml::Value::from(&legacy_entries[1].1).as_i64(), Some(16));
-    assert_eq!(yaml::Value::from(&legacy_entries[2].1).as_i64(), Some(4800));
+    assert_eq!(yaml::Value::from(&legacy_entries[2].1).as_i64(), Some(83));
+    assert_eq!(yaml::Value::from(&legacy_entries[3].1).as_i64(), Some(4800));
 }
 
 #[test]
 fn compatibility_yaml_11_schema_can_follow_version_directives_explicitly() {
-    let input = "%YAML 1.1\n---\nflag: ON\ncount: 0x10\nclock: 1:20\n";
+    let input = "%YAML 1.1\n---\nflag: ON\ncount: 0x10\noctal: 0123\nclock: 1:20\n";
     let directive_doc = LoadOptions::yaml_version_directive()
         .parse_str(input)
         .expect("directive-driven YAML 1.1 schema parses");
@@ -605,16 +607,24 @@ fn compatibility_yaml_11_schema_can_follow_version_directives_explicitly() {
     );
     assert_eq!(
         yaml::Value::from(&directive_entries[2].1).as_i64(),
+        Some(83)
+    );
+    assert_eq!(
+        yaml::Value::from(&directive_entries[3].1).as_i64(),
         Some(4800)
     );
 
     let fallback_doc = LoadOptions::yaml_version_directive()
-        .parse_str("%YAML 1.2\n---\nflag: ON\ncount: 0x10\nclock: 1:20\n")
+        .parse_str("%YAML 1.2\n---\nflag: ON\ncount: 0x10\noctal: 0123\nclock: 1:20\n")
         .expect("directive-driven YAML 1.2 fallback parses");
     let fallback_entries = mapping_entries(&fallback_doc);
     assert_eq!(fallback_entries[0].1.as_str(), Some("ON"));
     assert_eq!(fallback_entries[1].1.as_str(), Some("0x10"));
-    assert_eq!(fallback_entries[2].1.as_str(), Some("1:20"));
+    assert_eq!(
+        yaml::Value::from(&fallback_entries[2].1).as_i64(),
+        Some(123)
+    );
+    assert_eq!(fallback_entries[3].1.as_str(), Some("1:20"));
 }
 
 #[test]

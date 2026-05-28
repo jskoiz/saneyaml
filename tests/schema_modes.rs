@@ -4,14 +4,14 @@ use yaml::{Date, LoadOptions, Schema, Tag, Time, TimeZoneOffset, Timestamp, Valu
 
 #[test]
 fn schema_mode_defaults_to_yaml_12_config_behavior() {
-    let input =
-        "%YAML 1.1\n---\non: push\nyes: deploy\nflag: ON\nhex: 0x7B\nsex: 1:20\ndate: 2026-05-24\n";
+    let input = "%YAML 1.1\n---\non: push\nyes: deploy\nflag: ON\nhex: 0x7B\noctal: 0123\nsex: 1:20\ndate: 2026-05-24\n";
     let value: Value = yaml::from_str(input).expect("default schema parses");
 
     assert_eq!(value["on"].as_str(), Some("push"));
     assert_eq!(value["yes"].as_str(), Some("deploy"));
     assert_eq!(value["flag"].as_str(), Some("ON"));
     assert_eq!(value["hex"].as_str(), Some("0x7B"));
+    assert_eq!(value["octal"].as_i64(), Some(123));
     assert_eq!(value["sex"].as_str(), Some("1:20"));
     assert_eq!(value["date"].as_str(), Some("2026-05-24"));
     assert!(value["date"].as_tagged().is_none());
@@ -24,17 +24,20 @@ fn yaml_version_directive_schema_switches_each_document() {
 ---
 flag: ON
 count: 0x10
+octal: 0123
 clock: 1:20
 ...
 ---
 flag: ON
 count: 0x10
+octal: 0123
 clock: 1:20
 ...
 %YAML 1.3
 ---
 flag: ON
 count: 0x10
+octal: 0123
 clock: 1:20
 ";
     let options = LoadOptions::yaml_version_directive();
@@ -45,12 +48,15 @@ clock: 1:20
     assert_eq!(docs.len(), 3);
     assert_eq!(docs[0]["flag"].as_bool(), Some(true));
     assert_eq!(docs[0]["count"].as_i64(), Some(16));
+    assert_eq!(docs[0]["octal"].as_i64(), Some(83));
     assert_eq!(docs[0]["clock"].as_i64(), Some(4800));
     assert_eq!(docs[1]["flag"].as_str(), Some("ON"));
     assert_eq!(docs[1]["count"].as_str(), Some("0x10"));
+    assert_eq!(docs[1]["octal"].as_i64(), Some(123));
     assert_eq!(docs[1]["clock"].as_str(), Some("1:20"));
     assert_eq!(docs[2]["flag"].as_str(), Some("ON"));
     assert_eq!(docs[2]["count"].as_str(), Some("0x10"));
+    assert_eq!(docs[2]["octal"].as_i64(), Some(123));
     assert_eq!(docs[2]["clock"].as_str(), Some("1:20"));
 
     let streamed = options
@@ -64,8 +70,11 @@ clock: 1:20
         .parse_documents(input)
         .expect("directive-driven parser documents");
     assert_eq!(Value::from(&parsed[0])["flag"].as_bool(), Some(true));
+    assert_eq!(Value::from(&parsed[0])["octal"].as_i64(), Some(83));
     assert_eq!(Value::from(&parsed[1])["flag"].as_str(), Some("ON"));
+    assert_eq!(Value::from(&parsed[1])["octal"].as_i64(), Some(123));
     assert_eq!(Value::from(&parsed[2])["flag"].as_str(), Some("ON"));
+    assert_eq!(Value::from(&parsed[2])["octal"].as_i64(), Some(123));
 }
 
 #[test]

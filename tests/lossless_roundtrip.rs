@@ -156,6 +156,83 @@ copy: *root
 }
 
 #[test]
+fn lossless_edit_replaces_flow_mapping_source_and_preserves_surrounding_bytes() {
+    let input = "\
+# service config
+root: &root {name: api, ports: [80, 443]} # keep
+copy: *root
+";
+    let stream = parse_lossless(input).expect("lossless parse");
+    let mapping = stream
+        .nodes()
+        .iter()
+        .find(|node| {
+            matches!(
+                node.kind(),
+                LosslessNodeKind::Mapping {
+                    style: CollectionStyle::Flow,
+                    ..
+                }
+            )
+        })
+        .expect("flow mapping");
+
+    let output = stream
+        .replace_node_source(mapping.id(), "{name: worker, ports: [8080]}")
+        .expect("validated mapping replacement");
+
+    assert_eq!(
+        output,
+        "\
+# service config
+root: &root {name: worker, ports: [8080]} # keep
+copy: *root
+"
+    );
+    let edited = parse_lossless(&output).expect("edited source reparses");
+    assert_eq!(edited.comments().count(), 2);
+    assert_eq!(edited.aliases().len(), 1);
+}
+
+#[test]
+fn lossless_edit_replaces_flow_sequence_source_and_preserves_tail_formatting() {
+    let input = "\
+root:
+  list: [one, two, three] # keep
+  other: yes
+";
+    let stream = parse_lossless(input).expect("lossless parse");
+    let sequence = stream
+        .nodes()
+        .iter()
+        .find(|node| {
+            matches!(
+                node.kind(),
+                LosslessNodeKind::Sequence {
+                    style: CollectionStyle::Flow,
+                    ..
+                }
+            )
+        })
+        .expect("flow sequence");
+
+    let output = stream
+        .replace_node_source(sequence.id(), "[alpha, beta]")
+        .expect("validated sequence replacement");
+
+    assert_eq!(
+        output,
+        "\
+root:
+  list: [alpha, beta] # keep
+  other: yes
+"
+    );
+    let edited = parse_lossless(&output).expect("edited source reparses");
+    assert_eq!(edited.comments().count(), 1);
+}
+
+#[test]
 fn lossless_edit_rejects_non_scalar_scalar_replacement() {
     let stream = parse_lossless("name: api\n").expect("lossless parse");
     let scalar = stream

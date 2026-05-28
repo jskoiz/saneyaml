@@ -23,6 +23,8 @@ Notable completed release-candidate behavior:
 - `parse_lossless` / `LosslessStream` preserve comments, trivia, anchors,
   aliases, and stable graph ids for source-backed inspection, replay, and
   validated node source edits that preserve untouched bytes.
+- Lossless source edits now have fuzz-corpus replay and a dedicated fuzz target
+  for scalar, flow mapping, and flow sequence replacements.
 - Divergence records now require caller-facing `migration_impact` text, so
   compatibility decisions are tied to adoption risk instead of only parser
   policy.

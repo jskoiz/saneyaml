@@ -195,6 +195,15 @@ fn lossless_graph_fuzz_corpus_keeps_graph_and_span_invariants() {
 }
 
 #[test]
+fn lossless_edit_fuzz_corpus_validates_edits_or_diagnostics() {
+    for (name, input) in fuzz_corpus_inputs("lossless_edit") {
+        std::panic::catch_unwind(|| assert_lossless_edit_invariants(&input)).unwrap_or_else(|_| {
+            panic!("lossless edits must not panic on lossless_edit fuzz corpus {name}")
+        });
+    }
+}
+
+#[test]
 fn apply_merge_corpus_does_not_panic() {
     for (name, input) in fixture_inputs()
         .into_iter()
@@ -638,6 +647,147 @@ fn assert_lossless_graph_invariants(input: &[u8]) {
             }
         }
     }
+}
+
+const LOSSLESS_EDIT_REPLACEMENT_MARKER: &[u8] = b"=== yaml replacement ===\n";
+
+#[derive(Clone, Copy)]
+struct LosslessEditInput<'a> {
+    mode: LosslessEditMode,
+    selector: usize,
+    source: &'a [u8],
+    replacement: &'a str,
+}
+
+#[derive(Clone, Copy)]
+enum LosslessEditMode {
+    Node,
+    Scalar,
+}
+
+#[derive(Clone, Copy)]
+struct LosslessEditTarget {
+    node: NodeId,
+    span: Span,
+}
+
+fn assert_lossless_edit_invariants(input: &[u8]) {
+    let Some(edit_input) = split_lossless_edit_input(input) else {
+        return;
+    };
+
+    let stream = match yaml::parse_lossless_bytes(edit_input.source) {
+        Ok(stream) => stream,
+        Err(error) => {
+            assert_error_invariants_allowing_unspanned(edit_input.source, &error);
+            return;
+        }
+    };
+
+    let Some(target) = select_lossless_edit_target(&stream, edit_input) else {
+        return;
+    };
+    let edited =
+        build_lossless_edited_source(stream.as_source(), target.span, edit_input.replacement)
+            .expect("lossless node spans are valid source slices");
+
+    let mut edit = stream.edit();
+    let replace_result = match edit_input.mode {
+        LosslessEditMode::Node => edit.replace_node_source(target.node, edit_input.replacement),
+        LosslessEditMode::Scalar => edit.replace_scalar_source(target.node, edit_input.replacement),
+    };
+    if let Err(error) = replace_result {
+        assert_error_invariants_allowing_unspanned(edit_input.source, &error);
+        return;
+    }
+
+    match edit.finish() {
+        Ok(output) => {
+            assert_eq!(output, edited);
+            yaml::parse_lossless(&output).expect("successful edit output reparses losslessly");
+        }
+        Err(error) => assert_error_invariants_allowing_unspanned(edited.as_bytes(), &error),
+    }
+}
+
+fn split_lossless_edit_input(input: &[u8]) -> Option<LosslessEditInput<'_>> {
+    let line_end = input.iter().position(|byte| *byte == b'\n')?;
+    let header = std::str::from_utf8(&input[..line_end]).ok()?;
+    let body = &input[line_end + 1..];
+    let split = find_subslice(body, LOSSLESS_EDIT_REPLACEMENT_MARKER)?;
+    let source = &body[..split];
+    let replacement =
+        std::str::from_utf8(&body[split + LOSSLESS_EDIT_REPLACEMENT_MARKER.len()..]).ok()?;
+
+    Some(LosslessEditInput {
+        mode: if header.contains("mode=scalar") {
+            LosslessEditMode::Scalar
+        } else {
+            LosslessEditMode::Node
+        },
+        selector: selector_from_lossless_edit_header(header),
+        source,
+        replacement,
+    })
+}
+
+fn selector_from_lossless_edit_header(header: &str) -> usize {
+    for field in header.split_whitespace() {
+        if let Some(value) = field.strip_prefix("index=")
+            && let Ok(index) = value.parse()
+        {
+            return index;
+        }
+    }
+
+    header.bytes().fold(0usize, |acc, byte| {
+        acc.wrapping_mul(33).wrapping_add(byte as usize)
+    })
+}
+
+fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
+}
+
+fn select_lossless_edit_target(
+    stream: &LosslessStream,
+    input: LosslessEditInput<'_>,
+) -> Option<LosslessEditTarget> {
+    match input.mode {
+        LosslessEditMode::Node => {
+            if stream.nodes().is_empty() {
+                return None;
+            }
+            let node = stream.nodes().get(input.selector % stream.nodes().len())?;
+            Some(LosslessEditTarget {
+                node: node.id(),
+                span: node.span(),
+            })
+        }
+        LosslessEditMode::Scalar => {
+            let scalars = stream
+                .nodes()
+                .iter()
+                .filter(|node| matches!(node.kind(), LosslessNodeKind::Scalar { .. }))
+                .collect::<Vec<_>>();
+            if scalars.is_empty() {
+                return None;
+            }
+            let node = scalars.get(input.selector % scalars.len())?;
+            Some(LosslessEditTarget {
+                node: node.id(),
+                span: node.span(),
+            })
+        }
+    }
+}
+
+fn build_lossless_edited_source(source: &str, span: Span, replacement: &str) -> Option<String> {
+    let prefix = source.get(..span.start)?;
+    let suffix = source.get(span.end..)?;
+    Some([prefix, replacement, suffix].concat())
 }
 
 fn assert_lossless_stream_invariants(input: &[u8], stream: &LosslessStream) {

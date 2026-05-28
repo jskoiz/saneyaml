@@ -54,3 +54,10 @@ path = "fuzz_targets/lossless_graph.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "lossless_edit"
+path = "fuzz_targets/lossless_edit.rs"
+test = false
+doc = false
+bench = false

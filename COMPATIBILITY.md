@@ -12,13 +12,14 @@ The compatibility target is intentionally split:
 - Parser reference target: YAML 1.2 tree/event acceptance comparable to
   `yaml-rust2` and `saphyr` for supported syntax.
 - Ecosystem divergence target: libyaml/YAML 1.1-era behavior is documented and
-  version-pinned with a Ruby Psych 3.1.0/libyaml 0.2.1 probe artifact, then
-  rejected unless a future migration milestone explicitly chooses it.
+  version-pinned with a Ruby Psych 3.1.0/libyaml 0.2.1 probe artifact. Default
+  loading stays YAML 1.2-oriented; explicit YAML 1.1 construction covers only
+  the scalar forms listed here.
 
 | Area | Prototype policy | libyaml / YAML 1.1 paths | yaml-rust2 / saphyr | serde_yaml |
 |---|---|---|---|---|
-| YAML version | Numeric `%YAML` version directives are accepted as syntax metadata; scalar resolution remains YAML 1.2/core-config oriented | Often YAML 1.1 heritage | Compare as YAML 1.2-oriented Rust parsers | Serde data model |
-| `on`, `off`, `yes`, `no` | Strings | Often booleans; aliases like `on` and `yes` can collide as the same key | Compare per schema | Usually data-model dependent |
+| YAML version | Numeric `%YAML` version directives are accepted as syntax metadata; scalar resolution remains YAML 1.2/core-config oriented unless the caller selects `LoadOptions::yaml_1_1()` | Often YAML 1.1 heritage | Compare as YAML 1.2-oriented Rust parsers | Serde data model |
+| `on`, `off`, `yes`, `no` | Strings by default; booleans in explicit YAML 1.1 construction, including duplicate-key collisions such as `on` and `yes` | Often booleans; aliases like `on` and `yes` can collide as the same key | Compare per schema | Usually data-model dependent |
 | Duplicate keys | Error for duplicate scalar, sequence, and mapping keys after alias expansion, with mapping-key identity order-insensitive like public `Mapping` equality and typed scalar key domains distinct (`1` and `"1"` are different keys); nonnegative signed and unsigned integer keys share identity; signed-zero float keys share identity; raw events still expose duplicate keys | Psych/libyaml can construct duplicate scalar keys as last-wins values | yaml-rust2 rejects some duplicate collection keys, while saphyr accepts selected cases such as X38W | `serde_yaml` rejects duplicate scalar keys |
 | Merge key `<<` | Expanded by default in loaded trees and Serde `Value` reads after alias expansion; raw events still expose `<<` and alias references; `Value::apply_merge()` remains available for caller-built values | Common legacy feature, often expanded with earlier merge-list mappings winning and explicit target keys overriding merged keys | Preserved literally in current tree loaders | Preserved literally in `Value`; opt-in `Value::apply_merge()` expands merges |
 | Anchors and aliases | Supported for acyclic value expansion; graph identity is not preserved; colon-bearing anchor names and anchors on empty scalar nodes are accepted with recorded tree-shape divergences | Supported, sometimes with graph identity and legacy loader-specific tree shapes | Supported by clone-on-alias loading; saphyr loads selected empty scalar anchor nodes as empty strings | Data-model dependent, accepted in common read paths |
@@ -28,7 +29,7 @@ The compatibility target is intentionally split:
 | Bare/explicit document streams | YAML 1.2 bare documents after `...` are supported, including root literal scalars whose content begins at column 1, and directive-looking lines inside open flow collections are parsed as content | Some libyaml-era paths reject these streams or treat percent-prefixed flow content as directive-sensitive | Accepted by yaml-rust2/saphyr | `serde_yaml` rejects the full M7A3 stream after the first document and rejects UT92 |
 | Comments/formatting | Discarded | Not semantic | Not semantic | Discarded |
 | Emission | Deterministic structural YAML for emittable trees; duplicate-effective mapping keys, over-depth trees including caller-built complex keys, and directly nested tags are rejected before output; public writers follow `serde_yaml` document-marker policy by omitting `---` for the first ordinary document and inserting `---` between stream documents | Manual comparison only | Manual comparison only | Public writer document-marker policy is matched; byte-for-byte formatting parity remains out of scope |
-| Numeric extensions | Decimal ints/floats plus underscores and YAML special floats are resolved; hex/octal/binary remain strings unless explicitly tagged | YAML 1.1 has broad numeric typing | YAML 1.2 core support varies by crate | Data-model dependent |
+| Numeric extensions | Decimal ints/floats plus underscores and YAML special floats are resolved by default; explicit YAML 1.1 construction also resolves leading-zero octal, hex, binary, and sexagesimal forms that fit `Number`; timestamp/binary construction remains unresolved | YAML 1.1 has broad numeric typing | YAML 1.2 core support varies by crate | Data-model dependent |
 | Directives | Numeric `%YAML` version directives and `%TAG` are accepted as syntax/event inputs; reserved unknown directives are ignored but still require an explicit document start; version directives do not switch scalar schema; directive metadata is exposed on `DocumentStart` events | Exposed and may affect version/schema handling | Exposed by parser layers | Usually not a Serde value |
 | Explicit core tags | Tree and `Value` loading preserve explicit `!!binary`, `!!timestamp`, `!!int`, and `!!float` tags; typed Serde reads coerce explicit `!!int`/`!!float` numeric targets while preserving tags in retained values | YAML 1.1 typed binary/timestamp/numeric support is common | Tag-aware behavior varies, including `BadValue` for some explicit core tags | Partial/lossy |
 
@@ -67,6 +68,8 @@ Current read APIs:
   `yaml::with::singleton_map_recursive::serialize` for write-side enum field
   annotations compatible with the corresponding `serde_yaml::with` helpers
 - `yaml::parse_str`, `parse_bytes`, `parse_documents`, and `parse_events`
+- `yaml::LoadOptions::{new, yaml_1_1, schema}` and `yaml::Schema` for explicit
+  construction-schema selection across parser and Serde read entrypoints
 
 Migration-facing API status is tracked by `MIGRATION.md` and the executable
 `tests/serde_yaml_swap_harness.rs` harness. The current swap matrix covers:
@@ -91,6 +94,12 @@ mappings win, and explicit target keys override merged keys. Raw parser events
 still preserve `<<` and alias references. `Value::apply_merge()` remains
 available for caller-built values with `serde_yaml::Value::apply_merge()`-style
 semantics and is idempotent for values parsed by this crate.
+Default scalar construction remains YAML 1.2-oriented even when a stream has
+`%YAML 1.1`. Callers that need legacy YAML 1.1 scalar behavior must opt in with
+`yaml::LoadOptions::yaml_1_1()` or `yaml::LoadOptions::new().schema(Schema::Yaml11)`.
+That mode resolves boolean aliases and numeric forms that fit `yaml::Number`;
+timestamp and binary construction intentionally stay as strings until the
+public representation is settled.
 For non-enum typed reads, tags are transparent metadata: `!Env prod` can
 deserialize into `String`, `!Ports [80, 443]` into `Vec<u16>`, and
 `!Maybe null` into `Option<T>`. `Value::default()` is null, `Value` can drive
@@ -282,6 +291,9 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   deferrals, and shared-reference acceptance for 57 accepted cases with 23
   documented `serde_yaml`/libyaml divergence deferrals
 - core scalars
+- explicit YAML 1.1 schema-mode scalars, including boolean aliases, legacy
+  numeric forms, duplicate-key collisions, directive non-switching, and fuzz
+  corpus replay
 - block and flow collections
 - explicit block mapping entries
 - plain block mapping keys containing YAML-safe punctuation, including

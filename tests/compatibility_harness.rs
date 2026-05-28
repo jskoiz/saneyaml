@@ -1,6 +1,6 @@
 use saphyr::LoadableYamlNode;
 use serde::Deserialize;
-use yaml::{Node, NodeValue as Value, parse_documents, parse_events, parse_str};
+use yaml::{LoadOptions, Node, NodeValue as Value, parse_documents, parse_events, parse_str};
 
 struct Case {
     name: &'static str,
@@ -570,6 +570,25 @@ fn compatibility_core_schema_resolution_is_stable_for_config_values() {
     assert_eq!(entries[2].1.as_str(), Some("nginx:latest"));
     assert_eq!(entries[3].1.as_str(), Some("100m"));
     assert_eq!(entries[4].1.as_str(), Some("2026-05-23"));
+}
+
+#[test]
+fn compatibility_yaml_11_schema_is_explicit_not_directive_implicit() {
+    let input = "%YAML 1.1\n---\nflag: ON\ncount: 0x10\nclock: 1:20\n";
+    let default_doc = parse_str(input).expect("default schema accepts YAML 1.1 directive");
+    let default_entries = mapping_entries(&default_doc);
+    assert_eq!(default_entries[0].1.as_str(), Some("ON"));
+    assert_eq!(default_entries[1].1.as_str(), Some("0x10"));
+    assert_eq!(default_entries[2].1.as_str(), Some("1:20"));
+
+    let legacy_doc = LoadOptions::yaml_1_1()
+        .parse_str(input)
+        .expect("explicit YAML 1.1 schema parses");
+    let legacy_entries = mapping_entries(&legacy_doc);
+    assert!(matches!(legacy_entries[0].1.value, Value::Bool(true)));
+    assert!(matches!(legacy_entries[1].1.value, Value::Number(_)));
+    assert_eq!(yaml::Value::from(&legacy_entries[1].1).as_i64(), Some(16));
+    assert_eq!(yaml::Value::from(&legacy_entries[2].1).as_i64(), Some(80));
 }
 
 #[test]

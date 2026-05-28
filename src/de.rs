@@ -1,10 +1,10 @@
 //! Serde deserialization entrypoints for YAML strings, bytes, readers, nodes,
 //! and values.
 
-use crate::parse::parse_document_results;
+use crate::parse::parse_document_results_with_options;
 use crate::{
     Error, Mapping, Node, NodeValue, Number, Span, Tag, Value, error::utf8_error_span,
-    parse_documents, parse_str,
+    schema::LoadOptions,
 };
 use serde::de::{
     self, DeserializeOwned, EnumAccess, IntoDeserializer, MapAccess, SeqAccess, VariantAccess,
@@ -18,7 +18,17 @@ pub fn from_str<'de, T>(input: &'de str) -> crate::Result<T>
 where
     T: serde::Deserialize<'de>,
 {
-    let node = parse_str(input)?;
+    from_str_with_options(input, LoadOptions::new())
+}
+
+pub(crate) fn from_str_with_options<'de, T>(
+    input: &'de str,
+    options: LoadOptions,
+) -> crate::Result<T>
+where
+    T: serde::Deserialize<'de>,
+{
+    let node = options.parse_str(input)?;
     from_input_node(&node, input)
 }
 
@@ -27,13 +37,34 @@ pub fn from_slice<'de, T>(input: &'de [u8]) -> crate::Result<T>
 where
     T: serde::Deserialize<'de>,
 {
+    from_slice_with_options(input, LoadOptions::new())
+}
+
+pub(crate) fn from_slice_with_options<'de, T>(
+    input: &'de [u8],
+    options: LoadOptions,
+) -> crate::Result<T>
+where
+    T: serde::Deserialize<'de>,
+{
     let input = std::str::from_utf8(input)
         .map_err(|err| Error::new("input is not valid UTF-8", utf8_error_span(input, err)))?;
-    from_str(input)
+    from_str_with_options(input, options)
 }
 
 /// Reads all bytes from a reader and deserializes one YAML document.
-pub fn from_reader<R, T>(mut reader: R) -> crate::Result<T>
+pub fn from_reader<R, T>(reader: R) -> crate::Result<T>
+where
+    R: Read,
+    T: DeserializeOwned,
+{
+    from_reader_with_options(reader, LoadOptions::new())
+}
+
+pub(crate) fn from_reader_with_options<R, T>(
+    mut reader: R,
+    options: LoadOptions,
+) -> crate::Result<T>
 where
     R: Read,
     T: DeserializeOwned,
@@ -42,7 +73,7 @@ where
     reader
         .read_to_end(&mut input)
         .map_err(|err| Error::new(format!("failed to read YAML input: {err}"), Span::default()))?;
-    from_slice(&input)
+    from_slice_with_options(&input, options)
 }
 
 /// Deserializes from an already parsed spanful [`Node`].
@@ -73,7 +104,18 @@ pub fn from_documents_str<T>(input: &str) -> crate::Result<Vec<T>>
 where
     T: DeserializeOwned,
 {
-    parse_documents(input)?
+    from_documents_str_with_options(input, LoadOptions::new())
+}
+
+pub(crate) fn from_documents_str_with_options<T>(
+    input: &str,
+    options: LoadOptions,
+) -> crate::Result<Vec<T>>
+where
+    T: DeserializeOwned,
+{
+    options
+        .parse_documents(input)?
         .iter()
         .map(from_node)
         .collect::<crate::Result<Vec<T>>>()
@@ -84,13 +126,34 @@ pub fn from_documents_slice<T>(input: &[u8]) -> crate::Result<Vec<T>>
 where
     T: DeserializeOwned,
 {
+    from_documents_slice_with_options(input, LoadOptions::new())
+}
+
+pub(crate) fn from_documents_slice_with_options<T>(
+    input: &[u8],
+    options: LoadOptions,
+) -> crate::Result<Vec<T>>
+where
+    T: DeserializeOwned,
+{
     let input = std::str::from_utf8(input)
         .map_err(|err| Error::new("input is not valid UTF-8", utf8_error_span(input, err)))?;
-    from_documents_str(input)
+    from_documents_str_with_options(input, options)
 }
 
 /// Reads all bytes from a reader and deserializes every YAML document.
-pub fn from_documents_reader<T, R>(mut reader: R) -> crate::Result<Vec<T>>
+pub fn from_documents_reader<T, R>(reader: R) -> crate::Result<Vec<T>>
+where
+    T: DeserializeOwned,
+    R: Read,
+{
+    from_documents_reader_with_options(reader, LoadOptions::new())
+}
+
+pub(crate) fn from_documents_reader_with_options<T, R>(
+    mut reader: R,
+    options: LoadOptions,
+) -> crate::Result<Vec<T>>
 where
     T: DeserializeOwned,
     R: Read,
@@ -99,7 +162,7 @@ where
     reader
         .read_to_end(&mut input)
         .map_err(|err| Error::new(format!("failed to read YAML input: {err}"), Span::default()))?;
-    from_documents_slice(&input)
+    from_documents_slice_with_options(&input, options)
 }
 
 /// Streaming Serde deserializer over one or more YAML documents.
@@ -112,13 +175,26 @@ impl<'de> Deserializer<'de> {
     #[allow(clippy::should_implement_trait)]
     /// Creates a streaming deserializer from a YAML string.
     pub fn from_str(input: &'de str) -> Self {
-        Self::from_document_results(parse_document_results(input), Some(input))
+        Self::from_str_with_options(input, LoadOptions::new())
+    }
+
+    /// Creates a streaming deserializer from a YAML string using load options.
+    pub fn from_str_with_options(input: &'de str, options: LoadOptions) -> Self {
+        Self::from_document_results(
+            parse_document_results_with_options(input, options),
+            Some(input),
+        )
     }
 
     /// Creates a streaming deserializer from UTF-8 YAML bytes.
     pub fn from_slice(input: &'de [u8]) -> Self {
+        Self::from_slice_with_options(input, LoadOptions::new())
+    }
+
+    /// Creates a streaming deserializer from UTF-8 YAML bytes using load options.
+    pub fn from_slice_with_options(input: &'de [u8], options: LoadOptions) -> Self {
         match std::str::from_utf8(input) {
-            Ok(input) => Self::from_str(input),
+            Ok(input) => Self::from_str_with_options(input, options),
             Err(err) => Self::from_parse_result(Err(Error::new(
                 "input is not valid UTF-8",
                 utf8_error_span(input, err),
@@ -127,14 +203,25 @@ impl<'de> Deserializer<'de> {
     }
 
     /// Reads a YAML stream and creates a streaming deserializer.
-    pub fn from_reader<R>(mut reader: R) -> Self
+    pub fn from_reader<R>(reader: R) -> Self
+    where
+        R: Read,
+    {
+        Self::from_reader_with_options(reader, LoadOptions::new())
+    }
+
+    /// Reads a YAML stream and creates a streaming deserializer using load options.
+    pub fn from_reader_with_options<R>(mut reader: R, options: LoadOptions) -> Self
     where
         R: Read,
     {
         let mut input = Vec::new();
         match reader.read_to_end(&mut input) {
             Ok(_) => match std::str::from_utf8(&input) {
-                Ok(input) => Self::from_document_results(parse_document_results(input), None),
+                Ok(input) => Self::from_document_results(
+                    parse_document_results_with_options(input, options),
+                    None,
+                ),
                 Err(err) => Self::from_parse_result(Err(Error::new(
                     "input is not valid UTF-8",
                     utf8_error_span(&input, err),

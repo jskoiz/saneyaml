@@ -40,3 +40,10 @@ path = "fuzz_targets/apply_merge.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "schema_modes"
+path = "fuzz_targets/schema_modes.rs"
+test = false
+doc = false
+bench = false

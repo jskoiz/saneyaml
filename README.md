@@ -11,7 +11,11 @@ decisions. Start with [DEVELOPER_PREVIEW.md](DEVELOPER_PREVIEW.md),
 
 The first milestone focuses on:
 
-- YAML 1.2 core scalar resolution for parser events and a document tree.
+- YAML 1.2 core scalar resolution by default for parser events and constructed
+  document trees.
+- Explicit `LoadOptions::yaml_1_1()` construction for legacy YAML 1.1
+  booleans/nulls and numeric forms that fit the current value model, without
+  silently switching schemas from `%YAML 1.1` directives.
 - Ordered mappings, block/flow collections, quoted/plain scalars, and basic
   literal/folded block scalars.
 - Acyclic anchors and aliases expanded into the loaded tree.
@@ -39,7 +43,8 @@ The first milestone focuses on:
 
 Intentional first-milestone non-goals:
 
-- YAML 1.1 implicit booleans and timestamps.
+- Full YAML 1.1 compatibility: timestamps and binary construction still need a
+  public representation decision.
 - YAML graph identity, comment preservation, lossless formatting, and
   directive-preserving emission.
 - Kubernetes schema validation or automated ecosystem migration tooling.
@@ -62,6 +67,6 @@ scripts/fuzz-smoke-nonmutating.sh
 `tests/baseline_audit.rs` verifies that `BASELINE.md` matches the committed
 manifest, registry, migration report, corpus, and command evidence. `cargo
 fuzz` is optional for ordinary development; the script copies corpora to a
-temporary directory before running all four targets so it does not grow tracked
+temporary directory before running all five targets so it does not grow tracked
 corpus files. Parser safety properties are also exercised by
 `tests/parser_properties.rs`, which runs with plain `cargo test`.

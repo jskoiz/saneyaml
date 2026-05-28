@@ -5,7 +5,7 @@ config-loading code from `serde_yaml` to this crate.
 
 Status: adoption-candidate for config-shaped Serde read paths, with structural
 write support. This is not a blanket drop-in claim for every YAML document,
-every emitter formatting choice, or YAML 1.1/libyaml compatibility mode.
+every emitter formatting choice, or full YAML 1.1/libyaml compatibility mode.
 
 ## Migration Shape
 
@@ -59,6 +59,10 @@ tests that exercise the actual downstream YAML files.
 
 Additional crate surfaces useful during migration:
 
+- `yaml::LoadOptions::yaml_1_1()` and `yaml::Schema::Yaml11` opt into legacy
+  YAML 1.1 boolean/null and numeric scalar construction for callers that know
+  their corpus depends on those rules. Default entrypoints remain YAML
+  1.2-oriented and `%YAML 1.1` directives do not switch schemas automatically.
 - `yaml::from_node` preserves parser spans while deserializing from a loaded tree.
 - `yaml::from_documents_str`, `from_documents_slice`, and
   `from_documents_reader` return typed vectors for YAML streams.
@@ -162,8 +166,10 @@ testing each adopter's own YAML corpus.
 
 ## Known Migration Limits
 
-- YAML 1.1 implicit booleans, timestamps, and octal/hex/binary numeric typing
-  are intentionally not enabled.
+- YAML 1.1 scalar construction is explicit and incomplete. `LoadOptions` can
+  resolve legacy booleans/nulls plus octal, hex, binary, sexagesimal, and
+  underscored numeric forms that fit `yaml::Number`; timestamps and binary
+  values remain strings until the public representation is chosen.
 - Untagged merge keys are expanded by default in loaded trees and Serde reads.
   `Value::apply_merge()` remains available for caller-built values and is
   idempotent for values parsed by this crate.
@@ -190,4 +196,6 @@ testing each adopter's own YAML corpus.
   replacement readiness.
 - Keep growing default merge and `apply_merge` coverage with sustained fuzz
   runs and minimized discoveries beyond the curated seed corpus.
+- Finish YAML 1.1 timestamp/binary construction, comment/format preservation,
+  and alias graph identity before claiming full YAML compatibility.
 - Choose the public package name and final license before publishing.

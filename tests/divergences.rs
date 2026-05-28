@@ -121,7 +121,7 @@ fn divergence_flow_merge_key_expands_by_default() {
 }
 
 #[test]
-fn divergence_yaml_1_1_dates_octal_and_sexagesimal_are_not_legacy_typed() {
+fn divergence_default_schema_keeps_legacy_dates_and_sexagesimal_as_strings() {
     let node = parse_str("date: 2026-05-24\nlegacy_octal: 0123\nduration: 1:20\n").expect("parse");
     let yaml::NodeValue::Mapping(entries) = node.value else {
         panic!("expected mapping");
@@ -139,7 +139,8 @@ fn divergence_legacy_scalar_resolution_record_is_present() {
     let record = include_str!("fixtures/divergences/records/legacy-scalar-resolution.toml");
     assert!(record.contains("legacy-scalar-resolution"));
     assert!(record.contains("YAML 1.2 core schema"));
-    assert!(record.contains("YAML 1.1 implicit typing"));
+    assert!(record.contains("explicit YAML 1.1 scalar construction"));
+    assert!(record.contains("timestamps and binary values remain strings"));
 }
 
 #[test]

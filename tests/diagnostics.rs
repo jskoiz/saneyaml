@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use std::io::{self, Read};
-use yaml::{Node, NodeValue, Value, parse_bytes, parse_str};
+use yaml::{LoadOptions, Node, NodeValue, Value, parse_bytes, parse_str};
 
 const ALIAS_EXPANSION_BOMB: &str = "\
 a: &a [lol, lol, lol, lol, lol, lol, lol, lol]
@@ -153,6 +153,21 @@ fn parser_diagnostics_have_exact_spans_across_entrypoints() {
             assert_exact_diagnostic(&error, case.input, case.name, entrypoint.name(), &case);
         }
     }
+}
+
+#[test]
+fn yaml_11_schema_duplicate_key_collisions_keep_related_spans() {
+    let error = LoadOptions::yaml_1_1()
+        .parse_str("root:\n  on: push\n  yes: deploy\n")
+        .expect_err("YAML 1.1 boolean aliases collide as keys");
+
+    assert!(error.to_string().contains("duplicate mapping key `true`"));
+    assert_eq!(error.span().line, 3);
+    assert_eq!(error.span().column, 3);
+    let related = &error.diagnostic().related;
+    assert_eq!(related.len(), 1);
+    assert_eq!(related[0].span.line, 2);
+    assert_eq!(related[0].span.column, 3);
 }
 
 #[test]

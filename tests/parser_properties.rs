@@ -10,8 +10,8 @@ use std::{
     path::{Path, PathBuf},
 };
 use yaml::{
-    Error, Event, EventDocumentDirectives, EventMeta, Node, NodeValue, Number, Span, Tag,
-    TaggedNode, Value,
+    Error, Event, EventDocumentDirectives, EventMeta, LoadOptions, Node, NodeValue, Number, Schema,
+    Span, Tag, TaggedNode, Value,
 };
 
 proptest! {
@@ -169,6 +169,15 @@ fn serde_entrypoints_fuzz_corpus_keeps_diagnostics_in_bounds() {
         std::panic::catch_unwind(|| assert_serde_entrypoint_invariants(&input)).unwrap_or_else(
             |_| panic!("Serde entrypoints must not panic on serde_entrypoints fuzz corpus {name}"),
         );
+    }
+}
+
+#[test]
+fn schema_modes_fuzz_corpus_keeps_diagnostics_in_bounds() {
+    for (name, input) in fuzz_corpus_inputs("schema_modes") {
+        std::panic::catch_unwind(|| assert_schema_mode_invariants(&input)).unwrap_or_else(|_| {
+            panic!("schema modes must not panic on schema_modes fuzz corpus {name}")
+        });
     }
 }
 
@@ -573,6 +582,27 @@ fn assert_serde_entrypoint_invariants(input: &[u8]) {
     assert_typed_reader_entrypoints(input);
     assert_borrowed_entrypoints(input);
     assert_byte_entrypoints(input);
+}
+
+fn assert_schema_mode_invariants(input: &[u8]) {
+    for options in [
+        LoadOptions::new(),
+        LoadOptions::new().schema(Schema::Yaml11),
+    ] {
+        match options.parse_bytes(input) {
+            Ok(node) => assert_node_invariants(input, &node),
+            Err(error) => assert_error_invariants(input, &error),
+        }
+        match options.from_slice::<Value>(input) {
+            Ok(value) => {
+                let node = options
+                    .parse_bytes(input)
+                    .expect("from_slice success must parse with same options");
+                assert!(Value::from(&node).equivalent(&value));
+            }
+            Err(error) => assert_error_invariants(input, &error),
+        }
+    }
 }
 
 fn assert_apply_merge_invariants(input: &[u8]) {

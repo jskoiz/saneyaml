@@ -29,6 +29,7 @@ mod emit;
 mod error;
 mod key_identity;
 mod parse;
+mod schema;
 mod ser;
 
 /// Serde helper modules matching selected `serde_yaml::with` paths.
@@ -63,4 +64,5 @@ pub use parse::{
     EventTagDirective, EventYamlVersion, ScalarStyle, parse_bytes, parse_documents, parse_events,
     parse_str,
 };
+pub use schema::{LoadOptions, Schema};
 pub use ser::{Serializer, to_string, to_value, to_writer};

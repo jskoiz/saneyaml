@@ -19,11 +19,11 @@ Latest captured run: 2026-05-28 on the local `release` profile with
 
 | parser/load path | iterations | bytes per iteration | docs per iteration | elapsed ms | ns/byte |
 |---|---:|---:|---:|---:|---:|
-| `yaml::parse_documents` | 200 | 19,450 | 32 | 90.760 | 23.33 |
-| `yaml::from_documents_str::<Value>` | 200 | 19,450 | 32 | 98.713 | 25.38 |
-| `serde_yaml::Value` stream | 200 | 19,450 | 32 | 94.853 | 24.38 |
-| `yaml_rust2::YamlLoader` | 200 | 19,450 | 32 | 78.387 | 20.15 |
-| `saphyr::Yaml::load_from_str` | 200 | 19,450 | 32 | 75.988 | 19.53 |
+| `yaml::parse_documents` | 200 | 19,450 | 32 | 526.180 | 135.26 |
+| `yaml::from_documents_str::<Value>` | 200 | 19,450 | 32 | 534.316 | 137.36 |
+| `serde_yaml::Value` stream | 200 | 19,450 | 32 | 474.355 | 121.94 |
+| `yaml_rust2::YamlLoader` | 200 | 19,450 | 32 | 490.283 | 126.04 |
+| `saphyr::Yaml::load_from_str` | 200 | 19,450 | 32 | 331.621 | 85.25 |
 
 Interpretation: this crate is in the same order of magnitude as the current
 Serde migration baseline for the selected config fixtures. `yaml-rust2` and

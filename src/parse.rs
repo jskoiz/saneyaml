@@ -4,6 +4,7 @@ use crate::{
     Error, Node, NodeValue as Value, Number, Result, Span, Tag, TaggedNode,
     error::utf8_error_span,
     key_identity::{DuplicateKey, check_duplicate_for_mode},
+    schema::{LoadOptions, Schema},
 };
 use std::collections::HashMap;
 use std::mem;
@@ -224,8 +225,12 @@ fn tab_indentation_error(line: &Line) -> Error {
 
 /// Parses a single YAML document from UTF-8 bytes.
 pub fn parse_bytes(input: &[u8]) -> Result<Node> {
+    parse_bytes_with_options(input, LoadOptions::new())
+}
+
+pub(crate) fn parse_bytes_with_options(input: &[u8], options: LoadOptions) -> Result<Node> {
     match std::str::from_utf8(input) {
-        Ok(input) => parse_str(input),
+        Ok(input) => parse_str_with_options(input, options),
         Err(err) => Err(Error::new(
             "input is not valid UTF-8",
             utf8_error_span(input, err),
@@ -235,7 +240,11 @@ pub fn parse_bytes(input: &[u8]) -> Result<Node> {
 
 /// Parses a single YAML document from a string.
 pub fn parse_str(input: &str) -> Result<Node> {
-    let docs = parse_documents(input)?;
+    parse_str_with_options(input, LoadOptions::new())
+}
+
+pub(crate) fn parse_str_with_options(input: &str, options: LoadOptions) -> Result<Node> {
+    let docs = parse_documents_with_options(input, options)?;
     match docs.len() {
         0 => Ok(Node::null(Span::point(0, 1, 1))),
         1 => Ok(docs.into_iter().next().expect("length checked")),
@@ -248,14 +257,21 @@ pub fn parse_str(input: &str) -> Result<Node> {
 
 /// Parses all documents in a YAML stream.
 pub fn parse_documents(input: &str) -> Result<Vec<Node>> {
-    let mut parser = Parser::new(input)?;
+    parse_documents_with_options(input, LoadOptions::new())
+}
+
+pub(crate) fn parse_documents_with_options(input: &str, options: LoadOptions) -> Result<Vec<Node>> {
+    let mut parser = Parser::new_with_options(input, options)?;
     let mut documents = parser.parse_documents()?;
     apply_default_merge_keys(&mut documents)?;
     Ok(documents)
 }
 
-pub(crate) fn parse_document_results(input: &str) -> Vec<Result<Node>> {
-    match Parser::new(input) {
+pub(crate) fn parse_document_results_with_options(
+    input: &str,
+    options: LoadOptions,
+) -> Vec<Result<Node>> {
+    match Parser::new_with_options(input, options) {
         Ok(mut parser) => parser
             .parse_document_results()
             .into_iter()
@@ -289,6 +305,7 @@ struct Parser {
     lines: Vec<Line>,
     pos: usize,
     input_len: usize,
+    schema: Schema,
     anchors: AnchorRegistry,
     events: Option<EventRecorder>,
     active_tag_handles: HashMap<String, String>,
@@ -459,10 +476,15 @@ impl AnchorRegistry {
 
 impl Parser {
     fn new(input: &str) -> Result<Self> {
+        Self::new_with_options(input, LoadOptions::new())
+    }
+
+    fn new_with_options(input: &str, options: LoadOptions) -> Result<Self> {
         Ok(Self {
             lines: preprocess(input)?,
             pos: 0,
             input_len: input.len(),
+            schema: options.selected_schema(),
             anchors: AnchorRegistry::new(input.len()),
             events: None,
             active_tag_handles: HashMap::new(),
@@ -2321,10 +2343,11 @@ impl Parser {
                 &mut self.anchors,
                 self.events.as_mut(),
                 &self.active_tag_handles,
+                self.schema,
             )
             .parse();
         }
-        let node = parse_scalar(text, line, local_start)?;
+        let node = parse_scalar(text, line, local_start, self.schema)?;
         self.emit_scalar_node(&node, scalar_style_for_text(text));
         Ok(node)
     }
@@ -3007,9 +3030,9 @@ fn is_plain_scalar_continuation_text(text: &str) -> bool {
     !text.trim().is_empty()
 }
 
-fn parse_scalar(text: &str, line: &Line, local_start: usize) -> Result<Node> {
+fn parse_scalar(text: &str, line: &Line, local_start: usize, schema: Schema) -> Result<Node> {
     let span = line.local_span(local_start, local_start + text.len());
-    parse_scalar_with_span(text, span)
+    parse_scalar_with_schema(text, span, schema)
 }
 
 fn scalar_style_for_text(text: &str) -> ScalarStyle {
@@ -3246,8 +3269,17 @@ fn event_scalar_value(node: &Node) -> String {
 }
 
 fn parse_scalar_with_span(text: &str, span: Span) -> Result<Node> {
+    parse_scalar_with_schema(text, span, Schema::Yaml12)
+}
+
+fn parse_scalar_with_schema(text: &str, span: Span, schema: Schema) -> Result<Node> {
     if text.is_empty() || text == "~" || text.eq_ignore_ascii_case("null") {
         return Ok(Node::new(Value::Null, span).with_scalar_source(text));
+    }
+    if schema == Schema::Yaml11
+        && let Some(value) = parse_yaml11_bool(text)
+    {
+        return Ok(Node::new(Value::Bool(value), span).with_scalar_source(text));
     }
     if text == "true" || text == "True" || text == "TRUE" {
         return Ok(Node::new(Value::Bool(true), span).with_scalar_source(text));
@@ -3261,6 +3293,14 @@ fn parse_scalar_with_span(text: &str, span: Span) -> Result<Node> {
     if text.starts_with('\'') {
         return parse_single_quoted(text, span);
     }
+    if schema == Schema::Yaml11
+        && let Some(number) = parse_yaml11_number(text)?
+    {
+        return Ok(Node::new(Value::Number(number), span).with_scalar_source(text));
+    }
+    if schema == Schema::Yaml11 && is_yaml11_invalid_octal(text) {
+        return Ok(Node::new(Value::String(text.to_string()), span).with_scalar_source(text));
+    }
     if is_int_like(text) {
         if let Some(number) = parse_number(text, span)? {
             return Ok(Node::new(Value::Number(number), span).with_scalar_source(text));
@@ -3271,6 +3311,18 @@ fn parse_scalar_with_span(text: &str, span: Span) -> Result<Node> {
         return Ok(Node::new(Value::Number(number), span).with_scalar_source(text));
     }
     Ok(Node::new(Value::String(text.to_string()), span))
+}
+
+fn parse_yaml11_bool(text: &str) -> Option<bool> {
+    match text {
+        "y" | "Y" | "yes" | "Yes" | "YES" | "true" | "True" | "TRUE" | "on" | "On" | "ON" => {
+            Some(true)
+        }
+        "n" | "N" | "no" | "No" | "NO" | "false" | "False" | "FALSE" | "off" | "Off" | "OFF" => {
+            Some(false)
+        }
+        _ => None,
+    }
 }
 
 fn parse_single_quoted(text: &str, span: Span) -> Result<Node> {
@@ -3427,6 +3479,98 @@ fn parse_number(text: &str, _span: Span) -> Result<Option<Number>> {
         }
     }
     Ok(None)
+}
+
+fn parse_yaml11_number(text: &str) -> Result<Option<Number>> {
+    let compact = text.replace('_', "");
+    let (negative, positive) = match compact.as_bytes().first() {
+        Some(b'-') => (true, &compact[1..]),
+        Some(b'+') => (false, &compact[1..]),
+        _ => (false, compact.as_str()),
+    };
+
+    if let Some(value) = parse_yaml11_sexagesimal(positive) {
+        return Ok(signed_magnitude_number(negative, value));
+    }
+
+    if let Some(hex) = positive
+        .strip_prefix("0x")
+        .or_else(|| positive.strip_prefix("0X"))
+        && !hex.is_empty()
+        && hex.chars().all(|ch| ch.is_ascii_hexdigit())
+        && let Ok(value) = u128::from_str_radix(hex, 16)
+    {
+        return Ok(signed_magnitude_number(negative, value));
+    }
+
+    if let Some(binary) = positive
+        .strip_prefix("0b")
+        .or_else(|| positive.strip_prefix("0B"))
+        && !binary.is_empty()
+        && binary.chars().all(|ch| matches!(ch, '0' | '1'))
+        && let Ok(value) = u128::from_str_radix(binary, 2)
+    {
+        return Ok(signed_magnitude_number(negative, value));
+    }
+
+    if positive.len() > 1
+        && positive.starts_with('0')
+        && positive.chars().all(|ch| ('0'..='7').contains(&ch))
+        && let Ok(value) = u128::from_str_radix(positive, 8)
+    {
+        return Ok(signed_magnitude_number(negative, value));
+    }
+
+    Ok(None)
+}
+
+fn is_yaml11_invalid_octal(text: &str) -> bool {
+    let compact = text.replace('_', "");
+    let positive = compact
+        .strip_prefix('-')
+        .or_else(|| compact.strip_prefix('+'))
+        .unwrap_or(&compact);
+    positive.len() > 1
+        && positive.starts_with('0')
+        && positive.chars().all(|ch| ch.is_ascii_digit())
+        && positive.chars().any(|ch| matches!(ch, '8' | '9'))
+}
+
+fn parse_yaml11_sexagesimal(text: &str) -> Option<u128> {
+    if !text.contains(':') {
+        return None;
+    }
+    let mut value = 0u128;
+    let mut groups = 0usize;
+    for group in text.split(':') {
+        if group.is_empty() || !group.chars().all(|ch| ch.is_ascii_digit()) {
+            return None;
+        }
+        let part = group.parse::<u128>().ok()?;
+        if groups > 0 && part >= 60 {
+            return None;
+        }
+        value = value.checked_mul(60)?.checked_add(part)?;
+        groups += 1;
+    }
+    (groups >= 2).then_some(value)
+}
+
+fn signed_magnitude_number(negative: bool, magnitude: u128) -> Option<Number> {
+    if negative {
+        let min_magnitude = (i128::MAX as u128).saturating_add(1);
+        if magnitude == min_magnitude {
+            return Some(Number::Integer(i128::MIN));
+        }
+        let value = i128::try_from(magnitude).ok()?;
+        return Some(Number::Integer(-value));
+    }
+
+    if let Ok(value) = i64::try_from(magnitude) {
+        Some(Number::Integer(i128::from(value)))
+    } else {
+        Some(Number::Unsigned(magnitude))
+    }
 }
 
 fn parse_special_float(compact: &str) -> Option<Number> {
@@ -3616,6 +3760,7 @@ struct FlowParser<'a> {
     buffer: FlowBuffer,
     pos: usize,
     depth: usize,
+    schema: Schema,
     anchors: Option<&'a mut AnchorRegistry>,
     events: Option<&'a mut EventRecorder>,
     active_tag_handles: &'a HashMap<String, String>,
@@ -3629,11 +3774,13 @@ impl<'a> FlowParser<'a> {
         anchors: &'a mut AnchorRegistry,
         events: Option<&'a mut EventRecorder>,
         active_tag_handles: &'a HashMap<String, String>,
+        schema: Schema,
     ) -> Self {
         Self {
             buffer,
             pos: 0,
             depth,
+            schema,
             anchors: Some(anchors),
             events,
             active_tag_handles,
@@ -4444,7 +4591,7 @@ impl<'a> FlowParser<'a> {
         let span_start = start + leading_trim;
         let span_end = span_start + scalar_text.len();
         let scalar_text = fold_flow_plain_scalar(scalar_text);
-        parse_scalar_with_span(&scalar_text, self.span(span_start, span_end))
+        parse_scalar_with_schema(&scalar_text, self.span(span_start, span_end), self.schema)
     }
 
     fn plain_flow_scalar_mapping_value_colon(&self, start: usize, end: usize) -> Option<usize> {

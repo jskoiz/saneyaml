@@ -81,6 +81,7 @@ Current read APIs:
 - `yaml::parse_lossless`, `parse_lossless_bytes`, `yaml::LosslessStream`, and
   `yaml::LosslessEdit` for source-backed comment/trivia preservation,
   validated node/source-span edits, and anchor/alias graph identity
+  reference-checked against parser anchor events from `yaml-rust2` and `saphyr`
 - `yaml::LoadOptions::{new, yaml_1_1, yaml_version_directive, schema}` and
   `yaml::Schema` for explicit construction-schema selection across parser and
   Serde read entrypoints
@@ -255,7 +256,11 @@ source buffer and links aliases to stable anchor ids for graph-sensitive
 callers. The pinned Psych/libyaml probe records that libyaml-backed Ruby objects
 share alias identity, reflect alias-visible mutation, and preserve recursive
 object identity; this crate keeps that behavior in the lossless graph surface,
-not semantic `Node` or `Value` trees.
+not semantic `Node` or `Value` trees. `graph_identity` now also compares
+`LosslessStream` anchor definitions and alias targets against normalized
+`yaml-rust2` and `saphyr` parser anchor events for anchor redefinition,
+recursive aliases, document anchor resets, merge aliases, YAML test-suite
+aliases, and Docker Compose anchors.
 
 Event policy:
 

@@ -31,7 +31,10 @@ Notable completed release-candidate behavior:
   untouched bytes.
 - Lossless source edits and graph identity now have fuzz-corpus replay covering
   scalar, flow mapping, flow sequence replacements, YAML 1.1 merge/comment
-  streams, anchor redefinition, and recursive aliases.
+  streams, anchor redefinition, and recursive aliases. Anchor/alias target
+  identity is also checked against `yaml-rust2` and `saphyr` parser anchor
+  events for redefinition, recursive, document-reset, merge, YAML-suite, and
+  Docker Compose anchor cases.
 - Direct Serde `IgnoredAny` entrypoints now validate malformed YAML and
   single-document boundaries before skipping a document.
 - Divergence records now require caller-facing `migration_impact` text, so

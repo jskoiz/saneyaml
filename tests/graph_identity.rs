@@ -1,4 +1,68 @@
-use yaml::{LosslessNodeKind, Value, parse_lossless};
+use std::collections::BTreeMap;
+use yaml::{AnchorId, LosslessNodeKind, NodeId, Value, parse_lossless};
+use yaml_rust2::parser::MarkedEventReceiver;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum GraphOp {
+    DocumentStart,
+    DocumentEnd,
+    Anchor { id: String },
+    Alias { target: String },
+}
+
+#[derive(Default)]
+struct GraphNormalizer {
+    next: usize,
+    ids: BTreeMap<usize, String>,
+}
+
+impl GraphNormalizer {
+    fn reset(&mut self) {
+        self.next = 0;
+        self.ids.clear();
+    }
+
+    fn define(&mut self, id: usize) -> Option<String> {
+        if id == 0 {
+            return None;
+        }
+        let normalized = self.next_id();
+        self.ids.insert(id, normalized.clone());
+        Some(normalized)
+    }
+
+    fn define_lossless(&mut self, id: AnchorId) -> String {
+        let normalized = self.next_id();
+        self.ids.insert(id.index(), normalized.clone());
+        normalized
+    }
+
+    fn alias(&self, id: usize) -> String {
+        self.ids
+            .get(&id)
+            .cloned()
+            .unwrap_or_else(|| format!("unknown:{id}"))
+    }
+
+    fn alias_lossless(&self, id: AnchorId) -> String {
+        self.alias(id.index())
+    }
+
+    fn next_id(&mut self) -> String {
+        self.next += 1;
+        format!("a{}", self.next)
+    }
+}
+
+struct YamlRust2Sink {
+    events: Vec<yaml_rust2::parser::Event>,
+}
+
+impl MarkedEventReceiver for YamlRust2Sink {
+    fn on_event(&mut self, event: yaml_rust2::parser::Event, _marker: yaml_rust2::scanner::Marker) {
+        self.events.push(event);
+    }
+}
 
 #[test]
 fn lossless_graph_links_alias_to_anchor_identity() {
@@ -161,4 +225,170 @@ second: *base
             .all(|alias| alias.target() == target.id()),
         "all base aliases point at the same lossless graph target"
     );
+}
+
+#[test]
+fn lossless_graph_anchor_targets_match_reference_parser_events() {
+    let cases = [
+        (
+            "anchor_redefinition",
+            "a: &x one\nb: *x\nc: &x two\nd: *x\n",
+        ),
+        ("recursive_alias", "root: &root [*root]\n"),
+        (
+            "document_anchor_reset",
+            "---\na: &x one\nb: *x\n---\na: &x two\nb: *x\n",
+        ),
+        (
+            "merge_alias",
+            "base: &base {a: 1}\nmerged:\n  <<: *base\n  b: 2\n",
+        ),
+        (
+            "yaml_test_suite_6m2f",
+            include_str!("fixtures/yaml-test-suite/data/6M2F/in.yaml"),
+        ),
+        (
+            "docker_compose_anchors",
+            include_str!("fixtures/real-world/docker-compose/compose-anchors.yaml"),
+        ),
+    ];
+
+    for (name, input) in cases {
+        let ours = normalize_lossless_graph(input).expect("lossless graph");
+        assert_eq!(
+            ours,
+            normalize_yaml_rust2_graph(input).expect("yaml-rust2 graph"),
+            "yaml-rust2 graph identity parity for {name}"
+        );
+        assert_eq!(
+            ours,
+            normalize_saphyr_graph(input).expect("saphyr graph"),
+            "saphyr graph identity parity for {name}"
+        );
+    }
+}
+
+fn normalize_lossless_graph(input: &str) -> yaml::Result<Vec<GraphOp>> {
+    let stream = parse_lossless(input)?;
+    let mut normalizer = GraphNormalizer::default();
+    let mut graph = Vec::new();
+
+    for document in stream.documents() {
+        normalizer.reset();
+        graph.push(GraphOp::DocumentStart);
+        if let Some(root) = document.root() {
+            push_lossless_graph_node(&stream, root, &mut normalizer, &mut graph);
+        }
+        graph.push(GraphOp::DocumentEnd);
+    }
+
+    Ok(graph)
+}
+
+fn push_lossless_graph_node(
+    stream: &yaml::LosslessStream,
+    node_id: NodeId,
+    normalizer: &mut GraphNormalizer,
+    graph: &mut Vec<GraphOp>,
+) {
+    let node = stream.node(node_id).expect("lossless node id");
+
+    if let Some(anchor) = node.anchor() {
+        graph.push(GraphOp::Anchor {
+            id: normalizer.define_lossless(anchor),
+        });
+    }
+
+    match node.kind() {
+        LosslessNodeKind::Scalar { .. } => {}
+        LosslessNodeKind::Sequence { children, .. } => {
+            for child in children {
+                push_lossless_graph_node(stream, *child, normalizer, graph);
+            }
+        }
+        LosslessNodeKind::Mapping { entries, .. } => {
+            for (key, value) in entries {
+                push_lossless_graph_node(stream, *key, normalizer, graph);
+                push_lossless_graph_node(stream, *value, normalizer, graph);
+            }
+        }
+        LosslessNodeKind::Alias { target, .. } => graph.push(GraphOp::Alias {
+            target: normalizer.alias_lossless(*target),
+        }),
+    }
+}
+
+fn normalize_yaml_rust2_graph(input: &str) -> Result<Vec<GraphOp>, yaml_rust2::scanner::ScanError> {
+    let mut sink = YamlRust2Sink { events: Vec::new() };
+    let mut parser = yaml_rust2::parser::Parser::new_from_str(input);
+    parser.load(&mut sink, true)?;
+
+    let mut normalizer = GraphNormalizer::default();
+    let mut graph = Vec::new();
+    for event in sink.events {
+        match event {
+            yaml_rust2::parser::Event::Nothing
+            | yaml_rust2::parser::Event::StreamStart
+            | yaml_rust2::parser::Event::StreamEnd
+            | yaml_rust2::parser::Event::SequenceEnd
+            | yaml_rust2::parser::Event::MappingEnd => {}
+            yaml_rust2::parser::Event::DocumentStart => {
+                normalizer.reset();
+                graph.push(GraphOp::DocumentStart);
+            }
+            yaml_rust2::parser::Event::DocumentEnd => graph.push(GraphOp::DocumentEnd),
+            yaml_rust2::parser::Event::Alias(anchor) => graph.push(GraphOp::Alias {
+                target: normalizer.alias(anchor),
+            }),
+            yaml_rust2::parser::Event::Scalar(_, _, anchor, _) => {
+                if let Some(id) = normalizer.define(anchor) {
+                    graph.push(GraphOp::Anchor { id });
+                }
+            }
+            yaml_rust2::parser::Event::SequenceStart(anchor, _)
+            | yaml_rust2::parser::Event::MappingStart(anchor, _) => {
+                if let Some(id) = normalizer.define(anchor) {
+                    graph.push(GraphOp::Anchor { id });
+                }
+            }
+        }
+    }
+
+    Ok(graph)
+}
+
+fn normalize_saphyr_graph(input: &str) -> Result<Vec<GraphOp>, saphyr_parser::ScanError> {
+    let mut normalizer = GraphNormalizer::default();
+    let mut graph = Vec::new();
+
+    for result in saphyr_parser::Parser::new_from_str(input) {
+        match result?.0 {
+            saphyr_parser::Event::Nothing
+            | saphyr_parser::Event::StreamStart
+            | saphyr_parser::Event::StreamEnd
+            | saphyr_parser::Event::SequenceEnd
+            | saphyr_parser::Event::MappingEnd => {}
+            saphyr_parser::Event::DocumentStart(_) => {
+                normalizer.reset();
+                graph.push(GraphOp::DocumentStart);
+            }
+            saphyr_parser::Event::DocumentEnd => graph.push(GraphOp::DocumentEnd),
+            saphyr_parser::Event::Alias(anchor) => graph.push(GraphOp::Alias {
+                target: normalizer.alias(anchor),
+            }),
+            saphyr_parser::Event::Scalar(_, _, anchor, _) => {
+                if let Some(id) = normalizer.define(anchor) {
+                    graph.push(GraphOp::Anchor { id });
+                }
+            }
+            saphyr_parser::Event::SequenceStart(anchor, _)
+            | saphyr_parser::Event::MappingStart(anchor, _) => {
+                if let Some(id) = normalizer.define(anchor) {
+                    graph.push(GraphOp::Anchor { id });
+                }
+            }
+        }
+    }
+
+    Ok(graph)
 }

@@ -73,9 +73,10 @@ Additional crate surfaces useful during migration:
   surfaces that `serde_yaml` does not provide directly.
 - `yaml::parse_lossless` and `yaml::LosslessStream` provide a separate
   source-backed graph surface for callers that need byte-stable replay,
-  comments/trivia, scalar spelling, directives, alias-to-anchor identity, and
-  validated node/source-span edits, insertions, and deletions that preserve
-  untouched bytes.
+  comments/trivia, scalar spelling, directives, alias-to-anchor identity checked
+  against `yaml-rust2` and `saphyr` parser anchor events, and validated
+  node/source-span edits, insertions, and deletions that preserve untouched
+  bytes.
 
 ## Executable Proof
 
@@ -256,7 +257,7 @@ testing each adopter's own YAML corpus.
 |---|---|
 | Default merge expansion | Parsed `Node`/`Value`/Serde reads expand untagged `<<` by default. Code that inspected literal merge keys should switch to `parse_events` or `LosslessStream`. |
 | YAML 1.1 compatibility | Legacy scalar and collection behavior is available through explicit schema/tag paths. Default entrypoints stay YAML 1.2-oriented, so corpora that require YAML 1.1 typing need opt-in tests. |
-| Alias graph identity | Semantic `Node`/`Value` trees still clone acyclic aliases. Graph-sensitive callers should use `LosslessStream` until a semantic graph-preserving API is finalized. |
+| Alias graph identity | Semantic `Node`/`Value` trees still clone acyclic aliases. Graph-sensitive callers should use `LosslessStream`; its anchor definitions and alias targets are checked against reference parser anchor events for redefinition, recursive, document-reset, merge, YAML-suite, and Docker Compose anchor cases. |
 | Lossless formatting | `LosslessStream` preserves source, comments, trivia, directives, anchors, aliases, tags, and scalar spelling for replay/inspection. `LosslessEdit` can replace retained node or raw source spans, insert source, delete source spans, and validate the final YAML while preserving untouched bytes. |
 | Parser acceptance differences | Some YAML 1.2 inputs rejected by libyaml are accepted, and some malformed libyaml-tolerated inputs are rejected. Divergence records now carry per-case migration impact. |
 | Package readiness | The crate remains local-preview only until public name, license, version, and crates.io approval are selected by the user. |

@@ -39,7 +39,7 @@ run_packaged_smoke() {
   YAML_PACKAGE_DIR="$package_dir" perl -0pi -e \
     's#__YAML_PACKAGE_DIR__#$ENV{YAML_PACKAGE_DIR}#g' \
     "$smoke/Cargo.toml"
-  cargo check --manifest-path "$smoke/Cargo.toml" --quiet
+  cargo run --manifest-path "$smoke/Cargo.toml" --quiet
 }
 
 patch_serde_yaml_dependency() {

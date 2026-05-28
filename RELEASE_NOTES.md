@@ -20,7 +20,7 @@ Notable completed release-candidate behavior:
 - The migration harness records YAML 1.1 scalar construction as an explicit
   call-site choice, including the default decimal treatment of `0123` versus
   YAML 1.1 octal interpretation under `LoadOptions`.
-- A checked-in package-alias smoke fixture compiles covered `serde_yaml::...`
+- A checked-in package-alias smoke fixture executes covered `serde_yaml::...`
   paths against this package through `serde_yaml = { package = "yaml", ... }`.
 - YAML 1.1 conformance fixtures now cover directive-driven legacy scalar
   construction, null and float spellings, timestamp time-zone forms, explicit

@@ -42,5 +42,14 @@ jobs:
       - name: Run full tests
         run: cargo test --locked
 
+      - name: Check public docs
+        run: RUSTDOCFLAGS='-D missing_docs' cargo doc --locked --no-deps
+
+      - name: Check package contents
+        run: cargo package --locked --allow-dirty --list >/dev/null
+
+      - name: Run package-alias smoke
+        run: scripts/downstream-build-trials.sh smoke-only
+
       - name: Run clippy
         run: cargo clippy --locked --all-targets -- -D warnings

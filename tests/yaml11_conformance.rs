@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use yaml::{LoadOptions, Timestamp, Value};
 
@@ -31,7 +32,7 @@ struct ResolvedBundle {
     pairs: Vec<(String, i64)>,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 struct LegacyMigrationPack {
     flags: LegacyFlags,
     numbers: LegacyNumbers,
@@ -42,13 +43,13 @@ struct LegacyMigrationPack {
     pairs: Vec<(String, i64)>,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 struct LegacyFlags {
     deploy: bool,
     dry_run: bool,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 struct LegacyNumbers {
     file_mode: i64,
     hex_limit: i64,
@@ -56,7 +57,7 @@ struct LegacyNumbers {
     invalid_octal: String,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 struct LegacyTimestamps {
     release: Timestamp,
 }
@@ -250,6 +251,13 @@ fn yaml11_legacy_migration_pack_covers_default_explicit_and_directive_modes() {
         .expect("directive-driven YAML 1.1 fixture");
     assert_eq!(explicit, expected);
     assert_eq!(directive, expected);
+    assert_legacy_pack_public_entrypoints(LoadOptions::yaml_1_1(), &source, &expected, "explicit");
+    assert_legacy_pack_public_entrypoints(
+        LoadOptions::yaml_version_directive(),
+        &source,
+        &expected,
+        "directive",
+    );
 
     let directive_value: Value = LoadOptions::yaml_version_directive()
         .from_str(&source)
@@ -335,6 +343,22 @@ fn yaml11_legacy_bool_key_collision_fixture_keeps_default_safe_and_reports_legac
 }
 
 #[test]
+fn yaml11_entrypoint_matrix_reports_legacy_duplicate_key_spans() {
+    for fixture in [
+        "legacy-bool-key-collision.yaml",
+        "legacy-numeric-key-collision.yaml",
+    ] {
+        let source = read_fixture(fixture);
+        for options in [
+            LoadOptions::yaml_1_1(),
+            LoadOptions::yaml_version_directive(),
+        ] {
+            assert_legacy_duplicate_key_error_entrypoints(options, &source, fixture);
+        }
+    }
+}
+
+#[test]
 fn yaml11_legacy_scalar_edge_stream_switches_per_document() {
     let source = read_fixture("legacy-scalar-edge-stream.yaml");
     let docs: Vec<Value> = LoadOptions::yaml_version_directive()
@@ -395,6 +419,59 @@ fn yaml11_legacy_scalar_edge_stream_switches_per_document() {
         .collect::<Result<Vec<_>, _>>()
         .expect("directive-driven stream deserializes");
     assert_eq!(streamed, docs);
+    assert_value_sequences_equivalent(
+        LoadOptions::yaml_version_directive()
+            .from_documents_slice(source.as_bytes())
+            .expect("directive-driven slice stream deserializes"),
+        &docs,
+        "from_documents_slice",
+    );
+    assert_value_sequences_equivalent(
+        LoadOptions::yaml_version_directive()
+            .from_documents_reader(Cursor::new(source.as_bytes()))
+            .expect("directive-driven reader stream deserializes"),
+        &docs,
+        "from_documents_reader",
+    );
+    assert_value_sequences_equivalent(
+        LoadOptions::yaml_version_directive()
+            .deserializer_from_slice(source.as_bytes())
+            .map(Value::deserialize)
+            .collect::<Result<Vec<_>, _>>()
+            .expect("directive-driven slice stream deserializer"),
+        &docs,
+        "deserializer_from_slice",
+    );
+    assert_value_sequences_equivalent(
+        LoadOptions::yaml_version_directive()
+            .deserializer_from_reader(Cursor::new(source.as_bytes()))
+            .map(Value::deserialize)
+            .collect::<Result<Vec<_>, _>>()
+            .expect("directive-driven reader stream deserializer"),
+        &docs,
+        "deserializer_from_reader",
+    );
+    let parsed = LoadOptions::yaml_version_directive()
+        .parse_documents(&source)
+        .expect("directive-driven stream parses");
+    assert_value_sequences_equivalent(
+        parsed.iter().map(Value::from).collect(),
+        &docs,
+        "parse_documents",
+    );
+    let lossless = yaml::parse_lossless(&source).expect("YAML 1.1 stream parses losslessly");
+    assert_eq!(lossless.as_source(), source);
+    assert_eq!(lossless.to_string(), source);
+    assert_eq!(lossless.documents().len(), docs.len());
+    assert_eq!(
+        lossless.documents()[0]
+            .directives()
+            .yaml_version
+            .as_ref()
+            .expect("first document declares YAML version")
+            .minor,
+        1
+    );
 }
 
 #[test]
@@ -459,6 +536,143 @@ fn assert_tagged_payload(source: &str, handle: &str, suffix: &str, shape: &str) 
     match (&tagged.value, shape) {
         (Value::Mapping(_), "mapping") | (Value::Sequence(_), "sequence") => {}
         (other, _) => panic!("unexpected tagged payload shape {other:?}"),
+    }
+}
+
+fn assert_legacy_pack_public_entrypoints(
+    options: LoadOptions,
+    source: &str,
+    expected: &LegacyMigrationPack,
+    label: &str,
+) {
+    let from_slice: LegacyMigrationPack = options
+        .from_slice(source.as_bytes())
+        .unwrap_or_else(|error| panic!("{label} from_slice: {error}"));
+    let from_reader: LegacyMigrationPack = options
+        .from_reader(Cursor::new(source.as_bytes()))
+        .unwrap_or_else(|error| panic!("{label} from_reader: {error}"));
+    let parsed_bytes = options
+        .parse_bytes(source.as_bytes())
+        .unwrap_or_else(|error| panic!("{label} parse_bytes: {error}"));
+    let parsed_str = options
+        .parse_str(source)
+        .unwrap_or_else(|error| panic!("{label} parse_str: {error}"));
+    let document_nodes = options
+        .parse_documents(source)
+        .unwrap_or_else(|error| panic!("{label} parse_documents: {error}"));
+    let document_values: Vec<LegacyMigrationPack> = options
+        .from_documents_str(source)
+        .unwrap_or_else(|error| panic!("{label} from_documents_str: {error}"));
+    let document_values_slice: Vec<LegacyMigrationPack> = options
+        .from_documents_slice(source.as_bytes())
+        .unwrap_or_else(|error| panic!("{label} from_documents_slice: {error}"));
+    let document_values_reader: Vec<LegacyMigrationPack> = options
+        .from_documents_reader(Cursor::new(source.as_bytes()))
+        .unwrap_or_else(|error| panic!("{label} from_documents_reader: {error}"));
+    let direct_slice =
+        LegacyMigrationPack::deserialize(options.deserializer_from_slice(source.as_bytes()))
+            .unwrap_or_else(|error| panic!("{label} deserializer_from_slice: {error}"));
+    let direct_reader = LegacyMigrationPack::deserialize(
+        options.deserializer_from_reader(Cursor::new(source.as_bytes())),
+    )
+    .unwrap_or_else(|error| panic!("{label} deserializer_from_reader: {error}"));
+    let from_node: LegacyMigrationPack =
+        yaml::from_node(&parsed_str).unwrap_or_else(|error| panic!("{label} from_node: {error}"));
+    let from_value: LegacyMigrationPack = yaml::from_value(Value::from(&parsed_str))
+        .unwrap_or_else(|error| panic!("{label} from_value: {error}"));
+    let lossless = yaml::parse_lossless(source)
+        .unwrap_or_else(|error| panic!("{label} parse_lossless: {error}"));
+
+    assert_eq!(&from_slice, expected, "{label} from_slice");
+    assert_eq!(&from_reader, expected, "{label} from_reader");
+    assert_eq!(&direct_slice, expected, "{label} deserializer_from_slice");
+    assert_eq!(&direct_reader, expected, "{label} deserializer_from_reader");
+    assert_eq!(&from_node, expected, "{label} from_node");
+    assert_eq!(&from_value, expected, "{label} from_value");
+    assert_eq!(document_values, vec![expected.clone()], "{label} documents");
+    assert_eq!(
+        document_values_slice,
+        vec![expected.clone()],
+        "{label} documents slice"
+    );
+    assert_eq!(
+        document_values_reader,
+        vec![expected.clone()],
+        "{label} documents reader"
+    );
+    assert_eq!(document_nodes.len(), 1, "{label} parsed document count");
+    assert!(Value::from(&parsed_bytes).equivalent(&Value::from(&parsed_str)));
+    assert_eq!(lossless.as_source(), source);
+    assert_eq!(lossless.to_string(), source);
+    assert_eq!(
+        lossless.documents()[0]
+            .directives()
+            .yaml_version
+            .as_ref()
+            .expect("YAML 1.1 directive retained")
+            .minor,
+        1
+    );
+}
+
+fn assert_legacy_duplicate_key_error_entrypoints(
+    options: LoadOptions,
+    source: &str,
+    fixture: &str,
+) {
+    for (entrypoint, error) in [
+        (
+            "parse_bytes",
+            options.parse_bytes(source.as_bytes()).unwrap_err(),
+        ),
+        (
+            "from_slice",
+            options.from_slice::<Value>(source.as_bytes()).unwrap_err(),
+        ),
+        (
+            "from_reader",
+            options
+                .from_reader::<_, Value>(Cursor::new(source.as_bytes()))
+                .unwrap_err(),
+        ),
+        (
+            "from_documents_slice",
+            options
+                .from_documents_slice::<Value>(source.as_bytes())
+                .unwrap_err(),
+        ),
+        (
+            "from_documents_reader",
+            options
+                .from_documents_reader::<Value, _>(Cursor::new(source.as_bytes()))
+                .unwrap_err(),
+        ),
+        (
+            "deserializer_from_slice",
+            Value::deserialize(options.deserializer_from_slice(source.as_bytes())).unwrap_err(),
+        ),
+        (
+            "deserializer_from_reader",
+            Value::deserialize(options.deserializer_from_reader(Cursor::new(source.as_bytes())))
+                .unwrap_err(),
+        ),
+    ] {
+        assert!(
+            error.to_string().contains("duplicate mapping key"),
+            "{fixture} {entrypoint} unexpected error: {error}"
+        );
+        assert_eq!(error.span().line, 4, "{fixture} {entrypoint} line");
+        assert_eq!(error.span().column, 1, "{fixture} {entrypoint} column");
+    }
+}
+
+fn assert_value_sequences_equivalent(actual: Vec<Value>, expected: &[Value], label: &str) {
+    assert_eq!(actual.len(), expected.len(), "{label} document count");
+    for (index, (actual, expected)) in actual.iter().zip(expected).enumerate() {
+        assert!(
+            actual.equivalent(expected),
+            "{label} document {index} mismatch: {actual:?} != {expected:?}"
+        );
     }
 }
 

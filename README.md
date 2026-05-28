@@ -11,8 +11,9 @@ decisions. Start with [DEVELOPER_PREVIEW.md](DEVELOPER_PREVIEW.md),
 
 The first milestone focuses on:
 
-- YAML 1.2 core scalar resolution by default for parser events and constructed
-  document trees.
+- Raw parser events preserve scalar text, style, tags, anchors, and directive
+  metadata; constructed document trees use YAML 1.2 core scalar resolution by
+  default.
 - Explicit `LoadOptions::yaml_1_1()` construction for legacy YAML 1.1
   booleans/nulls, `yaml::Timestamp` typed reads for timestamp-shaped scalars,
   and numeric forms that fit the current value model, plus

@@ -1401,11 +1401,7 @@ fn byte_location(input: &[u8], offset: usize) -> (usize, usize) {
 fn has_non_roundtrippable_explicit_core_scalar_tag(node: &Node) -> bool {
     match &node.value {
         NodeValue::Tagged(tagged) => {
-            if tagged.tag.handle == "!!"
-                && matches!(
-                    tagged.tag.suffix.as_str(),
-                    "binary" | "bool" | "float" | "int" | "null" | "str" | "timestamp"
-                )
+            if is_explicit_core_scalar_tag(&tagged.tag)
                 && !matches!(tagged.value.value, NodeValue::String(_))
             {
                 return true;
@@ -1421,6 +1417,25 @@ fn has_non_roundtrippable_explicit_core_scalar_tag(node: &Node) -> bool {
         }),
         NodeValue::Null | NodeValue::Bool(_) | NodeValue::Number(_) | NodeValue::String(_) => false,
     }
+}
+
+fn is_explicit_core_scalar_tag(tag: &Tag) -> bool {
+    let short = tag.handle == "!!"
+        && matches!(
+            tag.suffix.as_str(),
+            "binary" | "bool" | "float" | "int" | "null" | "str" | "timestamp"
+        );
+    let canonical = tag.handle == "!"
+        && tag
+            .suffix
+            .strip_prefix("tag:yaml.org,2002:")
+            .is_some_and(|suffix| {
+                matches!(
+                    suffix,
+                    "binary" | "bool" | "float" | "int" | "null" | "str" | "timestamp"
+                )
+            });
+    short || canonical
 }
 
 fn arb_node(max_depth: u32) -> impl Strategy<Value = Node> {

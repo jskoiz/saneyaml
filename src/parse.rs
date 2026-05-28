@@ -3263,11 +3263,9 @@ fn tagged_node(tag: Tag, tag_span: Span, mut node: Node) -> Node {
 }
 
 fn core_scalar_tag_preserves_source(tag: &Tag) -> bool {
-    tag.handle == "!!"
-        && matches!(
-            tag.suffix.as_str(),
-            "binary" | "bool" | "float" | "int" | "null" | "str" | "timestamp"
-        )
+    ["binary", "bool", "float", "int", "null", "str", "timestamp"]
+        .iter()
+        .any(|suffix| tag.is_yaml_core(suffix))
 }
 
 fn count_nodes(node: &Node) -> usize {

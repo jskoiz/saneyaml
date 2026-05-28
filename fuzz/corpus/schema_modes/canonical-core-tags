@@ -1,0 +1,10 @@
+%YAML 1.1
+%TAG !yaml! tag:yaml.org,2002:
+---
+canonical_int: !<tag:yaml.org,2002:int> 0x7B
+resolved_float: !yaml!float 1:20:30.5
+canonical_bool: !<tag:yaml.org,2002:bool> ON
+resolved_null: !yaml!null ~
+canonical_str: !<tag:yaml.org,2002:str> true
+resolved_binary: !yaml!binary SGVsbG8=
+canonical_timestamp: !<tag:yaml.org,2002:timestamp> 2026-05-25

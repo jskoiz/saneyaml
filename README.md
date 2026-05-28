@@ -17,7 +17,9 @@ The first milestone focuses on:
   booleans/nulls, `yaml::Timestamp` typed reads for timestamp-shaped scalars,
   and numeric forms that fit the current value model, plus
   `LoadOptions::yaml_version_directive()` for callers that want `%YAML 1.1`
-  document headers to select that legacy construction mode.
+  document headers to select that legacy construction mode. Explicit YAML core
+  tags are recognized in both short `!!int` and canonical
+  `tag:yaml.org,2002:int` forms.
 - Ordered mappings, block/flow collections, quoted/plain scalars, and basic
   literal/folded block scalars.
 - Acyclic anchors and aliases expanded into the loaded tree.

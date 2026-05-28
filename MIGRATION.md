@@ -197,7 +197,10 @@ testing each adopter's own YAML corpus.
   `deserialize_byte_buf`. Explicit `!!int` and `!!float` retained `Value`
   entries keep their tag and source spelling, but valid YAML 1.1 numeric forms
   are visible through `Value` numeric helpers such as `as_i64()`, `as_u64()`,
-  `as_f64()`, and `is_number()`. Directive-driven loading is available through
+  `as_f64()`, and `is_number()`. The supported explicit core tags may also be
+  written with canonical YAML URI tags such as `!<tag:yaml.org,2002:int>` or
+  declared `%TAG` handles that resolve to `tag:yaml.org,2002:*`.
+  Directive-driven loading is available through
   `LoadOptions::yaml_version_directive()`, where `%YAML 1.1` selects the legacy
   construction mode and absent, `%YAML 1.2`, or newer numeric directives keep
   YAML 1.2-oriented construction.

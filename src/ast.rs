@@ -584,6 +584,18 @@ impl Tag {
             Cow::Owned(self.to_string())
         }
     }
+
+    pub(crate) fn is_yaml_core(&self, suffix: &str) -> bool {
+        if self.handle == "!!" {
+            self.suffix == suffix
+        } else if self.handle == "!" {
+            self.suffix
+                .strip_prefix("tag:yaml.org,2002:")
+                .is_some_and(|core_suffix| core_suffix == suffix)
+        } else {
+            false
+        }
+    }
 }
 
 impl fmt::Display for Tag {
@@ -651,7 +663,7 @@ fn tag_suffix_needs_verbatim(suffix: &str) -> bool {
 }
 
 fn is_core_tag(tag: &Tag, suffix: &str) -> bool {
-    tag.handle == "!!" && tag.suffix == suffix
+    tag.is_yaml_core(suffix)
 }
 
 fn is_timestamp_tag(tag: &Tag) -> bool {

@@ -3208,6 +3208,91 @@ nan: !!float .nan
 }
 
 #[test]
+fn serde_api_canonical_core_tags_match_short_core_tag_semantics() {
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct CanonicalCoreTags {
+        canonical_int: i64,
+        resolved_float: f64,
+        canonical_bool: bool,
+        resolved_null: Option<String>,
+        canonical_str: String,
+        resolved_binary: Vec<u8>,
+        canonical_timestamp: yaml::Timestamp,
+    }
+
+    let input = "\
+%TAG !yaml! tag:yaml.org,2002:
+---
+canonical_int: !<tag:yaml.org,2002:int> 0x7B
+resolved_float: !yaml!float 1:20:30.5
+canonical_bool: !<tag:yaml.org,2002:bool> ON
+resolved_null: !yaml!null ~
+canonical_str: !<tag:yaml.org,2002:str> true
+resolved_binary: !yaml!binary SGVsbG8=
+canonical_timestamp: !<tag:yaml.org,2002:timestamp> 2026-05-25
+";
+    let expected = CanonicalCoreTags {
+        canonical_int: 123,
+        resolved_float: 4830.5,
+        canonical_bool: true,
+        resolved_null: None,
+        canonical_str: "true".to_string(),
+        resolved_binary: b"Hello".to_vec(),
+        canonical_timestamp: yaml::Timestamp::parse_yaml_1_1("2026-05-25").expect("timestamp"),
+    };
+
+    let typed: CanonicalCoreTags = yaml::from_str(input).expect("canonical core tags");
+    let direct = CanonicalCoreTags::deserialize(yaml::Deserializer::from_str(input))
+        .expect("direct canonical core tags");
+    let node = yaml::parse_str(input).expect("canonical core tag node");
+    let from_node: CanonicalCoreTags =
+        yaml::from_node(&node).expect("canonical core tags from node");
+    let value: Value = yaml::from_str(input).expect("canonical core tag value");
+    let from_value: CanonicalCoreTags =
+        yaml::from_value(value.clone()).expect("canonical core tags from value");
+    let from_value_ref =
+        CanonicalCoreTags::deserialize(&value).expect("canonical core tags by ref");
+
+    assert_eq!(typed, expected);
+    assert_eq!(direct, expected);
+    assert_eq!(from_node, expected);
+    assert_eq!(from_value, expected);
+    assert_eq!(from_value_ref, expected);
+
+    let canonical_int = value["canonical_int"]
+        .as_tagged()
+        .expect("canonical int tag");
+    assert_eq!(canonical_int.tag.handle, "!");
+    assert_eq!(canonical_int.tag.suffix, "tag:yaml.org,2002:int");
+    assert_eq!(value["canonical_int"].as_str(), Some("0x7B"));
+    assert_eq!(value["canonical_int"].as_i64(), Some(123));
+    assert_eq!(value["canonical_int"].as_u64(), Some(123));
+    assert!(value["canonical_int"].is_number());
+
+    let resolved_float = value["resolved_float"]
+        .as_tagged()
+        .expect("resolved float tag");
+    assert_eq!(resolved_float.tag.handle, "!");
+    assert_eq!(resolved_float.tag.suffix, "tag:yaml.org,2002:float");
+    assert_eq!(value["resolved_float"].as_f64(), Some(4830.5));
+    assert!(value["resolved_float"].is_f64());
+
+    let canonical_bool = value["canonical_bool"]
+        .as_tagged()
+        .expect("canonical bool tag");
+    assert_eq!(canonical_bool.tag.handle, "!");
+    assert_eq!(canonical_bool.tag.suffix, "tag:yaml.org,2002:bool");
+    assert_eq!(value["canonical_bool"].as_bool(), Some(true));
+    assert_eq!(value["resolved_null"].as_null(), Some(()));
+    assert_eq!(value["canonical_str"].as_str(), Some("true"));
+    assert_eq!(value["resolved_binary"].as_str(), Some("SGVsbG8="));
+    assert_eq!(
+        value["canonical_timestamp"].as_timestamp(),
+        yaml::Timestamp::parse_yaml_1_1("2026-05-25")
+    );
+}
+
+#[test]
 fn serde_api_explicit_core_scalar_tags_override_implicit_resolution() {
     #[derive(Debug, Deserialize, PartialEq)]
     struct ExplicitCoreScalars {

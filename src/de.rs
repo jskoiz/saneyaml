@@ -497,7 +497,7 @@ fn explicit_core_null_node(node: &Node) -> Result<bool, Error> {
 
 fn explicit_core_tagged_node<'a>(mut node: &'a Node, suffix: &str) -> Option<&'a Node> {
     while let NodeValue::Tagged(tagged) = &node.value {
-        if tagged.tag.handle == "!!" && tagged.tag.suffix == suffix {
+        if tagged.tag.is_yaml_core(suffix) {
             return Some(&tagged.value);
         }
         node = &tagged.value;
@@ -573,7 +573,7 @@ fn explicit_core_null_value(value: &Value) -> Result<bool, Error> {
 
 fn explicit_core_tagged_value<'a>(mut value: &'a Value, suffix: &str) -> Option<&'a Value> {
     while let Value::Tagged(tagged) = value {
-        if tagged.tag.handle == "!!" && tagged.tag.suffix == suffix {
+        if tagged.tag.is_yaml_core(suffix) {
             return Some(&tagged.value);
         }
         value = &tagged.value;

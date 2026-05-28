@@ -334,6 +334,7 @@ fn divergence_explicit_core_tags_record_is_present() {
     assert!(record.contains("Infinity"));
     assert!(record.contains("BadValue"));
     assert!(record.contains("typed byte targets decode explicit !!binary"));
+    assert!(record.contains("canonical tag:yaml.org,2002:* forms"));
     assert!(record.contains("explicit !!str values override implicit scalar resolution"));
     assert!(record.contains("explicit !!bool and !!null typed reads"));
     assert!(record.contains("explicit !!timestamp yaml::Timestamp reads"));
@@ -378,6 +379,12 @@ fn divergence_explicit_core_tags_reference_matrix_matches_record() {
     let ours_bool_on: bool =
         yaml::from_str("!!bool ON\n").expect("ours explicit YAML 1.1 bool tag");
     assert!(ours_bool_on);
+    let canonical_bool_on: bool = yaml::from_str("!<tag:yaml.org,2002:bool> ON\n")
+        .expect("ours canonical explicit YAML 1.1 bool tag");
+    assert!(canonical_bool_on);
+    let canonical_value: yaml::Value =
+        yaml::from_str("!<tag:yaml.org,2002:int> 0x7B\n").expect("canonical int value");
+    assert_eq!(canonical_value.as_i64(), Some(123));
 
     let serde_yaml: serde_yaml::Value =
         serde_yaml::from_str(input).expect("serde_yaml explicit core tags");

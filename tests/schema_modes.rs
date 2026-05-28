@@ -68,6 +68,55 @@ clock: 1:20
 }
 
 #[test]
+fn yaml_version_directive_schema_supports_resolved_canonical_core_tags() {
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct ResolvedCoreTags {
+        flag: bool,
+        count: i64,
+        clock: f64,
+        date: Timestamp,
+    }
+
+    let input = "\
+%YAML 1.1
+%TAG !yaml! tag:yaml.org,2002:
+---
+flag: !yaml!bool ON
+count: !yaml!int 0x10
+clock: !yaml!float 1:20:30.5
+date: !yaml!timestamp 2026-05-24
+";
+    let expected = ResolvedCoreTags {
+        flag: true,
+        count: 16,
+        clock: 4830.5,
+        date: Timestamp::parse_yaml_1_1("2026-05-24").expect("timestamp"),
+    };
+
+    let typed: ResolvedCoreTags = LoadOptions::yaml_version_directive()
+        .from_str(input)
+        .expect("directive-driven canonical core tags");
+    let direct = ResolvedCoreTags::deserialize(
+        LoadOptions::yaml_version_directive().deserializer_from_str(input),
+    )
+    .expect("direct directive-driven canonical core tags");
+    let value: Value = LoadOptions::yaml_version_directive()
+        .from_str(input)
+        .expect("canonical core tag values");
+
+    assert_eq!(typed, expected);
+    assert_eq!(direct, expected);
+    assert_eq!(value["flag"].as_bool(), Some(true));
+    assert_eq!(value["count"].as_i64(), Some(16));
+    assert_eq!(value["clock"].as_f64(), Some(4830.5));
+    assert_eq!(value["date"].as_timestamp(), Some(expected.date));
+
+    let tagged = value["count"].as_tagged().expect("resolved int tag");
+    assert_eq!(tagged.tag.handle, "!");
+    assert_eq!(tagged.tag.suffix, "tag:yaml.org,2002:int");
+}
+
+#[test]
 fn yaml_version_directive_schema_reports_legacy_duplicate_key_collisions() {
     let error = LoadOptions::yaml_version_directive()
         .parse_str("%YAML 1.1\n---\non: push\nyes: deploy\n")

@@ -18,12 +18,14 @@ Notable completed release-candidate behavior:
   set-like targets, ordered pair sequences, `!!omap` map targets, and
   duplicate-preserving `!!pairs` pair sequences.
 - `parse_lossless` / `LosslessStream` preserve comments, trivia, anchors,
-  aliases, and stable graph ids for source-backed inspection and replay.
+  aliases, and stable graph ids for source-backed inspection, replay, and
+  validated node source edits that preserve untouched bytes.
 - Divergence records now require caller-facing `migration_impact` text, so
   compatibility decisions are tied to adoption risk instead of only parser
   policy.
 
 Known release-candidate gaps remain tracked in `BASELINE.md`,
 `COMPATIBILITY.md`, and `MIGRATION.md`: complete YAML 1.1 ecosystem parity,
-editable lossless formatting for modified documents, semantic `Node`/`Value`
-graph identity, final package metadata, and external publication.
+full structural lossless formatting beyond node source replacement, semantic
+`Node`/`Value` graph identity, final package metadata, and external
+publication.

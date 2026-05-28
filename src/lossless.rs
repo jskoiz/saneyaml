@@ -149,12 +149,196 @@ impl LosslessStream {
             .iter()
             .filter(|trivia| trivia.kind == LosslessTriviaKind::Comment)
     }
+
+    /// Starts a source-preserving edit session for this stream.
+    ///
+    /// Edits replace explicit source spans and keep every untouched byte
+    /// unchanged. [`LosslessEdit::finish`] validates the final YAML before it
+    /// returns the edited source.
+    pub fn edit(&self) -> LosslessEdit<'_> {
+        LosslessEdit {
+            stream: self,
+            replacements: Vec::new(),
+        }
+    }
+
+    /// Replaces one graph node's source span and returns validated edited YAML.
+    ///
+    /// This is a convenience wrapper around [`LosslessEdit`]. The replacement
+    /// is raw YAML source for the selected node range.
+    pub fn replace_node_source(
+        &self,
+        node: NodeId,
+        replacement: impl Into<String>,
+    ) -> Result<String> {
+        let mut edit = self.edit();
+        edit.replace_node_source(node, replacement)?;
+        edit.finish()
+    }
 }
 
 impl fmt::Display for LosslessStream {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.source)
     }
+}
+
+/// Source-preserving edit builder for a [`LosslessStream`].
+///
+/// The builder is intentionally low-level: replacement text is YAML source, not
+/// a semantic [`crate::Value`]. This keeps it useful for format-sensitive tools
+/// while avoiding a second, incompatible value model.
+#[derive(Debug)]
+pub struct LosslessEdit<'a> {
+    stream: &'a LosslessStream,
+    replacements: Vec<LosslessReplacement>,
+}
+
+impl LosslessEdit<'_> {
+    /// Replaces one node's retained source range with raw YAML source.
+    ///
+    /// The edited full document is parsed again by [`Self::finish`]. Overlapping
+    /// replacements are rejected.
+    pub fn replace_node_source(
+        &mut self,
+        node: NodeId,
+        replacement: impl Into<String>,
+    ) -> Result<&mut Self> {
+        let span = self.checked_node_span(node)?;
+        self.replacements.push(LosslessReplacement {
+            node,
+            start: span.start,
+            end: span.end,
+            span,
+            replacement: replacement.into(),
+        });
+        Ok(self)
+    }
+
+    /// Replaces a scalar node with source that parses as one scalar node.
+    ///
+    /// Use [`Self::replace_node_source`] when intentionally replacing a scalar
+    /// with another YAML node kind.
+    pub fn replace_scalar_source(
+        &mut self,
+        node: NodeId,
+        replacement: impl Into<String>,
+    ) -> Result<&mut Self> {
+        let current = self
+            .stream
+            .node(node)
+            .ok_or_else(|| Error::new("lossless node id is out of bounds", None))?;
+        if !matches!(current.kind(), LosslessNodeKind::Scalar { .. }) {
+            return Err(Error::new(
+                "lossless replacement target is not a scalar",
+                Some(current.span()),
+            ));
+        }
+        let replacement = replacement.into();
+        ensure_scalar_fragment(&replacement, current.span())?;
+        self.replace_node_source(node, replacement)
+    }
+
+    /// Returns validated edited YAML with untouched source bytes preserved.
+    pub fn finish(mut self) -> Result<String> {
+        self.replacements
+            .sort_by_key(|replacement| (replacement.start, replacement.end, replacement.node.0));
+        self.validate_replacements()?;
+
+        let mut output = String::with_capacity(self.edited_capacity());
+        let mut cursor = 0usize;
+        for replacement in &self.replacements {
+            let Some(prefix) = self.stream.source.get(cursor..replacement.start) else {
+                return Err(Error::new(
+                    "lossless replacement span is not on a UTF-8 boundary",
+                    Some(replacement.span),
+                ));
+            };
+            output.push_str(prefix);
+            output.push_str(&replacement.replacement);
+            cursor = replacement.end;
+        }
+        let Some(suffix) = self.stream.source.get(cursor..) else {
+            return Err(Error::new(
+                "lossless replacement span is not on a UTF-8 boundary",
+                None,
+            ));
+        };
+        output.push_str(suffix);
+
+        parse_lossless(&output)?;
+        Ok(output)
+    }
+
+    fn checked_node_span(&self, node: NodeId) -> Result<Span> {
+        let node = self
+            .stream
+            .node(node)
+            .ok_or_else(|| Error::new("lossless node id is out of bounds", None))?;
+        let span = node.span();
+        if span.start > span.end || span.end > self.stream.source.len() {
+            return Err(Error::new(
+                "lossless node span is outside the retained source",
+                Some(span),
+            ));
+        }
+        if self.stream.source.get(span.start..span.end).is_none() {
+            return Err(Error::new(
+                "lossless node span is not on a UTF-8 boundary",
+                Some(span),
+            ));
+        }
+        Ok(span)
+    }
+
+    fn validate_replacements(&self) -> Result<()> {
+        let mut cursor = 0usize;
+        for replacement in &self.replacements {
+            if replacement.start < cursor {
+                return Err(Error::new(
+                    "lossless replacements overlap",
+                    Some(replacement.span),
+                ));
+            }
+            if self.stream.source.get(cursor..replacement.start).is_none() {
+                return Err(Error::new(
+                    "lossless replacement span is not on a UTF-8 boundary",
+                    Some(replacement.span),
+                ));
+            }
+            cursor = replacement.end;
+        }
+        if self.stream.source.get(cursor..).is_none() {
+            return Err(Error::new(
+                "lossless replacement span is not on a UTF-8 boundary",
+                None,
+            ));
+        }
+        Ok(())
+    }
+
+    fn edited_capacity(&self) -> usize {
+        let removed = self
+            .replacements
+            .iter()
+            .map(|replacement| replacement.end - replacement.start)
+            .sum::<usize>();
+        let added = self
+            .replacements
+            .iter()
+            .map(|replacement| replacement.replacement.len())
+            .sum::<usize>();
+        self.stream.source.len() - removed + added
+    }
+}
+
+#[derive(Clone, Debug)]
+struct LosslessReplacement {
+    node: NodeId,
+    start: usize,
+    end: usize,
+    span: Span,
+    replacement: String,
 }
 
 /// One YAML document in a [`LosslessStream`].
@@ -710,13 +894,11 @@ fn scan_trivia(input: &str) -> Vec<LosslessTrivia> {
         };
         let raw_body = &raw[bom_len..];
         if raw_body.trim().is_empty() {
-            if !raw_body.is_empty() {
-                trivia.push(LosslessTrivia {
-                    kind: LosslessTriviaKind::BlankLine,
-                    span: Span::new(offset + bom_len, offset + raw.len(), line, bom_len + 1),
-                    text: raw_body.to_string(),
-                });
-            }
+            trivia.push(LosslessTrivia {
+                kind: LosslessTriviaKind::BlankLine,
+                span: Span::new(offset + bom_len, offset + raw.len(), line, bom_len + 1),
+                text: raw_body.to_string(),
+            });
         } else if let Some(comment) = comment_start(raw_body) {
             let start = bom_len + comment;
             trivia.push(LosslessTrivia {
@@ -728,4 +910,35 @@ fn scan_trivia(input: &str) -> Vec<LosslessTrivia> {
         offset += chunk.len();
     }
     trivia
+}
+
+fn ensure_scalar_fragment(replacement: &str, span: Span) -> Result<()> {
+    let parsed = parse_lossless(replacement).map_err(|error| {
+        Error::new(
+            format!("replacement is not valid YAML: {error}"),
+            Some(span),
+        )
+    })?;
+    if parsed.documents().len() != 1 {
+        return Err(Error::new(
+            "replacement must parse as one YAML document",
+            Some(span),
+        ));
+    }
+    let Some(root) = parsed.documents()[0].root() else {
+        return Err(Error::new(
+            "replacement must parse as one scalar node",
+            Some(span),
+        ));
+    };
+    let Some(node) = parsed.node(root) else {
+        return Err(Error::new("replacement scalar node is missing", Some(span)));
+    };
+    if !matches!(node.kind(), LosslessNodeKind::Scalar { .. }) {
+        return Err(Error::new(
+            "replacement must parse as one scalar node",
+            Some(span),
+        ));
+    }
+    Ok(())
 }

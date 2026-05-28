@@ -73,7 +73,8 @@ Additional crate surfaces useful during migration:
   surfaces that `serde_yaml` does not provide directly.
 - `yaml::parse_lossless` and `yaml::LosslessStream` provide a separate
   source-backed graph surface for callers that need byte-stable replay,
-  comments/trivia, scalar spelling, directives, and alias-to-anchor identity.
+  comments/trivia, scalar spelling, directives, alias-to-anchor identity, and
+  validated node source edits that preserve untouched bytes.
 
 ## Executable Proof
 
@@ -227,8 +228,8 @@ testing each adopter's own YAML corpus.
 - Aliases are expanded into semantic `Node`/`Value` loaded trees; graph identity
   is preserved only through the separate `LosslessStream` API.
 - Comments and original formatting are discarded by semantic `Node`/`Value`
-  loaders, but retained by `LosslessStream` for source-backed replay and graph
-  inspection.
+  loaders, but retained by `LosslessStream` for source-backed replay, graph
+  inspection, and validated source-fragment edits through `LosslessEdit`.
 - `yaml::Index` and `yaml::mapping::Index` are sealed, like `serde_yaml`'s
   indexing traits. Downstream code should use the normal string, `usize`, and
   `Value` lookup APIs rather than implementing indexing as an extension point.
@@ -246,7 +247,7 @@ testing each adopter's own YAML corpus.
 | Default merge expansion | Parsed `Node`/`Value`/Serde reads expand untagged `<<` by default. Code that inspected literal merge keys should switch to `parse_events` or `LosslessStream`. |
 | YAML 1.1 compatibility | Legacy scalar and collection behavior is available through explicit schema/tag paths. Default entrypoints stay YAML 1.2-oriented, so corpora that require YAML 1.1 typing need opt-in tests. |
 | Alias graph identity | Semantic `Node`/`Value` trees still clone acyclic aliases. Graph-sensitive callers should use `LosslessStream` until a semantic graph-preserving API is finalized. |
-| Lossless formatting | `LosslessStream` preserves source, comments, trivia, directives, anchors, aliases, tags, and scalar spelling for replay/inspection. Edited lossless emission remains separate from structural `to_string` output. |
+| Lossless formatting | `LosslessStream` preserves source, comments, trivia, directives, anchors, aliases, tags, and scalar spelling for replay/inspection. `LosslessEdit` can replace retained node source spans and validates the final YAML while preserving untouched bytes. |
 | Parser acceptance differences | Some YAML 1.2 inputs rejected by libyaml are accepted, and some malformed libyaml-tolerated inputs are rejected. Divergence records now carry per-case migration impact. |
 | Package readiness | The crate remains local-preview only until public name, license, version, and crates.io approval are selected by the user. |
 
@@ -258,7 +259,7 @@ testing each adopter's own YAML corpus.
 - Keep migration-impact wording current as new divergence records are added.
 - Keep growing default merge and `apply_merge` coverage with sustained fuzz
   runs and minimized discoveries beyond the curated seed corpus.
-- Finish broader YAML 1.1/libyaml compatibility decisions, editable lossless
-  formatting/emission, and the long-term graph API contract before claiming
-  full YAML compatibility.
+- Finish broader YAML 1.1/libyaml compatibility decisions, full structural
+  lossless formatting/emission beyond source-fragment replacement, and the
+  long-term graph API contract before claiming full YAML compatibility.
 - Choose the public package name and final license before publishing.

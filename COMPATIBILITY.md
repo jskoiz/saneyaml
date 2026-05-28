@@ -4,8 +4,9 @@ This crate is aiming at a replacement candidate for **Serde read paths first**:
 `serde_yaml`-style `from_str`, `from_slice`, and `from_reader` for common
 developer configuration files, with parser/tree/event behavior compared against
 `yaml-rust2` and `saphyr`. It now includes a source-backed lossless graph view
-for retaining existing YAML text, but it is not claiming byte-for-byte emitter
-parity or an editable lossless formatting engine for modified documents.
+for retaining existing YAML text plus validated source-fragment edits, but it
+is not claiming byte-for-byte emitter parity or a general structural lossless
+formatting engine for arbitrary inserted documents.
 
 The compatibility target is intentionally split:
 
@@ -34,7 +35,7 @@ for intentional behavior splits that matter during migration.
 | Multiline quoted flow scalars | Supported with YAML line folding | Some libyaml paths reject selected YAML 1.2 flow-key cases | Accepted by yaml-rust2/saphyr | Some cases rejected |
 | Adjacent flow mapping values | Accept YAML 1.2 adjacent flow mapping values, including colon-prefixed adjacent plain scalars | Psych/libyaml accepts C2DT but rejects 5MUD, 5T43, and 58MP | yaml-rust2/saphyr accept all four selected cases | `serde_yaml` accepts C2DT but rejects 5MUD, 5T43, and 58MP |
 | Bare/explicit document streams | YAML 1.2 bare documents after `...` are supported, including root literal scalars whose content begins at column 1, and directive-looking lines inside open flow collections are parsed as content | Some libyaml-era paths reject these streams or treat percent-prefixed flow content as directive-sensitive | Accepted by yaml-rust2/saphyr | `serde_yaml` rejects the full M7A3 stream after the first document and rejects UT92 |
-| Comments/formatting | Semantic `Node`/`Value` loaders discard comments and formatting; `LosslessStream` retains the original source for byte-stable replay and exposes comments/blank lines as trivia | Not semantic | Not semantic | Discarded |
+| Comments/formatting | Semantic `Node`/`Value` loaders discard comments and formatting; `LosslessStream` retains the original source for byte-stable replay, exposes comments/blank lines as trivia, and validates node source edits through `LosslessEdit` | Not semantic | Not semantic | Discarded |
 | Emission | Deterministic structural YAML for emittable trees; duplicate-effective mapping keys, over-depth trees including caller-built complex keys, and directly nested tags are rejected before output; public writers follow `serde_yaml` document-marker policy by omitting `---` for the first ordinary document and inserting `---` between stream documents | Manual comparison only | Manual comparison only | Public writer document-marker policy is matched; byte-for-byte formatting parity remains out of scope |
 | Numeric, timestamp, and binary extensions | Decimal ints/floats plus underscores and YAML special floats are resolved by default; explicit YAML 1.1 construction also resolves leading-zero octal, hex, binary numeric, and two/three-part sexagesimal int/float forms that fit `Number`, retains timestamp-shaped plain scalars as `!!timestamp` tagged strings with `yaml::Timestamp` typed reads, and decodes explicit `!!binary` only for typed byte targets | YAML 1.1 has broad numeric/timestamp/binary typing, including sexagesimal and legacy radix forms in libyaml/Psych paths | YAML 1.2 core support varies by crate | Data-model dependent |
 | Directives | Numeric `%YAML` version directives and `%TAG` are accepted as syntax/event inputs; reserved unknown directives are ignored but still require an explicit document start; default loading does not switch scalar schema, while `LoadOptions::yaml_version_directive()` lets `%YAML 1.1` select legacy construction per document; directive metadata is exposed on `DocumentStart` events | Exposed and may affect version/schema handling | Exposed by parser layers | Usually not a Serde value |
@@ -76,8 +77,9 @@ Current read APIs:
   `yaml::with::singleton_map_recursive::serialize` for write-side enum field
   annotations compatible with the corresponding `serde_yaml::with` helpers
 - `yaml::parse_str`, `parse_bytes`, `parse_documents`, and `parse_events`
-- `yaml::parse_lossless`, `parse_lossless_bytes`, and `yaml::LosslessStream`
-  for source-backed comment/trivia preservation and anchor/alias graph identity
+- `yaml::parse_lossless`, `parse_lossless_bytes`, `yaml::LosslessStream`, and
+  `yaml::LosslessEdit` for source-backed comment/trivia preservation,
+  validated node source edits, and anchor/alias graph identity
 - `yaml::LoadOptions::{new, yaml_1_1, schema}` and `yaml::Schema` for explicit
   construction-schema selection across parser and Serde read entrypoints
 

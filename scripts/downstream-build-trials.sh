@@ -99,10 +99,24 @@ run_cfn_guard_trial() {
   cargo check --manifest-path "$checkout/Cargo.toml" -p cfn-guard
 }
 
+run_pingora_trial() {
+  local checkout="$tmp/pingora"
+  git clone --quiet https://github.com/cloudflare/pingora.git "$checkout"
+  git -C "$checkout" checkout --quiet c0845a8693b0792a6ccd0626e8475990f7269af2
+  patch_serde_yaml_dependency "$checkout/pingora-core/Cargo.toml"
+  patch_serde_yaml_dependency "$checkout/pingora-proxy/Cargo.toml"
+
+  cargo check --manifest-path "$checkout/Cargo.toml" -p pingora-core
+  cargo check --manifest-path "$checkout/Cargo.toml" -p pingora-proxy --example modify_response
+}
+
 package_current_crate
 run_packaged_smoke
 
 case "$trial" in
+  pingora)
+    run_pingora_trial
+    ;;
   rust-i18n)
     run_rust_i18n_trial
     ;;
@@ -113,7 +127,7 @@ case "$trial" in
     ;;
   *)
     echo "unknown downstream build trial: $trial" >&2
-    echo "available trials: rust-i18n, cfn-guard, smoke-only" >&2
+    echo "available trials: pingora, rust-i18n, cfn-guard, smoke-only" >&2
     exit 2
     ;;
 esac

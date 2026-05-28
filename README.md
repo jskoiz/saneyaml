@@ -39,9 +39,9 @@ The first milestone focuses on:
   downstream config-loading paths.
 - Pinned external replay fixtures from Pingora, rust-i18n, and cfn-guard that
   compare real downstream YAML inputs against `serde_yaml`.
-- Packaged downstream smoke, rust-i18n, and cfn-guard build trials that consume
-  this crate under the `serde_yaml` dependency name from a clean temporary
-  checkout.
+- Packaged downstream smoke, Pingora, rust-i18n, and cfn-guard build trials
+  that consume this crate under the `serde_yaml` dependency name from clean
+  temporary checkouts.
 - A downstream-shaped migration harness, compileable migration example,
   Ubuntu-only CI workflow, non-mutating all-target fuzz smoke script, and
   real-world config benchmark command.
@@ -65,6 +65,7 @@ cargo test --test downstream_migration_harness
 cargo test --test external_downstream_migration
 cargo test --test libyaml_probe_manifest
 cargo test --test lossless_roundtrip --test graph_identity
+scripts/downstream-build-trials.sh pingora
 scripts/downstream-build-trials.sh rust-i18n
 scripts/downstream-build-trials.sh cfn-guard
 cargo test --test baseline_audit
@@ -78,6 +79,6 @@ scripts/fuzz-smoke-nonmutating.sh
 `tests/baseline_audit.rs` verifies that `BASELINE.md` matches the committed
 manifest, registry, migration report, corpus, and command evidence. `cargo
 fuzz` is optional for ordinary development; the script copies corpora to a
-temporary directory before running all five targets so it does not grow tracked
+temporary directory before running all six targets so it does not grow tracked
 corpus files. Parser safety properties are also exercised by
 `tests/parser_properties.rs`, which runs with plain `cargo test`.

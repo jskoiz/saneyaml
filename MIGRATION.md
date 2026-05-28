@@ -110,13 +110,16 @@ from real `serde_yaml` users:
   `serde_yaml::Value`, including short-form intrinsic tags such as `!Ref`,
   `!GetAtt`, and `!Sub`.
 
-`scripts/downstream-build-trials.sh rust-i18n` and
+`scripts/downstream-build-trials.sh pingora`,
+`scripts/downstream-build-trials.sh rust-i18n`, and
 `scripts/downstream-build-trials.sh cfn-guard` add real downstream build trials.
 Each packages this crate, consumes the unpacked package from a clean smoke
 project under the `serde_yaml` dependency name, then checks a pinned downstream
 checkout with its `serde_yaml` dependency rewritten to that packaged copy. The
-rust-i18n trial covers support, macro, and extract crates; the cfn-guard trial
-checks the package that loads CloudFormation templates and rule-test specs.
+Pingora trial checks `pingora-core` plus the `pingora-proxy` `modify_response`
+example that uses `serde_yaml` as a dev dependency; the rust-i18n trial covers
+support, macro, and extract crates; the cfn-guard trial checks the package that
+loads CloudFormation templates and rule-test specs.
 
 Focused proof command:
 
@@ -124,6 +127,7 @@ Focused proof command:
 cargo test --test serde_yaml_swap_harness --test downstream_migration_harness
 cargo test --test external_downstream_migration
 cargo test --test libyaml_probe_manifest
+scripts/downstream-build-trials.sh pingora
 scripts/downstream-build-trials.sh rust-i18n
 scripts/downstream-build-trials.sh cfn-guard
 ```
@@ -214,9 +218,9 @@ testing each adopter's own YAML corpus.
 ## Next Adoption Blockers
 
 - Add migration-impact wording directly to every divergence record.
-- Expand real external crate build trials beyond the current rust-i18n and
-  cfn-guard package smoke before claiming broad ecosystem replacement
-  readiness.
+- Expand real external crate build trials beyond the current Pingora,
+  rust-i18n, and cfn-guard package smoke before claiming broad ecosystem
+  replacement readiness.
 - Keep growing default merge and `apply_merge` coverage with sustained fuzz
   runs and minimized discoveries beyond the curated seed corpus.
 - Finish directive-driven YAML 1.1 schema decisions, editable lossless

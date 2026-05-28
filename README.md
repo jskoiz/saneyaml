@@ -44,8 +44,8 @@ The first milestone focuses on:
 
 Intentional first-milestone non-goals:
 
-- Full YAML 1.1 compatibility: native date/time values and `!!binary` byte
-  decoding still need public API decisions.
+- Full YAML 1.1 compatibility: native date/time values and broader schema/API
+  decisions still remain.
 - YAML graph identity, comment preservation, lossless formatting, and
   directive-preserving emission.
 - Kubernetes schema validation or automated ecosystem migration tooling.

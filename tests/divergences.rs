@@ -177,7 +177,11 @@ fn divergence_legacy_scalar_resolution_record_is_present() {
     assert!(record.contains("YAML 1.2 core schema"));
     assert!(record.contains("explicit YAML 1.1 scalar construction"));
     assert!(record.contains("retained as !!timestamp tagged strings"));
-    assert!(record.contains("!!binary values remain tagged strings"));
+    assert!(
+        record.contains(
+            "explicit !!binary values are retained in trees and decoded for byte targets"
+        )
+    );
 }
 
 #[test]
@@ -262,6 +266,7 @@ fn divergence_byte_deserialization_record_is_present() {
     assert!(record.contains("deserialize_byte_buf"));
     assert!(record.contains("serde_yaml 0.9.34"));
     assert!(record.contains("!!binary"));
+    assert!(record.contains("plain YAML strings as raw byte buffers"));
     assert!(record.contains("decision"));
 }
 
@@ -301,6 +306,7 @@ fn divergence_explicit_core_tags_record_is_present() {
     assert!(record.contains("Date"));
     assert!(record.contains("Infinity"));
     assert!(record.contains("BadValue"));
+    assert!(record.contains("typed byte targets decode explicit !!binary"));
     assert!(record.contains("decision"));
 }
 
@@ -773,7 +779,7 @@ fn divergence_undeclared_named_tag_handles_are_rejected() {
 }
 
 #[test]
-fn divergence_binary_and_core_tags_are_preserved_without_coercion() {
+fn divergence_binary_and_core_tags_are_preserved_in_retained_trees() {
     let node = parse_str(
         "payload: !!binary SGVsbG8=\nvalue: !!int 0x7B\ndate: !!timestamp 2026-05-24\ninf: !!float .inf\n",
     )
@@ -786,6 +792,9 @@ fn divergence_binary_and_core_tags_are_preserved_without_coercion() {
     };
     assert_eq!(binary.tag, yaml::Tag::new("!!binary"));
     assert_eq!(binary.value.as_str(), Some("SGVsbG8="));
+    let decoded: Vec<u8> =
+        yaml::from_str("!!binary SGVsbG8=\n").expect("typed byte target decodes explicit binary");
+    assert_eq!(decoded, b"Hello");
 
     let yaml::NodeValue::Tagged(integer) = &entries[1].1.value else {
         panic!("expected int tag");

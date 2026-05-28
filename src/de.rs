@@ -421,6 +421,22 @@ fn explicit_core_float_number_node(node: &Node) -> Result<Option<CoercedNumber>,
     }
 }
 
+fn explicit_core_binary_bytes_node(node: &Node) -> Result<Option<Vec<u8>>, Error> {
+    let Some(node) = explicit_core_tagged_node(node, "binary") else {
+        return Ok(None);
+    };
+    match &node.value {
+        NodeValue::String(value) => {
+            let raw = node
+                .scalar_source()
+                .map(|source| source.raw())
+                .unwrap_or(value);
+            decode_yaml_binary(raw, Some(node.span)).map(Some)
+        }
+        _ => Err(type_error("binary scalar", node)),
+    }
+}
+
 fn explicit_core_tagged_node<'a>(mut node: &'a Node, suffix: &str) -> Option<&'a Node> {
     while let NodeValue::Tagged(tagged) = &node.value {
         if tagged.tag.handle == "!!" && tagged.tag.suffix == suffix {
@@ -458,6 +474,16 @@ fn explicit_core_float_number_value(value: &Value) -> Result<Option<CoercedNumbe
         Value::String(value) => parse_explicit_core_float_text(value, None)
             .map(|number| Some(CoercedNumber { number, span: None })),
         other => Err(type_error_value("number", other)),
+    }
+}
+
+fn explicit_core_binary_bytes_value(value: &Value) -> Result<Option<Vec<u8>>, Error> {
+    let Some(value) = explicit_core_tagged_value(value, "binary") else {
+        return Ok(None);
+    };
+    match value {
+        Value::String(value) => decode_yaml_binary(value, None).map(Some),
+        other => Err(type_error_value("binary scalar", other)),
     }
 }
 
@@ -526,6 +552,82 @@ fn parse_explicit_core_float_text(raw: &str, span: Option<Span>) -> Result<Numbe
         .parse::<f64>()
         .map(Number::from)
         .map_err(|_| Error::new("failed to parse explicit !!float scalar", span))
+}
+
+fn decode_yaml_binary(raw: &str, span: Option<Span>) -> Result<Vec<u8>, Error> {
+    let mut output = Vec::new();
+    let mut quartet = [0u8; 4];
+    let mut len = 0usize;
+    let mut saw_padding = false;
+
+    for byte in raw.bytes() {
+        if byte.is_ascii_whitespace() {
+            continue;
+        }
+        let value = match byte {
+            b'=' => {
+                saw_padding = true;
+                64
+            }
+            _ if saw_padding => return Err(Error::new("invalid explicit !!binary scalar", span)),
+            _ => base64_value(byte)
+                .ok_or_else(|| Error::new("invalid explicit !!binary scalar", span))?,
+        };
+        quartet[len] = value;
+        len += 1;
+        if len == 4 {
+            if quartet[0] == 64 || quartet[1] == 64 || (quartet[2] == 64 && quartet[3] != 64) {
+                return Err(Error::new("invalid explicit !!binary scalar", span));
+            }
+            output.push((quartet[0] << 2) | (quartet[1] >> 4));
+            if quartet[2] == 64 {
+                if quartet[1] & 0x0f != 0 {
+                    return Err(Error::new("invalid explicit !!binary scalar", span));
+                }
+            } else {
+                output.push(((quartet[1] & 0x0f) << 4) | (quartet[2] >> 2));
+                if quartet[3] == 64 {
+                    if quartet[2] & 0x03 != 0 {
+                        return Err(Error::new("invalid explicit !!binary scalar", span));
+                    }
+                } else {
+                    output.push(((quartet[2] & 0x03) << 6) | quartet[3]);
+                }
+            }
+            len = 0;
+        }
+    }
+
+    match len {
+        0 => Ok(output),
+        2 if !saw_padding => {
+            if quartet[1] & 0x0f != 0 {
+                return Err(Error::new("invalid explicit !!binary scalar", span));
+            }
+            output.push((quartet[0] << 2) | (quartet[1] >> 4));
+            Ok(output)
+        }
+        3 if !saw_padding => {
+            if quartet[2] & 0x03 != 0 {
+                return Err(Error::new("invalid explicit !!binary scalar", span));
+            }
+            output.push((quartet[0] << 2) | (quartet[1] >> 4));
+            output.push(((quartet[1] & 0x0f) << 4) | (quartet[2] >> 2));
+            Ok(output)
+        }
+        _ => Err(Error::new("invalid explicit !!binary scalar", span)),
+    }
+}
+
+fn base64_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'A'..=b'Z' => Some(byte - b'A'),
+        b'a'..=b'z' => Some(byte - b'a' + 26),
+        b'0'..=b'9' => Some(byte - b'0' + 52),
+        b'+' => Some(62),
+        b'/' => Some(63),
+        _ => None,
+    }
 }
 
 fn visit_i64_number<'de, V>(
@@ -985,6 +1087,9 @@ impl<'de, 'tree> de::Deserializer<'de> for InputNode<'tree, 'de> {
     where
         V: Visitor<'de>,
     {
+        if let Some(bytes) = explicit_core_binary_bytes_node(self.node)? {
+            return _visitor.visit_byte_buf(bytes);
+        }
         Err(type_error("bytes", self.untag().node))
     }
 
@@ -992,6 +1097,9 @@ impl<'de, 'tree> de::Deserializer<'de> for InputNode<'tree, 'de> {
     where
         V: Visitor<'de>,
     {
+        if let Some(bytes) = explicit_core_binary_bytes_node(self.node)? {
+            return _visitor.visit_byte_buf(bytes);
+        }
         Err(type_error("bytes", self.untag().node))
     }
 
@@ -1043,6 +1151,9 @@ impl<'de, 'tree> de::Deserializer<'de> for InputNode<'tree, 'de> {
     where
         V: Visitor<'de>,
     {
+        if let Some(bytes) = explicit_core_binary_bytes_node(self.node)? {
+            return visitor.visit_seq(ByteBufSeqDeserializer::new(bytes));
+        }
         let node = self.untag();
         if is_empty_null_node(node.node) {
             return visitor.visit_seq(InputSeqDeserializer {
@@ -1445,6 +1556,9 @@ impl<'de> de::Deserializer<'de> for &'de Node {
     where
         V: Visitor<'de>,
     {
+        if let Some(bytes) = explicit_core_binary_bytes_node(self)? {
+            return _visitor.visit_byte_buf(bytes);
+        }
         Err(type_error("bytes", untag_node(self)))
     }
 
@@ -1452,6 +1566,9 @@ impl<'de> de::Deserializer<'de> for &'de Node {
     where
         V: Visitor<'de>,
     {
+        if let Some(bytes) = explicit_core_binary_bytes_node(self)? {
+            return _visitor.visit_byte_buf(bytes);
+        }
         Err(type_error("bytes", untag_node(self)))
     }
 
@@ -1503,6 +1620,9 @@ impl<'de> de::Deserializer<'de> for &'de Node {
     where
         V: Visitor<'de>,
     {
+        if let Some(bytes) = explicit_core_binary_bytes_node(self)? {
+            return visitor.visit_seq(ByteBufSeqDeserializer::new(bytes));
+        }
         let node = untag_node(self);
         if is_empty_null_node(node) {
             return visitor.visit_seq(SeqDeserializer {
@@ -1878,6 +1998,9 @@ impl<'de> de::Deserializer<'de> for Node {
     where
         V: Visitor<'de>,
     {
+        if let Some(bytes) = explicit_core_binary_bytes_node(&self)? {
+            return _visitor.visit_byte_buf(bytes);
+        }
         let node = untag_node_owned(self);
         Err(type_error_owned("bytes", &node.value, node.span))
     }
@@ -1941,6 +2064,9 @@ impl<'de> de::Deserializer<'de> for Node {
     where
         V: Visitor<'de>,
     {
+        if let Some(bytes) = explicit_core_binary_bytes_node(&self)? {
+            return visitor.visit_seq(ByteBufSeqDeserializer::new(bytes));
+        }
         let node = untag_node_owned(self);
         if is_empty_null_node(&node) {
             return visitor.visit_seq(OwnedSeqDeserializer {
@@ -2269,6 +2395,9 @@ impl<'de> de::Deserializer<'de> for Value {
     where
         V: Visitor<'de>,
     {
+        if let Some(bytes) = explicit_core_binary_bytes_value(&self)? {
+            return _visitor.visit_byte_buf(bytes);
+        }
         let value = untag_value_owned(self);
         Err(type_error_value("bytes", &value))
     }
@@ -2326,6 +2455,9 @@ impl<'de> de::Deserializer<'de> for Value {
     where
         V: Visitor<'de>,
     {
+        if let Some(bytes) = explicit_core_binary_bytes_value(&self)? {
+            return visitor.visit_seq(ByteBufSeqDeserializer::new(bytes));
+        }
         match untag_value_owned(self) {
             Value::Null => visitor.visit_seq(ValueSeqDeserializer {
                 items: Vec::new().into_iter(),
@@ -3550,6 +3682,9 @@ impl<'de> de::Deserializer<'de> for &'de Value {
     where
         V: Visitor<'de>,
     {
+        if let Some(bytes) = explicit_core_binary_bytes_value(self)? {
+            return _visitor.visit_byte_buf(bytes);
+        }
         let value = untag_value(self);
         Err(type_error_value("bytes", value))
     }
@@ -3558,6 +3693,9 @@ impl<'de> de::Deserializer<'de> for &'de Value {
     where
         V: Visitor<'de>,
     {
+        if let Some(bytes) = explicit_core_binary_bytes_value(self)? {
+            return _visitor.visit_byte_buf(bytes);
+        }
         let value = untag_value(self);
         Err(type_error_value("bytes", value))
     }
@@ -3610,6 +3748,9 @@ impl<'de> de::Deserializer<'de> for &'de Value {
     where
         V: Visitor<'de>,
     {
+        if let Some(bytes) = explicit_core_binary_bytes_value(self)? {
+            return visitor.visit_seq(ByteBufSeqDeserializer::new(bytes));
+        }
         let value = untag_value(self);
         match value {
             Value::Null => visitor.visit_seq(ValueRefSeqDeserializer {
@@ -3953,6 +4094,32 @@ struct InputSeqDeserializer<'tree, 'de> {
     items: &'tree [Node],
     input: &'de str,
     index: usize,
+}
+
+struct ByteBufSeqDeserializer {
+    bytes: std::vec::IntoIter<u8>,
+}
+
+impl ByteBufSeqDeserializer {
+    fn new(bytes: Vec<u8>) -> Self {
+        Self {
+            bytes: bytes.into_iter(),
+        }
+    }
+}
+
+impl<'de> SeqAccess<'de> for ByteBufSeqDeserializer {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        let Some(byte) = self.bytes.next() else {
+            return Ok(None);
+        };
+        seed.deserialize(byte.into_deserializer()).map(Some)
+    }
 }
 
 impl<'de, 'tree> SeqAccess<'de> for InputSeqDeserializer<'tree, 'de> {

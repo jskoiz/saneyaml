@@ -170,7 +170,9 @@ testing each adopter's own YAML corpus.
   resolve legacy booleans/nulls plus timestamp-shaped plain scalars, octal,
   hex, binary numeric, sexagesimal, and underscored numeric forms that fit
   `yaml::Number`. Timestamps are retained as `!!timestamp` tagged strings, and
-  `!!binary` payloads remain tagged strings without byte decoding.
+  `!!binary` payloads are retained as tagged strings in `Value`/`Node` while
+  decoding for typed byte targets such as `Vec<u8>`, `deserialize_bytes`, and
+  `deserialize_byte_buf`.
 - Untagged merge keys are expanded by default in loaded trees and Serde reads.
   `Value::apply_merge()` remains available for caller-built values and is
   idempotent for values parsed by this crate.
@@ -197,6 +199,6 @@ testing each adopter's own YAML corpus.
   replacement readiness.
 - Keep growing default merge and `apply_merge` coverage with sustained fuzz
   runs and minimized discoveries beyond the curated seed corpus.
-- Finish native date/time and binary byte APIs, comment/format preservation,
-  and alias graph identity before claiming full YAML compatibility.
+- Finish native date/time APIs, comment/format preservation, and alias graph
+  identity before claiming full YAML compatibility.
 - Choose the public package name and final license before publishing.

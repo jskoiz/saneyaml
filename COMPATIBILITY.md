@@ -29,9 +29,9 @@ The compatibility target is intentionally split:
 | Bare/explicit document streams | YAML 1.2 bare documents after `...` are supported, including root literal scalars whose content begins at column 1, and directive-looking lines inside open flow collections are parsed as content | Some libyaml-era paths reject these streams or treat percent-prefixed flow content as directive-sensitive | Accepted by yaml-rust2/saphyr | `serde_yaml` rejects the full M7A3 stream after the first document and rejects UT92 |
 | Comments/formatting | Discarded | Not semantic | Not semantic | Discarded |
 | Emission | Deterministic structural YAML for emittable trees; duplicate-effective mapping keys, over-depth trees including caller-built complex keys, and directly nested tags are rejected before output; public writers follow `serde_yaml` document-marker policy by omitting `---` for the first ordinary document and inserting `---` between stream documents | Manual comparison only | Manual comparison only | Public writer document-marker policy is matched; byte-for-byte formatting parity remains out of scope |
-| Numeric and timestamp extensions | Decimal ints/floats plus underscores and YAML special floats are resolved by default; explicit YAML 1.1 construction also resolves leading-zero octal, hex, binary numeric, and sexagesimal forms that fit `Number`, and retains timestamp-shaped plain scalars as `!!timestamp` tagged strings; `!!binary` byte decoding remains unresolved | YAML 1.1 has broad numeric/timestamp typing | YAML 1.2 core support varies by crate | Data-model dependent |
+| Numeric, timestamp, and binary extensions | Decimal ints/floats plus underscores and YAML special floats are resolved by default; explicit YAML 1.1 construction also resolves leading-zero octal, hex, binary numeric, and sexagesimal forms that fit `Number`, retains timestamp-shaped plain scalars as `!!timestamp` tagged strings, and decodes explicit `!!binary` only for typed byte targets | YAML 1.1 has broad numeric/timestamp/binary typing | YAML 1.2 core support varies by crate | Data-model dependent |
 | Directives | Numeric `%YAML` version directives and `%TAG` are accepted as syntax/event inputs; reserved unknown directives are ignored but still require an explicit document start; version directives do not switch scalar schema; directive metadata is exposed on `DocumentStart` events | Exposed and may affect version/schema handling | Exposed by parser layers | Usually not a Serde value |
-| Explicit core tags | Tree and `Value` loading preserve explicit `!!binary`, `!!timestamp`, `!!int`, and `!!float` tags; typed Serde reads coerce explicit `!!int`/`!!float` numeric targets while preserving tags in retained values | YAML 1.1 typed binary/timestamp/numeric support is common | Tag-aware behavior varies, including `BadValue` for some explicit core tags | Partial/lossy |
+| Explicit core tags | Tree and `Value` loading preserve explicit `!!binary`, `!!timestamp`, `!!int`, and `!!float` tags; typed Serde reads coerce explicit `!!int`/`!!float` numeric targets and explicit `!!binary` byte targets while preserving tags in retained values | YAML 1.1 typed binary/timestamp/numeric support is common | Tag-aware behavior varies, including `BadValue` for some explicit core tags | Partial/lossy |
 
 ## Public API Compatibility Surface
 
@@ -99,8 +99,9 @@ Default scalar construction remains YAML 1.2-oriented even when a stream has
 `yaml::LoadOptions::yaml_1_1()` or `yaml::LoadOptions::new().schema(Schema::Yaml11)`.
 That mode resolves boolean aliases and numeric forms that fit `yaml::Number`,
 and retains timestamp-shaped plain scalars as `!!timestamp` tagged strings.
-Explicit `!!binary` payloads remain tagged strings without byte decoding until
-a public byte representation is settled.
+Explicit `!!binary` payloads remain tagged strings in retained `Value`/`Node`
+trees, but typed byte targets such as `Vec<u8>`, `deserialize_bytes`, and
+`deserialize_byte_buf` decode the base64 payload.
 For non-enum typed reads, tags are transparent metadata: `!Env prod` can
 deserialize into `String`, `!Ports [80, 443]` into `Vec<u16>`, and
 `!Maybe null` into `Option<T>`. `Value::default()` is null, `Value` can drive
@@ -164,10 +165,13 @@ serialization follows `serde_yaml::value::Serializer` by producing a numeric
 sequence, while document writers reject `serialize_bytes` inputs like
 `serde_yaml` during the normal value serialization pass, so custom
 `Serialize` implementations are not invoked a second time for byte preflight.
-Read-side byte visitors follow `serde_yaml`: parser-backed YAML scalars reject
-`deserialize_bytes`/`deserialize_byte_buf`, value-backed numeric byte sequences
-deserialize to `Vec<u8>` through normal sequence handling, and direct byte
-visitors reject both value strings and value sequences.
+Read-side byte visitors follow `serde_yaml` for plain values: parser-backed
+plain YAML scalars reject `deserialize_bytes`/`deserialize_byte_buf`,
+value-backed numeric byte sequences deserialize to `Vec<u8>` through normal
+sequence handling, and direct byte visitors reject both value strings and value
+sequences. Explicit `!!binary` scalars are the tag-aware exception: they decode
+for `Vec<u8>`, `deserialize_bytes`, and `deserialize_byte_buf` while remaining
+tagged strings in retained trees.
 Parser-backed `yaml::Value` reads still retain widened `i128`/`u128` numbers.
 `yaml::to_string`, `yaml::to_writer`, and
 `yaml::Serializer<W>` omit an explicit `---` for the first ordinary document and

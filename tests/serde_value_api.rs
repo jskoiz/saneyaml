@@ -1184,7 +1184,7 @@ fn serde_api_value_byte_deserialization_rejects_strings_like_serde_yaml() {
 
 #[test]
 fn serde_api_parser_backed_byte_deserialization_rejects_like_serde_yaml() {
-    for input in ["abc\n", "\"abc\"\n", "!!binary AAH/\n"] {
+    for input in ["abc\n", "\"abc\"\n"] {
         assert!(
             serde_yaml::from_str::<BytesFromDeserializeBytes>(input).is_err(),
             "serde_yaml rejects parser-backed deserialize_bytes for {input:?}"
@@ -1202,6 +1202,134 @@ fn serde_api_parser_backed_byte_deserialization_rejects_like_serde_yaml() {
     let reference_vec: Vec<u8> =
         serde_yaml::from_str("[0, 65, 255]\n").expect("serde_yaml sequence to Vec<u8>");
     assert_eq!(ours_vec, reference_vec);
+}
+
+#[test]
+fn serde_api_explicit_binary_deserializes_to_byte_targets() {
+    let input = "!!binary SGVsbG8=\n";
+    let expected = b"Hello".to_vec();
+
+    assert_eq!(
+        yaml::from_str::<Vec<u8>>(input).expect("from_str explicit binary Vec<u8>"),
+        expected
+    );
+    assert_eq!(
+        yaml::from_slice::<Vec<u8>>(input.as_bytes()).expect("from_slice explicit binary Vec<u8>"),
+        expected
+    );
+    assert_eq!(
+        yaml::from_reader::<_, Vec<u8>>(Cursor::new(input.as_bytes()))
+            .expect("from_reader explicit binary Vec<u8>"),
+        expected
+    );
+    assert_eq!(
+        BytesFromDeserializeBytes::deserialize(yaml::Deserializer::from_str(input))
+            .expect("direct deserialize_bytes from str"),
+        BytesFromDeserializeBytes(expected.clone())
+    );
+    assert_eq!(
+        BytesFromDeserializeBytes::deserialize(yaml::Deserializer::from_slice(input.as_bytes()))
+            .expect("direct deserialize_bytes from slice"),
+        BytesFromDeserializeBytes(expected.clone())
+    );
+    assert_eq!(
+        BytesFromDeserializeBytes::deserialize(yaml::Deserializer::from_reader(Cursor::new(
+            input.as_bytes()
+        )))
+        .expect("direct deserialize_bytes from reader"),
+        BytesFromDeserializeBytes(expected.clone())
+    );
+    assert_eq!(
+        BytesFromDeserializeByteBuf::deserialize(yaml::Deserializer::from_str(input))
+            .expect("direct deserialize_byte_buf from str"),
+        BytesFromDeserializeByteBuf(expected.clone())
+    );
+    assert_eq!(
+        BytesFromDeserializeByteBuf::deserialize(yaml::Deserializer::from_slice(input.as_bytes()))
+            .expect("direct deserialize_byte_buf from slice"),
+        BytesFromDeserializeByteBuf(expected.clone())
+    );
+    assert_eq!(
+        BytesFromDeserializeByteBuf::deserialize(yaml::Deserializer::from_reader(Cursor::new(
+            input.as_bytes()
+        )))
+        .expect("direct deserialize_byte_buf from reader"),
+        BytesFromDeserializeByteBuf(expected.clone())
+    );
+
+    let node = yaml::parse_str(input).expect("explicit binary node");
+    assert_eq!(
+        yaml::from_node::<Vec<u8>>(&node).expect("node explicit binary Vec<u8>"),
+        expected
+    );
+    assert_eq!(
+        BytesFromDeserializeBytes::deserialize(&node).expect("node ref deserialize_bytes"),
+        BytesFromDeserializeBytes(expected.clone())
+    );
+    assert_eq!(
+        BytesFromDeserializeByteBuf::deserialize(node.clone())
+            .expect("node owned deserialize_byte_buf"),
+        BytesFromDeserializeByteBuf(expected.clone())
+    );
+    assert_eq!(
+        BytesFromDeserializeBytes::deserialize(node.clone()).expect("node owned deserialize_bytes"),
+        BytesFromDeserializeBytes(expected.clone())
+    );
+    assert_eq!(
+        BytesFromDeserializeByteBuf::deserialize(&node).expect("node ref deserialize_byte_buf"),
+        BytesFromDeserializeByteBuf(expected.clone())
+    );
+
+    let value: Value = yaml::from_str(input).expect("explicit binary value");
+    let tagged = value.as_tagged().expect("retained binary tag");
+    assert_eq!(tagged.tag, Tag::new("!!binary"));
+    assert_eq!(tagged.value.as_str(), Some("SGVsbG8="));
+    assert_eq!(
+        yaml::from_value::<Vec<u8>>(value.clone()).expect("value explicit binary Vec<u8>"),
+        expected
+    );
+    assert_eq!(
+        BytesFromDeserializeBytes::deserialize(&value).expect("value ref deserialize_bytes"),
+        BytesFromDeserializeBytes(expected.clone())
+    );
+    assert_eq!(
+        BytesFromDeserializeByteBuf::deserialize(value.clone())
+            .expect("value owned deserialize_byte_buf"),
+        BytesFromDeserializeByteBuf(expected.clone())
+    );
+    assert_eq!(
+        BytesFromDeserializeBytes::deserialize(value.clone())
+            .expect("value owned deserialize_bytes"),
+        BytesFromDeserializeBytes(expected.clone())
+    );
+    assert_eq!(
+        BytesFromDeserializeByteBuf::deserialize(&value).expect("value ref deserialize_byte_buf"),
+        BytesFromDeserializeByteBuf(expected)
+    );
+}
+
+#[test]
+fn serde_api_invalid_explicit_binary_reports_scalar_span_for_byte_targets() {
+    let input = "!!binary SGVsbG8?\n";
+    let error = yaml::from_str::<Vec<u8>>(input).expect_err("invalid explicit binary");
+
+    assert!(
+        error
+            .to_string()
+            .contains("invalid explicit !!binary scalar")
+    );
+    assert_eq!(error.line(), Some(1));
+    assert_eq!(error.column(), Some(10));
+
+    let value: Value =
+        yaml::from_str(input).expect("invalid binary remains loadable as tagged value");
+    let tagged = value.as_tagged().expect("retained binary tag");
+    assert_eq!(tagged.tag, Tag::new("!!binary"));
+    assert_eq!(tagged.value.as_str(), Some("SGVsbG8?"));
+    assert!(
+        yaml::from_value::<Vec<u8>>(value).is_err(),
+        "typed byte targets validate retained !!binary payloads"
+    );
 }
 
 fn assert_parser_backed_deserialize_bytes_rejected(input: &str) {

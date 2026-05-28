@@ -49,12 +49,22 @@ fn assert_matches_serde_yaml(input: &[u8]) {
         return;
     };
     let mut reference = reference_unmerged;
-    value
-        .apply_merge()
-        .expect("yaml applies merge for shared subset");
-    reference
-        .apply_merge()
-        .expect("serde_yaml applies merge for shared subset");
-    let reference = yaml::to_value(reference).expect("serde_yaml value converts to yaml::Value");
-    assert!(value.equivalent(&reference));
+    match (value.apply_merge(), reference.apply_merge()) {
+        (Ok(()), Ok(())) => {
+            let reference =
+                yaml::to_value(reference).expect("serde_yaml value converts to yaml::Value");
+            assert!(value.equivalent(&reference));
+        }
+        (Err(error), Err(reference_error)) => {
+            assert!(!error.to_string().is_empty());
+            assert_eq!(error.location(), None);
+            assert!(reference_error.location().is_none());
+        }
+        (Ok(()), Err(reference_error)) => {
+            panic!("yaml applied merge but serde_yaml rejected it: {reference_error}");
+        }
+        (Err(error), Ok(())) => {
+            panic!("yaml rejected merge but serde_yaml applied it: {error}");
+        }
+    }
 }

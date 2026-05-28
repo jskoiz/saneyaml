@@ -1,0 +1,7 @@
+%YAML 1.1
+---
+string: !!str null
+bool: !!bool ON
+nullish: !!null ~
+int: !!int 0x7B
+float: !!float 1:20:30.5

@@ -79,3 +79,53 @@ fn lossless_graph_keeps_merge_key_and_alias_raw() {
         LosslessNodeKind::Alias { name, .. } if name == "base"
     ));
 }
+
+#[test]
+fn lossless_graph_preserves_explicit_core_tag_alias_identity() {
+    let input = "\
+# explicit core tags with alias identity
+values: &values
+  forced_string: !!str null
+  legacy_bool: !!bool ON
+  explicit_null: !!null ~
+copy: *values
+";
+    let stream = parse_lossless(input).expect("lossless parse");
+
+    assert_eq!(stream.to_string(), input);
+    let alias = stream
+        .aliases()
+        .iter()
+        .find(|alias| alias.name() == "values")
+        .expect("values alias");
+    let target = stream.anchor(alias.target()).expect("values target");
+
+    assert_eq!(target.name(), "values");
+    assert_eq!(
+        stream
+            .node(target.node())
+            .expect("anchored mapping")
+            .anchor(),
+        Some(target.id())
+    );
+    assert!(matches!(
+        stream.node(alias.node()).expect("alias node").kind(),
+        LosslessNodeKind::Alias { target: alias_target, .. } if *alias_target == target.id()
+    ));
+
+    let tag_tokens = stream
+        .nodes()
+        .iter()
+        .filter_map(|node| node.tag())
+        .map(|tag| (tag.tag.to_string(), stream.source_fragment(tag.span)))
+        .collect::<Vec<_>>();
+
+    for expected in ["!!str", "!!bool", "!!null"] {
+        assert!(
+            tag_tokens
+                .iter()
+                .any(|(tag, source)| tag == expected && *source == Some(expected)),
+            "missing lossless explicit tag {expected}: {tag_tokens:?}"
+        );
+    }
+}

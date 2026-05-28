@@ -1,0 +1,10 @@
+# explicit core tags with source spelling
+values: &values
+  forced_string: !!str null
+  legacy_bool: !!bool ON
+  explicit_null: !!null ~
+  hex: !!int 0x7B
+  sexagesimal: !!float 1:20:30.5
+  timestamp: !!timestamp 2026-05-24
+  payload: !!binary SGVsbG8=
+copy: *values

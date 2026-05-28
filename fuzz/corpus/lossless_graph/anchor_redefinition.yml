@@ -1,0 +1,4 @@
+first: &item one
+first_ref: *item
+second: &item two
+second_ref: *item

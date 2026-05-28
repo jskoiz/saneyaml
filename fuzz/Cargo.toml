@@ -47,3 +47,10 @@ path = "fuzz_targets/schema_modes.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "lossless_graph"
+path = "fuzz_targets/lossless_graph.rs"
+test = false
+doc = false
+bench = false

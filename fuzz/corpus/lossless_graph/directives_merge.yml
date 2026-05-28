@@ -1,0 +1,7 @@
+%YAML 1.2
+%TAG !e! tag:example.com,2026:
+---
+base: &base {a: 1, b: !e!Thing two}
+merged:
+  <<: *base
+  b: override

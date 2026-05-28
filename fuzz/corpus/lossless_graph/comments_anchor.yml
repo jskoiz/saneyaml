@@ -1,0 +1,9 @@
+---
+# header
+root: &root
+  name: "api" # inline
+  child:
+    - one
+    - two
+ref: *root
+...

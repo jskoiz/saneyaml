@@ -45,6 +45,12 @@ invalid_octal: 09
 hex: 0x7B
 binary: 0b1010
 sexagesimal: 1:20:30
+short_sexagesimal: 1:20
+negative_sexagesimal: -1:20
+float_sexagesimal: 1:20.5
+float_seconds: 1:20:30.5
+invalid_sexagesimal: 1:60
+too_many_sexagesimal: 1:20:30:40
 underscored: 1_000
 ";
     let value: Value = LoadOptions::new()
@@ -58,6 +64,12 @@ underscored: 1_000
     assert_eq!(value["hex"].as_i64(), Some(123));
     assert_eq!(value["binary"].as_i64(), Some(10));
     assert_eq!(value["sexagesimal"].as_i64(), Some(4830));
+    assert_eq!(value["short_sexagesimal"].as_i64(), Some(4800));
+    assert_eq!(value["negative_sexagesimal"].as_i64(), Some(-2400));
+    assert_eq!(value["float_sexagesimal"].as_f64(), Some(4830.0));
+    assert_eq!(value["float_seconds"].as_f64(), Some(4830.5));
+    assert_eq!(value["invalid_sexagesimal"].as_str(), Some("1:60"));
+    assert_eq!(value["too_many_sexagesimal"].as_str(), Some("1:20:30:40"));
     assert_eq!(value["underscored"].as_i64(), Some(1000));
 }
 

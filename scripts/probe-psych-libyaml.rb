@@ -65,8 +65,12 @@ CASES = [
     yaml: <<~YAML
       binary: !!binary SGVsbG8=
       int: !!int 0x7B
+      octal: !!int 0123
+      sexagesimal: !!int 1:20
+      int_tag_float: !!int 1:20.5
       timestamp: !!timestamp 2026-05-24
       float: !!float .inf
+      sexagesimal_float: !!float 1:20:30.5
     YAML
   },
   {

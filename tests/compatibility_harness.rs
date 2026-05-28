@@ -588,7 +588,7 @@ fn compatibility_yaml_11_schema_is_explicit_not_directive_implicit() {
     assert!(matches!(legacy_entries[0].1.value, Value::Bool(true)));
     assert!(matches!(legacy_entries[1].1.value, Value::Number(_)));
     assert_eq!(yaml::Value::from(&legacy_entries[1].1).as_i64(), Some(16));
-    assert_eq!(yaml::Value::from(&legacy_entries[2].1).as_i64(), Some(80));
+    assert_eq!(yaml::Value::from(&legacy_entries[2].1).as_i64(), Some(4800));
 }
 
 #[test]

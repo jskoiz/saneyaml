@@ -31,6 +31,7 @@ mod key_identity;
 mod parse;
 mod schema;
 mod ser;
+mod yaml11;
 
 /// Serde helper modules matching selected `serde_yaml::with` paths.
 pub mod with;

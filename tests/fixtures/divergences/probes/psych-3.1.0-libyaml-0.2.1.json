@@ -233,6 +233,36 @@
           {
             "key": {
               "class": "String",
+              "value": "octal"
+            },
+            "value": {
+              "class": "Integer",
+              "value": "83"
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "sexagesimal"
+            },
+            "value": {
+              "class": "Integer",
+              "value": "4800"
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "int_tag_float"
+            },
+            "value": {
+              "class": "Float",
+              "value": "4830.0"
+            }
+          },
+          {
+            "key": {
+              "class": "String",
               "value": "timestamp"
             },
             "value": {
@@ -248,6 +278,16 @@
             "value": {
               "class": "Float",
               "value": "Infinity"
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "sexagesimal_float"
+            },
+            "value": {
+              "class": "Float",
+              "value": "4830.5"
             }
           }
         ]

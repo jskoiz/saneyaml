@@ -450,6 +450,13 @@ fn event_policy_document_start_exposes_directive_metadata() {
 }
 
 #[test]
+fn event_policy_rejects_zero_major_yaml_directives() {
+    let error = parse_events("%YAML 0.2\n---\nkey: value\n")
+        .expect_err("zero-major YAML directive is invalid");
+    assert!(error.to_string().contains("invalid YAML directive"));
+}
+
+#[test]
 fn event_policy_document_start_properties_attach_to_root_node_event() {
     let events = parse_events("--- &root !Thing\nchild: 1\n...\n").expect("events");
 

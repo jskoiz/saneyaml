@@ -5,6 +5,7 @@ use crate::{
     error::utf8_error_span,
     key_identity::{DuplicateKey, check_duplicate_for_mode},
     schema::{LoadOptions, Schema},
+    yaml11,
 };
 use std::collections::HashMap;
 use std::mem;
@@ -2698,7 +2699,11 @@ fn parse_yaml_version(text: &str) -> Option<(u8, u8)> {
     if major.is_empty() || minor.is_empty() || minor.contains('.') {
         return None;
     }
-    Some((major.parse().ok()?, minor.parse().ok()?))
+    let major = major.parse().ok()?;
+    if major == 0 {
+        return None;
+    }
+    Some((major, minor.parse().ok()?))
 }
 
 fn valid_tag_handle(handle: &str) -> bool {
@@ -3625,46 +3630,7 @@ fn parse_number(text: &str, _span: Span) -> Result<Option<Number>> {
 }
 
 fn parse_yaml11_number(text: &str) -> Result<Option<Number>> {
-    let compact = text.replace('_', "");
-    let (negative, positive) = match compact.as_bytes().first() {
-        Some(b'-') => (true, &compact[1..]),
-        Some(b'+') => (false, &compact[1..]),
-        _ => (false, compact.as_str()),
-    };
-
-    if let Some(value) = parse_yaml11_sexagesimal(positive) {
-        return Ok(signed_magnitude_number(negative, value));
-    }
-
-    if let Some(hex) = positive
-        .strip_prefix("0x")
-        .or_else(|| positive.strip_prefix("0X"))
-        && !hex.is_empty()
-        && hex.chars().all(|ch| ch.is_ascii_hexdigit())
-        && let Ok(value) = u128::from_str_radix(hex, 16)
-    {
-        return Ok(signed_magnitude_number(negative, value));
-    }
-
-    if let Some(binary) = positive
-        .strip_prefix("0b")
-        .or_else(|| positive.strip_prefix("0B"))
-        && !binary.is_empty()
-        && binary.chars().all(|ch| matches!(ch, '0' | '1'))
-        && let Ok(value) = u128::from_str_radix(binary, 2)
-    {
-        return Ok(signed_magnitude_number(negative, value));
-    }
-
-    if positive.len() > 1
-        && positive.starts_with('0')
-        && positive.chars().all(|ch| ('0'..='7').contains(&ch))
-        && let Ok(value) = u128::from_str_radix(positive, 8)
-    {
-        return Ok(signed_magnitude_number(negative, value));
-    }
-
-    Ok(None)
+    Ok(yaml11::parse_implicit_numeric_extension(text))
 }
 
 fn is_yaml11_invalid_octal(text: &str) -> bool {
@@ -3677,43 +3643,6 @@ fn is_yaml11_invalid_octal(text: &str) -> bool {
         && positive.starts_with('0')
         && positive.chars().all(|ch| ch.is_ascii_digit())
         && positive.chars().any(|ch| matches!(ch, '8' | '9'))
-}
-
-fn parse_yaml11_sexagesimal(text: &str) -> Option<u128> {
-    if !text.contains(':') {
-        return None;
-    }
-    let mut value = 0u128;
-    let mut groups = 0usize;
-    for group in text.split(':') {
-        if group.is_empty() || !group.chars().all(|ch| ch.is_ascii_digit()) {
-            return None;
-        }
-        let part = group.parse::<u128>().ok()?;
-        if groups > 0 && part >= 60 {
-            return None;
-        }
-        value = value.checked_mul(60)?.checked_add(part)?;
-        groups += 1;
-    }
-    (groups >= 2).then_some(value)
-}
-
-fn signed_magnitude_number(negative: bool, magnitude: u128) -> Option<Number> {
-    if negative {
-        let min_magnitude = (i128::MAX as u128).saturating_add(1);
-        if magnitude == min_magnitude {
-            return Some(Number::Integer(i128::MIN));
-        }
-        let value = i128::try_from(magnitude).ok()?;
-        return Some(Number::Integer(-value));
-    }
-
-    if let Ok(value) = i64::try_from(magnitude) {
-        Some(Number::Integer(i128::from(value)))
-    } else {
-        Some(Number::Unsigned(magnitude))
-    }
 }
 
 fn parse_special_float(compact: &str) -> Option<Number> {

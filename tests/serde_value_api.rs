@@ -3074,61 +3074,74 @@ fn serde_api_value_preserves_core_local_and_verbatim_tags() {
 }
 
 #[test]
-fn serde_api_explicit_core_numeric_tags_match_serde_yaml_for_typed_reads() {
+fn serde_api_explicit_core_numeric_tags_support_yaml11_legacy_typed_reads() {
     #[derive(Debug, Deserialize, PartialEq)]
     struct ExplicitCoreNumbers {
         hex: i64,
+        octal: i64,
+        sexagesimal: i64,
+        negative_sexagesimal: i64,
         unsigned: u64,
         as_float: f64,
+        float_from_int_tag: f64,
+        sexagesimal_float: f64,
+        sexagesimal_seconds_float: f64,
         inf: f64,
         neg_inf: f64,
         nan: f64,
     }
 
-    let input = "hex: !!int 0x7B\nunsigned: !!int +42\nas_float: !!int 7\ninf: !!float .inf\nneg_inf: !!float -.inf\nnan: !!float .nan\n";
-    let ours: ExplicitCoreNumbers = yaml::from_str(input).expect("explicit core numeric tags");
-    let reference: ExplicitCoreNumbers =
-        serde_yaml::from_str(input).expect("serde_yaml explicit core numeric tags");
+    fn assert_explicit_core_numbers(actual: &ExplicitCoreNumbers) {
+        assert_eq!(actual.hex, 123);
+        assert_eq!(actual.octal, 83);
+        assert_eq!(actual.sexagesimal, 4800);
+        assert_eq!(actual.negative_sexagesimal, -2400);
+        assert_eq!(actual.unsigned, 42);
+        assert_eq!(actual.as_float, 7.0);
+        assert_eq!(actual.float_from_int_tag, 4830.0);
+        assert_eq!(actual.sexagesimal_float, 4830.0);
+        assert_eq!(actual.sexagesimal_seconds_float, 4830.5);
+        assert_eq!(actual.inf, f64::INFINITY);
+        assert_eq!(actual.neg_inf, f64::NEG_INFINITY);
+        assert!(actual.nan.is_nan());
+    }
 
-    assert_eq!(ours.hex, reference.hex);
-    assert_eq!(ours.unsigned, reference.unsigned);
-    assert_eq!(ours.as_float, reference.as_float);
-    assert_eq!(ours.inf, reference.inf);
-    assert_eq!(ours.neg_inf, reference.neg_inf);
-    assert!(ours.nan.is_nan());
-    assert!(reference.nan.is_nan());
+    let input = "\
+hex: !!int 0x7B
+octal: !!int 0123
+sexagesimal: !!int 1:20
+negative_sexagesimal: !!int -1:20
+unsigned: !!int +42
+as_float: !!int 7
+float_from_int_tag: !!int 1:20.5
+sexagesimal_float: !!float 1:20.5
+sexagesimal_seconds_float: !!float 1:20:30.5
+inf: !!float .inf
+neg_inf: !!float -.inf
+nan: !!float .nan
+";
+    let ours: ExplicitCoreNumbers = yaml::from_str(input).expect("explicit core numeric tags");
+    assert_explicit_core_numbers(&ours);
 
     let node = yaml::parse_str(input).expect("node");
     let from_node: ExplicitCoreNumbers =
         yaml::from_node(&node).expect("explicit core numeric tags from node");
-    assert_eq!(from_node.hex, reference.hex);
-    assert_eq!(from_node.unsigned, reference.unsigned);
-    assert_eq!(from_node.as_float, reference.as_float);
-    assert_eq!(from_node.inf, reference.inf);
-    assert_eq!(from_node.neg_inf, reference.neg_inf);
-    assert!(from_node.nan.is_nan());
+    assert_explicit_core_numbers(&from_node);
 
     let value: Value = yaml::from_str(input).expect("tagged value");
     assert_eq!(
         value["hex"].as_tagged().expect("hex tag").tag,
         Tag::new("!!int")
     );
+    assert_eq!(value["hex"].as_str(), Some("0x7B"));
+    assert_eq!(value["octal"].as_str(), Some("0123"));
+    assert_eq!(value["sexagesimal"].as_str(), Some("1:20"));
     let from_value: ExplicitCoreNumbers =
         yaml::from_value(value.clone()).expect("explicit core numeric tags from value");
     let from_value_ref =
         ExplicitCoreNumbers::deserialize(&value).expect("explicit core numeric tags by ref");
-    assert_eq!(from_value.hex, reference.hex);
-    assert_eq!(from_value.unsigned, reference.unsigned);
-    assert_eq!(from_value.as_float, reference.as_float);
-    assert_eq!(from_value.inf, reference.inf);
-    assert_eq!(from_value.neg_inf, reference.neg_inf);
-    assert!(from_value.nan.is_nan());
-    assert_eq!(from_value_ref.hex, reference.hex);
-    assert_eq!(from_value_ref.unsigned, reference.unsigned);
-    assert_eq!(from_value_ref.as_float, reference.as_float);
-    assert_eq!(from_value_ref.inf, reference.inf);
-    assert_eq!(from_value_ref.neg_inf, reference.neg_inf);
-    assert!(from_value_ref.nan.is_nan());
+    assert_explicit_core_numbers(&from_value);
+    assert_explicit_core_numbers(&from_value_ref);
 }
 
 #[test]

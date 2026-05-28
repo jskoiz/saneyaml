@@ -4,7 +4,7 @@
 use crate::parse::parse_document_results_with_options;
 use crate::{
     Error, Mapping, Node, NodeValue, Number, Span, Tag, Value, error::utf8_error_span,
-    schema::LoadOptions,
+    schema::LoadOptions, yaml11,
 };
 use serde::de::{
     self, DeserializeOwned, EnumAccess, IntoDeserializer, MapAccess, SeqAccess, VariantAccess,
@@ -498,43 +498,8 @@ fn explicit_core_tagged_value<'a>(mut value: &'a Value, suffix: &str) -> Option<
 }
 
 fn parse_explicit_core_int_text(raw: &str, span: Option<Span>) -> Result<Number, Error> {
-    let compact = raw.replace('_', "");
-    let (negative, rest) = match compact.as_str() {
-        text if text.starts_with('-') => (true, &text[1..]),
-        text if text.starts_with('+') => (false, &text[1..]),
-        text => (false, text),
-    };
-    let (radix, digits) =
-        if let Some(digits) = rest.strip_prefix("0x").or_else(|| rest.strip_prefix("0X")) {
-            (16, digits)
-        } else if let Some(digits) = rest.strip_prefix("0o").or_else(|| rest.strip_prefix("0O")) {
-            (8, digits)
-        } else if let Some(digits) = rest.strip_prefix("0b").or_else(|| rest.strip_prefix("0B")) {
-            (2, digits)
-        } else {
-            (10, rest)
-        };
-
-    if digits.is_empty() {
-        return Err(Error::new("failed to parse explicit !!int scalar", span));
-    }
-
-    let magnitude = u128::from_str_radix(digits, radix)
-        .map_err(|_| Error::new("failed to parse explicit !!int scalar", span))?;
-    if negative {
-        let min_magnitude = i128::MAX as u128 + 1;
-        if magnitude == min_magnitude {
-            Ok(Number::Integer(i128::MIN))
-        } else {
-            i128::try_from(magnitude)
-                .map(|value| Number::Integer(-value))
-                .map_err(|_| Error::new("integer scalar is out of range for i128", span))
-        }
-    } else if let Ok(value) = i128::try_from(magnitude) {
-        Ok(Number::Integer(value))
-    } else {
-        Ok(Number::Unsigned(magnitude))
-    }
+    yaml11::parse_explicit_int_number(raw)
+        .ok_or_else(|| Error::new("failed to parse explicit !!int scalar", span))
 }
 
 fn parse_explicit_core_float_text(raw: &str, span: Option<Span>) -> Result<Number, Error> {
@@ -547,6 +512,9 @@ fn parse_explicit_core_float_text(raw: &str, span: Option<Span>) -> Result<Numbe
     }
     if compact.eq_ignore_ascii_case("-.inf") {
         return Ok(Number::from(f64::NEG_INFINITY));
+    }
+    if let Some(number) = yaml11::parse_explicit_float_legacy_number(raw) {
+        return Ok(number);
     }
     compact
         .parse::<f64>()

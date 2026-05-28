@@ -60,9 +60,10 @@ tests that exercise the actual downstream YAML files.
 Additional crate surfaces useful during migration:
 
 - `yaml::LoadOptions::yaml_1_1()` and `yaml::Schema::Yaml11` opt into legacy
-  YAML 1.1 boolean/null and numeric scalar construction for callers that know
-  their corpus depends on those rules. Default entrypoints remain YAML
-  1.2-oriented and `%YAML 1.1` directives do not switch schemas automatically.
+  YAML 1.1 boolean/null and numeric scalar construction, including legacy
+  radix and sexagesimal numeric spellings, for callers that know their corpus
+  depends on those rules. Default entrypoints remain YAML 1.2-oriented and
+  `%YAML 1.1` directives do not switch schemas automatically.
 - `yaml::from_node` preserves parser spans while deserializing from a loaded tree.
 - `yaml::from_documents_str`, `from_documents_slice`, and
   `from_documents_reader` return typed vectors for YAML streams.
@@ -167,12 +168,12 @@ testing each adopter's own YAML corpus.
 ## Known Migration Limits
 
 - YAML 1.1 scalar construction is explicit and incomplete. `LoadOptions` can
-  resolve legacy booleans/nulls plus timestamp-shaped plain scalars, octal,
-  hex, binary numeric, sexagesimal, and underscored numeric forms that fit
-  `yaml::Number`. Timestamps are retained as `!!timestamp` tagged strings, and
-  `!!binary` payloads are retained as tagged strings in `Value`/`Node` while
-  decoding for typed byte targets such as `Vec<u8>`, `deserialize_bytes`, and
-  `deserialize_byte_buf`.
+  resolve legacy booleans/nulls plus timestamp-shaped plain scalars,
+  leading-zero octal, hex, binary numeric, two/three-part sexagesimal int/float
+  forms, and underscored numeric forms that fit `yaml::Number`. Timestamps are
+  retained as `!!timestamp` tagged strings, and `!!binary` payloads are retained
+  as tagged strings in `Value`/`Node` while decoding for typed byte targets such
+  as `Vec<u8>`, `deserialize_bytes`, and `deserialize_byte_buf`.
 - Untagged merge keys are expanded by default in loaded trees and Serde reads.
   `Value::apply_merge()` remains available for caller-built values and is
   idempotent for values parsed by this crate.

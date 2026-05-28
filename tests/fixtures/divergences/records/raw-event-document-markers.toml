@@ -4,3 +4,4 @@ prototype = "parse_events carries explicitness and marker-token spans for docume
 libyaml = "libyaml document events carry explicit/implicit document boundary information and directive metadata at the parser-event layer."
 yaml_rust2_saphyr = "yaml-rust2 and saphyr expose document boundary events from the parser before tree loading; yaml-rust2's public Event shape is simpler than libyaml and does not carry all libyaml marker metadata."
 decision = "Raw events keep document boundary marker-token spans, explicitness, and directive metadata. Root node properties after --- are supported. Non-comment trailing content after ... remains rejected."
+migration_impact = "Migration impact: stream tooling can migrate document marker inspection with spans, while malformed document-end trailing content remains a caller-visible syntax failure."

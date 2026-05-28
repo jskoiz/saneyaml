@@ -1,4 +1,4 @@
-use yaml::{LosslessNodeKind, parse_lossless};
+use yaml::{LosslessNodeKind, Value, parse_lossless};
 
 #[test]
 fn lossless_graph_links_alias_to_anchor_identity() {
@@ -128,4 +128,37 @@ copy: *values
             "missing lossless explicit tag {expected}: {tag_tokens:?}"
         );
     }
+}
+
+#[test]
+fn semantic_aliases_are_cloned_while_lossless_stream_keeps_identity() {
+    let input = "\
+base: &base
+  items: [1]
+first: *base
+second: *base
+";
+    let mut value: Value = yaml::from_str(input).expect("semantic value");
+
+    value["first"]["items"][0] = Value::from(2u64);
+    assert_eq!(value["base"]["items"][0].as_u64(), Some(1));
+    assert_eq!(value["first"]["items"][0].as_u64(), Some(2));
+    assert_eq!(value["second"]["items"][0].as_u64(), Some(1));
+
+    let stream = parse_lossless(input).expect("lossless parse");
+    assert_eq!(stream.aliases().len(), 2);
+    let first = stream
+        .aliases()
+        .iter()
+        .find(|alias| alias.name() == "base")
+        .expect("first base alias");
+    let target = stream.anchor(first.target()).expect("base target");
+    assert_eq!(target.name(), "base");
+    assert!(
+        stream
+            .aliases()
+            .iter()
+            .all(|alias| alias.target() == target.id()),
+        "all base aliases point at the same lossless graph target"
+    );
 }

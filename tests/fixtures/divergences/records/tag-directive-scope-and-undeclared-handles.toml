@@ -4,3 +4,4 @@ prototype = "Declared %TAG handles resolve only for the following explicit docum
 libyaml = "libyaml resolves declared tag handles on node events and rejects undeclared handles."
 yaml_rust2_saphyr = "yaml-rust2 and saphyr parser layers reject undeclared named tag handles while accepting local, core, and declared handles."
 decision = "Reject undeclared named tag handles to match parser compatibility targets and prevent silent tag-scope leakage. Do not use YAML 1.1 schema coercion for resolved tags."
+migration_impact = "Migration impact: tag-heavy callers must declare handles per document during migration; undeclared handle preservation is intentionally not a compatibility path."

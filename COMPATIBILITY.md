@@ -18,6 +18,11 @@ The compatibility target is intentionally split:
   scalar forms listed here with `yaml::Timestamp` typed reads while keeping byte
   payloads tagged unless the caller asks for a typed byte target.
 
+Every divergence record in `tests/fixtures/divergences/records/` carries a
+`migration_impact` field, and `tests/divergence_manifest.rs` fails new records
+that omit caller-facing adoption impact. That registry is the source of truth
+for intentional behavior splits that matter during migration.
+
 | Area | Prototype policy | libyaml / YAML 1.1 paths | yaml-rust2 / saphyr | serde_yaml |
 |---|---|---|---|---|
 | YAML version | Numeric `%YAML` version directives are accepted as syntax metadata; scalar resolution remains YAML 1.2/core-config oriented unless the caller selects `LoadOptions::yaml_1_1()` | Often YAML 1.1 heritage | Compare as YAML 1.2-oriented Rust parsers | Serde data model |
@@ -87,6 +92,11 @@ Migration-facing API status is tracked by `MIGRATION.md` and the executable
 | `value::to_value`, `value::Serializer` | `yaml::value::to_value`, `yaml::value::Serializer` | Value-backed serialization covered for common config shapes, tags, bytes, and 128-bit integer policy |
 | `to_string`, `to_writer`, `Serializer` | `yaml::to_string`, `yaml::to_writer`, `yaml::Serializer` | Structural writer support covered; byte-for-byte emitter formatting parity remains out of scope |
 | `with::singleton_map`, `with::singleton_map_recursive` | `yaml::with::singleton_map`, `yaml::with::singleton_map_recursive` | Read/write enum-field annotation paths covered |
+
+The migration harness also contains a dedicated default-merge test showing the
+intentional split from `serde_yaml::Value`: parsed `yaml::Value` expands
+untagged `<<` immediately, while `serde_yaml::Value` keeps the literal merge key
+until `apply_merge()` is called.
 
 `yaml::Value` is a spanless read-side Serde value, matching the replacement
 direction of `serde_yaml::Value`: sequences contain `Vec<Value>`, mappings use

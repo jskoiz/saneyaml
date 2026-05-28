@@ -6,3 +6,4 @@ yaml_rust2 = "yaml-rust2 0.11.0 has tree behavior rather than Serde typed reads;
 saphyr = "saphyr 0.0.6 has tree behavior rather than Serde typed reads; it resolves true as boolean, FALSE as string, 1_000 as string, 1.5 as float, 0123 as integer 123, and ordinary config quantities as strings."
 libyaml = "Ruby Psych 3.1.0/libyaml 0.2.1 constructs true/FALSE as booleans, 1_000 as integer 1000, 1.5 as float, and 0123 as octal integer 83."
 decision = "Use raw scalar spelling only for source-backed typed String deserialization from Node. Widen yaml::Number to i128/u128 for typed integer replacement readiness, but do not synthesize strings from typed yaml::Value/from_value scalars or alter Option<T> behavior."
+migration_impact = "Migration impact: typed String config migrations can preserve source spelling from parser-backed reads, while Value/from_value migrations must account for typed scalar semantics."

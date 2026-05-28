@@ -90,8 +90,14 @@ currently covers:
   caller-built values
 - value-backed bytes and writer byte rejection policy
 - empty input and empty stream behavior
+- the default merge-key migration decision: parsed `yaml::Value` expands `<<`
+  while `serde_yaml::Value` keeps the literal key until `apply_merge()`
 - real-world GitHub Actions, Docker Compose, Kubernetes, Helm, OpenAPI,
   Wrangler, and Ansible fixture fields compared against `serde_yaml`
+
+`tests/divergence_manifest.rs` also gates the divergence registry. Every record
+under `tests/fixtures/divergences/records/` must include `migration_impact`
+text, so intentional behavior splits stay tied to caller-facing adoption risk.
 
 `tests/downstream_migration_harness.rs` adds downstream-shaped typed call sites
 for GitHub Actions, Docker Compose, Kubernetes streams, Helm, OpenAPI,
@@ -233,12 +239,23 @@ testing each adopter's own YAML corpus.
   and deferred parity cases remain documented in `BASELINE.md` and
   `COMPATIBILITY.md`.
 
+## Migration Impact Ledger
+
+| Area | Migration impact |
+|---|---|
+| Default merge expansion | Parsed `Node`/`Value`/Serde reads expand untagged `<<` by default. Code that inspected literal merge keys should switch to `parse_events` or `LosslessStream`. |
+| YAML 1.1 compatibility | Legacy scalar and collection behavior is available through explicit schema/tag paths. Default entrypoints stay YAML 1.2-oriented, so corpora that require YAML 1.1 typing need opt-in tests. |
+| Alias graph identity | Semantic `Node`/`Value` trees still clone acyclic aliases. Graph-sensitive callers should use `LosslessStream` until a semantic graph-preserving API is finalized. |
+| Lossless formatting | `LosslessStream` preserves source, comments, trivia, directives, anchors, aliases, tags, and scalar spelling for replay/inspection. Edited lossless emission remains separate from structural `to_string` output. |
+| Parser acceptance differences | Some YAML 1.2 inputs rejected by libyaml are accepted, and some malformed libyaml-tolerated inputs are rejected. Divergence records now carry per-case migration impact. |
+| Package readiness | The crate remains local-preview only until public name, license, version, and crates.io approval are selected by the user. |
+
 ## Next Adoption Blockers
 
-- Add migration-impact wording directly to every divergence record.
 - Expand real external crate build trials beyond the current Pingora,
   rust-i18n, and cfn-guard package smoke before claiming broad ecosystem
   replacement readiness.
+- Keep migration-impact wording current as new divergence records are added.
 - Keep growing default merge and `apply_merge` coverage with sustained fuzz
   runs and minimized discoveries beyond the curated seed corpus.
 - Finish broader YAML 1.1/libyaml compatibility decisions, editable lossless

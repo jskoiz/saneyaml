@@ -19,6 +19,9 @@ Notable completed release-candidate behavior:
   duplicate-preserving `!!pairs` pair sequences.
 - `parse_lossless` / `LosslessStream` preserve comments, trivia, anchors,
   aliases, and stable graph ids for source-backed inspection and replay.
+- Divergence records now require caller-facing `migration_impact` text, so
+  compatibility decisions are tied to adoption risk instead of only parser
+  policy.
 
 Known release-candidate gaps remain tracked in `BASELINE.md`,
 `COMPATIBILITY.md`, and `MIGRATION.md`: complete YAML 1.1 ecosystem parity,

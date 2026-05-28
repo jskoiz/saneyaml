@@ -4,3 +4,4 @@ prototype = "Rejects YAML-suite 9JBA, where a comment-like suffix appears immedi
 serde_yaml = "serde_yaml 0.9.34 accepts these inputs as three-item sequences, matching some libyaml-era tolerance for adjacent comment-looking text in and after flow collections."
 yaml_rust2_saphyr = "yaml-rust2 0.11.0 and saphyr 0.0.6 reject these YAML-suite error fixtures."
 decision = "Reject adjacent comment-looking text in and after flow collections to follow YAML 1.2 conformance and the Rust parser compatibility target. Do not add a libyaml/serde_yaml compatibility bridge for this malformed input."
+migration_impact = "Migration impact: migrations from tolerant libyaml paths may surface syntax errors for malformed adjacent comments, and callers should fix inputs rather than request fallback parsing."

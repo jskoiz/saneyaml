@@ -4,3 +4,4 @@ prototype = "parse_events exposes anchor definitions on scalar and collection-st
 libyaml = "libyaml parser events expose anchors on scalar, sequence-start, and mapping-start events, and expose aliases as alias events."
 yaml_rust2_saphyr = "yaml-rust2 events carry numeric anchor ids on scalar/collection starts and Alias(id); saphyr parser/loader has equivalent event-level alias handling before tree insertion."
 decision = "Raw events must expose anchor definitions and alias references without expansion. The tree loader may continue clone-on-alias expansion and no graph identity."
+migration_impact = "Migration impact: graph-sensitive callers should migrate to raw events or LosslessStream for alias identity; semantic tree callers still receive expanded values."

@@ -6,3 +6,4 @@ yaml_rust2 = "yaml-rust2 0.11.0 accepts YAML-suite 6BCT, 6CA3, Q5MG, Y79Y/001, Y
 saphyr = "saphyr 0.0.6 accepts YAML-suite 6BCT, 6CA3, Q5MG, Y79Y/001, Y79Y/010, and R4YG."
 libyaml = "Ruby Psych 3.1.0/libyaml 0.2.1 rejects YAML-suite 6BCT, 6CA3, Q5MG, Y79Y/001, Y79Y/010, and R4YG with tab-character diagnostics."
 decision = "Accept tabs only where YAML 1.2 permits separation spaces. Keep invalid tab placements rejected, and do not add a libyaml/serde_yaml compatibility bridge for this valid YAML 1.2 input."
+migration_impact = "Migration impact: callers moving from libyaml may newly accept valid YAML 1.2 tab separation, while invalid tab placements remain syntax errors for migration tests."

@@ -4,3 +4,4 @@ prototype = "Tree loading rejects duplicate resolved scalar, sequence, and mappi
 libyaml = "libyaml parser events expose keys but do not by themselves impose a duplicate-key policy."
 yaml_rust2_saphyr = "yaml-rust2 rejects alias-expanded duplicate sequence keys in X38W, while saphyr accepts the same fixture."
 decision = "Use structural equality for untagged collection keys in tree loading, including order-insensitive mapping-key equality, to favor YAML 1.2 uniqueness and config safety. Keep the known saphyr acceptance as an ecosystem divergence, and keep parse_events permissive for parser-event fidelity."
+migration_impact = "Migration impact: config callers get stricter duplicate-key protection after alias expansion; migrations from permissive loaders must treat these failures as data fixes."

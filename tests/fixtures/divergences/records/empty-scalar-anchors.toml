@@ -5,3 +5,4 @@ libyaml = "Ruby Psych 3.1.0/libyaml 0.2.1 accepts PW8X, with loader-specific tre
 yaml_rust2 = "yaml-rust2 0.11.0 accepts PW8X and normalizes empty scalar nodes compatibly with the prototype for the selected parity paths."
 saphyr = "saphyr 0.0.6 accepts PW8X, but its loaded tree represents selected anchor-only empty scalar nodes as empty strings rather than nulls."
 decision = "Keep null resolution for empty scalar nodes because it matches this crate's YAML 1.2 core-schema policy and existing anchor-only flow-node behavior; record the saphyr loaded-tree shape divergence while retaining event parity coverage."
+migration_impact = "Migration impact: anchor-heavy callers should expect null semantic nodes for empty anchors, while lossless/event APIs retain the anchor metadata needed for migration review."

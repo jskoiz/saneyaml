@@ -5,3 +5,4 @@ serde_yaml = "serde_yaml 0.9.34 serializes bytes to numeric value sequences and 
 libyaml = "libyaml exposes scalar bytes at the parser layer, but it does not define Serde byte visitor behavior."
 yaml_rust2_saphyr = "yaml-rust2 and saphyr expose parser/tree data rather than Serde byte visitor APIs."
 decision = "Keep plain bytes as a Serde value-sequence concern. Do not decode plain YAML strings as raw byte buffers. Decode explicit !!binary only for typed byte targets because it closes a YAML 1.1/libyaml compatibility gap without changing retained Value or Node trees."
+migration_impact = "Migration impact: byte-oriented callers can migrate numeric byte sequences and explicit !!binary targets, but plain string byte-buffer assumptions must remain explicit."

@@ -4,3 +4,4 @@ prototype = "parse_events exposes sequence and mapping start/end boundaries with
 libyaml = "libyaml sequence-start and mapping-start events expose flow-vs-block collection style."
 yaml_rust2_saphyr = "yaml-rust2 and saphyr parser events distinguish flow and block collections internally or through parser-event marker shape, while normalized tree loading discards the spelling choice."
 decision = "Expose collection style on raw parser events for parser replacement parity, while keeping raw scalar spelling, schema construction decisions, and graph identity out of scope."
+migration_impact = "Migration impact: parser-event callers can port flow/block collection style checks, but migration code needing comments or raw spelling should use LosslessStream."

@@ -270,6 +270,31 @@ fn swap_harness_merge_null_bytes_and_empty_input_decisions_are_explicit() {
 }
 
 #[test]
+fn swap_harness_default_merge_expansion_is_a_migration_decision() {
+    let input = "\
+defaults: &defaults
+  retries: 3
+  timeout: 10
+job:
+  <<: *defaults
+  name: deploy
+";
+    let parsed: Value = yaml::from_str(input).expect("yaml merge-expanded value");
+    let mut reference: serde_yaml::Value =
+        serde_yaml::from_str(input).expect("serde_yaml literal merge value");
+
+    assert_eq!(parsed["job"]["retries"].as_u64(), Some(3));
+    assert_eq!(parsed["job"]["timeout"].as_u64(), Some(10));
+    assert!(parsed["job"]["<<"].is_null());
+
+    assert!(reference["job"]["retries"].is_null());
+    assert_eq!(reference["job"]["<<"]["retries"].as_u64(), Some(3));
+    reference.apply_merge().expect("serde_yaml apply_merge");
+    assert_eq!(reference["job"]["retries"].as_u64(), Some(3));
+    assert_eq!(reference["job"]["timeout"].as_u64(), Some(10));
+}
+
+#[test]
 fn swap_harness_real_world_fixtures_match_serde_yaml_on_migration_fields() {
     let github_actions = include_str!("fixtures/real-world/github-actions/matrix-ci.yaml");
     let yaml_workflow: Value = yaml::from_str(github_actions).expect("yaml GitHub Actions value");

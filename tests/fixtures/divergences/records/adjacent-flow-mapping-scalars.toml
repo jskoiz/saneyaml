@@ -5,3 +5,4 @@ serde_yaml_libyaml = "serde_yaml 0.9.34 and Ruby Psych 3.1.0/libyaml 0.2.1 accep
 yaml_rust2 = "yaml-rust2 0.11.0 accepts all four cases and constructs the YAML test-suite expected values."
 saphyr = "saphyr 0.0.6 accepts all four cases and constructs the YAML test-suite expected values."
 decision = "Keep all four cases in YAML 1.2 parser/event/tree coverage. Add only C2DT to shared reference acceptance. Treat 5MUD, 5T43, and 58MP as documented serde_yaml/libyaml divergences rather than matching their rejection."
+migration_impact = "Migration impact: callers moving from serde_yaml/libyaml may newly accept valid YAML 1.2 adjacent flow values, so reject-policy tests should be updated instead of adding compatibility fallbacks."

@@ -6,3 +6,4 @@ yaml_rust2 = "yaml-rust2 0.11.0 resolves EMPTY, ~, and null as Null; uppercase N
 saphyr = "saphyr 0.0.6 resolves EMPTY, ~, null, and NULL as Null."
 libyaml = "Ruby Psych 3.1.0/libyaml 0.2.1 constructs EMPTY, ~, null, and NULL as nil."
 decision = "Use raw scalar spelling only for spanful Node-backed typed String deserialization. Do not change yaml::Value or Option<T> null behavior."
+migration_impact = "Migration impact: String-target migrations can preserve null-like source spelling from parser-backed reads, while Value and Option callers keep normal null semantics."

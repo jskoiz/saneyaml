@@ -5,3 +5,4 @@ serde_yaml = "serde_yaml 0.9.34 accepts YAML-suite K858 as an empty block scalar
 yaml_rust2 = "yaml-rust2 0.11.0 accepts K858 but its parser-event stream reports the empty folded block scalar as null-like text rather than the prototype's empty string event value."
 saphyr = "saphyr 0.0.6 accepts K858 but its parser-event stream reports the empty folded block scalar as null-like text rather than the prototype's empty string event value."
 decision = "Keep K858 in tree and shared-reference acceptance, and include it in normalized event parity through event-harness normalization of empty block scalar spelling. Do not change public loaded tree values: strip and clip stay empty strings, while keep stays a single newline."
+migration_impact = "Migration impact: value-level migrations preserve empty block scalar meaning, while parser-event consumers should compare normalized event shape rather than raw spelling."

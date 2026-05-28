@@ -4,3 +4,4 @@ prototype = "Rejects YAML-suite QB6E, where a multiline quoted mapping value con
 serde_yaml_libyaml = "serde_yaml 0.9.34 accepts these YAML-suite invalid inputs."
 yaml_rust2_saphyr = "yaml-rust2 0.11.0 and saphyr 0.0.6 reject these YAML-suite error fixtures."
 decision = "Reject under-indented and tab-indented multiline quoted scalar continuations to follow YAML 1.2 conformance and the Rust parser compatibility target. Do not add a serde_yaml compatibility bridge for these malformed inputs."
+migration_impact = "Migration impact: migrations from permissive serde_yaml/libyaml paths may fail malformed quoted continuations, and callers should repair indentation rather than rely on tolerance."

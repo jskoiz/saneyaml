@@ -5,3 +5,4 @@ serde_yaml = "serde_yaml 0.9.34 treats same-magnitude positive integer Value key
 libyaml = "Ruby Psych 3.1.0/libyaml 0.2.1 can construct duplicate scalar keys with last-wins behavior, so numeric key collisions can lose the earlier value."
 yaml_rust2_saphyr = "yaml-rust2 and saphyr provide parser/tree behavior but do not define this crate's public yaml::Value mapping identity."
 decision = "Keep parser, public Value/Mapping, and emitter duplicate-key identity aligned for numeric keys. Do not preserve raw spelling or raw float sign-bit differences when the public value model considers keys equal."
+migration_impact = "Migration impact: callers migrating numeric-key maps may get stricter duplicate detection and stable Mapping identity instead of preserving every raw numeric spelling."

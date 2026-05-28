@@ -2,7 +2,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const EXPECTED_RECORDS: usize = 34;
-const REQUIRED_FIELDS: &[&str] = &["case", "policy", "prototype", "decision"];
+const REQUIRED_FIELDS: &[&str] = &[
+    "case",
+    "policy",
+    "prototype",
+    "decision",
+    "migration_impact",
+];
 const REFERENCE_FIELDS: &[&str] = &[
     "serde_yaml",
     "serde_yaml_libyaml",
@@ -21,6 +27,7 @@ const EVIDENCE_SOURCES: &[&str] = &[
     include_str!("serde_value_api.rs"),
     include_str!("yaml_test_suite.rs"),
     include_str!("../COMPATIBILITY.md"),
+    include_str!("../MIGRATION.md"),
 ];
 
 #[test]
@@ -44,6 +51,10 @@ fn divergence_records_have_uniform_registry_fields_and_test_links() {
         for field in REQUIRED_FIELDS {
             required_string(table, field, &path);
         }
+        assert_migration_impact_is_actionable(
+            required_string(table, "migration_impact", &path),
+            &path,
+        );
 
         let filename = path
             .file_name()
@@ -110,6 +121,30 @@ fn nonempty_string<'a>(table: &'a toml::Table, field: &str) -> Option<&'a str> {
         .get(field)
         .and_then(toml::Value::as_str)
         .filter(|value| !value.trim().is_empty())
+}
+
+fn assert_migration_impact_is_actionable(value: &str, path: &Path) {
+    let value = value.trim();
+    assert!(
+        value.len() >= 48,
+        "{} migration_impact must be specific enough for adoption review",
+        path.display(),
+    );
+    let normalized = value.to_ascii_lowercase();
+    assert!(
+        [
+            "migration",
+            "migrate",
+            "adoption",
+            "callers",
+            "users",
+            "port"
+        ]
+        .iter()
+        .any(|keyword| normalized.contains(keyword)),
+        "{} migration_impact must describe caller or migration impact",
+        path.display(),
+    );
 }
 
 fn record_has_external_test_or_doc_reference(filename: &str, case: &str) -> bool {

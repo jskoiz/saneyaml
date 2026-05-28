@@ -5,3 +5,4 @@ serde_yaml = "serde_yaml 0.9.34 rejects W4TN, FP8R, and DK3J through libyaml doc
 yaml_rust2 = "yaml-rust2 0.11.0 accepts W4TN, FP8R, and DK3J."
 saphyr = "saphyr 0.0.6 accepts W4TN, FP8R, and DK3J."
 decision = "Keep these YAML 1.2 document-start block scalar cases in parser/event/tree coverage and out of shared-reference acceptance; do not reject them only to match libyaml-era behavior."
+migration_impact = "Migration impact: document streams with root block scalars migrate toward YAML 1.2 acceptance; libyaml-era rejection assumptions should not block adoption."

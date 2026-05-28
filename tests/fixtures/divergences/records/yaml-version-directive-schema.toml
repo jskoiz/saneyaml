@@ -4,3 +4,4 @@ prototype = "Accepts numeric %YAML version directives such as %YAML 1.1, %YAML 1
 libyaml = "libyaml exposes YAML version directives on document-start events, rejects YAML-suite BEC7's %YAML 1.3 directive, and older libyaml-era paths may use YAML 1.1 schema behavior."
 yaml_rust2_saphyr = "yaml-rust2 and saphyr parser layers accept version directives including YAML-suite BEC7 as parser syntax while loaders keep crate-specific scalar resolution behavior."
 decision = "Keep YAML 1.2 config-oriented scalar resolution for default entrypoints. Provide a final explicit directive-driven mode with LoadOptions::yaml_version_directive() / Schema::YamlVersionDirective instead of silently changing default behavior."
+migration_impact = "Migration impact: callers can migrate versioned YAML 1.1 streams through directive-driven loading, while default entrypoints keep YAML 1.2 types for config safety."

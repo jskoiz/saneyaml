@@ -184,6 +184,18 @@
       }
     },
     {
+      "id": "alias-graph-identity",
+      "record": "tests/fixtures/divergences/records/alias-graph-identity.toml",
+      "status": "ok",
+      "summary": {
+        "shared_alias_identity": true,
+        "mutation_visible_in_b": 2,
+        "redefinition_b": "one",
+        "redefinition_d": "two",
+        "recursive_identity": true
+      }
+    },
+    {
       "id": "duplicate-scalar-keys",
       "record": "tests/fixtures/divergences/records/duplicate-scalar-keys.toml",
       "status": "ok",

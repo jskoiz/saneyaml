@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const EXPECTED_RECORDS: usize = 34;
+const EXPECTED_RECORDS: usize = 35;
 const REQUIRED_FIELDS: &[&str] = &[
     "case",
     "policy",
@@ -23,6 +23,7 @@ const REFERENCE_FIELDS: &[&str] = &[
 const EVIDENCE_SOURCES: &[&str] = &[
     include_str!("divergences.rs"),
     include_str!("compatibility_harness.rs"),
+    include_str!("libyaml_probe_manifest.rs"),
     include_str!("event_policy.rs"),
     include_str!("serde_value_api.rs"),
     include_str!("yaml_test_suite.rs"),

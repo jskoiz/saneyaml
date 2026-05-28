@@ -252,7 +252,10 @@ out of scope for `parse_events`: scalar plain/quoted implicit tag flags,
 sequence/mapping implicit tag flags, raw scalar spelling, schema construction
 decisions, and graph identity are not exposed there. `LosslessStream` keeps the
 source buffer and links aliases to stable anchor ids for graph-sensitive
-callers.
+callers. The pinned Psych/libyaml probe records that libyaml-backed Ruby objects
+share alias identity, reflect alias-visible mutation, and preserve recursive
+object identity; this crate keeps that behavior in the lossless graph surface,
+not semantic `Node` or `Value` trees.
 
 Event policy:
 

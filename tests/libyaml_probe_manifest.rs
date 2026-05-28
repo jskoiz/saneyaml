@@ -17,6 +17,7 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "Psych.libyaml_version",
         "legacy-scalar-resolution",
         "merge-keys",
+        "alias-graph-identity",
         "explicit-core-tags",
         "yaml11-collection-tags",
     ] {
@@ -33,10 +34,11 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_eq!(artifact["libyaml"], "0.2.1");
 
     let cases = artifact["cases"].as_array().expect("probe cases array");
-    assert_eq!(cases.len(), 11);
+    assert_eq!(cases.len(), 12);
 
     let expected_ids = BTreeSet::from([
         "adjacent-flow-mapping-scalars",
+        "alias-graph-identity",
         "duplicate-scalar-keys",
         "explicit-core-tags",
         "legacy-scalar-resolution",
@@ -72,6 +74,12 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_case_summary_contains(&artifact, "legacy-scalar-resolution", "Infinity");
     assert_case_summary_contains(&artifact, "rw-github-actions-on-key", "TrueClass");
     assert_case_summary_contains(&artifact, "merge-keys", "app:v2");
+    let alias_graph = case_by_id(&artifact, "alias-graph-identity");
+    assert_eq!(alias_graph["summary"]["shared_alias_identity"], true);
+    assert_eq!(alias_graph["summary"]["mutation_visible_in_b"], 2);
+    assert_eq!(alias_graph["summary"]["redefinition_b"], "one");
+    assert_eq!(alias_graph["summary"]["redefinition_d"], "two");
+    assert_eq!(alias_graph["summary"]["recursive_identity"], true);
     assert_case_summary_contains(&artifact, "duplicate-scalar-keys", "second");
     assert_case_summary_contains(&artifact, "explicit-core-tags", "Hello");
     assert_case_summary_contains(&artifact, "explicit-core-tags", "123");

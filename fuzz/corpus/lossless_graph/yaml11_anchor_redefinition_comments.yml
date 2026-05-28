@@ -1,0 +1,12 @@
+%YAML 1.1
+---
+first: &item
+  name: one
+  enabled: yes
+first_ref: *item
+
+# later aliases should target the redefined anchor
+second: &item
+  name: two
+  enabled: no
+second_ref: *item

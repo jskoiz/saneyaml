@@ -1,7 +1,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use yaml::{AnchorId, LosslessNodeKind, LosslessStream, LosslessTriviaKind, NodeId, Span};
+use yaml::{AnchorId, LoadOptions, LosslessNodeKind, LosslessStream, LosslessTriviaKind, NodeId, Span};
 
 fuzz_target!(|input: &[u8]| {
     let result = yaml::parse_lossless_bytes(input);
@@ -26,6 +26,7 @@ fuzz_target!(|input: &[u8]| {
 fn assert_stream_invariants(input: &[u8], stream: &LosslessStream) {
     assert_eq!(stream.as_source().as_bytes(), input);
     assert_eq!(stream.to_string().as_bytes(), input);
+    assert_yaml11_schema_probe(input, stream);
 
     for document in stream.documents() {
         assert_span_invariants(input, document.start_span());
@@ -102,6 +103,20 @@ fn assert_stream_invariants(input: &[u8], stream: &LosslessStream) {
         match trivia.kind() {
             LosslessTriviaKind::Comment => assert!(trivia.text().starts_with('#')),
             LosslessTriviaKind::BlankLine => assert!(trivia.text().trim().is_empty()),
+        }
+    }
+}
+
+fn assert_yaml11_schema_probe(input: &[u8], stream: &LosslessStream) {
+    if !stream.as_source().contains("%YAML 1.1") {
+        return;
+    }
+    match LoadOptions::yaml_version_directive().parse_documents(stream.as_source()) {
+        Ok(_) => {}
+        Err(error) => {
+            if let Some(location) = error.location() {
+                assert!(location.index() <= input.len());
+            }
         }
     }
 }

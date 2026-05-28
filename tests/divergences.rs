@@ -1,5 +1,5 @@
 use saphyr::LoadableYamlNode;
-use yaml::{LoadOptions, parse_str};
+use yaml::{LoadOptions, parse_lossless, parse_str};
 
 #[test]
 fn divergence_yaml_1_1_boolean_words_are_strings() {
@@ -269,6 +269,22 @@ fn divergence_empty_scalar_anchors_record_is_present() {
     assert!(record.contains("saphyr 0.0.6"));
     assert!(record.contains("empty strings"));
     assert!(record.contains("decision"));
+}
+
+#[test]
+fn divergence_alias_graph_identity_record_is_present() {
+    let record = include_str!("fixtures/divergences/records/alias-graph-identity.toml");
+    assert!(record.contains("alias-graph-identity"));
+    assert!(record.contains("shared Ruby object identity"));
+    assert!(record.contains("LosslessStream"));
+    assert!(record.contains("semantic loaders value-oriented"));
+    assert!(record.contains("graph-aware layer"));
+
+    let stream = parse_lossless("base: &base\n  count: 1\na: *base\nb: *base\n")
+        .expect("lossless alias graph parses");
+    let aliases = stream.aliases();
+    assert_eq!(aliases.len(), 2);
+    assert_eq!(aliases[0].target(), aliases[1].target());
 }
 
 #[test]

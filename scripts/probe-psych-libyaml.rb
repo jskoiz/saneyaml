@@ -52,6 +52,16 @@ CASES = [
     YAML
   },
   {
+    id: "alias-graph-identity",
+    record: "tests/fixtures/divergences/records/alias-graph-identity.toml",
+    yaml: <<~YAML
+      base: &base
+        count: 1
+      a: *base
+      b: *base
+    YAML
+  },
+  {
     id: "duplicate-scalar-keys",
     record: "tests/fixtures/divergences/records/duplicate-scalar-keys.toml",
     yaml: <<~YAML
@@ -174,7 +184,45 @@ def summarize(value)
   end
 end
 
+def probe_alias_graph_identity(entry)
+  shared = Psych.load(entry[:yaml])
+  shared_alias_identity = shared["a"].object_id == shared["b"].object_id
+  shared["a"]["count"] = 2
+
+  redefinition = Psych.load(<<~YAML)
+    first: &item one
+    b: *item
+    second: &item two
+    d: *item
+  YAML
+
+  recursive = Psych.load("root: &root [*root]\n")
+
+  {
+    id: entry[:id],
+    record: entry[:record],
+    status: "ok",
+    summary: {
+      shared_alias_identity: shared_alias_identity,
+      mutation_visible_in_b: shared["b"]["count"],
+      redefinition_b: redefinition["b"],
+      redefinition_d: redefinition["d"],
+      recursive_identity: recursive["root"].object_id == recursive["root"][0].object_id
+    }
+  }
+rescue Psych::SyntaxError => error
+  {
+    id: entry[:id],
+    record: entry[:record],
+    status: "error",
+    error_class: error.class.name,
+    error: error.problem || error.message.lines.first.to_s.strip
+  }
+end
+
 def probe_case(entry)
+  return probe_alias_graph_identity(entry) if entry[:id] == "alias-graph-identity"
+
   value = Psych.load(entry[:yaml])
   {
     id: entry[:id],

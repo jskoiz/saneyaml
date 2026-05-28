@@ -29,13 +29,15 @@ Notable completed release-candidate behavior:
   aliases, and stable graph ids for source-backed inspection, replay, and
   validated node/source-span edits, insertions, and deletions that preserve
   untouched bytes.
-- Lossless source edits now have fuzz-corpus replay and a dedicated fuzz target
-  for scalar, flow mapping, and flow sequence replacements.
+- Lossless source edits and graph identity now have fuzz-corpus replay covering
+  scalar, flow mapping, flow sequence replacements, YAML 1.1 merge/comment
+  streams, anchor redefinition, and recursive aliases.
 - Direct Serde `IgnoredAny` entrypoints now validate malformed YAML and
   single-document boundaries before skipping a document.
 - Divergence records now require caller-facing `migration_impact` text, so
   compatibility decisions are tied to adoption risk instead of only parser
-  policy.
+  policy. The pinned Psych/libyaml probe records alias object identity as a
+  deliberate semantic-tree divergence covered by `LosslessStream`.
 
 Known release-candidate gaps remain tracked in `BASELINE.md`,
 `COMPATIBILITY.md`, and `MIGRATION.md`: complete YAML 1.1 ecosystem parity,

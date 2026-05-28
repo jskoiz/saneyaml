@@ -267,8 +267,8 @@ testing each adopter's own YAML corpus.
   rust-i18n, and cfn-guard package smoke before claiming broad ecosystem
   replacement readiness.
 - Keep migration-impact wording current as new divergence records are added.
-- Keep growing default merge and `apply_merge` coverage with sustained fuzz
-  runs and minimized discoveries beyond the curated seed corpus.
+- Keep growing default merge, `apply_merge`, and lossless graph coverage with
+  sustained fuzz runs and minimized discoveries beyond the curated seed corpus.
 - Finish broader YAML 1.1/libyaml compatibility decisions, full structural
   lossless formatting/emission beyond source-span editing, and the
   long-term graph API contract before claiming full YAML compatibility.

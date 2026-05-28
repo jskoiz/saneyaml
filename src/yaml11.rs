@@ -38,6 +38,23 @@ pub(crate) fn parse_explicit_float_legacy_number(text: &str) -> Option<Number> {
         .and_then(|number| number.as_f64().map(Number::from))
 }
 
+pub(crate) fn parse_explicit_float_number(text: &str) -> Option<Number> {
+    let compact = text.replace('_', "");
+    if compact.eq_ignore_ascii_case(".nan") {
+        return Some(Number::from(f64::NAN));
+    }
+    if compact.eq_ignore_ascii_case(".inf") || compact.eq_ignore_ascii_case("+.inf") {
+        return Some(Number::from(f64::INFINITY));
+    }
+    if compact.eq_ignore_ascii_case("-.inf") {
+        return Some(Number::from(f64::NEG_INFINITY));
+    }
+    if let Some(number) = parse_explicit_float_legacy_number(text) {
+        return Some(number);
+    }
+    compact.parse::<f64>().ok().map(Number::from)
+}
+
 fn parse_signed_integer_number(
     compact: &str,
     allow_0o_octal: bool,

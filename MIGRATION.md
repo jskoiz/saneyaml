@@ -194,7 +194,10 @@ testing each adopter's own YAML corpus.
   `yaml::Timestamp` through `as_timestamp()` and typed Serde reads. `!!binary`
   payloads are retained as tagged strings in `Value`/`Node` while decoding for
   typed byte targets such as `Vec<u8>`, `deserialize_bytes`, and
-  `deserialize_byte_buf`. Directive-driven loading is available through
+  `deserialize_byte_buf`. Explicit `!!int` and `!!float` retained `Value`
+  entries keep their tag and source spelling, but valid YAML 1.1 numeric forms
+  are visible through `Value` numeric helpers such as `as_i64()`, `as_u64()`,
+  `as_f64()`, and `is_number()`. Directive-driven loading is available through
   `LoadOptions::yaml_version_directive()`, where `%YAML 1.1` selects the legacy
   construction mode and absent, `%YAML 1.2`, or newer numeric directives keep
   YAML 1.2-oriented construction.

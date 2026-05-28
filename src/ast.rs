@@ -666,6 +666,14 @@ fn is_null_tag(tag: &Tag) -> bool {
     is_core_tag(tag, "null")
 }
 
+fn is_int_tag(tag: &Tag) -> bool {
+    is_core_tag(tag, "int")
+}
+
+fn is_float_tag(tag: &Tag) -> bool {
+    is_core_tag(tag, "float")
+}
+
 fn explicit_core_bool_value(value: &Value) -> Option<bool> {
     match value {
         Value::Bool(value) => Some(*value),
@@ -681,6 +689,34 @@ fn explicit_core_null_value(value: &Value) -> Option<()> {
         Value::String(value) if yaml11::is_null(value) => Some(()),
         Value::Tagged(tagged) => explicit_core_null_value(&tagged.value),
         _ => None,
+    }
+}
+
+fn explicit_core_int_number_value(value: &Value) -> Option<Number> {
+    match value {
+        Value::Number(number) => Some(*number),
+        Value::String(value) => yaml11::parse_explicit_int_number(value),
+        Value::Tagged(tagged) => explicit_core_int_number_value(&tagged.value),
+        _ => None,
+    }
+}
+
+fn explicit_core_float_number_value(value: &Value) -> Option<Number> {
+    match value {
+        Value::Number(number) => Some(*number),
+        Value::String(value) => yaml11::parse_explicit_float_number(value),
+        Value::Tagged(tagged) => explicit_core_float_number_value(&tagged.value),
+        _ => None,
+    }
+}
+
+fn explicit_core_numeric_value(tagged: &TaggedValue) -> Option<Number> {
+    if is_int_tag(&tagged.tag) {
+        explicit_core_int_number_value(&tagged.value)
+    } else if is_float_tag(&tagged.tag) {
+        explicit_core_float_number_value(&tagged.value)
+    } else {
+        None
     }
 }
 
@@ -2214,6 +2250,9 @@ impl Value {
     pub fn as_i64(&self) -> Option<i64> {
         match self {
             Value::Number(number) => number.as_i64(),
+            Value::Tagged(tagged) if is_int_tag(&tagged.tag) || is_float_tag(&tagged.tag) => {
+                explicit_core_numeric_value(tagged).and_then(|number| number.as_i64())
+            }
             Value::Tagged(tagged) => tagged.value.as_i64(),
             _ => None,
         }
@@ -2223,6 +2262,9 @@ impl Value {
     pub fn as_u64(&self) -> Option<u64> {
         match self {
             Value::Number(number) => number.as_u64(),
+            Value::Tagged(tagged) if is_int_tag(&tagged.tag) || is_float_tag(&tagged.tag) => {
+                explicit_core_numeric_value(tagged).and_then(|number| number.as_u64())
+            }
             Value::Tagged(tagged) => tagged.value.as_u64(),
             _ => None,
         }
@@ -2232,6 +2274,9 @@ impl Value {
     pub fn as_i128(&self) -> Option<i128> {
         match self {
             Value::Number(number) => number.as_i128(),
+            Value::Tagged(tagged) if is_int_tag(&tagged.tag) || is_float_tag(&tagged.tag) => {
+                explicit_core_numeric_value(tagged).and_then(|number| number.as_i128())
+            }
             Value::Tagged(tagged) => tagged.value.as_i128(),
             _ => None,
         }
@@ -2241,6 +2286,9 @@ impl Value {
     pub fn as_u128(&self) -> Option<u128> {
         match self {
             Value::Number(number) => number.as_u128(),
+            Value::Tagged(tagged) if is_int_tag(&tagged.tag) || is_float_tag(&tagged.tag) => {
+                explicit_core_numeric_value(tagged).and_then(|number| number.as_u128())
+            }
             Value::Tagged(tagged) => tagged.value.as_u128(),
             _ => None,
         }
@@ -2250,6 +2298,9 @@ impl Value {
     pub fn as_f64(&self) -> Option<f64> {
         match self {
             Value::Number(number) => number.as_f64(),
+            Value::Tagged(tagged) if is_int_tag(&tagged.tag) || is_float_tag(&tagged.tag) => {
+                explicit_core_numeric_value(tagged).and_then(|number| number.as_f64())
+            }
             Value::Tagged(tagged) => tagged.value.as_f64(),
             _ => None,
         }
@@ -2332,6 +2383,7 @@ impl Value {
     /// Returns whether this value is numeric.
     pub fn is_number(&self) -> bool {
         matches!(self, Value::Number(_))
+            || matches!(self, Value::Tagged(tagged) if explicit_core_numeric_value(tagged).is_some())
             || matches!(self, Value::Tagged(tagged) if tagged.value.is_number())
     }
 
@@ -2348,6 +2400,7 @@ impl Value {
     /// Returns whether this value is stored as a floating-point number.
     pub fn is_f64(&self) -> bool {
         matches!(self, Value::Number(number) if number.is_f64())
+            || matches!(self, Value::Tagged(tagged) if explicit_core_numeric_value(tagged).is_some_and(|number| number.is_f64()))
             || matches!(self, Value::Tagged(tagged) if tagged.value.is_f64())
     }
 

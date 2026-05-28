@@ -587,23 +587,8 @@ fn parse_explicit_core_int_text(raw: &str, span: Option<Span>) -> Result<Number,
 }
 
 fn parse_explicit_core_float_text(raw: &str, span: Option<Span>) -> Result<Number, Error> {
-    let compact = raw.replace('_', "");
-    if compact.eq_ignore_ascii_case(".nan") {
-        return Ok(Number::from(f64::NAN));
-    }
-    if compact.eq_ignore_ascii_case(".inf") || compact.eq_ignore_ascii_case("+.inf") {
-        return Ok(Number::from(f64::INFINITY));
-    }
-    if compact.eq_ignore_ascii_case("-.inf") {
-        return Ok(Number::from(f64::NEG_INFINITY));
-    }
-    if let Some(number) = yaml11::parse_explicit_float_legacy_number(raw) {
-        return Ok(number);
-    }
-    compact
-        .parse::<f64>()
-        .map(Number::from)
-        .map_err(|_| Error::new("failed to parse explicit !!float scalar", span))
+    yaml11::parse_explicit_float_number(raw)
+        .ok_or_else(|| Error::new("failed to parse explicit !!float scalar", span))
 }
 
 fn parse_explicit_core_bool_text(raw: &str, span: Option<Span>) -> Result<bool, Error> {

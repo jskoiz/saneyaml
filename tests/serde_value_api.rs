@@ -3163,14 +3163,48 @@ nan: !!float .nan
         Tag::new("!!int")
     );
     assert_eq!(value["hex"].as_str(), Some("0x7B"));
+    assert_eq!(value["hex"].as_i64(), Some(123));
+    assert_eq!(value["hex"].as_u64(), Some(123));
+    assert_eq!(value["hex"].as_i128(), Some(123));
+    assert_eq!(value["hex"].as_u128(), Some(123));
+    assert_eq!(value["hex"].as_f64(), Some(123.0));
+    assert!(value["hex"].is_number());
+    assert!(value["hex"].is_i64());
+    assert!(value["hex"].is_u64());
+    assert!(!value["hex"].is_f64());
     assert_eq!(value["octal"].as_str(), Some("0123"));
+    assert_eq!(value["octal"].as_u64(), Some(83));
     assert_eq!(value["sexagesimal"].as_str(), Some("1:20"));
+    assert_eq!(value["sexagesimal"].as_i64(), Some(4800));
+    assert_eq!(value["negative_sexagesimal"].as_i64(), Some(-2400));
+    assert_eq!(value["unsigned"].as_u64(), Some(42));
+    assert_eq!(value["as_float"].as_f64(), Some(7.0));
+    assert_eq!(value["float_from_int_tag"].as_i64(), None);
+    assert_eq!(value["float_from_int_tag"].as_f64(), Some(4830.0));
+    assert!(value["float_from_int_tag"].is_f64());
+    assert_eq!(value["sexagesimal_float"].as_f64(), Some(4830.0));
+    assert_eq!(value["sexagesimal_seconds_float"].as_f64(), Some(4830.5));
+    assert_eq!(value["inf"].as_f64(), Some(f64::INFINITY));
+    assert_eq!(value["neg_inf"].as_f64(), Some(f64::NEG_INFINITY));
+    assert!(value["nan"].as_f64().expect("nan helper").is_nan());
+    assert!(value["nan"].is_number());
+    assert!(value["nan"].is_f64());
     let from_value: ExplicitCoreNumbers =
         yaml::from_value(value.clone()).expect("explicit core numeric tags from value");
     let from_value_ref =
         ExplicitCoreNumbers::deserialize(&value).expect("explicit core numeric tags by ref");
     assert_explicit_core_numbers(&from_value);
     assert_explicit_core_numbers(&from_value_ref);
+
+    let invalid: Value = yaml::from_str("bad_int: !!int nope\nbad_float: !!float nope\n")
+        .expect("invalid explicit numeric tags stay retained values");
+    assert_eq!(invalid["bad_int"].as_str(), Some("nope"));
+    assert_eq!(invalid["bad_int"].as_i64(), None);
+    assert_eq!(invalid["bad_int"].as_u64(), None);
+    assert_eq!(invalid["bad_int"].as_f64(), None);
+    assert!(!invalid["bad_int"].is_number());
+    assert_eq!(invalid["bad_float"].as_f64(), None);
+    assert!(!invalid["bad_float"].is_number());
 }
 
 #[test]

@@ -2693,6 +2693,35 @@ fn serde_api_explicit_empty_documents_are_null() {
 }
 
 #[test]
+fn serde_api_empty_stream_iterator_matches_serde_yaml_null_document() {
+    let values = yaml::Deserializer::from_str("")
+        .map(Value::deserialize)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("yaml empty stream values");
+    let reference = serde_yaml::Deserializer::from_str("")
+        .map(serde_yaml::Value::deserialize)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("serde_yaml empty stream values");
+
+    assert_eq!(values.len(), reference.len());
+    assert_eq!(values.len(), 1);
+    assert!(values[0].is_null());
+    assert!(reference[0].is_null());
+
+    let from_slice = yaml::Deserializer::from_slice(b"")
+        .map(Value::deserialize)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("yaml empty slice stream values");
+    assert_eq!(from_slice, values);
+
+    let from_reader = yaml::Deserializer::from_reader(Cursor::new(Vec::<u8>::new()))
+        .map(Value::deserialize)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("yaml empty reader stream values");
+    assert_eq!(from_reader, values);
+}
+
+#[test]
 fn serde_api_deserializer_iterates_document_stream() {
     let input = "---\nname: one\nports: [80]\nenabled: true\n---\nname: two\nports: [443]\nenabled: false\n";
     let configs = yaml::Deserializer::from_str(input)

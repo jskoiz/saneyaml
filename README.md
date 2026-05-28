@@ -36,6 +36,8 @@ The first milestone focuses on:
   downstream config-loading paths.
 - Pinned external replay fixtures from Pingora, rust-i18n, and cfn-guard that
   compare real downstream YAML inputs against `serde_yaml`.
+- A packaged downstream smoke and rust-i18n build trial that consume this crate
+  under the `serde_yaml` dependency name from a clean temporary checkout.
 - A downstream-shaped migration harness, compileable migration example,
   Ubuntu-only CI workflow, non-mutating all-target fuzz smoke script, and
   real-world config benchmark command.
@@ -57,6 +59,7 @@ cargo test --test serde_yaml_swap_harness
 cargo test --test downstream_migration_harness
 cargo test --test external_downstream_migration
 cargo test --test libyaml_probe_manifest
+scripts/downstream-build-trials.sh rust-i18n
 cargo test --test baseline_audit
 RUSTDOCFLAGS='-D missing_docs' cargo doc --no-deps
 cargo test

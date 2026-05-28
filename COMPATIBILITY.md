@@ -145,11 +145,10 @@ than dropped, matching the common Serde/reference-crate stream shape.
 later parser error item in a stream; the `from_documents_*` helpers remain
 all-or-error convenience APIs.
 For empty input, direct `yaml::from_str::<Value>("")`,
-`serde_yaml::from_str::<serde_yaml::Value>("")`, and direct
-`Value::deserialize(Deserializer::from_str(""))` all produce null values. The
-stream iterator differs: `yaml::Deserializer::from_str("")` yields zero
-documents while `serde_yaml::Deserializer::from_str("")` yields one null
-document.
+`serde_yaml::from_str::<serde_yaml::Value>("")`, direct
+`Value::deserialize(Deserializer::from_str(""))`, and the empty stream iterator
+all produce null values. The empty stream iterator yields one null document,
+matching `serde_yaml::Deserializer::from_str("")`.
 
 The writer serializer, `yaml::to_value`, `yaml::to_string`, and
 `yaml::to_writer` are structural write-side bridges for replacement code that

@@ -247,8 +247,19 @@ fn swap_harness_merge_null_bytes_and_empty_input_decisions_are_explicit() {
         serde_yaml::from_str("").expect("serde_yaml empty input value");
     assert!(empty_value.is_null());
     assert!(reference_empty.is_null());
-    assert_eq!(yaml::Deserializer::from_str("").count(), 0);
+    assert_eq!(yaml::Deserializer::from_str("").count(), 1);
     assert_eq!(serde_yaml::Deserializer::from_str("").count(), 1);
+    let empty_stream: Vec<Value> = yaml::Deserializer::from_str("")
+        .map(Value::deserialize)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("yaml empty stream");
+    let reference_empty_stream = serde_yaml::Deserializer::from_str("")
+        .map(serde_yaml::Value::deserialize)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("serde_yaml empty stream");
+    assert_eq!(empty_stream.len(), reference_empty_stream.len());
+    assert!(empty_stream[0].is_null());
+    assert!(reference_empty_stream[0].is_null());
     let direct_empty: Value =
         Value::deserialize(yaml::Deserializer::from_str("")).expect("yaml direct empty value");
     let reference_direct_empty =

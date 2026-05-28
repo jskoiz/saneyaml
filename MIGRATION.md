@@ -84,7 +84,7 @@ currently covers:
 - default merge-key expansion plus idempotent `Value::apply_merge` for
   caller-built values
 - value-backed bytes and writer byte rejection policy
-- empty input behavior
+- empty input and empty stream behavior
 - real-world GitHub Actions, Docker Compose, Kubernetes, Helm, OpenAPI,
   Wrangler, and Ansible fixture fields compared against `serde_yaml`
 
@@ -107,12 +107,19 @@ from real `serde_yaml` users:
   `serde_yaml::Value`, including short-form intrinsic tags such as `!Ref`,
   `!GetAtt`, and `!Sub`.
 
+`scripts/downstream-build-trials.sh rust-i18n` adds the first real downstream
+build trial. It packages this crate, consumes the unpacked package from a clean
+smoke project under the `serde_yaml` dependency name, then checks the pinned
+`longbridge/rust-i18n` checkout with its workspace `serde_yaml` dependency
+rewritten to that packaged copy.
+
 Focused proof command:
 
 ```sh
 cargo test --test serde_yaml_swap_harness --test downstream_migration_harness
 cargo test --test external_downstream_migration
 cargo test --test libyaml_probe_manifest
+scripts/downstream-build-trials.sh rust-i18n
 ```
 
 Broader migration proof:
@@ -177,10 +184,10 @@ testing each adopter's own YAML corpus.
 - Untagged merge keys are expanded by default in loaded trees and Serde reads.
   `Value::apply_merge()` remains available for caller-built values and is
   idempotent for values parsed by this crate.
-- `yaml::Deserializer::from_str("")` yields zero iterator items, while
-  `serde_yaml::Deserializer::from_str("")` yields one null document. Direct
-  `from_str::<Value>("")` and direct `Value::deserialize(...)` treat empty input
-  as null in both crates.
+- `yaml::Deserializer::from_str("")`, `from_slice(b"")`, and
+  `from_reader(empty)` yield one null document, matching
+  `serde_yaml::Deserializer::from_str("")`. Direct `from_str::<Value>("")` and
+  direct `Value::deserialize(...)` also treat empty input as null in both crates.
 - Aliases are expanded into loaded trees; graph identity is not preserved.
 - Comments and original formatting are discarded.
 - `yaml::Index` and `yaml::mapping::Index` are sealed, like `serde_yaml`'s
@@ -196,8 +203,8 @@ testing each adopter's own YAML corpus.
 ## Next Adoption Blockers
 
 - Add migration-impact wording directly to every divergence record.
-- Add real external crate build trials before claiming broad ecosystem
-  replacement readiness.
+- Expand real external crate build trials beyond the current rust-i18n package
+  smoke before claiming broad ecosystem replacement readiness.
 - Keep growing default merge and `apply_merge` coverage with sustained fuzz
   runs and minimized discoveries beyond the curated seed corpus.
 - Finish native date/time APIs, comment/format preservation, and alias graph

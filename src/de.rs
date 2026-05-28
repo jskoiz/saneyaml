@@ -254,6 +254,16 @@ impl<'de> Deserializer<'de> {
     }
 
     fn from_document_results(results: Vec<crate::Result<Node>>, input: Option<&'de str>) -> Self {
+        if results.is_empty() {
+            return Self {
+                documents: vec![Document {
+                    node: Ok(Node::null(Span::point(0, 1, 1))),
+                    input,
+                }]
+                .into_iter(),
+            };
+        }
+
         Self {
             documents: results
                 .into_iter()

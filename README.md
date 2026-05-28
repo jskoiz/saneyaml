@@ -14,8 +14,9 @@ The first milestone focuses on:
 - YAML 1.2 core scalar resolution by default for parser events and constructed
   document trees.
 - Explicit `LoadOptions::yaml_1_1()` construction for legacy YAML 1.1
-  booleans/nulls and numeric forms that fit the current value model, without
-  silently switching schemas from `%YAML 1.1` directives.
+  booleans/nulls, timestamp-shaped plain scalars, and numeric forms that fit
+  the current value model, without silently switching schemas from `%YAML 1.1`
+  directives.
 - Ordered mappings, block/flow collections, quoted/plain scalars, and basic
   literal/folded block scalars.
 - Acyclic anchors and aliases expanded into the loaded tree.
@@ -43,8 +44,8 @@ The first milestone focuses on:
 
 Intentional first-milestone non-goals:
 
-- Full YAML 1.1 compatibility: timestamps and binary construction still need a
-  public representation decision.
+- Full YAML 1.1 compatibility: native date/time values and `!!binary` byte
+  decoding still need public API decisions.
 - YAML graph identity, comment preservation, lossless formatting, and
   directive-preserving emission.
 - Kubernetes schema validation or automated ecosystem migration tooling.

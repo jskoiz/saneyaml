@@ -1,9 +1,10 @@
 use serde::Deserialize;
-use yaml::{LoadOptions, Schema, Value};
+use yaml::{LoadOptions, Schema, Tag, Value};
 
 #[test]
 fn schema_mode_defaults_to_yaml_12_config_behavior() {
-    let input = "%YAML 1.1\n---\non: push\nyes: deploy\nflag: ON\nhex: 0x7B\nsex: 1:20\n";
+    let input =
+        "%YAML 1.1\n---\non: push\nyes: deploy\nflag: ON\nhex: 0x7B\nsex: 1:20\ndate: 2026-05-24\n";
     let value: Value = yaml::from_str(input).expect("default schema parses");
 
     assert_eq!(value["on"].as_str(), Some("push"));
@@ -11,6 +12,8 @@ fn schema_mode_defaults_to_yaml_12_config_behavior() {
     assert_eq!(value["flag"].as_str(), Some("ON"));
     assert_eq!(value["hex"].as_str(), Some("0x7B"));
     assert_eq!(value["sex"].as_str(), Some("1:20"));
+    assert_eq!(value["date"].as_str(), Some("2026-05-24"));
+    assert!(value["date"].as_tagged().is_none());
 }
 
 #[test]
@@ -59,13 +62,35 @@ underscored: 1_000
 }
 
 #[test]
-fn yaml_11_schema_keeps_timestamps_as_strings_until_public_type_exists() {
+fn yaml_11_schema_constructs_timestamps_as_tagged_strings() {
+    let default: Value = yaml::from_str("%YAML 1.1\n---\ndate: 2026-05-24\n")
+        .expect("default schema accepts YAML 1.1 directive");
+    assert_eq!(default["date"].as_str(), Some("2026-05-24"));
+    assert!(default["date"].as_tagged().is_none());
+
     let value: Value = LoadOptions::yaml_1_1()
-        .from_str("date: 2026-05-24\ndatetime: 2026-05-24T12:34:56Z\n")
+        .from_str(
+            "\
+date: 2026-05-24
+short: 2026-5-4
+datetime: 2026-05-24T12:34:56Z
+spaced: 2026-05-24 12:34:56 -7
+fractional: 2026-05-24t12:34:56.789+05:30
+invalid_month: 2026-13-24
+invalid_time: 2026-05-24T24:34:56Z
+",
+        )
         .expect("timestamp-shaped scalars parse");
 
-    assert_eq!(value["date"].as_str(), Some("2026-05-24"));
-    assert_eq!(value["datetime"].as_str(), Some("2026-05-24T12:34:56Z"));
+    assert_yaml11_timestamp(&value["date"], "2026-05-24");
+    assert_yaml11_timestamp(&value["short"], "2026-5-4");
+    assert_yaml11_timestamp(&value["datetime"], "2026-05-24T12:34:56Z");
+    assert_yaml11_timestamp(&value["spaced"], "2026-05-24 12:34:56 -7");
+    assert_yaml11_timestamp(&value["fractional"], "2026-05-24t12:34:56.789+05:30");
+    assert_eq!(value["invalid_month"].as_str(), Some("2026-13-24"));
+    assert!(value["invalid_month"].as_tagged().is_none());
+    assert_eq!(value["invalid_time"].as_str(), Some("2026-05-24T24:34:56Z"));
+    assert!(value["invalid_time"].as_tagged().is_none());
 }
 
 #[test]
@@ -108,11 +133,20 @@ fn yaml_11_schema_preserves_source_spelling_for_string_targets() {
     struct Config<'a> {
         flag: &'a str,
         count: &'a str,
+        date: &'a str,
     }
 
     let config: Config<'_> = LoadOptions::yaml_1_1()
-        .from_str("flag: ON\ncount: 0x10\n")
+        .from_str("flag: ON\ncount: 0x10\ndate: 2026-05-24\n")
         .expect("source-backed strings deserialize");
     assert_eq!(config.flag, "ON");
     assert_eq!(config.count, "0x10");
+    assert_eq!(config.date, "2026-05-24");
+}
+
+fn assert_yaml11_timestamp(value: &Value, expected: &str) {
+    assert_eq!(value.as_str(), Some(expected));
+    let tagged = value.as_tagged().expect("YAML 1.1 timestamp tag");
+    assert_eq!(tagged.tag, Tag::new("!!timestamp"));
+    assert_eq!(tagged.value.as_str(), Some(expected));
 }

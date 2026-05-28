@@ -1,0 +1,7 @@
+date: 2026-05-24
+short: 2026-5-4
+datetime: 2026-05-24T12:34:56Z
+spaced: 2026-05-24 12:34:56 -7
+fractional: 2026-05-24t12:34:56.789+05:30
+binary_numeric: 0b1010
+explicit_binary: !!binary SGVsbG8=

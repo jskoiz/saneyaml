@@ -167,9 +167,10 @@ testing each adopter's own YAML corpus.
 ## Known Migration Limits
 
 - YAML 1.1 scalar construction is explicit and incomplete. `LoadOptions` can
-  resolve legacy booleans/nulls plus octal, hex, binary, sexagesimal, and
-  underscored numeric forms that fit `yaml::Number`; timestamps and binary
-  values remain strings until the public representation is chosen.
+  resolve legacy booleans/nulls plus timestamp-shaped plain scalars, octal,
+  hex, binary numeric, sexagesimal, and underscored numeric forms that fit
+  `yaml::Number`. Timestamps are retained as `!!timestamp` tagged strings, and
+  `!!binary` payloads remain tagged strings without byte decoding.
 - Untagged merge keys are expanded by default in loaded trees and Serde reads.
   `Value::apply_merge()` remains available for caller-built values and is
   idempotent for values parsed by this crate.
@@ -196,6 +197,6 @@ testing each adopter's own YAML corpus.
   replacement readiness.
 - Keep growing default merge and `apply_merge` coverage with sustained fuzz
   runs and minimized discoveries beyond the curated seed corpus.
-- Finish YAML 1.1 timestamp/binary construction, comment/format preservation,
+- Finish native date/time and binary byte APIs, comment/format preservation,
   and alias graph identity before claiming full YAML compatibility.
 - Choose the public package name and final license before publishing.

@@ -16,7 +16,7 @@ use std::collections::{BTreeMap, HashSet, hash_map::DefaultHasher};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::io::Cursor;
-use yaml::{Mapping, Number, Sequence, Tag, TaggedValue, Value};
+use yaml::{LoadOptions, Mapping, Number, Sequence, Tag, TaggedValue, Value};
 
 #[derive(Debug, Deserialize, PartialEq)]
 struct Config {
@@ -3580,6 +3580,61 @@ fn serde_api_verbatim_tags_preserve_suffix_and_are_transparent() {
 
     let typed: BTreeMap<String, String> = yaml::from_str(input).expect("typed map");
     assert_eq!(typed["value"], "tagged");
+}
+
+#[test]
+fn serde_api_yaml11_timestamps_and_binary_are_string_transparent() {
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct TaggedScalars {
+        date: String,
+        datetime: String,
+        explicit: String,
+        payload: String,
+    }
+
+    let input = "\
+date: 2026-05-24
+datetime: 2026-05-24T12:34:56Z
+explicit: !!timestamp 2026-05-25
+payload: !!binary SGVsbG8=
+";
+    let value: Value = LoadOptions::yaml_1_1()
+        .from_str(input)
+        .expect("YAML 1.1 tagged scalar values");
+
+    for (key, tag, source) in [
+        ("date", "!!timestamp", "2026-05-24"),
+        ("datetime", "!!timestamp", "2026-05-24T12:34:56Z"),
+        ("explicit", "!!timestamp", "2026-05-25"),
+        ("payload", "!!binary", "SGVsbG8="),
+    ] {
+        assert_eq!(value[key].as_str(), Some(source));
+        let tagged = value[key].as_tagged().expect("retained scalar tag");
+        assert_eq!(tagged.tag, Tag::new(tag));
+        assert_eq!(tagged.value.as_str(), Some(source));
+    }
+
+    let expected = TaggedScalars {
+        date: "2026-05-24".to_string(),
+        datetime: "2026-05-24T12:34:56Z".to_string(),
+        explicit: "2026-05-25".to_string(),
+        payload: "SGVsbG8=".to_string(),
+    };
+    let typed: TaggedScalars = LoadOptions::yaml_1_1()
+        .from_str(input)
+        .expect("typed strings from YAML 1.1 schema");
+    let direct: TaggedScalars =
+        TaggedScalars::deserialize(LoadOptions::yaml_1_1().deserializer_from_str(input))
+            .expect("direct deserializer typed strings");
+    let from_value: TaggedScalars =
+        yaml::from_value(value.clone()).expect("owned value typed strings");
+    let from_value_ref: TaggedScalars =
+        TaggedScalars::deserialize(&value).expect("borrowed value typed strings");
+
+    assert_eq!(typed, expected);
+    assert_eq!(direct, expected);
+    assert_eq!(from_value, expected);
+    assert_eq!(from_value_ref, expected);
 }
 
 #[test]

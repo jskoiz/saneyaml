@@ -1,5 +1,5 @@
 use saphyr::LoadableYamlNode;
-use yaml::parse_str;
+use yaml::{LoadOptions, parse_str};
 
 #[test]
 fn divergence_yaml_1_1_boolean_words_are_strings() {
@@ -135,12 +135,49 @@ fn divergence_default_schema_keeps_legacy_dates_and_sexagesimal_as_strings() {
 }
 
 #[test]
+fn divergence_yaml11_timestamps_are_retained_as_tagged_strings() {
+    let default = parse_str("date: 2026-05-24\ndatetime: 2026-05-24T12:34:56Z\n")
+        .expect("default schema parses timestamp-shaped strings");
+    let yaml::NodeValue::Mapping(default_entries) = default.value else {
+        panic!("expected default mapping");
+    };
+    assert_eq!(default_entries[0].1.as_str(), Some("2026-05-24"));
+    assert!(!matches!(
+        default_entries[0].1.value,
+        yaml::NodeValue::Tagged(_)
+    ));
+    assert_eq!(default_entries[1].1.as_str(), Some("2026-05-24T12:34:56Z"));
+    assert!(!matches!(
+        default_entries[1].1.value,
+        yaml::NodeValue::Tagged(_)
+    ));
+
+    let yaml11 = LoadOptions::yaml_1_1()
+        .parse_str("date: 2026-05-24\ndatetime: 2026-05-24T12:34:56Z\n")
+        .expect("YAML 1.1 schema parses timestamp-shaped strings");
+    let yaml::NodeValue::Mapping(entries) = yaml11.value else {
+        panic!("expected YAML 1.1 mapping");
+    };
+    for (value, source) in [
+        (&entries[0].1, "2026-05-24"),
+        (&entries[1].1, "2026-05-24T12:34:56Z"),
+    ] {
+        let yaml::NodeValue::Tagged(tagged) = &value.value else {
+            panic!("expected timestamp tag");
+        };
+        assert_eq!(tagged.tag, yaml::Tag::new("!!timestamp"));
+        assert_eq!(tagged.value.as_str(), Some(source));
+    }
+}
+
+#[test]
 fn divergence_legacy_scalar_resolution_record_is_present() {
     let record = include_str!("fixtures/divergences/records/legacy-scalar-resolution.toml");
     assert!(record.contains("legacy-scalar-resolution"));
     assert!(record.contains("YAML 1.2 core schema"));
     assert!(record.contains("explicit YAML 1.1 scalar construction"));
-    assert!(record.contains("timestamps and binary values remain strings"));
+    assert!(record.contains("retained as !!timestamp tagged strings"));
+    assert!(record.contains("!!binary values remain tagged strings"));
 }
 
 #[test]

@@ -13,8 +13,8 @@ The compatibility target is intentionally split:
   `yaml-rust2` and `saphyr` for supported syntax.
 - Ecosystem divergence target: libyaml/YAML 1.1-era behavior is documented and
   version-pinned with a Ruby Psych 3.1.0/libyaml 0.2.1 probe artifact. Default
-  loading stays YAML 1.2-oriented; explicit YAML 1.1 construction covers only
-  the scalar forms listed here.
+  loading stays YAML 1.2-oriented; explicit YAML 1.1 construction covers the
+  scalar forms listed here without adding native date/time or byte values.
 
 | Area | Prototype policy | libyaml / YAML 1.1 paths | yaml-rust2 / saphyr | serde_yaml |
 |---|---|---|---|---|
@@ -29,7 +29,7 @@ The compatibility target is intentionally split:
 | Bare/explicit document streams | YAML 1.2 bare documents after `...` are supported, including root literal scalars whose content begins at column 1, and directive-looking lines inside open flow collections are parsed as content | Some libyaml-era paths reject these streams or treat percent-prefixed flow content as directive-sensitive | Accepted by yaml-rust2/saphyr | `serde_yaml` rejects the full M7A3 stream after the first document and rejects UT92 |
 | Comments/formatting | Discarded | Not semantic | Not semantic | Discarded |
 | Emission | Deterministic structural YAML for emittable trees; duplicate-effective mapping keys, over-depth trees including caller-built complex keys, and directly nested tags are rejected before output; public writers follow `serde_yaml` document-marker policy by omitting `---` for the first ordinary document and inserting `---` between stream documents | Manual comparison only | Manual comparison only | Public writer document-marker policy is matched; byte-for-byte formatting parity remains out of scope |
-| Numeric extensions | Decimal ints/floats plus underscores and YAML special floats are resolved by default; explicit YAML 1.1 construction also resolves leading-zero octal, hex, binary, and sexagesimal forms that fit `Number`; timestamp/binary construction remains unresolved | YAML 1.1 has broad numeric typing | YAML 1.2 core support varies by crate | Data-model dependent |
+| Numeric and timestamp extensions | Decimal ints/floats plus underscores and YAML special floats are resolved by default; explicit YAML 1.1 construction also resolves leading-zero octal, hex, binary numeric, and sexagesimal forms that fit `Number`, and retains timestamp-shaped plain scalars as `!!timestamp` tagged strings; `!!binary` byte decoding remains unresolved | YAML 1.1 has broad numeric/timestamp typing | YAML 1.2 core support varies by crate | Data-model dependent |
 | Directives | Numeric `%YAML` version directives and `%TAG` are accepted as syntax/event inputs; reserved unknown directives are ignored but still require an explicit document start; version directives do not switch scalar schema; directive metadata is exposed on `DocumentStart` events | Exposed and may affect version/schema handling | Exposed by parser layers | Usually not a Serde value |
 | Explicit core tags | Tree and `Value` loading preserve explicit `!!binary`, `!!timestamp`, `!!int`, and `!!float` tags; typed Serde reads coerce explicit `!!int`/`!!float` numeric targets while preserving tags in retained values | YAML 1.1 typed binary/timestamp/numeric support is common | Tag-aware behavior varies, including `BadValue` for some explicit core tags | Partial/lossy |
 
@@ -97,9 +97,10 @@ semantics and is idempotent for values parsed by this crate.
 Default scalar construction remains YAML 1.2-oriented even when a stream has
 `%YAML 1.1`. Callers that need legacy YAML 1.1 scalar behavior must opt in with
 `yaml::LoadOptions::yaml_1_1()` or `yaml::LoadOptions::new().schema(Schema::Yaml11)`.
-That mode resolves boolean aliases and numeric forms that fit `yaml::Number`;
-timestamp and binary construction intentionally stay as strings until the
-public representation is settled.
+That mode resolves boolean aliases and numeric forms that fit `yaml::Number`,
+and retains timestamp-shaped plain scalars as `!!timestamp` tagged strings.
+Explicit `!!binary` payloads remain tagged strings without byte decoding until
+a public byte representation is settled.
 For non-enum typed reads, tags are transparent metadata: `!Env prod` can
 deserialize into `String`, `!Ports [80, 443]` into `Vec<u16>`, and
 `!Maybe null` into `Option<T>`. `Value::default()` is null, `Value` can drive
@@ -291,9 +292,9 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   deferrals, and shared-reference acceptance for 57 accepted cases with 23
   documented `serde_yaml`/libyaml divergence deferrals
 - core scalars
-- explicit YAML 1.1 schema-mode scalars, including boolean aliases, legacy
-  numeric forms, duplicate-key collisions, directive non-switching, and fuzz
-  corpus replay
+- explicit YAML 1.1 schema-mode scalars, including boolean aliases, retained
+  timestamp tags, legacy numeric forms, duplicate-key collisions, directive
+  non-switching, and fuzz corpus replay
 - block and flow collections
 - explicit block mapping entries
 - plain block mapping keys containing YAML-safe punctuation, including

@@ -30,8 +30,10 @@ mod key_identity;
 mod parse;
 mod ser;
 
+/// Serde helper modules matching selected `serde_yaml::with` paths.
 pub mod with;
 
+/// Mapping types and iterators for YAML [`Mapping`].
 pub mod mapping {
     pub use crate::ast::{
         Entry, IntoIter, IntoKeys, IntoValues, Iter, IterMut, Keys, Mapping, MappingIndex as Index,
@@ -39,6 +41,7 @@ pub mod mapping {
     };
 }
 
+/// Value-oriented API matching the `serde_yaml::value` module shape.
 pub mod value {
     pub use crate::ast::{Index, Mapping, Number, Sequence, Tag, TaggedValue, Value};
     pub use crate::de::from_value;

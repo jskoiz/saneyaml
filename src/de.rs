@@ -1,3 +1,6 @@
+//! Serde deserialization entrypoints for YAML strings, bytes, readers, nodes,
+//! and values.
+
 use crate::parse::parse_document_results;
 use crate::{
     Error, Mapping, Node, NodeValue, Number, Span, Tag, Value, error::utf8_error_span,
@@ -10,6 +13,7 @@ use serde::de::{
 use serde::forward_to_deserialize_any;
 use std::io::Read;
 
+/// Deserializes a single YAML document from a string.
 pub fn from_str<'de, T>(input: &'de str) -> crate::Result<T>
 where
     T: serde::Deserialize<'de>,
@@ -18,6 +22,7 @@ where
     from_input_node(&node, input)
 }
 
+/// Deserializes a single UTF-8 YAML document from bytes.
 pub fn from_slice<'de, T>(input: &'de [u8]) -> crate::Result<T>
 where
     T: serde::Deserialize<'de>,
@@ -27,6 +32,7 @@ where
     from_str(input)
 }
 
+/// Reads all bytes from a reader and deserializes one YAML document.
 pub fn from_reader<R, T>(mut reader: R) -> crate::Result<T>
 where
     R: Read,
@@ -39,6 +45,7 @@ where
     from_slice(&input)
 }
 
+/// Deserializes from an already parsed spanful [`Node`].
 pub fn from_node<'de, T>(node: &'de Node) -> crate::Result<T>
 where
     T: serde::Deserialize<'de>,
@@ -53,6 +60,7 @@ where
     T::deserialize(InputNode { node, input }).map_err(|error| error.with_span_if_missing(node.span))
 }
 
+/// Deserializes from a spanless YAML [`Value`].
 pub fn from_value<T>(value: Value) -> crate::Result<T>
 where
     T: DeserializeOwned,
@@ -60,6 +68,7 @@ where
     T::deserialize(value)
 }
 
+/// Deserializes every document in a YAML stream from a string.
 pub fn from_documents_str<T>(input: &str) -> crate::Result<Vec<T>>
 where
     T: DeserializeOwned,
@@ -70,6 +79,7 @@ where
         .collect::<crate::Result<Vec<T>>>()
 }
 
+/// Deserializes every document in a UTF-8 YAML stream from bytes.
 pub fn from_documents_slice<T>(input: &[u8]) -> crate::Result<Vec<T>>
 where
     T: DeserializeOwned,
@@ -79,6 +89,7 @@ where
     from_documents_str(input)
 }
 
+/// Reads all bytes from a reader and deserializes every YAML document.
 pub fn from_documents_reader<T, R>(mut reader: R) -> crate::Result<Vec<T>>
 where
     T: DeserializeOwned,
@@ -91,6 +102,7 @@ where
     from_documents_slice(&input)
 }
 
+/// Streaming Serde deserializer over one or more YAML documents.
 #[derive(Debug)]
 pub struct Deserializer<'de> {
     documents: std::vec::IntoIter<Document<'de>>,
@@ -98,10 +110,12 @@ pub struct Deserializer<'de> {
 
 impl<'de> Deserializer<'de> {
     #[allow(clippy::should_implement_trait)]
+    /// Creates a streaming deserializer from a YAML string.
     pub fn from_str(input: &'de str) -> Self {
         Self::from_document_results(parse_document_results(input), Some(input))
     }
 
+    /// Creates a streaming deserializer from UTF-8 YAML bytes.
     pub fn from_slice(input: &'de [u8]) -> Self {
         match std::str::from_utf8(input) {
             Ok(input) => Self::from_str(input),
@@ -112,6 +126,7 @@ impl<'de> Deserializer<'de> {
         }
     }
 
+    /// Reads a YAML stream and creates a streaming deserializer.
     pub fn from_reader<R>(mut reader: R) -> Self
     where
         R: Read,

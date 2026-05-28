@@ -1,3 +1,5 @@
+//! Serde serialization entrypoints for YAML values and writers.
+
 use crate::{
     Error, Mapping, Node, NodeValue, Number, Result, Span, Tag, TaggedNode, TaggedValue, Value,
 };
@@ -13,6 +15,7 @@ const BYTES_UNSUPPORTED: &str =
     "serialization and deserialization of bytes in YAML is not implemented";
 const MAX_SERIALIZE_HINT_PREALLOC: usize = 4096;
 
+/// Converts a serializable value into a YAML [`Value`].
 pub fn to_value<T>(value: T) -> Result<Value>
 where
     T: Serialize,
@@ -20,6 +23,7 @@ where
     value.serialize(ValueSerializer)
 }
 
+/// Serializes a value into a YAML string.
 pub fn to_string<T>(value: &T) -> Result<String>
 where
     T: ?Sized + Serialize,
@@ -28,6 +32,7 @@ where
     crate::emit::to_string(&node)
 }
 
+/// Serializes a value as YAML and writes it to an output sink.
 pub fn to_writer<W, T>(mut writer: W, value: &T) -> Result<()>
 where
     W: Write,
@@ -50,6 +55,7 @@ where
     Ok(Node::new(value.into(), Default::default()))
 }
 
+/// Streaming YAML serializer for writing one document at a time.
 pub struct Serializer<W> {
     writer: W,
     document_written: bool,
@@ -59,6 +65,7 @@ impl<W> Serializer<W>
 where
     W: Write,
 {
+    /// Creates a serializer that writes YAML documents to `writer`.
     pub fn new(writer: W) -> Self {
         Self {
             writer,
@@ -66,10 +73,12 @@ where
         }
     }
 
+    /// Flushes the wrapped writer.
     pub fn flush(&mut self) -> Result<()> {
         self.writer.flush().map_err(write_error)
     }
 
+    /// Flushes and returns the wrapped writer.
     pub fn into_inner(mut self) -> Result<W> {
         self.flush()?;
         Ok(self.writer)
@@ -302,6 +311,7 @@ where
     }
 }
 
+#[doc(hidden)]
 pub struct DocumentSequenceSerializer<'a, W> {
     serializer: &'a mut Serializer<W>,
     inner: SequenceSerializer,
@@ -365,6 +375,7 @@ where
     }
 }
 
+#[doc(hidden)]
 pub struct DocumentTupleVariantSerializer<'a, W> {
     serializer: &'a mut Serializer<W>,
     inner: TupleVariantSerializer,
@@ -390,6 +401,7 @@ where
     }
 }
 
+#[doc(hidden)]
 pub struct DocumentMappingSerializer<'a, W> {
     serializer: &'a mut Serializer<W>,
     inner: MappingSerializer,
@@ -430,6 +442,7 @@ where
     }
 }
 
+#[doc(hidden)]
 pub struct DocumentStructSerializer<'a, W> {
     serializer: &'a mut Serializer<W>,
     inner: StructSerializer,
@@ -455,6 +468,7 @@ where
     }
 }
 
+#[doc(hidden)]
 pub struct DocumentStructVariantSerializer<'a, W> {
     serializer: &'a mut Serializer<W>,
     inner: StructVariantSerializer,
@@ -480,6 +494,7 @@ where
     }
 }
 
+/// Serializer that builds a spanless YAML [`Value`].
 pub struct ValueSerializer;
 
 impl ser::Serializer for ValueSerializer {
@@ -908,6 +923,7 @@ fn mapping_with_hinted_capacity(len: Option<usize>) -> Mapping {
     Mapping::with_capacity(hinted_capacity(len))
 }
 
+#[doc(hidden)]
 pub struct SequenceSerializer {
     items: Vec<Value>,
     reject_bytes: bool,
@@ -963,6 +979,7 @@ impl SerializeTupleStruct for SequenceSerializer {
     }
 }
 
+#[doc(hidden)]
 pub struct TupleVariantSerializer {
     variant: &'static str,
     items: Vec<Value>,
@@ -990,6 +1007,7 @@ impl SerializeTupleVariant for TupleVariantSerializer {
     }
 }
 
+#[doc(hidden)]
 pub struct MappingSerializer {
     entries: Mapping,
     next_key: Option<SerializedKey>,
@@ -1542,6 +1560,7 @@ impl SerializeStructVariant for KeyStructVariantSerializer {
     }
 }
 
+#[doc(hidden)]
 pub struct StructSerializer {
     entries: Mapping,
     reject_bytes: bool,
@@ -1567,6 +1586,7 @@ impl SerializeStruct for StructSerializer {
     }
 }
 
+#[doc(hidden)]
 pub struct StructVariantSerializer {
     variant: &'static str,
     entries: Mapping,

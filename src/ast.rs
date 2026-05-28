@@ -9,14 +9,18 @@ use std::mem;
 use std::ops::{Index as StdIndex, IndexMut as StdIndexMut};
 use std::str::FromStr;
 
+/// Spanful YAML document tree node produced by the parser.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Node {
+    /// Parsed node payload.
     pub value: NodeValue,
+    /// Source span for this node.
     pub span: Span,
     pub(crate) source: Option<ScalarSource>,
 }
 
 impl Node {
+    /// Creates a node from a payload and span.
     pub fn new(value: NodeValue, span: Span) -> Self {
         Self {
             value,
@@ -25,6 +29,7 @@ impl Node {
         }
     }
 
+    /// Creates a null node at the given span.
     pub fn null(span: Span) -> Self {
         Self::new(NodeValue::Null, span)
     }
@@ -38,10 +43,12 @@ impl Node {
         self
     }
 
+    /// Returns the original scalar spelling when it was retained.
     pub fn scalar_source(&self) -> Option<&ScalarSource> {
         self.source.as_ref()
     }
 
+    /// Returns the scalar string value.
     pub fn as_str(&self) -> Option<&str> {
         match &self.value {
             NodeValue::String(value) => Some(value),
@@ -49,21 +56,25 @@ impl Node {
         }
     }
 
+    /// Compares two nodes by semantic value, ignoring source spans.
     pub fn equivalent(&self, other: &Self) -> bool {
         self.value.equivalent(&other.value)
     }
 
+    /// Converts this spanful node into a spanless [`Value`].
     pub fn into_value(self) -> Value {
         self.value.into()
     }
 }
 
+/// Original scalar spelling retained for string-target deserialization.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ScalarSource {
     raw: String,
 }
 
 impl ScalarSource {
+    /// Returns the raw scalar text as it appeared in the YAML source.
     pub fn raw(&self) -> &str {
         &self.raw
     }
@@ -81,24 +92,36 @@ impl From<&Node> for Value {
     }
 }
 
+/// Spanful YAML node payload.
 #[derive(Clone, Debug, PartialEq)]
 pub enum NodeValue {
+    /// YAML null.
     Null,
+    /// YAML boolean.
     Bool(bool),
+    /// YAML number.
     Number(Number),
+    /// YAML string.
     String(String),
+    /// YAML sequence.
     Sequence(Vec<Node>),
+    /// YAML mapping represented as ordered key/value nodes.
     Mapping(Vec<(Node, Node)>),
+    /// Tagged YAML node.
     Tagged(Box<TaggedNode>),
 }
 
+/// Parsed YAML tag handle and suffix.
 #[derive(Clone, Debug, Eq)]
 pub struct Tag {
+    /// Tag handle, such as `!`, `!!`, or `!foo!`.
     pub handle: String,
+    /// Tag suffix after the handle.
     pub suffix: String,
 }
 
 impl Tag {
+    /// Parses a raw YAML tag spelling into a tag handle and suffix.
     pub fn new(raw: impl Into<String>) -> Self {
         let raw = raw.into();
         assert!(!raw.is_empty(), "empty YAML tag is not allowed");
@@ -132,6 +155,7 @@ impl Tag {
         }
     }
 
+    /// Returns the Serde enum variant name represented by this tag.
     pub fn variant(&self) -> &str {
         &self.suffix
     }
@@ -211,14 +235,19 @@ fn tag_suffix_needs_verbatim(suffix: &str) -> bool {
                 .any(|ch| ch.is_whitespace() || matches!(ch, ',' | '[' | ']' | '{' | '}')))
 }
 
+/// Spanful YAML tagged node.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TaggedNode {
+    /// YAML tag.
     pub tag: Tag,
+    /// Source span of the tag token.
     pub tag_span: Span,
+    /// Tagged node value.
     pub value: Node,
 }
 
 impl NodeValue {
+    /// Returns the scalar string value, following transparent tags.
     pub fn as_str(&self) -> Option<&str> {
         match self {
             NodeValue::String(value) => Some(value),
@@ -227,6 +256,7 @@ impl NodeValue {
         }
     }
 
+    /// Compares two node payloads by semantic value.
     pub fn equivalent(&self, other: &Self) -> bool {
         match (self, other) {
             (NodeValue::Null, NodeValue::Null) => true,
@@ -335,25 +365,37 @@ impl From<&NodeValue> for Value {
     }
 }
 
+/// Spanless YAML value tree used by Serde-facing APIs.
 #[derive(Clone, Debug, Default, PartialEq, PartialOrd, Hash)]
 pub enum Value {
+    /// YAML null.
     #[default]
     Null,
+    /// YAML boolean.
     Bool(bool),
+    /// YAML number.
     Number(Number),
+    /// YAML string.
     String(String),
+    /// YAML sequence.
     Sequence(Sequence),
+    /// YAML mapping.
     Mapping(Mapping),
+    /// Tagged YAML value.
     Tagged(Box<TaggedValue>),
 }
 
 impl Eq for Value {}
 
+/// YAML sequence containing spanless [`Value`] elements.
 pub type Sequence = Vec<Value>;
 
+/// Spanless tagged YAML value.
 #[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
 pub struct TaggedValue {
+    /// YAML tag.
     pub tag: Tag,
+    /// Tagged value payload.
     pub value: Value,
 }
 
@@ -432,34 +474,41 @@ where
     }
 }
 
+/// Ordered YAML mapping with `Value` keys and values.
 #[derive(Clone, Debug, Default)]
 pub struct Mapping {
     entries: Vec<(Value, Value)>,
 }
 
 impl Mapping {
+    /// Creates an empty mapping.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Creates an empty mapping with space for at least `capacity` entries.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             entries: Vec::with_capacity(capacity),
         }
     }
 
+    /// Reserves capacity for at least `additional` more entries.
     pub fn reserve(&mut self, additional: usize) {
         self.entries.reserve(additional);
     }
 
+    /// Shrinks the backing storage as much as possible.
     pub fn shrink_to_fit(&mut self) {
         self.entries.shrink_to_fit();
     }
 
+    /// Returns the current backing storage capacity.
     pub fn capacity(&self) -> usize {
         self.entries.capacity()
     }
 
+    /// Inserts a key/value pair, returning the replaced value if the key existed.
     pub fn insert(&mut self, key: Value, value: Value) -> Option<Value> {
         if let Some((_, existing)) = self
             .entries
@@ -472,6 +521,7 @@ impl Mapping {
         None
     }
 
+    /// Returns an entry API for inserting or modifying a value by key.
     pub fn entry(&mut self, key: Value) -> Entry<'_> {
         if let Some(index) = self
             .entries
@@ -487,6 +537,7 @@ impl Mapping {
         }
     }
 
+    /// Removes a key using swap removal.
     pub fn remove<I>(&mut self, index: I) -> Option<Value>
     where
         I: MappingIndex,
@@ -494,6 +545,7 @@ impl Mapping {
         self.swap_remove(index)
     }
 
+    /// Removes a key/value pair using swap removal.
     pub fn remove_entry<I>(&mut self, index: I) -> Option<(Value, Value)>
     where
         I: MappingIndex,
@@ -501,6 +553,7 @@ impl Mapping {
         self.swap_remove_entry(index)
     }
 
+    /// Removes a key using swap removal.
     pub fn swap_remove<I>(&mut self, index: I) -> Option<Value>
     where
         I: MappingIndex,
@@ -508,6 +561,7 @@ impl Mapping {
         index.swap_remove_from(self)
     }
 
+    /// Removes a key/value pair using swap removal.
     pub fn swap_remove_entry<I>(&mut self, index: I) -> Option<(Value, Value)>
     where
         I: MappingIndex,
@@ -515,6 +569,7 @@ impl Mapping {
         index.swap_remove_entry_from(self)
     }
 
+    /// Removes a key while preserving entry order.
     pub fn shift_remove<I>(&mut self, index: I) -> Option<Value>
     where
         I: MappingIndex,
@@ -522,6 +577,7 @@ impl Mapping {
         index.shift_remove_from(self)
     }
 
+    /// Removes a key/value pair while preserving entry order.
     pub fn shift_remove_entry<I>(&mut self, index: I) -> Option<(Value, Value)>
     where
         I: MappingIndex,
@@ -529,6 +585,7 @@ impl Mapping {
         index.shift_remove_entry_from(self)
     }
 
+    /// Retains only entries selected by the predicate.
     pub fn retain<F>(&mut self, mut keep: F)
     where
         F: FnMut(&Value, &mut Value) -> bool,
@@ -536,6 +593,7 @@ impl Mapping {
         self.entries.retain_mut(|(key, value)| keep(&*key, value));
     }
 
+    /// Returns a value for the key, if present.
     pub fn get<I>(&self, index: I) -> Option<&Value>
     where
         I: MappingIndex,
@@ -543,6 +601,7 @@ impl Mapping {
         index.index_into_mapping(self)
     }
 
+    /// Returns a mutable value for the key, if present.
     pub fn get_mut<I>(&mut self, index: I) -> Option<&mut Value>
     where
         I: MappingIndex,
@@ -550,6 +609,7 @@ impl Mapping {
         index.index_into_mapping_mut(self)
     }
 
+    /// Returns whether the mapping contains the key.
     pub fn contains_key<I>(&self, index: I) -> bool
     where
         I: MappingIndex,
@@ -557,60 +617,71 @@ impl Mapping {
         index.is_key_into_mapping(self)
     }
 
+    /// Returns the number of entries.
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
+    /// Returns whether the mapping contains no entries.
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 
+    /// Removes all entries.
     pub fn clear(&mut self) {
         self.entries.clear();
     }
 
+    /// Returns an iterator over key/value references.
     pub fn iter(&self) -> Iter<'_> {
         Iter {
             iter: self.entries.iter(),
         }
     }
 
+    /// Returns an iterator over key references and mutable value references.
     pub fn iter_mut(&mut self) -> IterMut<'_> {
         IterMut {
             iter: self.entries.iter_mut(),
         }
     }
 
+    /// Returns an iterator over keys.
     pub fn keys(&self) -> Keys<'_> {
         Keys {
             iter: self.entries.iter(),
         }
     }
 
+    /// Returns an iterator over values.
     pub fn values(&self) -> Values<'_> {
         Values {
             iter: self.entries.iter(),
         }
     }
 
+    /// Returns an iterator over mutable values.
     pub fn values_mut(&mut self) -> ValuesMut<'_> {
         ValuesMut {
             iter: self.entries.iter_mut(),
         }
     }
 
+    /// Returns an owning iterator over keys.
     pub fn into_keys(self) -> IntoKeys {
         IntoKeys {
             iter: self.entries.into_iter(),
         }
     }
 
+    /// Returns an owning iterator over values.
     pub fn into_values(self) -> IntoValues {
         IntoValues {
             iter: self.entries.into_iter(),
         }
     }
 
+    /// Returns the ordered key/value entry slice.
     pub fn as_slice(&self) -> &[(Value, Value)] {
         &self.entries
     }
@@ -722,6 +793,7 @@ where
     }
 }
 
+/// Iterator over borrowed mapping key/value pairs.
 pub struct Iter<'a> {
     iter: std::slice::Iter<'a, (Value, Value)>,
 }
@@ -750,6 +822,7 @@ impl ExactSizeIterator for Iter<'_> {
     }
 }
 
+/// Iterator over borrowed mapping keys and mutable values.
 pub struct IterMut<'a> {
     iter: std::slice::IterMut<'a, (Value, Value)>,
 }
@@ -778,6 +851,7 @@ impl ExactSizeIterator for IterMut<'_> {
     }
 }
 
+/// Owning iterator over mapping key/value pairs.
 pub struct IntoIter {
     iter: std::vec::IntoIter<(Value, Value)>,
 }
@@ -806,6 +880,7 @@ impl ExactSizeIterator for IntoIter {
     }
 }
 
+/// Iterator over borrowed mapping keys.
 pub struct Keys<'a> {
     iter: std::slice::Iter<'a, (Value, Value)>,
 }
@@ -834,6 +909,7 @@ impl ExactSizeIterator for Keys<'_> {
     }
 }
 
+/// Owning iterator over mapping keys.
 pub struct IntoKeys {
     iter: std::vec::IntoIter<(Value, Value)>,
 }
@@ -862,6 +938,7 @@ impl ExactSizeIterator for IntoKeys {
     }
 }
 
+/// Iterator over borrowed mapping values.
 pub struct Values<'a> {
     iter: std::slice::Iter<'a, (Value, Value)>,
 }
@@ -890,6 +967,7 @@ impl ExactSizeIterator for Values<'_> {
     }
 }
 
+/// Iterator over mutable mapping values.
 pub struct ValuesMut<'a> {
     iter: std::slice::IterMut<'a, (Value, Value)>,
 }
@@ -918,6 +996,7 @@ impl ExactSizeIterator for ValuesMut<'_> {
     }
 }
 
+/// Owning iterator over mapping values.
 pub struct IntoValues {
     iter: std::vec::IntoIter<(Value, Value)>,
 }
@@ -946,22 +1025,28 @@ impl ExactSizeIterator for IntoValues {
     }
 }
 
+/// Entry view into a [`Mapping`].
 pub enum Entry<'a> {
+    /// Existing mapping entry.
     Occupied(OccupiedEntry<'a>),
+    /// Vacant mapping entry.
     Vacant(VacantEntry<'a>),
 }
 
+/// Occupied entry in a [`Mapping`].
 pub struct OccupiedEntry<'a> {
     mapping: &'a mut Mapping,
     index: usize,
 }
 
+/// Vacant entry in a [`Mapping`].
 pub struct VacantEntry<'a> {
     mapping: &'a mut Mapping,
     key: Value,
 }
 
 impl<'a> Entry<'a> {
+    /// Returns the entry key.
     pub fn key(&self) -> &Value {
         match self {
             Entry::Occupied(entry) => entry.key(),
@@ -969,6 +1054,7 @@ impl<'a> Entry<'a> {
         }
     }
 
+    /// Inserts `default` when vacant and returns a mutable value reference.
     pub fn or_insert(self, default: Value) -> &'a mut Value {
         match self {
             Entry::Occupied(entry) => entry.into_mut(),
@@ -976,6 +1062,7 @@ impl<'a> Entry<'a> {
         }
     }
 
+    /// Inserts a value produced by `default` when vacant.
     pub fn or_insert_with<F>(self, default: F) -> &'a mut Value
     where
         F: FnOnce() -> Value,
@@ -986,6 +1073,7 @@ impl<'a> Entry<'a> {
         }
     }
 
+    /// Modifies an occupied entry in place.
     pub fn and_modify<F>(self, f: F) -> Self
     where
         F: FnOnce(&mut Value),
@@ -1001,44 +1089,54 @@ impl<'a> Entry<'a> {
 }
 
 impl<'a> OccupiedEntry<'a> {
+    /// Returns the entry key.
     pub fn key(&self) -> &Value {
         &self.mapping.entries[self.index].0
     }
 
+    /// Returns the entry value.
     pub fn get(&self) -> &Value {
         &self.mapping.entries[self.index].1
     }
 
+    /// Returns a mutable reference to the entry value.
     pub fn get_mut(&mut self) -> &mut Value {
         &mut self.mapping.entries[self.index].1
     }
 
+    /// Converts the entry into a mutable value reference.
     pub fn into_mut(self) -> &'a mut Value {
         &mut self.mapping.entries[self.index].1
     }
 
+    /// Replaces the entry value and returns the old value.
     pub fn insert(&mut self, value: Value) -> Value {
         mem::replace(&mut self.mapping.entries[self.index].1, value)
     }
 
+    /// Removes the entry and returns its value.
     pub fn remove(self) -> Value {
         self.mapping.entries.swap_remove(self.index).1
     }
 
+    /// Removes the entry and returns its key and value.
     pub fn remove_entry(self) -> (Value, Value) {
         self.mapping.entries.swap_remove(self.index)
     }
 }
 
 impl<'a> VacantEntry<'a> {
+    /// Returns the key that would be inserted.
     pub fn key(&self) -> &Value {
         &self.key
     }
 
+    /// Returns the owned key that would be inserted.
     pub fn into_key(self) -> Value {
         self.key
     }
 
+    /// Inserts a value for this vacant key.
     pub fn insert(self, value: Value) -> &'a mut Value {
         let index = self.mapping.entries.len();
         self.mapping.entries.push((self.key, value));
@@ -1562,6 +1660,7 @@ fn value_type_name(value: &Value) -> &'static str {
 }
 
 impl Value {
+    /// Expands YAML merge keys in place using `serde_yaml::Value`-style rules.
     pub fn apply_merge(&mut self) -> crate::Result<()> {
         let mut values = vec![self];
         while let Some(value) = values.pop() {
@@ -1611,6 +1710,7 @@ impl Value {
         Ok(())
     }
 
+    /// Returns a nested value by sequence index or mapping key.
     pub fn get<I>(&self, index: I) -> Option<&Value>
     where
         I: Index,
@@ -1618,6 +1718,7 @@ impl Value {
         index.index_into(self)
     }
 
+    /// Returns a mutable nested value by sequence index or mapping key.
     pub fn get_mut<I>(&mut self, index: I) -> Option<&mut Value>
     where
         I: Index,
@@ -1625,6 +1726,7 @@ impl Value {
         index.index_into_mut(self)
     }
 
+    /// Returns `Some(())` if this value is null.
     pub fn as_null(&self) -> Option<()> {
         match self {
             Value::Tagged(tagged) => tagged.value.as_null(),
@@ -1632,6 +1734,7 @@ impl Value {
         }
     }
 
+    /// Returns the boolean value, if this value is a boolean.
     pub fn as_bool(&self) -> Option<bool> {
         match self {
             Value::Bool(value) => Some(*value),
@@ -1640,6 +1743,7 @@ impl Value {
         }
     }
 
+    /// Returns this value as an `i64`, if it is an in-range integer.
     pub fn as_i64(&self) -> Option<i64> {
         match self {
             Value::Number(number) => number.as_i64(),
@@ -1648,6 +1752,7 @@ impl Value {
         }
     }
 
+    /// Returns this value as a `u64`, if it is an in-range nonnegative integer.
     pub fn as_u64(&self) -> Option<u64> {
         match self {
             Value::Number(number) => number.as_u64(),
@@ -1656,6 +1761,7 @@ impl Value {
         }
     }
 
+    /// Returns this value as an `i128`, if it is an in-range integer.
     pub fn as_i128(&self) -> Option<i128> {
         match self {
             Value::Number(number) => number.as_i128(),
@@ -1664,6 +1770,7 @@ impl Value {
         }
     }
 
+    /// Returns this value as a `u128`, if it is an in-range nonnegative integer.
     pub fn as_u128(&self) -> Option<u128> {
         match self {
             Value::Number(number) => number.as_u128(),
@@ -1672,6 +1779,7 @@ impl Value {
         }
     }
 
+    /// Returns this value as an `f64`, if it is numeric.
     pub fn as_f64(&self) -> Option<f64> {
         match self {
             Value::Number(number) => number.as_f64(),
@@ -1680,6 +1788,7 @@ impl Value {
         }
     }
 
+    /// Returns this value as a string slice, if it is a string.
     pub fn as_str(&self) -> Option<&str> {
         match self {
             Value::String(value) => Some(value),
@@ -1688,6 +1797,7 @@ impl Value {
         }
     }
 
+    /// Returns this value as a sequence, if it is a sequence.
     pub fn as_sequence(&self) -> Option<&Sequence> {
         match self {
             Value::Sequence(items) => Some(items),
@@ -1696,6 +1806,7 @@ impl Value {
         }
     }
 
+    /// Returns this value as a mutable sequence, if it is a sequence.
     pub fn as_sequence_mut(&mut self) -> Option<&mut Sequence> {
         match self {
             Value::Sequence(items) => Some(items),
@@ -1704,6 +1815,7 @@ impl Value {
         }
     }
 
+    /// Returns this value as a mapping, if it is a mapping.
     pub fn as_mapping(&self) -> Option<&Mapping> {
         match self {
             Value::Mapping(entries) => Some(entries),
@@ -1712,6 +1824,7 @@ impl Value {
         }
     }
 
+    /// Returns this value as a mutable mapping, if it is a mapping.
     pub fn as_mapping_mut(&mut self) -> Option<&mut Mapping> {
         match self {
             Value::Mapping(entries) => Some(entries),
@@ -1720,6 +1833,7 @@ impl Value {
         }
     }
 
+    /// Returns the tagged value wrapper, if this value is tagged.
     pub fn as_tagged(&self) -> Option<&TaggedValue> {
         match self {
             Value::Tagged(tagged) => Some(tagged),
@@ -1727,53 +1841,64 @@ impl Value {
         }
     }
 
+    /// Returns whether this value is null.
     pub fn is_null(&self) -> bool {
         matches!(self, Value::Null)
             || matches!(self, Value::Tagged(tagged) if tagged.value.is_null())
     }
 
+    /// Returns whether this value is a boolean.
     pub fn is_bool(&self) -> bool {
         matches!(self, Value::Bool(_))
             || matches!(self, Value::Tagged(tagged) if tagged.value.is_bool())
     }
 
+    /// Returns whether this value is numeric.
     pub fn is_number(&self) -> bool {
         matches!(self, Value::Number(_))
             || matches!(self, Value::Tagged(tagged) if tagged.value.is_number())
     }
 
+    /// Returns whether this value can be represented as an `i64`.
     pub fn is_i64(&self) -> bool {
         self.as_i64().is_some()
     }
 
+    /// Returns whether this value can be represented as a `u64`.
     pub fn is_u64(&self) -> bool {
         self.as_u64().is_some()
     }
 
+    /// Returns whether this value is stored as a floating-point number.
     pub fn is_f64(&self) -> bool {
         matches!(self, Value::Number(number) if number.is_f64())
             || matches!(self, Value::Tagged(tagged) if tagged.value.is_f64())
     }
 
+    /// Returns whether this value is a string.
     pub fn is_string(&self) -> bool {
         matches!(self, Value::String(_))
             || matches!(self, Value::Tagged(tagged) if tagged.value.is_string())
     }
 
+    /// Returns whether this value is a sequence.
     pub fn is_sequence(&self) -> bool {
         matches!(self, Value::Sequence(_))
             || matches!(self, Value::Tagged(tagged) if tagged.value.is_sequence())
     }
 
+    /// Returns whether this value is a mapping.
     pub fn is_mapping(&self) -> bool {
         matches!(self, Value::Mapping(_))
             || matches!(self, Value::Tagged(tagged) if tagged.value.is_mapping())
     }
 
+    /// Returns whether this value has an explicit YAML tag.
     pub fn is_tagged(&self) -> bool {
         matches!(self, Value::Tagged(_))
     }
 
+    /// Compares two values by semantic value.
     pub fn equivalent(&self, other: &Self) -> bool {
         self == other
     }
@@ -1845,10 +1970,14 @@ fn merge_error(message: &'static str) -> Error {
     Error::new(message, Span::default())
 }
 
+/// YAML number representation.
 #[derive(Clone, Copy, Debug)]
 pub enum Number {
+    /// Signed integer.
     Integer(i128),
+    /// Unsigned integer.
     Unsigned(u128),
+    /// Floating-point number.
     Float(f64),
 }
 
@@ -1933,35 +2062,43 @@ fn total_number_cmp(left: &Number, right: &Number) -> Ordering {
 }
 
 impl Number {
+    /// Returns whether this number fits in `i64`.
     pub fn is_i64(&self) -> bool {
         self.as_i64().is_some()
     }
 
+    /// Returns whether this number fits in `u64`.
     pub fn is_u64(&self) -> bool {
         self.as_u64().is_some()
     }
 
+    /// Returns whether this number fits in `i128`.
     pub fn is_i128(&self) -> bool {
         matches!(self, Number::Integer(_))
             || matches!(self, Number::Unsigned(value) if i128::try_from(*value).is_ok())
     }
 
+    /// Returns whether this number fits in `u128`.
     pub fn is_u128(&self) -> bool {
         matches!(self, Number::Unsigned(_)) || matches!(self, Number::Integer(value) if *value >= 0)
     }
 
+    /// Returns whether this number is stored as `f64`.
     pub fn is_f64(&self) -> bool {
         matches!(self, Number::Float(_))
     }
 
+    /// Returns whether this number is NaN.
     pub fn is_nan(&self) -> bool {
         matches!(self, Number::Float(value) if value.is_nan())
     }
 
+    /// Returns whether this number is infinite.
     pub fn is_infinite(&self) -> bool {
         matches!(self, Number::Float(value) if value.is_infinite())
     }
 
+    /// Returns whether this number is finite.
     pub fn is_finite(&self) -> bool {
         match self {
             Number::Integer(_) | Number::Unsigned(_) => true,
@@ -1969,6 +2106,7 @@ impl Number {
         }
     }
 
+    /// Returns this number as `i64`, if possible.
     pub fn as_i64(&self) -> Option<i64> {
         match self {
             Number::Integer(value) => i64::try_from(*value).ok(),
@@ -1977,6 +2115,7 @@ impl Number {
         }
     }
 
+    /// Returns this number as `u64`, if possible.
     pub fn as_u64(&self) -> Option<u64> {
         match self {
             Number::Integer(value) => u64::try_from(*value).ok(),
@@ -1985,6 +2124,7 @@ impl Number {
         }
     }
 
+    /// Returns this number as `i128`, if possible.
     pub fn as_i128(&self) -> Option<i128> {
         match self {
             Number::Integer(value) => Some(*value),
@@ -1993,6 +2133,7 @@ impl Number {
         }
     }
 
+    /// Returns this number as `u128`, if possible.
     pub fn as_u128(&self) -> Option<u128> {
         match self {
             Number::Integer(value) => u128::try_from(*value).ok(),
@@ -2001,6 +2142,7 @@ impl Number {
         }
     }
 
+    /// Returns this number as `f64`, if possible.
     pub fn as_f64(&self) -> Option<f64> {
         match self {
             Number::Integer(value) => Some(*value as f64),

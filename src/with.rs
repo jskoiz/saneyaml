@@ -47,6 +47,7 @@ pub mod singleton_map {
     use serde::{Deserialize, Deserializer};
     use serde::{Serialize, Serializer, ser::Error};
 
+    /// Deserializes a value through the singleton-map helper path.
     pub fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
     where
         T: Deserialize<'de>,
@@ -55,6 +56,7 @@ pub mod singleton_map {
         T::deserialize(deserializer)
     }
 
+    /// Serializes enum tags as one-entry YAML mappings.
     pub fn serialize<T, S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
     where
         T: ?Sized + Serialize,
@@ -76,6 +78,7 @@ pub mod singleton_map_recursive {
     use serde::{Deserialize, Deserializer};
     use serde::{Serialize, Serializer, ser::Error};
 
+    /// Deserializes a value through the recursive singleton-map helper path.
     pub fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
     where
         T: Deserialize<'de>,
@@ -84,6 +87,7 @@ pub mod singleton_map_recursive {
         T::deserialize(deserializer)
     }
 
+    /// Serializes nested enum tags as one-entry YAML mappings.
     pub fn serialize<T, S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
     where
         T: ?Sized + Serialize,

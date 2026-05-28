@@ -48,6 +48,7 @@ cargo test --test downstream_migration_harness
 cargo test --test external_downstream_migration
 cargo test --test libyaml_probe_manifest
 cargo test --test baseline_audit
+RUSTDOCFLAGS='-D missing_docs' cargo doc --no-deps
 cargo test
 cargo clippy --all-targets -- -D warnings
 cargo run --release --example real_world_benchmark

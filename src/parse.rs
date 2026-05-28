@@ -1,3 +1,5 @@
+//! YAML parser entrypoints and raw event types.
+
 use crate::{
     Error, Node, NodeValue as Value, Number, Result, Span, Tag, TaggedNode,
     error::utf8_error_span,
@@ -9,98 +11,158 @@ use std::mem;
 pub(crate) const MAX_DEPTH: usize = 128;
 const MIN_ALIAS_EXPANSION_BUDGET: usize = 1024;
 
+/// A raw parser event emitted while reading a YAML stream.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event {
+    /// Start of a YAML stream.
     StreamStart,
+    /// End of a YAML stream.
     StreamEnd,
+    /// Start of a document.
     DocumentStart {
+        /// Whether the document start marker was explicit.
         explicit: bool,
+        /// Directives attached to this document.
         directives: EventDocumentDirectives,
+        /// Source span for the document start.
         span: Span,
     },
+    /// End of a document.
     DocumentEnd {
+        /// Whether the document end marker was explicit.
         explicit: bool,
+        /// Source span for the document end.
         span: Span,
     },
+    /// Start of a sequence.
     SequenceStart {
+        /// Anchor and tag metadata for the sequence.
         meta: EventMeta,
+        /// Block or flow collection style.
         style: CollectionStyle,
+        /// Source span for the sequence start.
         span: Span,
     },
+    /// End of a sequence.
     SequenceEnd {
+        /// Source span for the sequence end.
         span: Span,
     },
+    /// Start of a mapping.
     MappingStart {
+        /// Anchor and tag metadata for the mapping.
         meta: EventMeta,
+        /// Block or flow collection style.
         style: CollectionStyle,
+        /// Source span for the mapping start.
         span: Span,
     },
+    /// End of a mapping.
     MappingEnd {
+        /// Source span for the mapping end.
         span: Span,
     },
+    /// Alias reference.
     Alias {
+        /// Referenced anchor name and span.
         anchor: EventAnchor,
     },
+    /// Scalar value.
     Scalar {
+        /// Resolved scalar text.
         value: String,
+        /// Original scalar style.
         style: ScalarStyle,
+        /// Anchor and tag metadata for the scalar.
         meta: EventMeta,
+        /// Source span for the scalar.
         span: Span,
     },
 }
 
+/// Directive metadata attached to a document start event.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct EventDocumentDirectives {
+    /// YAML version directive, if present.
     pub yaml_version: Option<EventYamlVersion>,
+    /// Tag directives active for the document.
     pub tag_directives: Vec<EventTagDirective>,
 }
 
+/// YAML version directive captured from a document header.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EventYamlVersion {
+    /// Major version number.
     pub major: u8,
+    /// Minor version number.
     pub minor: u8,
+    /// Source span of the version declaration.
     pub span: Span,
 }
 
+/// `%TAG` directive captured from a document header.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EventTagDirective {
+    /// Tag handle such as `!` or `!!`.
     pub handle: String,
+    /// Tag prefix bound to the handle.
     pub prefix: String,
+    /// Source span for the handle.
     pub handle_span: Span,
+    /// Source span for the prefix.
     pub prefix_span: Span,
+    /// Source span for the full directive.
     pub span: Span,
 }
 
+/// Anchor and tag metadata attached to a raw event.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct EventMeta {
+    /// Anchor metadata, if present.
     pub anchor: Option<EventAnchor>,
+    /// Tag metadata, if present.
     pub tag: Option<EventTag>,
 }
 
+/// Anchor metadata captured from a raw event.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EventAnchor {
+    /// Anchor name without the leading `&`.
     pub name: String,
+    /// Source span of the anchor name.
     pub span: Span,
 }
 
+/// Tag metadata captured from a raw event.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EventTag {
+    /// Parsed YAML tag.
     pub tag: Tag,
+    /// Source span of the tag token.
     pub span: Span,
 }
 
+/// Scalar style preserved by [`parse_events`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ScalarStyle {
+    /// Plain scalar style.
     Plain,
+    /// Single-quoted scalar style.
     SingleQuoted,
+    /// Double-quoted scalar style.
     DoubleQuoted,
+    /// Literal block scalar style.
     Literal,
+    /// Folded block scalar style.
     Folded,
 }
 
+/// Collection style preserved by [`parse_events`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CollectionStyle {
+    /// Block-style collection.
     Block,
+    /// Flow-style collection.
     Flow,
 }
 
@@ -160,6 +222,7 @@ fn tab_indentation_error(line: &Line) -> Error {
     )
 }
 
+/// Parses a single YAML document from UTF-8 bytes.
 pub fn parse_bytes(input: &[u8]) -> Result<Node> {
     match std::str::from_utf8(input) {
         Ok(input) => parse_str(input),
@@ -170,6 +233,7 @@ pub fn parse_bytes(input: &[u8]) -> Result<Node> {
     }
 }
 
+/// Parses a single YAML document from a string.
 pub fn parse_str(input: &str) -> Result<Node> {
     let docs = parse_documents(input)?;
     match docs.len() {
@@ -182,6 +246,7 @@ pub fn parse_str(input: &str) -> Result<Node> {
     }
 }
 
+/// Parses all documents in a YAML stream.
 pub fn parse_documents(input: &str) -> Result<Vec<Node>> {
     let mut parser = Parser::new(input)?;
     parser.parse_documents()
@@ -194,6 +259,7 @@ pub(crate) fn parse_document_results(input: &str) -> Vec<Result<Node>> {
     }
 }
 
+/// Parses a YAML stream and returns raw structural events.
 pub fn parse_events(input: &str) -> Result<Vec<Event>> {
     let mut parser = Parser::new(input)?;
     parser.enable_events();

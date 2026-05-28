@@ -1,0 +1,4 @@
+!Root
+items:
+  - !Thing {name: first, value: 1}
+  - !Thing {name: second, value: 2}

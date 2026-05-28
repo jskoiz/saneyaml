@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 runs="${YAML_FUZZ_RUNS:-1000}"
 tmp="${TMPDIR:-/tmp}/yaml-fuzz-proof.$$"
-targets=(parse_bytes serde_entrypoints event_stream apply_merge schema_modes lossless_graph lossless_edit)
+targets=(parse_bytes serde_entrypoints event_stream emit_roundtrip apply_merge schema_modes lossless_graph lossless_edit)
 nightly_bin="${YAML_NIGHTLY_BIN:-$HOME/.rustup/toolchains/nightly-aarch64-apple-darwin/bin}"
 
 if [[ -x "$nightly_bin/cargo" ]]; then

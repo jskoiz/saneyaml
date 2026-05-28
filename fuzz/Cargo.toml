@@ -35,6 +35,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "emit_roundtrip"
+path = "fuzz_targets/emit_roundtrip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "apply_merge"
 path = "fuzz_targets/apply_merge.rs"
 test = false

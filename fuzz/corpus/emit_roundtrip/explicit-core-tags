@@ -1,0 +1,5 @@
+root:
+  answer: !!int "42"
+  decimal: !!float "1.25"
+  truth: !!bool "true"
+  text: !!str yes

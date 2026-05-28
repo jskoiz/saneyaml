@@ -1,6 +1,6 @@
 use proptest::prelude::*;
 use serde::{
-    Deserialize,
+    Deserialize, Serialize,
     de::{self, DeserializeOwned, Visitor},
 };
 use std::{
@@ -152,6 +152,18 @@ fn event_stream_fuzz_corpus_does_not_panic() {
         .unwrap_or_else(|_| {
             panic!("event parser must not panic on event_stream fuzz corpus {name}")
         });
+    }
+}
+
+#[test]
+fn emit_roundtrip_fuzz_corpus_emits_stably() {
+    for (name, input) in fuzz_corpus_inputs("emit_roundtrip") {
+        std::panic::catch_unwind(|| {
+            if let Ok(node) = yaml::parse_bytes(&input) {
+                assert_emit_roundtrip_invariants(&node);
+            }
+        })
+        .unwrap_or_else(|_| panic!("emitter must not drift on emit_roundtrip fuzz corpus {name}"));
     }
 }
 
@@ -1482,7 +1494,21 @@ fn assert_document_directives_invariants(input: &[u8], directives: &EventDocumen
 }
 
 fn assert_success_invariants(node: &Node) {
+    assert_emit_roundtrip_invariants(node);
+
+    let direct = Value::from(node);
+    let from_node: Value = yaml::from_node(node).expect("from_node value");
+    let from_value: Value = yaml::from_value(direct.clone()).expect("from_value value");
+    assert!(direct.equivalent(&from_node));
+    assert!(direct.equivalent(&from_value));
+}
+
+fn assert_emit_roundtrip_invariants(node: &Node) {
     let emitted = yaml::to_string(node).expect("emit parsed tree");
+    let mut written = Vec::new();
+    yaml::to_writer(&mut written, node).expect("write parsed tree");
+    assert_eq!(written, emitted.as_bytes());
+
     let reparsed = yaml::parse_str(&emitted).expect("parse emitted tree");
     assert!(
         reparsed.equivalent(node),
@@ -1492,11 +1518,27 @@ fn assert_success_invariants(node: &Node) {
     let emitted_again = yaml::to_string(&reparsed).expect("emit reparsed tree");
     assert_eq!(emitted_again, emitted);
 
-    let direct = Value::from(node);
-    let from_node: Value = yaml::from_node(node).expect("from_node value");
-    let from_value: Value = yaml::from_value(direct.clone()).expect("from_value value");
-    assert!(direct.equivalent(&from_node));
-    assert!(direct.equivalent(&from_value));
+    let value = Value::from(node);
+    let value_emitted = yaml::to_string(&value).expect("emit parsed value");
+    let mut value_written = Vec::new();
+    yaml::to_writer(&mut value_written, &value).expect("write parsed value");
+    assert_eq!(value_written, value_emitted.as_bytes());
+
+    let reparsed_value: Value = yaml::from_str(&value_emitted).expect("parse emitted value");
+    assert!(reparsed_value.equivalent(&value));
+
+    let mut stream = yaml::Serializer::new(Vec::new());
+    value.serialize(&mut stream).expect("stream first value");
+    reparsed_value
+        .serialize(&mut stream)
+        .expect("stream second value");
+    let stream_output = String::from_utf8(stream.into_inner().expect("stream into inner"))
+        .expect("stream output is utf8");
+    let stream_values =
+        yaml::from_documents_str::<Value>(&stream_output).expect("parse streamed values");
+    assert_eq!(stream_values.len(), 2);
+    assert!(stream_values[0].equivalent(&value));
+    assert!(stream_values[1].equivalent(&reparsed_value));
 }
 
 fn assert_node_invariants(input: &[u8], node: &Node) {

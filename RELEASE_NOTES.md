@@ -37,6 +37,8 @@ Notable completed release-candidate behavior:
   identity is also checked against `yaml-rust2` and `saphyr` parser anchor
   events for redefinition, recursive, document-reset, merge, YAML-suite, and
   Docker Compose anchor cases.
+- Emitter round-trip fuzz coverage now exercises `to_string`, `to_writer`, and
+  streaming `Serializer` output against parsed-tree and `Value` replay.
 - Direct Serde `IgnoredAny` entrypoints now validate malformed YAML and
   single-document boundaries before skipping a document.
 - Divergence records now require caller-facing `migration_impact` text, so

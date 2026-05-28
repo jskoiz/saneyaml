@@ -3572,6 +3572,7 @@ impl<'de> de::Deserializer<'de> for Document<'de> {
     where
         V: Visitor<'de>,
     {
+        let _ = self.into_node_and_input()?;
         visitor.visit_unit()
     }
 }
@@ -3802,7 +3803,7 @@ impl<'de> de::Deserializer<'de> for Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_unit()
+        de::Deserializer::deserialize_ignored_any(self.into_single_document()?, visitor)
     }
 }
 

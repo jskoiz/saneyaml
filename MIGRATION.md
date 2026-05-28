@@ -83,6 +83,8 @@ currently covers:
 
 - typed config reads through `from_str`, `from_slice`, `from_reader`, and direct
   `Deserializer` use
+- direct `IgnoredAny` deserialization that still validates malformed input and
+  single-document boundaries before skipping
 - stream document iteration
 - `Value`, `Mapping`, and `Number` patch-style usage
 - `to_value`, `to_string`, and `to_writer` structural writer paths

@@ -25,6 +25,8 @@ Notable completed release-candidate behavior:
   validated node source edits that preserve untouched bytes.
 - Lossless source edits now have fuzz-corpus replay and a dedicated fuzz target
   for scalar, flow mapping, and flow sequence replacements.
+- Direct Serde `IgnoredAny` entrypoints now validate malformed YAML and
+  single-document boundaries before skipping a document.
 - Divergence records now require caller-facing `migration_impact` text, so
   compatibility decisions are tied to adoption risk instead of only parser
   policy.

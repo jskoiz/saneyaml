@@ -1,6 +1,6 @@
 use serde::{
     Deserialize, Serialize,
-    de::{self, IntoDeserializer, Visitor},
+    de::{self, IgnoredAny, IntoDeserializer, Visitor},
     ser::SerializeMap,
     ser::SerializeSeq,
     ser::SerializeStruct,
@@ -2879,6 +2879,52 @@ fn serde_api_stream_rejects_malformed_single_document_before_yielding_it() {
     );
     assert_eq!(error.line(), Some(3));
     assert_eq!(error.column(), Some(1));
+    assert!(docs.next().is_none());
+}
+
+#[test]
+fn serde_api_ignored_any_direct_deserializer_validates_before_skipping() {
+    IgnoredAny::deserialize(yaml::Deserializer::from_str("name: api\n"))
+        .expect("valid single document can be ignored");
+
+    let malformed = "[ok]\ntrailing: bad\n";
+    let error = IgnoredAny::deserialize(yaml::Deserializer::from_str(malformed))
+        .expect_err("ignored_any must preserve malformed input errors");
+    assert!(
+        error
+            .to_string()
+            .contains("unexpected content after root document node"),
+        "unexpected error: {error}"
+    );
+    assert_eq!(error.line(), Some(2));
+    assert_eq!(error.column(), Some(1));
+
+    let multi_doc = "---\nname: api\n---\nname: worker\n";
+    let error = IgnoredAny::deserialize(yaml::Deserializer::from_str(multi_doc))
+        .expect_err("ignored_any must not silently collapse streams");
+    assert!(
+        error
+            .to_string()
+            .contains("expected a single YAML document"),
+        "unexpected error: {error}"
+    );
+    assert_eq!(error.line(), Some(4));
+    assert_eq!(error.column(), Some(1));
+}
+
+#[test]
+fn serde_api_ignored_any_stream_item_preserves_later_parse_errors() {
+    let input = "---\nname: api\n---\nbad: *missing\n";
+    let mut docs = yaml::Deserializer::from_str(input);
+
+    IgnoredAny::deserialize(docs.next().expect("first document"))
+        .expect("first valid document can be ignored");
+    let error = IgnoredAny::deserialize(docs.next().expect("second document"))
+        .expect_err("later stream parse error is preserved");
+
+    assert!(error.to_string().contains("unknown anchor `missing`"));
+    assert_eq!(error.line(), Some(4));
+    assert_eq!(error.column(), Some(6));
     assert!(docs.next().is_none());
 }
 

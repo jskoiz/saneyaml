@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::IgnoredAny};
 use std::collections::BTreeMap;
 use std::io::Cursor;
 use yaml::{LoadOptions, Mapping, Number, Timestamp, Value};
@@ -129,6 +129,30 @@ fn swap_harness_stream_deserializer_matches_serde_yaml_document_iteration() {
             }
         ]
     );
+}
+
+#[test]
+fn swap_harness_ignored_any_entrypoints_validate_like_serde_yaml() {
+    let valid = "name: api\n";
+    IgnoredAny::deserialize(yaml::Deserializer::from_str(valid)).expect("yaml ignored valid");
+    IgnoredAny::deserialize(serde_yaml::Deserializer::from_str(valid))
+        .expect("serde_yaml ignored valid");
+
+    let malformed = "[ok]\ntrailing: bad\n";
+    let yaml_error = IgnoredAny::deserialize(yaml::Deserializer::from_str(malformed))
+        .expect_err("yaml ignored malformed");
+    let reference_error = IgnoredAny::deserialize(serde_yaml::Deserializer::from_str(malformed))
+        .expect_err("serde_yaml ignored malformed");
+    assert!(!yaml_error.to_string().is_empty());
+    assert!(!reference_error.to_string().is_empty());
+
+    let stream = "---\nname: api\n---\nname: worker\n";
+    let yaml_error = IgnoredAny::deserialize(yaml::Deserializer::from_str(stream))
+        .expect_err("yaml ignored stream");
+    let reference_error = IgnoredAny::deserialize(serde_yaml::Deserializer::from_str(stream))
+        .expect_err("serde_yaml ignored stream");
+    assert!(yaml_error.to_string().contains("single YAML document"));
+    assert!(!reference_error.to_string().is_empty());
 }
 
 #[test]

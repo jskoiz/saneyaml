@@ -133,13 +133,11 @@ fn assert_document_stream_entrypoints(input: &[u8]) {
         .map(Value::deserialize)
         .collect::<Vec<_>>();
     match from_documents {
-        Ok(expected) => {
-            assert_eq!(stream_results.len(), expected.len());
-            for (actual, expected) in stream_results.into_iter().zip(expected) {
-                let actual = actual.expect("stream document should deserialize");
-                assert!(actual.equivalent(&expected));
-            }
-        }
+        Ok(expected) => assert_stream_results_match_document_values(
+            stream_results,
+            expected,
+            "stream document",
+        ),
         Err(_) => {
             assert!(
                 stream_results.iter().any(Result::is_err),
@@ -189,13 +187,11 @@ fn assert_reader_backed_entrypoints(input: &[u8]) {
         .map(Value::deserialize)
         .collect::<Vec<_>>();
     match yaml::from_documents_reader::<Value, _>(Cursor::new(input)) {
-        Ok(expected) => {
-            assert_eq!(reader_stream_results.len(), expected.len());
-            for (actual, expected) in reader_stream_results.into_iter().zip(expected) {
-                let actual = actual.expect("reader stream document should deserialize");
-                assert!(actual.equivalent(&expected));
-            }
-        }
+        Ok(expected) => assert_stream_results_match_document_values(
+            reader_stream_results,
+            expected,
+            "reader stream document",
+        ),
         Err(_) => {
             assert!(
                 reader_stream_results.iter().any(Result::is_err),
@@ -208,6 +204,29 @@ fn assert_reader_backed_entrypoints(input: &[u8]) {
                 assert_error_invariants(input, error);
             }
         }
+    }
+}
+
+fn assert_stream_results_match_document_values(
+    stream_results: Vec<Result<Value, Error>>,
+    expected: Vec<Value>,
+    context: &str,
+) {
+    if expected.is_empty() {
+        assert_eq!(stream_results.len(), 1);
+        let actual = stream_results
+            .into_iter()
+            .next()
+            .expect("empty stream should yield one document")
+            .expect("empty stream document should deserialize");
+        assert!(actual.is_null(), "{context} should be an empty null document");
+        return;
+    }
+
+    assert_eq!(stream_results.len(), expected.len());
+    for (actual, expected) in stream_results.into_iter().zip(expected) {
+        let actual = actual.expect("stream document should deserialize");
+        assert!(actual.equivalent(&expected));
     }
 }
 

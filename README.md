@@ -14,9 +14,9 @@ The first milestone focuses on:
 - YAML 1.2 core scalar resolution by default for parser events and constructed
   document trees.
 - Explicit `LoadOptions::yaml_1_1()` construction for legacy YAML 1.1
-  booleans/nulls, timestamp-shaped plain scalars, and numeric forms that fit
-  the current value model, without silently switching schemas from `%YAML 1.1`
-  directives.
+  booleans/nulls, `yaml::Timestamp` typed reads for timestamp-shaped scalars,
+  and numeric forms that fit the current value model, without silently switching
+  schemas from `%YAML 1.1` directives.
 - Ordered mappings, block/flow collections, quoted/plain scalars, and basic
   literal/folded block scalars.
 - Acyclic anchors and aliases expanded into the loaded tree.
@@ -39,8 +39,9 @@ The first milestone focuses on:
   downstream config-loading paths.
 - Pinned external replay fixtures from Pingora, rust-i18n, and cfn-guard that
   compare real downstream YAML inputs against `serde_yaml`.
-- A packaged downstream smoke and rust-i18n build trial that consume this crate
-  under the `serde_yaml` dependency name from a clean temporary checkout.
+- Packaged downstream smoke, rust-i18n, and cfn-guard build trials that consume
+  this crate under the `serde_yaml` dependency name from a clean temporary
+  checkout.
 - A downstream-shaped migration harness, compileable migration example,
   Ubuntu-only CI workflow, non-mutating all-target fuzz smoke script, and
   real-world config benchmark command.
@@ -49,8 +50,8 @@ The first milestone focuses on:
 
 Intentional first-milestone non-goals:
 
-- Full YAML 1.1 compatibility: native date/time values and broader schema/API
-  decisions still remain.
+- Full YAML 1.1 compatibility: directive-driven schema behavior and broader
+  schema/API decisions still remain.
 - Editable lossless formatting for modified documents, directive-preserving
   structural emission, and graph identity in the semantic `Node`/`Value`
   loaders.

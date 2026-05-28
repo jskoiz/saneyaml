@@ -135,18 +135,20 @@ fn divergence_default_schema_keeps_legacy_dates_and_sexagesimal_as_strings() {
 }
 
 #[test]
-fn divergence_yaml11_timestamps_are_retained_as_tagged_strings() {
+fn divergence_yaml11_timestamps_have_native_typed_api() {
     let default = parse_str("date: 2026-05-24\ndatetime: 2026-05-24T12:34:56Z\n")
         .expect("default schema parses timestamp-shaped strings");
     let yaml::NodeValue::Mapping(default_entries) = default.value else {
         panic!("expected default mapping");
     };
     assert_eq!(default_entries[0].1.as_str(), Some("2026-05-24"));
+    assert!(default_entries[0].1.as_timestamp().is_none());
     assert!(!matches!(
         default_entries[0].1.value,
         yaml::NodeValue::Tagged(_)
     ));
     assert_eq!(default_entries[1].1.as_str(), Some("2026-05-24T12:34:56Z"));
+    assert!(default_entries[1].1.as_timestamp().is_none());
     assert!(!matches!(
         default_entries[1].1.value,
         yaml::NodeValue::Tagged(_)
@@ -167,6 +169,10 @@ fn divergence_yaml11_timestamps_are_retained_as_tagged_strings() {
         };
         assert_eq!(tagged.tag, yaml::Tag::new("!!timestamp"));
         assert_eq!(tagged.value.as_str(), Some(source));
+        assert_eq!(
+            value.as_timestamp(),
+            yaml::Timestamp::parse_yaml_1_1(source)
+        );
     }
 }
 
@@ -176,7 +182,7 @@ fn divergence_legacy_scalar_resolution_record_is_present() {
     assert!(record.contains("legacy-scalar-resolution"));
     assert!(record.contains("YAML 1.2 core schema"));
     assert!(record.contains("explicit YAML 1.1 scalar construction"));
-    assert!(record.contains("retained as !!timestamp tagged strings"));
+    assert!(record.contains("exposed through the native yaml::Timestamp API"));
     assert!(
         record.contains(
             "explicit !!binary values are retained in trees and decoded for byte targets"
@@ -307,6 +313,7 @@ fn divergence_explicit_core_tags_record_is_present() {
     assert!(record.contains("Infinity"));
     assert!(record.contains("BadValue"));
     assert!(record.contains("typed byte targets decode explicit !!binary"));
+    assert!(record.contains("explicit !!timestamp yaml::Timestamp reads"));
     assert!(record.contains("decision"));
 }
 
@@ -333,6 +340,10 @@ fn divergence_explicit_core_tags_reference_matrix_matches_record() {
     assert_eq!(
         ours["date"].as_tagged().expect("timestamp tag").tag,
         yaml::Tag::new("!!timestamp")
+    );
+    assert_eq!(
+        ours["date"].as_timestamp(),
+        yaml::Timestamp::parse_yaml_1_1("2026-05-24")
     );
     assert_eq!(
         ours["inf"].as_tagged().expect("float tag").tag,
@@ -795,6 +806,12 @@ fn divergence_binary_and_core_tags_are_preserved_in_retained_trees() {
     let decoded: Vec<u8> =
         yaml::from_str("!!binary SGVsbG8=\n").expect("typed byte target decodes explicit binary");
     assert_eq!(decoded, b"Hello");
+    let explicit_timestamp: yaml::Timestamp =
+        yaml::from_str("!!timestamp 2026-05-24\n").expect("explicit timestamp typed read");
+    assert_eq!(
+        explicit_timestamp,
+        yaml::Timestamp::parse_yaml_1_1("2026-05-24").expect("timestamp")
+    );
 
     let yaml::NodeValue::Tagged(integer) = &entries[1].1.value else {
         panic!("expected int tag");
@@ -807,6 +824,10 @@ fn divergence_binary_and_core_tags_are_preserved_in_retained_trees() {
     };
     assert_eq!(timestamp.tag, yaml::Tag::new("!!timestamp"));
     assert_eq!(timestamp.value.as_str(), Some("2026-05-24"));
+    assert_eq!(
+        entries[2].1.as_timestamp(),
+        yaml::Timestamp::parse_yaml_1_1("2026-05-24")
+    );
 
     let yaml::NodeValue::Tagged(float) = &entries[3].1.value else {
         panic!("expected float tag");

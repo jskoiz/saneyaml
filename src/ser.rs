@@ -1,7 +1,8 @@
 //! Serde serialization entrypoints for YAML values and writers.
 
 use crate::{
-    Error, Mapping, Node, NodeValue, Number, Result, Span, Tag, TaggedNode, TaggedValue, Value,
+    Error, Mapping, Node, NodeValue, Number, Result, Span, Tag, TaggedNode, TaggedValue, Timestamp,
+    Value,
 };
 use serde::Serialize;
 use serde::ser::{
@@ -1698,6 +1699,15 @@ impl Serialize for Number {
         }
 
         serializer.serialize_newtype_struct(NUMBER_STRUCT, &NumberRepr(self))
+    }
+}
+
+impl Serialize for Timestamp {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: ser::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
     }
 }
 

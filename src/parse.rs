@@ -1,7 +1,7 @@
 //! YAML parser entrypoints and raw event types.
 
 use crate::{
-    Error, Node, NodeValue as Value, Number, Result, Span, Tag, TaggedNode,
+    Error, Node, NodeValue as Value, Number, Result, Span, Tag, TaggedNode, Timestamp,
     error::utf8_error_span,
     key_identity::{DuplicateKey, check_duplicate_for_mode},
     schema::{LoadOptions, Schema},
@@ -3346,131 +3346,7 @@ fn yaml11_timestamp_node(text: &str, span: Span) -> Node {
 }
 
 fn is_yaml11_timestamp(text: &str) -> bool {
-    let bytes = text.as_bytes();
-    let Some(mut pos) = parse_yaml11_date(bytes, 0) else {
-        return false;
-    };
-    if pos == bytes.len() {
-        return true;
-    }
-
-    match bytes.get(pos) {
-        Some(b'T' | b't') => pos += 1,
-        Some(byte) if yaml11_timestamp_space(*byte) => {
-            while pos < bytes.len() && yaml11_timestamp_space(bytes[pos]) {
-                pos += 1;
-            }
-        }
-        _ => return false,
-    }
-
-    let Some(after_time) = parse_yaml11_time(bytes, pos) else {
-        return false;
-    };
-    pos = after_time;
-
-    if bytes.get(pos) == Some(&b'.') {
-        pos += 1;
-        let fraction_start = pos;
-        while pos < bytes.len() && bytes[pos].is_ascii_digit() {
-            pos += 1;
-        }
-        if pos == fraction_start {
-            return false;
-        }
-    }
-
-    while pos < bytes.len() && yaml11_timestamp_space(bytes[pos]) {
-        pos += 1;
-    }
-    if pos == bytes.len() {
-        return true;
-    }
-
-    parse_yaml11_timezone(bytes, pos) == Some(bytes.len())
-}
-
-fn parse_yaml11_date(bytes: &[u8], mut pos: usize) -> Option<usize> {
-    if pos + 4 > bytes.len() || !bytes[pos..pos + 4].iter().all(u8::is_ascii_digit) {
-        return None;
-    }
-    pos += 4;
-    if bytes.get(pos) != Some(&b'-') {
-        return None;
-    }
-    pos += 1;
-
-    let (month, after_month) = parse_one_or_two_digits(bytes, pos)?;
-    if !(1..=12).contains(&month) || bytes.get(after_month) != Some(&b'-') {
-        return None;
-    }
-
-    let (day, after_day) = parse_one_or_two_digits(bytes, after_month + 1)?;
-    (1..=31).contains(&day).then_some(after_day)
-}
-
-fn parse_yaml11_time(bytes: &[u8], mut pos: usize) -> Option<usize> {
-    let (hour, after_hour) = parse_one_or_two_digits(bytes, pos)?;
-    if hour > 23 || bytes.get(after_hour) != Some(&b':') {
-        return None;
-    }
-    pos = after_hour + 1;
-
-    let (minute, after_minute) = parse_exact_two_digits(bytes, pos)?;
-    if minute > 59 || bytes.get(after_minute) != Some(&b':') {
-        return None;
-    }
-    pos = after_minute + 1;
-
-    let (second, after_second) = parse_exact_two_digits(bytes, pos)?;
-    (second <= 60).then_some(after_second)
-}
-
-fn parse_yaml11_timezone(bytes: &[u8], mut pos: usize) -> Option<usize> {
-    match bytes.get(pos) {
-        Some(b'Z' | b'z') => return Some(pos + 1),
-        Some(b'+' | b'-') => pos += 1,
-        _ => return None,
-    }
-
-    let (hour, after_hour) = parse_one_or_two_digits(bytes, pos)?;
-    if hour > 23 {
-        return None;
-    }
-    if bytes.get(after_hour) != Some(&b':') {
-        return Some(after_hour);
-    }
-    let (minute, after_minute) = parse_exact_two_digits(bytes, after_hour + 1)?;
-    (minute <= 59).then_some(after_minute)
-}
-
-fn parse_one_or_two_digits(bytes: &[u8], pos: usize) -> Option<(u8, usize)> {
-    let first = *bytes.get(pos)?;
-    if !first.is_ascii_digit() {
-        return None;
-    }
-    let mut value = first - b'0';
-    let mut end = pos + 1;
-    if let Some(second) = bytes.get(end)
-        && second.is_ascii_digit()
-    {
-        value = value * 10 + (second - b'0');
-        end += 1;
-    }
-    Some((value, end))
-}
-
-fn parse_exact_two_digits(bytes: &[u8], pos: usize) -> Option<(u8, usize)> {
-    let first = *bytes.get(pos)?;
-    let second = *bytes.get(pos + 1)?;
-    if !first.is_ascii_digit() || !second.is_ascii_digit() {
-        return None;
-    }
-    Some(((first - b'0') * 10 + (second - b'0'), pos + 2))
-}
-
-fn yaml11_timestamp_space(byte: u8) -> bool {
-    matches!(byte, b' ' | b'\t')
+    Timestamp::parse_yaml_1_1(text).is_some()
 }
 
 fn parse_single_quoted(text: &str, span: Span) -> Result<Node> {

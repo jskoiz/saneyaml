@@ -52,8 +52,14 @@ impl Node {
     pub fn as_str(&self) -> Option<&str> {
         match &self.value {
             NodeValue::String(value) => Some(value),
+            NodeValue::Tagged(tagged) => tagged.value.as_str(),
             _ => None,
         }
+    }
+
+    /// Returns this node as a YAML 1.1 timestamp, if it carries `!!timestamp`.
+    pub fn as_timestamp(&self) -> Option<Timestamp> {
+        self.value.as_timestamp()
     }
 
     /// Compares two nodes by semantic value, ignoring source spans.
@@ -82,6 +88,411 @@ impl ScalarSource {
     pub fn raw(&self) -> &str {
         &self.raw
     }
+}
+
+/// YAML 1.1 timestamp value parsed from `!!timestamp` scalars.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct Timestamp {
+    date: Date,
+    time: Option<Time>,
+}
+
+impl Timestamp {
+    /// Creates a timestamp from a date and optional time.
+    pub const fn new(date: Date, time: Option<Time>) -> Self {
+        Self { date, time }
+    }
+
+    /// Parses a YAML 1.1 timestamp scalar.
+    pub fn parse_yaml_1_1(text: &str) -> Option<Self> {
+        parse_yaml11_timestamp(text)
+    }
+
+    /// Returns the date component.
+    pub const fn date(&self) -> Date {
+        self.date
+    }
+
+    /// Returns the optional time component.
+    pub const fn time(&self) -> Option<Time> {
+        self.time
+    }
+}
+
+impl fmt::Display for Timestamp {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}", self.date)?;
+        if let Some(time) = self.time {
+            write!(formatter, "T{time}")?;
+        }
+        Ok(())
+    }
+}
+
+impl FromStr for Timestamp {
+    type Err = ();
+
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        Self::parse_yaml_1_1(text).ok_or(())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Timestamp {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct TimestampVisitor;
+
+        impl<'de> Visitor<'de> for TimestampVisitor {
+            type Value = Timestamp;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("a YAML 1.1 timestamp scalar")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Timestamp::parse_yaml_1_1(value)
+                    .ok_or_else(|| E::custom("invalid YAML 1.1 timestamp scalar"))
+            }
+
+            fn visit_borrowed_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                self.visit_str(value)
+            }
+
+            fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                self.visit_str(&value)
+            }
+        }
+
+        deserializer.deserialize_str(TimestampVisitor)
+    }
+}
+
+/// Date component of a YAML 1.1 [`Timestamp`].
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct Date {
+    year: u16,
+    month: u8,
+    day: u8,
+}
+
+impl Date {
+    /// Creates a date if the year, month, and day form a valid Gregorian date.
+    pub fn from_ymd(year: u16, month: u8, day: u8) -> Option<Self> {
+        (month != 0 && month <= 12 && day != 0 && day <= days_in_month(year, month))
+            .then_some(Self { year, month, day })
+    }
+
+    /// Returns the four-digit year.
+    pub const fn year(&self) -> u16 {
+        self.year
+    }
+
+    /// Returns the one-based month.
+    pub const fn month(&self) -> u8 {
+        self.month
+    }
+
+    /// Returns the one-based day of month.
+    pub const fn day(&self) -> u8 {
+        self.day
+    }
+}
+
+impl fmt::Display for Date {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "{:04}-{:02}-{:02}",
+            self.year, self.month, self.day
+        )
+    }
+}
+
+/// Time component of a YAML 1.1 [`Timestamp`].
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct Time {
+    hour: u8,
+    minute: u8,
+    second: u8,
+    nanosecond: u32,
+    offset: Option<TimeZoneOffset>,
+}
+
+impl Time {
+    /// Creates a time value if all components are valid.
+    pub fn from_hms_nano_offset(
+        hour: u8,
+        minute: u8,
+        second: u8,
+        nanosecond: u32,
+        offset: Option<TimeZoneOffset>,
+    ) -> Option<Self> {
+        (hour <= 23 && minute <= 59 && second <= 60 && nanosecond < 1_000_000_000).then_some(Self {
+            hour,
+            minute,
+            second,
+            nanosecond,
+            offset,
+        })
+    }
+
+    /// Returns the zero-based hour in the day.
+    pub const fn hour(&self) -> u8 {
+        self.hour
+    }
+
+    /// Returns the minute.
+    pub const fn minute(&self) -> u8 {
+        self.minute
+    }
+
+    /// Returns the second, allowing `60` for YAML 1.1 leap-second spellings.
+    pub const fn second(&self) -> u8 {
+        self.second
+    }
+
+    /// Returns the fractional second in nanoseconds.
+    pub const fn nanosecond(&self) -> u32 {
+        self.nanosecond
+    }
+
+    /// Returns the UTC offset when the source timestamp included one.
+    pub const fn offset(&self) -> Option<TimeZoneOffset> {
+        self.offset
+    }
+}
+
+impl fmt::Display for Time {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "{:02}:{:02}:{:02}",
+            self.hour, self.minute, self.second
+        )?;
+        if self.nanosecond != 0 {
+            let mut fraction = format!("{:09}", self.nanosecond);
+            while fraction.ends_with('0') {
+                fraction.pop();
+            }
+            write!(formatter, ".{fraction}")?;
+        }
+        if let Some(offset) = self.offset {
+            write!(formatter, "{offset}")?;
+        }
+        Ok(())
+    }
+}
+
+/// UTC offset component of a YAML 1.1 [`Timestamp`].
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct TimeZoneOffset {
+    minutes: i16,
+}
+
+impl TimeZoneOffset {
+    /// Creates a UTC offset from signed minutes.
+    pub fn from_minutes(minutes: i16) -> Option<Self> {
+        let max = 23 * 60 + 59;
+        (minutes >= -max && minutes <= max).then_some(Self { minutes })
+    }
+
+    /// Returns the signed UTC offset in minutes.
+    pub const fn minutes(&self) -> i16 {
+        self.minutes
+    }
+}
+
+impl fmt::Display for TimeZoneOffset {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.minutes == 0 {
+            return formatter.write_str("Z");
+        }
+        let sign = if self.minutes < 0 { '-' } else { '+' };
+        let absolute = self.minutes.unsigned_abs();
+        write!(formatter, "{sign}{:02}:{:02}", absolute / 60, absolute % 60)
+    }
+}
+
+fn parse_yaml11_timestamp(text: &str) -> Option<Timestamp> {
+    let bytes = text.as_bytes();
+    let (date, mut pos) = parse_yaml11_date(bytes, 0)?;
+    if pos == bytes.len() {
+        return Some(Timestamp::new(date, None));
+    }
+
+    match bytes.get(pos) {
+        Some(b'T' | b't') => pos += 1,
+        Some(byte) if yaml11_timestamp_space(*byte) => {
+            while pos < bytes.len() && yaml11_timestamp_space(bytes[pos]) {
+                pos += 1;
+            }
+        }
+        _ => return None,
+    }
+
+    let (hour, minute, second, mut pos) = parse_yaml11_time(bytes, pos)?;
+    let mut nanosecond = 0;
+    if bytes.get(pos) == Some(&b'.') {
+        pos += 1;
+        let fraction_start = pos;
+        while pos < bytes.len() && bytes[pos].is_ascii_digit() {
+            if pos - fraction_start < 9 {
+                nanosecond = nanosecond * 10 + u32::from(bytes[pos] - b'0');
+            } else if bytes[pos] != b'0' {
+                return None;
+            }
+            pos += 1;
+        }
+        if pos == fraction_start {
+            return None;
+        }
+        for _ in 0..9usize.saturating_sub(pos - fraction_start) {
+            nanosecond *= 10;
+        }
+    }
+
+    while pos < bytes.len() && yaml11_timestamp_space(bytes[pos]) {
+        pos += 1;
+    }
+
+    let offset = if pos == bytes.len() {
+        None
+    } else {
+        let (offset, after_offset) = parse_yaml11_timezone(bytes, pos)?;
+        (after_offset == bytes.len()).then_some(offset)?
+    };
+    Some(Timestamp::new(
+        date,
+        Some(Time::from_hms_nano_offset(
+            hour, minute, second, nanosecond, offset,
+        )?),
+    ))
+}
+
+fn parse_yaml11_date(bytes: &[u8], mut pos: usize) -> Option<(Date, usize)> {
+    if pos + 4 > bytes.len() || !bytes[pos..pos + 4].iter().all(u8::is_ascii_digit) {
+        return None;
+    }
+    let year = parse_digits_u16(&bytes[pos..pos + 4])?;
+    pos += 4;
+    if bytes.get(pos) != Some(&b'-') {
+        return None;
+    }
+    pos += 1;
+
+    let (month, after_month) = parse_one_or_two_digits(bytes, pos)?;
+    if bytes.get(after_month) != Some(&b'-') {
+        return None;
+    }
+    let (day, after_day) = parse_one_or_two_digits(bytes, after_month + 1)?;
+    Some((Date::from_ymd(year, month, day)?, after_day))
+}
+
+fn parse_yaml11_time(bytes: &[u8], mut pos: usize) -> Option<(u8, u8, u8, usize)> {
+    let (hour, after_hour) = parse_one_or_two_digits(bytes, pos)?;
+    if hour > 23 || bytes.get(after_hour) != Some(&b':') {
+        return None;
+    }
+    pos = after_hour + 1;
+
+    let (minute, after_minute) = parse_exact_two_digits(bytes, pos)?;
+    if minute > 59 || bytes.get(after_minute) != Some(&b':') {
+        return None;
+    }
+    pos = after_minute + 1;
+
+    let (second, after_second) = parse_exact_two_digits(bytes, pos)?;
+    (second <= 60).then_some((hour, minute, second, after_second))
+}
+
+fn parse_yaml11_timezone(bytes: &[u8], mut pos: usize) -> Option<(Option<TimeZoneOffset>, usize)> {
+    match bytes.get(pos) {
+        Some(b'Z' | b'z') => return Some((Some(TimeZoneOffset::from_minutes(0)?), pos + 1)),
+        Some(b'+') => pos += 1,
+        Some(b'-') => pos += 1,
+        _ => return None,
+    }
+    let negative = matches!(bytes.get(pos.saturating_sub(1)), Some(b'-'));
+    let (hour, after_hour) = parse_one_or_two_digits(bytes, pos)?;
+    if hour > 23 {
+        return None;
+    }
+    let (minute, after_minute) = if bytes.get(after_hour) == Some(&b':') {
+        let (minute, after_minute) = parse_exact_two_digits(bytes, after_hour + 1)?;
+        if minute > 59 {
+            return None;
+        }
+        (minute, after_minute)
+    } else {
+        (0, after_hour)
+    };
+    let total = i16::from(hour) * 60 + i16::from(minute);
+    let minutes = if negative { -total } else { total };
+    Some((Some(TimeZoneOffset::from_minutes(minutes)?), after_minute))
+}
+
+fn parse_digits_u16(bytes: &[u8]) -> Option<u16> {
+    let mut value = 0u16;
+    for byte in bytes {
+        value = value
+            .checked_mul(10)?
+            .checked_add(u16::from(byte.checked_sub(b'0')?))?;
+    }
+    Some(value)
+}
+
+fn parse_one_or_two_digits(bytes: &[u8], pos: usize) -> Option<(u8, usize)> {
+    let first = *bytes.get(pos)?;
+    if !first.is_ascii_digit() {
+        return None;
+    }
+    let mut value = first - b'0';
+    let mut end = pos + 1;
+    if let Some(second) = bytes.get(end)
+        && second.is_ascii_digit()
+    {
+        value = value.checked_mul(10)?.checked_add(second - b'0')?;
+        end += 1;
+    }
+    Some((value, end))
+}
+
+fn parse_exact_two_digits(bytes: &[u8], pos: usize) -> Option<(u8, usize)> {
+    let value = bytes.get(pos)?.checked_sub(b'0')?;
+    let second = bytes.get(pos + 1)?.checked_sub(b'0')?;
+    if value > 9 || second > 9 {
+        return None;
+    }
+    Some((value * 10 + second, pos + 2))
+}
+
+fn yaml11_timestamp_space(byte: u8) -> bool {
+    matches!(byte, b' ' | b'\t')
+}
+
+fn days_in_month(year: u16, month: u8) -> u8 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap_year(year) => 29,
+        2 => 28,
+        _ => 0,
+    }
+}
+
+fn leap_year(year: u16) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }
 
 impl From<Node> for Value {
@@ -239,6 +650,10 @@ fn tag_suffix_needs_verbatim(suffix: &str) -> bool {
                 .any(|ch| ch.is_whitespace() || matches!(ch, ',' | '[' | ']' | '{' | '}')))
 }
 
+fn is_timestamp_tag(tag: &Tag) -> bool {
+    tag.handle == "!!" && tag.suffix == "timestamp"
+}
+
 /// Spanful YAML tagged node.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TaggedNode {
@@ -256,6 +671,17 @@ impl NodeValue {
         match self {
             NodeValue::String(value) => Some(value),
             NodeValue::Tagged(tagged) => tagged.value.as_str(),
+            _ => None,
+        }
+    }
+
+    /// Returns this payload as a YAML 1.1 timestamp, if it carries `!!timestamp`.
+    pub fn as_timestamp(&self) -> Option<Timestamp> {
+        match self {
+            NodeValue::Tagged(tagged) if is_timestamp_tag(&tagged.tag) => {
+                tagged.value.as_str().and_then(Timestamp::parse_yaml_1_1)
+            }
+            NodeValue::Tagged(tagged) => tagged.value.as_timestamp(),
             _ => None,
         }
     }
@@ -1801,6 +2227,17 @@ impl Value {
         }
     }
 
+    /// Returns this value as a YAML 1.1 timestamp, if it carries `!!timestamp`.
+    pub fn as_timestamp(&self) -> Option<Timestamp> {
+        match self {
+            Value::Tagged(tagged) if is_timestamp_tag(&tagged.tag) => {
+                tagged.value.as_str().and_then(Timestamp::parse_yaml_1_1)
+            }
+            Value::Tagged(tagged) => tagged.value.as_timestamp(),
+            _ => None,
+        }
+    }
+
     /// Returns this value as a sequence, if it is a sequence.
     pub fn as_sequence(&self) -> Option<&Sequence> {
         match self {
@@ -1883,6 +2320,11 @@ impl Value {
     pub fn is_string(&self) -> bool {
         matches!(self, Value::String(_))
             || matches!(self, Value::Tagged(tagged) if tagged.value.is_string())
+    }
+
+    /// Returns whether this value carries a YAML 1.1 timestamp.
+    pub fn is_timestamp(&self) -> bool {
+        self.as_timestamp().is_some()
     }
 
     /// Returns whether this value is a sequence.

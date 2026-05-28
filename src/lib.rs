@@ -47,14 +47,17 @@ pub mod mapping {
 
 /// Value-oriented API matching the `serde_yaml::value` module shape.
 pub mod value {
-    pub use crate::ast::{Index, Mapping, Number, Sequence, Tag, TaggedValue, Value};
+    pub use crate::ast::{
+        Date, Index, Mapping, Number, Sequence, Tag, TaggedValue, Time, TimeZoneOffset, Timestamp,
+        Value,
+    };
     pub use crate::de::from_value;
     pub use crate::ser::{ValueSerializer as Serializer, to_value};
 }
 
 pub use ast::{
-    Entry, Index, Mapping, Node, NodeValue, Number, OccupiedEntry, ScalarSource, Sequence, Tag,
-    TaggedNode, TaggedValue, VacantEntry, Value,
+    Date, Entry, Index, Mapping, Node, NodeValue, Number, OccupiedEntry, ScalarSource, Sequence,
+    Tag, TaggedNode, TaggedValue, Time, TimeZoneOffset, Timestamp, VacantEntry, Value,
 };
 pub use de::{
     Deserializer, from_documents_reader, from_documents_slice, from_documents_str, from_node,

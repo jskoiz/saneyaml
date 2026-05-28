@@ -3753,13 +3753,20 @@ fn serde_api_verbatim_tags_preserve_suffix_and_are_transparent() {
 }
 
 #[test]
-fn serde_api_yaml11_timestamps_and_binary_are_string_transparent() {
+fn serde_api_yaml11_timestamps_have_native_typed_reads_and_string_transparency() {
     #[derive(Debug, Deserialize, PartialEq)]
     struct TaggedScalars {
         date: String,
         datetime: String,
         explicit: String,
         payload: String,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct TimestampScalars {
+        date: yaml::Timestamp,
+        datetime: yaml::Timestamp,
+        explicit: yaml::Timestamp,
     }
 
     let input = "\
@@ -3783,6 +3790,19 @@ payload: !!binary SGVsbG8=
         assert_eq!(tagged.tag, Tag::new(tag));
         assert_eq!(tagged.value.as_str(), Some(source));
     }
+    assert_eq!(
+        value["date"].as_timestamp(),
+        yaml::Timestamp::parse_yaml_1_1("2026-05-24")
+    );
+    assert_eq!(
+        value["datetime"].as_timestamp(),
+        yaml::Timestamp::parse_yaml_1_1("2026-05-24T12:34:56Z")
+    );
+    assert_eq!(
+        value["explicit"].as_timestamp(),
+        yaml::Timestamp::parse_yaml_1_1("2026-05-25")
+    );
+    assert!(value["payload"].as_timestamp().is_none());
 
     let expected = TaggedScalars {
         date: "2026-05-24".to_string(),
@@ -3805,6 +3825,28 @@ payload: !!binary SGVsbG8=
     assert_eq!(direct, expected);
     assert_eq!(from_value, expected);
     assert_eq!(from_value_ref, expected);
+
+    let expected_timestamps = TimestampScalars {
+        date: yaml::Timestamp::parse_yaml_1_1("2026-05-24").expect("date timestamp"),
+        datetime: yaml::Timestamp::parse_yaml_1_1("2026-05-24T12:34:56Z")
+            .expect("datetime timestamp"),
+        explicit: yaml::Timestamp::parse_yaml_1_1("2026-05-25").expect("explicit timestamp"),
+    };
+    let typed_timestamps: TimestampScalars = LoadOptions::yaml_1_1()
+        .from_str(input)
+        .expect("typed timestamps from YAML 1.1 schema");
+    let direct_timestamps: TimestampScalars =
+        TimestampScalars::deserialize(LoadOptions::yaml_1_1().deserializer_from_str(input))
+            .expect("direct deserializer typed timestamps");
+    let from_value_timestamps: TimestampScalars =
+        yaml::from_value(value.clone()).expect("owned value typed timestamps");
+    let from_value_ref_timestamps: TimestampScalars =
+        TimestampScalars::deserialize(&value).expect("borrowed value typed timestamps");
+
+    assert_eq!(typed_timestamps, expected_timestamps);
+    assert_eq!(direct_timestamps, expected_timestamps);
+    assert_eq!(from_value_timestamps, expected_timestamps);
+    assert_eq!(from_value_ref_timestamps, expected_timestamps);
 }
 
 #[test]

@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use yaml::{LoadOptions, Schema, Tag, Value};
+use yaml::{Date, LoadOptions, Schema, Tag, Time, TimeZoneOffset, Timestamp, Value};
 
 #[test]
 fn schema_mode_defaults_to_yaml_12_config_behavior() {
@@ -74,11 +74,12 @@ underscored: 1_000
 }
 
 #[test]
-fn yaml_11_schema_constructs_timestamps_as_tagged_strings() {
+fn yaml_11_schema_exposes_native_timestamp_api() {
     let default: Value = yaml::from_str("%YAML 1.1\n---\ndate: 2026-05-24\n")
         .expect("default schema accepts YAML 1.1 directive");
     assert_eq!(default["date"].as_str(), Some("2026-05-24"));
     assert!(default["date"].as_tagged().is_none());
+    assert!(default["date"].as_timestamp().is_none());
 
     let value: Value = LoadOptions::yaml_1_1()
         .from_str(
@@ -89,20 +90,98 @@ datetime: 2026-05-24T12:34:56Z
 spaced: 2026-05-24 12:34:56 -7
 fractional: 2026-05-24t12:34:56.789+05:30
 invalid_month: 2026-13-24
+invalid_day: 2026-02-30
 invalid_time: 2026-05-24T24:34:56Z
 ",
         )
         .expect("timestamp-shaped scalars parse");
 
-    assert_yaml11_timestamp(&value["date"], "2026-05-24");
-    assert_yaml11_timestamp(&value["short"], "2026-5-4");
-    assert_yaml11_timestamp(&value["datetime"], "2026-05-24T12:34:56Z");
-    assert_yaml11_timestamp(&value["spaced"], "2026-05-24 12:34:56 -7");
-    assert_yaml11_timestamp(&value["fractional"], "2026-05-24t12:34:56.789+05:30");
+    assert_yaml11_timestamp(
+        &value["date"],
+        "2026-05-24",
+        Timestamp::new(Date::from_ymd(2026, 5, 24).expect("valid date"), None),
+    );
+    assert_yaml11_timestamp(
+        &value["short"],
+        "2026-5-4",
+        Timestamp::new(Date::from_ymd(2026, 5, 4).expect("valid date"), None),
+    );
+    assert_yaml11_timestamp(
+        &value["datetime"],
+        "2026-05-24T12:34:56Z",
+        Timestamp::new(
+            Date::from_ymd(2026, 5, 24).expect("valid date"),
+            Some(
+                Time::from_hms_nano_offset(
+                    12,
+                    34,
+                    56,
+                    0,
+                    Some(TimeZoneOffset::from_minutes(0).expect("valid offset")),
+                )
+                .expect("valid time"),
+            ),
+        ),
+    );
+    assert_yaml11_timestamp(
+        &value["spaced"],
+        "2026-05-24 12:34:56 -7",
+        Timestamp::new(
+            Date::from_ymd(2026, 5, 24).expect("valid date"),
+            Some(
+                Time::from_hms_nano_offset(
+                    12,
+                    34,
+                    56,
+                    0,
+                    Some(TimeZoneOffset::from_minutes(-7 * 60).expect("valid offset")),
+                )
+                .expect("valid time"),
+            ),
+        ),
+    );
+    assert_yaml11_timestamp(
+        &value["fractional"],
+        "2026-05-24t12:34:56.789+05:30",
+        Timestamp::new(
+            Date::from_ymd(2026, 5, 24).expect("valid date"),
+            Some(
+                Time::from_hms_nano_offset(
+                    12,
+                    34,
+                    56,
+                    789_000_000,
+                    Some(TimeZoneOffset::from_minutes(5 * 60 + 30).expect("valid offset")),
+                )
+                .expect("valid time"),
+            ),
+        ),
+    );
     assert_eq!(value["invalid_month"].as_str(), Some("2026-13-24"));
     assert!(value["invalid_month"].as_tagged().is_none());
+    assert_eq!(value["invalid_day"].as_str(), Some("2026-02-30"));
+    assert!(value["invalid_day"].as_tagged().is_none());
     assert_eq!(value["invalid_time"].as_str(), Some("2026-05-24T24:34:56Z"));
     assert!(value["invalid_time"].as_tagged().is_none());
+
+    #[derive(Deserialize)]
+    struct Schedule {
+        date: Timestamp,
+        datetime: Timestamp,
+    }
+    let schedule: Schedule = LoadOptions::yaml_1_1()
+        .from_str("date: 2026-05-24\ndatetime: 2026-05-24T12:34:56Z\n")
+        .expect("typed timestamp fields deserialize");
+    assert_eq!(
+        schedule.date,
+        value["date"].as_timestamp().expect("date timestamp")
+    );
+    assert_eq!(
+        schedule.datetime,
+        value["datetime"]
+            .as_timestamp()
+            .expect("datetime timestamp")
+    );
 }
 
 #[test]
@@ -156,8 +235,9 @@ fn yaml_11_schema_preserves_source_spelling_for_string_targets() {
     assert_eq!(config.date, "2026-05-24");
 }
 
-fn assert_yaml11_timestamp(value: &Value, expected: &str) {
+fn assert_yaml11_timestamp(value: &Value, expected: &str, timestamp: Timestamp) {
     assert_eq!(value.as_str(), Some(expected));
+    assert_eq!(value.as_timestamp(), Some(timestamp));
     let tagged = value.as_tagged().expect("YAML 1.1 timestamp tag");
     assert_eq!(tagged.tag, Tag::new("!!timestamp"));
     assert_eq!(tagged.value.as_str(), Some(expected));

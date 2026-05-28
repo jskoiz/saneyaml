@@ -233,6 +233,69 @@ root:
 }
 
 #[test]
+fn lossless_edit_rewrites_compose_source_spans_and_keeps_merge_graph() {
+    let input = include_str!("fixtures/real-world/docker-compose/compose-anchors.yaml");
+    let stream = parse_lossless(input).expect("lossless parse");
+    let image_start = input.find("nginx:latest").expect("web image value");
+    let image_end = image_start + "nginx:latest".len();
+    let labels_insert = input.find("    ports:\n").expect("ports entry");
+    let command_start = input.find("    command:").expect("worker command");
+    let command_end = command_start + input[command_start..].find('\n').expect("command line") + 1;
+
+    let mut edit = stream.edit();
+    edit.replace_source_span(
+        stream
+            .source_span(image_start, image_end)
+            .expect("image source span"),
+        "nginx:1.27",
+    )
+    .expect("replace image source");
+    edit.insert_source(labels_insert, "    labels:\n      com.example.role: web\n")
+        .expect("insert labels");
+    edit.delete_source_span(
+        stream
+            .source_span(command_start, command_end)
+            .expect("command source span"),
+    )
+    .expect("delete command");
+    let output = edit.finish().expect("validated edited YAML");
+
+    assert_eq!(
+        output,
+        "\
+version: \"3.9\"
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  logging:
+    driver: json-file
+  environment:
+    RUST_LOG: info
+
+services:
+  web:
+    <<: *service-defaults
+    image: nginx:1.27
+    labels:
+      com.example.role: web
+    ports:
+      - \"8080:80\"
+  worker:
+    <<: *service-defaults
+    image: example/worker:latest
+"
+    );
+    let edited = parse_lossless(&output).expect("edited compose source reparses");
+    assert_eq!(edited.aliases().len(), 2);
+    assert!(
+        edited
+            .nodes()
+            .iter()
+            .any(|node| edited.source_fragment(node.span()) == Some("<<"))
+    );
+}
+
+#[test]
 fn lossless_edit_rejects_non_scalar_scalar_replacement() {
     let stream = parse_lossless("name: api\n").expect("lossless parse");
     let scalar = stream

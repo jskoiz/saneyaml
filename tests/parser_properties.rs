@@ -663,11 +663,14 @@ struct LosslessEditInput<'a> {
 enum LosslessEditMode {
     Node,
     Scalar,
+    Source,
+    Insert,
+    Delete,
 }
 
 #[derive(Clone, Copy)]
 struct LosslessEditTarget {
-    node: NodeId,
+    node: Option<NodeId>,
     span: Span,
 }
 
@@ -687,14 +690,24 @@ fn assert_lossless_edit_invariants(input: &[u8]) {
     let Some(target) = select_lossless_edit_target(&stream, edit_input) else {
         return;
     };
-    let edited =
-        build_lossless_edited_source(stream.as_source(), target.span, edit_input.replacement)
-            .expect("lossless node spans are valid source slices");
+    let replacement = match edit_input.mode {
+        LosslessEditMode::Delete => "",
+        _ => edit_input.replacement,
+    };
+    let edited = build_lossless_edited_source(stream.as_source(), target.span, replacement)
+        .expect("lossless node spans are valid source slices");
 
     let mut edit = stream.edit();
     let replace_result = match edit_input.mode {
-        LosslessEditMode::Node => edit.replace_node_source(target.node, edit_input.replacement),
-        LosslessEditMode::Scalar => edit.replace_scalar_source(target.node, edit_input.replacement),
+        LosslessEditMode::Node => {
+            edit.replace_node_source(target.node.expect("node target"), replacement)
+        }
+        LosslessEditMode::Scalar => {
+            edit.replace_scalar_source(target.node.expect("scalar target"), replacement)
+        }
+        LosslessEditMode::Source => edit.replace_source_span(target.span, replacement),
+        LosslessEditMode::Insert => edit.insert_source(target.span.start, replacement),
+        LosslessEditMode::Delete => edit.delete_source_span(target.span),
     };
     if let Err(error) = replace_result {
         assert_error_invariants_allowing_unspanned(edit_input.source, &error);
@@ -722,6 +735,12 @@ fn split_lossless_edit_input(input: &[u8]) -> Option<LosslessEditInput<'_>> {
     Some(LosslessEditInput {
         mode: if header.contains("mode=scalar") {
             LosslessEditMode::Scalar
+        } else if header.contains("mode=source") {
+            LosslessEditMode::Source
+        } else if header.contains("mode=insert") {
+            LosslessEditMode::Insert
+        } else if header.contains("mode=delete") {
+            LosslessEditMode::Delete
         } else {
             LosslessEditMode::Node
         },
@@ -756,13 +775,13 @@ fn select_lossless_edit_target(
     input: LosslessEditInput<'_>,
 ) -> Option<LosslessEditTarget> {
     match input.mode {
-        LosslessEditMode::Node => {
+        LosslessEditMode::Node | LosslessEditMode::Source | LosslessEditMode::Delete => {
             if stream.nodes().is_empty() {
                 return None;
             }
             let node = stream.nodes().get(input.selector % stream.nodes().len())?;
             Some(LosslessEditTarget {
-                node: node.id(),
+                node: Some(node.id()),
                 span: node.span(),
             })
         }
@@ -777,9 +796,14 @@ fn select_lossless_edit_target(
             }
             let node = scalars.get(input.selector % scalars.len())?;
             Some(LosslessEditTarget {
-                node: node.id(),
+                node: Some(node.id()),
                 span: node.span(),
             })
+        }
+        LosslessEditMode::Insert => {
+            let offset = input.selector % (stream.as_source().len() + 1);
+            let span = stream.source_span(offset, offset).ok()?;
+            Some(LosslessEditTarget { node: None, span })
         }
     }
 }

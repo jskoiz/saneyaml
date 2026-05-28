@@ -25,13 +25,22 @@ fn assert_lossless_edit_invariants(input: &[u8]) {
     let Some(target) = select_target(&stream, edit_input) else {
         return;
     };
-    let edited = edited_source(stream.as_source(), target.span, edit_input.replacement)
+    let replacement = match edit_input.mode {
+        EditMode::Delete => "",
+        _ => edit_input.replacement,
+    };
+    let edited = edited_source(stream.as_source(), target.span, replacement)
         .expect("lossless node spans are valid source slices");
 
     let mut edit = stream.edit();
     let replace_result = match edit_input.mode {
-        EditMode::Node => edit.replace_node_source(target.node, edit_input.replacement),
-        EditMode::Scalar => edit.replace_scalar_source(target.node, edit_input.replacement),
+        EditMode::Node => edit.replace_node_source(target.node.expect("node target"), replacement),
+        EditMode::Scalar => {
+            edit.replace_scalar_source(target.node.expect("scalar target"), replacement)
+        }
+        EditMode::Source => edit.replace_source_span(target.span, replacement),
+        EditMode::Insert => edit.insert_source(target.span.start, replacement),
+        EditMode::Delete => edit.delete_source_span(target.span),
     };
     if let Err(error) = replace_result {
         assert_error_invariants_allowing_unspanned(edit_input.source, &error);
@@ -59,11 +68,14 @@ struct EditInput<'a> {
 enum EditMode {
     Node,
     Scalar,
+    Source,
+    Insert,
+    Delete,
 }
 
 #[derive(Clone, Copy)]
 struct EditTarget {
-    node: NodeId,
+    node: Option<NodeId>,
     span: Span,
 }
 
@@ -78,6 +90,12 @@ fn split_edit_input(input: &[u8]) -> Option<EditInput<'_>> {
     Some(EditInput {
         mode: if header.contains("mode=scalar") {
             EditMode::Scalar
+        } else if header.contains("mode=source") {
+            EditMode::Source
+        } else if header.contains("mode=insert") {
+            EditMode::Insert
+        } else if header.contains("mode=delete") {
+            EditMode::Delete
         } else {
             EditMode::Node
         },
@@ -109,13 +127,13 @@ fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 
 fn select_target(stream: &yaml::LosslessStream, input: EditInput<'_>) -> Option<EditTarget> {
     match input.mode {
-        EditMode::Node => {
+        EditMode::Node | EditMode::Source | EditMode::Delete => {
             if stream.nodes().is_empty() {
                 return None;
             }
             let node = stream.nodes().get(input.selector % stream.nodes().len())?;
             Some(EditTarget {
-                node: node.id(),
+                node: Some(node.id()),
                 span: node.span(),
             })
         }
@@ -130,9 +148,14 @@ fn select_target(stream: &yaml::LosslessStream, input: EditInput<'_>) -> Option<
             }
             let node = scalars.get(input.selector % scalars.len())?;
             Some(EditTarget {
-                node: node.id(),
+                node: Some(node.id()),
                 span: node.span(),
             })
+        }
+        EditMode::Insert => {
+            let offset = input.selector % (stream.as_source().len() + 1);
+            let span = stream.source_span(offset, offset).ok()?;
+            Some(EditTarget { node: None, span })
         }
     }
 }

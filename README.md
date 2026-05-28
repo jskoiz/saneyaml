@@ -31,7 +31,8 @@ The first milestone focuses on:
 - A source-backed `yaml::parse_lossless` / `yaml::LosslessStream` API that
   keeps the original source for byte-stable replay, exposes comments and blank
   lines as trivia, represents anchors/aliases with stable graph ids, and can
-  produce validated source-fragment edits while preserving untouched bytes.
+  produce validated node and raw source-span edits, insertions, and deletions
+  while preserving untouched bytes.
 - Deterministic structural emission with `parse(emit(tree)) == tree` for
   emittable trees; duplicate-effective mapping keys, untagged literal merge
   keys, over-depth trees, and directly nested tags are rejected before output.
@@ -60,7 +61,7 @@ Intentional first-milestone non-goals:
 - Full YAML 1.1 compatibility: collection tags and explicit scalar tags are
   covered, but broader libyaml-era behavior and schema/API completeness
   decisions still remain.
-- Full structural lossless editing beyond validated node source replacement,
+- Full structural lossless editing beyond validated source-span editing,
   directive-preserving structural emission, and graph identity in the semantic
   `Node`/`Value` loaders.
 - Kubernetes schema validation or automated ecosystem migration tooling.

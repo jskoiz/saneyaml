@@ -25,7 +25,8 @@ Notable completed release-candidate behavior:
   legacy schema selection, and boolean-key duplicate diagnostics.
 - `parse_lossless` / `LosslessStream` preserve comments, trivia, anchors,
   aliases, and stable graph ids for source-backed inspection, replay, and
-  validated node source edits that preserve untouched bytes.
+  validated node/source-span edits, insertions, and deletions that preserve
+  untouched bytes.
 - Lossless source edits now have fuzz-corpus replay and a dedicated fuzz target
   for scalar, flow mapping, and flow sequence replacements.
 - Direct Serde `IgnoredAny` entrypoints now validate malformed YAML and
@@ -36,6 +37,6 @@ Notable completed release-candidate behavior:
 
 Known release-candidate gaps remain tracked in `BASELINE.md`,
 `COMPATIBILITY.md`, and `MIGRATION.md`: complete YAML 1.1 ecosystem parity,
-full structural lossless formatting beyond node source replacement, semantic
+full structural lossless formatting beyond validated source-span editing, semantic
 `Node`/`Value` graph identity, final package metadata, and external
 publication.

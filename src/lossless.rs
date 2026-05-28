@@ -103,6 +103,16 @@ impl LosslessStream {
         }
     }
 
+    /// Builds a source span from byte bounds in the retained YAML source.
+    ///
+    /// This is useful with [`LosslessEdit::replace_source_span`] and
+    /// [`LosslessEdit::delete_source_span`] when a tool needs to edit raw YAML
+    /// punctuation, mapping entries, sequence items, or surrounding whitespace
+    /// that is not represented as a single graph node.
+    pub fn source_span(&self, start: usize, end: usize) -> Result<Span> {
+        span_for_source_range(&self.source, start, end)
+    }
+
     /// Returns parsed documents in source order.
     pub fn documents(&self) -> &[LosslessDocument] {
         &self.documents
@@ -175,6 +185,35 @@ impl LosslessStream {
         edit.replace_node_source(node, replacement)?;
         edit.finish()
     }
+
+    /// Replaces one raw source span and returns validated edited YAML.
+    ///
+    /// This is a convenience wrapper around [`LosslessEdit`]. Use
+    /// [`Self::source_span`] to build spans from byte ranges in the retained
+    /// source.
+    pub fn replace_source_span(
+        &self,
+        span: Span,
+        replacement: impl Into<String>,
+    ) -> Result<String> {
+        let mut edit = self.edit();
+        edit.replace_source_span(span, replacement)?;
+        edit.finish()
+    }
+
+    /// Inserts raw YAML source at a byte offset and returns validated edited YAML.
+    pub fn insert_source(&self, offset: usize, insertion: impl Into<String>) -> Result<String> {
+        let mut edit = self.edit();
+        edit.insert_source(offset, insertion)?;
+        edit.finish()
+    }
+
+    /// Deletes one raw source span and returns validated edited YAML.
+    pub fn delete_source_span(&self, span: Span) -> Result<String> {
+        let mut edit = self.edit();
+        edit.delete_source_span(span)?;
+        edit.finish()
+    }
 }
 
 impl fmt::Display for LosslessStream {
@@ -205,14 +244,7 @@ impl LosslessEdit<'_> {
         replacement: impl Into<String>,
     ) -> Result<&mut Self> {
         let span = self.checked_node_span(node)?;
-        self.replacements.push(LosslessReplacement {
-            node,
-            start: span.start,
-            end: span.end,
-            span,
-            replacement: replacement.into(),
-        });
-        Ok(self)
+        self.push_replacement(span, replacement)
     }
 
     /// Replaces a scalar node with source that parses as one scalar node.
@@ -239,10 +271,45 @@ impl LosslessEdit<'_> {
         self.replace_node_source(node, replacement)
     }
 
+    /// Replaces a raw source span with raw YAML source.
+    ///
+    /// The span must point into the retained source. Use
+    /// [`LosslessStream::source_span`] to build a span from byte bounds when
+    /// editing mapping entries, sequence items, separators, comments, or
+    /// whitespace outside a single graph node.
+    pub fn replace_source_span(
+        &mut self,
+        span: Span,
+        replacement: impl Into<String>,
+    ) -> Result<&mut Self> {
+        let span = self.checked_source_span(span)?;
+        self.push_replacement(span, replacement)
+    }
+
+    /// Inserts raw YAML source at a byte offset in the retained source.
+    ///
+    /// The final edited document is still validated by [`Self::finish`].
+    pub fn insert_source(
+        &mut self,
+        offset: usize,
+        insertion: impl Into<String>,
+    ) -> Result<&mut Self> {
+        let span = self.stream.source_span(offset, offset)?;
+        self.push_replacement(span, insertion)
+    }
+
+    /// Deletes a raw source span from the retained source.
+    ///
+    /// This is equivalent to replacing the span with an empty string, followed
+    /// by full YAML validation in [`Self::finish`].
+    pub fn delete_source_span(&mut self, span: Span) -> Result<&mut Self> {
+        self.replace_source_span(span, "")
+    }
+
     /// Returns validated edited YAML with untouched source bytes preserved.
     pub fn finish(mut self) -> Result<String> {
         self.replacements
-            .sort_by_key(|replacement| (replacement.start, replacement.end, replacement.node.0));
+            .sort_by_key(|replacement| (replacement.start, replacement.end, replacement.order));
         self.validate_replacements()?;
 
         let mut output = String::with_capacity(self.edited_capacity());
@@ -270,6 +337,22 @@ impl LosslessEdit<'_> {
         Ok(output)
     }
 
+    fn push_replacement(
+        &mut self,
+        span: Span,
+        replacement: impl Into<String>,
+    ) -> Result<&mut Self> {
+        let order = self.replacements.len();
+        self.replacements.push(LosslessReplacement {
+            order,
+            start: span.start,
+            end: span.end,
+            span,
+            replacement: replacement.into(),
+        });
+        Ok(self)
+    }
+
     fn checked_node_span(&self, node: NodeId) -> Result<Span> {
         let node = self
             .stream
@@ -285,6 +368,22 @@ impl LosslessEdit<'_> {
         if self.stream.source.get(span.start..span.end).is_none() {
             return Err(Error::new(
                 "lossless node span is not on a UTF-8 boundary",
+                Some(span),
+            ));
+        }
+        Ok(span)
+    }
+
+    fn checked_source_span(&self, span: Span) -> Result<Span> {
+        if span.start > span.end || span.end > self.stream.source.len() {
+            return Err(Error::new(
+                "lossless source span is outside the retained source",
+                Some(span),
+            ));
+        }
+        if self.stream.source.get(span.start..span.end).is_none() {
+            return Err(Error::new(
+                "lossless source span is not on a UTF-8 boundary",
                 Some(span),
             ));
         }
@@ -334,7 +433,7 @@ impl LosslessEdit<'_> {
 
 #[derive(Clone, Debug)]
 struct LosslessReplacement {
-    node: NodeId,
+    order: usize,
     start: usize,
     end: usize,
     span: Span,
@@ -879,6 +978,40 @@ impl Frame {
             Self::Sequence { span, .. } | Self::Mapping { span, .. } => *span,
         }
     }
+}
+
+fn span_for_source_range(source: &str, start: usize, end: usize) -> Result<Span> {
+    if start > end || end > source.len() {
+        return Err(Error::new(
+            "lossless source span is outside the retained source",
+            None,
+        ));
+    }
+    if source.get(start..end).is_none() {
+        return Err(Error::new(
+            "lossless source span is not on a UTF-8 boundary",
+            None,
+        ));
+    }
+    let Some(prefix) = source.get(..start) else {
+        return Err(Error::new(
+            "lossless source span is not on a UTF-8 boundary",
+            None,
+        ));
+    };
+
+    let mut line = 1usize;
+    let mut column = 1usize;
+    for byte in prefix.bytes() {
+        if byte == b'\n' {
+            line += 1;
+            column = 1;
+        } else {
+            column += 1;
+        }
+    }
+
+    Ok(Span::new(start, end, line, column))
 }
 
 fn scan_trivia(input: &str) -> Vec<LosslessTrivia> {

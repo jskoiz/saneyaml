@@ -12,6 +12,7 @@ The compatibility target is intentionally split:
 - Parser reference target: YAML 1.2 tree/event acceptance comparable to
   `yaml-rust2` and `saphyr` for supported syntax.
 - Ecosystem divergence target: libyaml/YAML 1.1-era behavior is documented and
+  version-pinned with a Ruby Psych 3.1.0/libyaml 0.2.1 probe artifact, then
   rejected unless a future migration milestone explicitly chooses it.
 
 | Area | Prototype policy | libyaml / YAML 1.1 paths | yaml-rust2 / saphyr | serde_yaml |

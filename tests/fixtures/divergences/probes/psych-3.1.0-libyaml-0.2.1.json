@@ -1,0 +1,381 @@
+{
+  "probe": "psych-libyaml-divergence",
+  "ruby": "2.6.10",
+  "psych": "3.1.0",
+  "libyaml": "0.2.1",
+  "cases": [
+    {
+      "id": "legacy-scalar-resolution",
+      "record": "tests/fixtures/divergences/records/legacy-scalar-resolution.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "TrueClass",
+              "value": "true"
+            },
+            "value": {
+              "class": "TrueClass",
+              "value": "true"
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "timestamp"
+            },
+            "value": {
+              "class": "Date",
+              "value": "2026-05-24"
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "octal"
+            },
+            "value": {
+              "class": "Integer",
+              "value": "83"
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "sexagesimal"
+            },
+            "value": {
+              "class": "Integer",
+              "value": "4800"
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "special_float"
+            },
+            "value": {
+              "class": "Float",
+              "value": "Infinity"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "rw-github-actions-on-key",
+      "record": "tests/fixtures/divergences/records/rw-github-actions-on-key.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "TrueClass",
+              "value": "true"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "push"
+                  },
+                  "value": {
+                    "class": "Hash",
+                    "entries": [
+                      {
+                        "key": {
+                          "class": "String",
+                          "value": "branches"
+                        },
+                        "value": {
+                          "class": "Array",
+                          "items": [
+                            {
+                              "class": "String",
+                              "value": "main"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "merge-keys",
+      "record": "tests/fixtures/divergences/records/merge-keys.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "base"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "image"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "app:v1"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "replicas"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "2"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "service"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "image"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "app:v2"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "replicas"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "2"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "duplicate-scalar-keys",
+      "record": "tests/fixtures/divergences/records/duplicate-scalar-keys.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "name"
+            },
+            "value": {
+              "class": "String",
+              "value": "second"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "explicit-core-tags",
+      "record": "tests/fixtures/divergences/records/explicit-core-tags.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "binary"
+            },
+            "value": {
+              "class": "String",
+              "value": "Hello"
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "int"
+            },
+            "value": {
+              "class": "Integer",
+              "value": "123"
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "timestamp"
+            },
+            "value": {
+              "class": "Date",
+              "value": "2026-05-24"
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "float"
+            },
+            "value": {
+              "class": "Float",
+              "value": "Infinity"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "null-like-string-targets",
+      "record": "tests/fixtures/divergences/records/null-like-string-targets.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "empty"
+            },
+            "value": {
+              "class": "NilClass",
+              "value": null
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "tilde"
+            },
+            "value": {
+              "class": "NilClass",
+              "value": null
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "null_word"
+            },
+            "value": {
+              "class": "NilClass",
+              "value": null
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "quoted"
+            },
+            "value": {
+              "class": "String",
+              "value": "null"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "numeric-key-identity",
+      "record": "tests/fixtures/divergences/records/numeric-key-identity.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "Integer",
+              "value": "1"
+            },
+            "value": {
+              "class": "String",
+              "value": "integer"
+            }
+          },
+          {
+            "key": {
+              "class": "Float",
+              "value": "1.0"
+            },
+            "value": {
+              "class": "String",
+              "value": "float"
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "1"
+            },
+            "value": {
+              "class": "String",
+              "value": "string"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "tab-token-separation",
+      "record": "tests/fixtures/divergences/records/tab-token-separation.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "key"
+            },
+            "value": {
+              "class": "String",
+              "value": "value"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "adjacent-flow-mapping-scalars",
+      "record": "tests/fixtures/divergences/records/adjacent-flow-mapping-scalars.toml",
+      "status": "error",
+      "error_class": "Psych::SyntaxError",
+      "error": "found unexpected ':'"
+    },
+    {
+      "id": "multiline-quoted-flow-key",
+      "record": "tests/fixtures/divergences/records/multiline-quoted-flow-key.toml",
+      "status": "error",
+      "error_class": "Psych::SyntaxError",
+      "error": "did not find expected ',' or '}'"
+    }
+  ]
+}

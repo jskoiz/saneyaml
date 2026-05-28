@@ -101,6 +101,7 @@ Focused proof command:
 ```sh
 cargo test --test serde_yaml_swap_harness --test downstream_migration_harness
 cargo test --test external_downstream_migration
+cargo test --test libyaml_probe_manifest
 ```
 
 Broader migration proof:
@@ -178,8 +179,6 @@ testing each adopter's own YAML corpus.
 ## Next Adoption Blockers
 
 - Add migration-impact wording directly to every divergence record.
-- Add version-pinned libyaml/Psych probe artifacts for records that rely on
-  external libyaml behavior.
 - Add a third ecosystem replay and real external crate build trials before
   claiming broad ecosystem replacement readiness.
 - Choose the public package name and final license before publishing.

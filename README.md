@@ -46,6 +46,7 @@ Intentional first-milestone non-goals:
 cargo test --test serde_yaml_swap_harness
 cargo test --test downstream_migration_harness
 cargo test --test external_downstream_migration
+cargo test --test libyaml_probe_manifest
 cargo test --test baseline_audit
 cargo test
 cargo clippy --all-targets -- -D warnings

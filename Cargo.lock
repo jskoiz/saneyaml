@@ -767,6 +767,7 @@ dependencies = [
  "saphyr",
  "saphyr-parser",
  "serde",
+ "serde_json",
  "serde_yaml",
  "toml",
  "yaml-rust2",

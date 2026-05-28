@@ -20,6 +20,9 @@ Notable completed release-candidate behavior:
 - The migration harness records YAML 1.1 scalar construction as an explicit
   call-site choice, including the default decimal treatment of `0123` versus
   YAML 1.1 octal interpretation under `LoadOptions`.
+- YAML 1.1 conformance fixtures now cover directive-driven legacy scalar
+  construction, explicit binary and collection tags, merge-key expansion under
+  legacy schema selection, and boolean-key duplicate diagnostics.
 - `parse_lossless` / `LosslessStream` preserve comments, trivia, anchors,
   aliases, and stable graph ids for source-backed inspection, replay, and
   validated node source edits that preserve untouched bytes.

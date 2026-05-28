@@ -46,3 +46,24 @@ path = "omap-rejects-non-singleton-entry.yaml"
 kind = "omap"
 tag = "!!omap"
 expected = "error"
+
+[[case]]
+id = "legacy-migration-pack"
+path = "legacy-migration-pack.yaml"
+kind = "scalar-matrix"
+tag = "%YAML 1.1"
+expected = "accept"
+
+[[case]]
+id = "legacy-merge-directive"
+path = "legacy-merge-directive.yaml"
+kind = "merge"
+tag = "%YAML 1.1"
+expected = "accept"
+
+[[case]]
+id = "legacy-bool-key-collision"
+path = "legacy-bool-key-collision.yaml"
+kind = "duplicate-key"
+tag = "%YAML 1.1"
+expected = "error"

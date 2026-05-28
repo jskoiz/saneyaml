@@ -88,6 +88,6 @@ scripts/fuzz-smoke-nonmutating.sh
 `tests/baseline_audit.rs` verifies that `BASELINE.md` matches the committed
 manifest, registry, migration report, corpus, and command evidence. `cargo
 fuzz` is optional for ordinary development; the script copies corpora to a
-temporary directory before running all six targets so it does not grow tracked
+temporary directory before running all seven targets so it does not grow tracked
 corpus files. Parser safety properties are also exercised by
 `tests/parser_properties.rs`, which runs with plain `cargo test`.

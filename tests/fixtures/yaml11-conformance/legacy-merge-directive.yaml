@@ -1,0 +1,10 @@
+%YAML 1.1
+---
+base: &base
+  mode: 0644
+  enabled: ON
+  retries: 0x3
+service:
+  <<: *base
+  enabled: no
+  owner: ops

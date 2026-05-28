@@ -17,6 +17,68 @@ fn schema_mode_defaults_to_yaml_12_config_behavior() {
 }
 
 #[test]
+fn yaml_version_directive_schema_switches_each_document() {
+    let input = "\
+%YAML 1.1
+---
+flag: ON
+count: 0x10
+clock: 1:20
+...
+---
+flag: ON
+count: 0x10
+clock: 1:20
+...
+%YAML 1.3
+---
+flag: ON
+count: 0x10
+clock: 1:20
+";
+    let options = LoadOptions::yaml_version_directive();
+    let docs: Vec<Value> = options
+        .from_documents_str(input)
+        .expect("directive-driven documents deserialize");
+
+    assert_eq!(docs.len(), 3);
+    assert_eq!(docs[0]["flag"].as_bool(), Some(true));
+    assert_eq!(docs[0]["count"].as_i64(), Some(16));
+    assert_eq!(docs[0]["clock"].as_i64(), Some(4800));
+    assert_eq!(docs[1]["flag"].as_str(), Some("ON"));
+    assert_eq!(docs[1]["count"].as_str(), Some("0x10"));
+    assert_eq!(docs[1]["clock"].as_str(), Some("1:20"));
+    assert_eq!(docs[2]["flag"].as_str(), Some("ON"));
+    assert_eq!(docs[2]["count"].as_str(), Some("0x10"));
+    assert_eq!(docs[2]["clock"].as_str(), Some("1:20"));
+
+    let streamed = options
+        .deserializer_from_str(input)
+        .map(Value::deserialize)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("directive-driven stream deserializes");
+    assert_eq!(streamed, docs);
+
+    let parsed = options
+        .parse_documents(input)
+        .expect("directive-driven parser documents");
+    assert_eq!(Value::from(&parsed[0])["flag"].as_bool(), Some(true));
+    assert_eq!(Value::from(&parsed[1])["flag"].as_str(), Some("ON"));
+    assert_eq!(Value::from(&parsed[2])["flag"].as_str(), Some("ON"));
+}
+
+#[test]
+fn yaml_version_directive_schema_reports_legacy_duplicate_key_collisions() {
+    let error = LoadOptions::yaml_version_directive()
+        .parse_str("%YAML 1.1\n---\non: push\nyes: deploy\n")
+        .expect_err("directive-driven YAML 1.1 keys collide");
+
+    assert!(error.to_string().contains("duplicate mapping key `true`"));
+    assert_eq!(error.span().line, 4);
+    assert_eq!(error.span().column, 1);
+}
+
+#[test]
 fn yaml_11_schema_resolves_legacy_boolean_aliases() {
     let input = "flags: [y, Y, yes, Yes, YES, n, N, no, No, NO, on, On, ON, off, Off, OFF]\n";
     let value: Value = LoadOptions::yaml_1_1()

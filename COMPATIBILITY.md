@@ -32,7 +32,7 @@ The compatibility target is intentionally split:
 | Comments/formatting | Semantic `Node`/`Value` loaders discard comments and formatting; `LosslessStream` retains the original source for byte-stable replay and exposes comments/blank lines as trivia | Not semantic | Not semantic | Discarded |
 | Emission | Deterministic structural YAML for emittable trees; duplicate-effective mapping keys, over-depth trees including caller-built complex keys, and directly nested tags are rejected before output; public writers follow `serde_yaml` document-marker policy by omitting `---` for the first ordinary document and inserting `---` between stream documents | Manual comparison only | Manual comparison only | Public writer document-marker policy is matched; byte-for-byte formatting parity remains out of scope |
 | Numeric, timestamp, and binary extensions | Decimal ints/floats plus underscores and YAML special floats are resolved by default; explicit YAML 1.1 construction also resolves leading-zero octal, hex, binary numeric, and two/three-part sexagesimal int/float forms that fit `Number`, retains timestamp-shaped plain scalars as `!!timestamp` tagged strings with `yaml::Timestamp` typed reads, and decodes explicit `!!binary` only for typed byte targets | YAML 1.1 has broad numeric/timestamp/binary typing, including sexagesimal and legacy radix forms in libyaml/Psych paths | YAML 1.2 core support varies by crate | Data-model dependent |
-| Directives | Numeric `%YAML` version directives and `%TAG` are accepted as syntax/event inputs; reserved unknown directives are ignored but still require an explicit document start; version directives do not switch scalar schema; directive metadata is exposed on `DocumentStart` events | Exposed and may affect version/schema handling | Exposed by parser layers | Usually not a Serde value |
+| Directives | Numeric `%YAML` version directives and `%TAG` are accepted as syntax/event inputs; reserved unknown directives are ignored but still require an explicit document start; default loading does not switch scalar schema, while `LoadOptions::yaml_version_directive()` lets `%YAML 1.1` select legacy construction per document; directive metadata is exposed on `DocumentStart` events | Exposed and may affect version/schema handling | Exposed by parser layers | Usually not a Serde value |
 | Explicit core tags | Tree and `Value` loading preserve explicit `!!binary`, `!!timestamp`, `!!int`, and `!!float` tags; typed Serde reads coerce explicit `!!int`/`!!float` numeric targets, including legacy radix and sexagesimal spellings, expose explicit `!!timestamp` as `yaml::Timestamp`, and decode explicit `!!binary` byte targets while preserving tags in retained values | YAML 1.1 typed binary/timestamp/numeric support is common | Tag-aware behavior varies, including `BadValue` for some explicit core tags | Partial/lossy |
 
 ## Public API Compatibility Surface
@@ -99,13 +99,17 @@ still preserve `<<` and alias references. `Value::apply_merge()` remains
 available for caller-built values with `serde_yaml::Value::apply_merge()`-style
 semantics and is idempotent for values parsed by this crate.
 Default scalar construction remains YAML 1.2-oriented even when a stream has
-`%YAML 1.1`. Callers that need legacy YAML 1.1 scalar behavior must opt in with
+`%YAML 1.1`. Callers that need legacy YAML 1.1 scalar behavior can opt in with
 `yaml::LoadOptions::yaml_1_1()` or `yaml::LoadOptions::new().schema(Schema::Yaml11)`.
-That mode resolves boolean aliases and numeric forms that fit `yaml::Number`,
-including leading-zero octal, hex, binary, and two/three-part sexagesimal
-int/float forms, and retains timestamp-shaped plain scalars as `!!timestamp`
-tagged strings with `yaml::Timestamp` available through `as_timestamp()` and
-typed Serde fields.
+Callers that want document headers to select scalar construction can use
+`yaml::LoadOptions::yaml_version_directive()` or
+`Schema::YamlVersionDirective`; in that mode `%YAML 1.1` selects the legacy
+construction mode, while absent, `%YAML 1.2`, and newer numeric directives use
+YAML 1.2-oriented construction. The YAML 1.1 mode resolves boolean aliases and
+numeric forms that fit `yaml::Number`, including leading-zero octal, hex,
+binary, and two/three-part sexagesimal int/float forms, and retains
+timestamp-shaped plain scalars as `!!timestamp` tagged strings with
+`yaml::Timestamp` available through `as_timestamp()` and typed Serde fields.
 Explicit `!!binary` payloads remain tagged strings in retained `Value`/`Node`
 trees, but typed byte targets such as `Vec<u8>`, `deserialize_bytes`, and
 `deserialize_byte_buf` decode the base64 payload.
@@ -311,7 +315,8 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
 - core scalars
 - explicit YAML 1.1 schema-mode scalars, including boolean aliases, retained
   timestamp tags, legacy radix and sexagesimal numeric forms, duplicate-key
-  collisions, directive non-switching, and fuzz corpus replay
+  collisions, directive-driven loading, default directive non-switching, and
+  fuzz corpus replay
 - block and flow collections
 - explicit block mapping entries
 - plain block mapping keys containing YAML-safe punctuation, including

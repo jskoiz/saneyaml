@@ -12,6 +12,12 @@ pub enum Schema {
     Yaml12,
     /// Explicit YAML 1.1 compatibility schema for legacy configuration files.
     Yaml11,
+    /// Selects scalar construction from each document's `%YAML` version directive.
+    ///
+    /// Documents with `%YAML 1.1` use [`Schema::Yaml11`]. Documents without a
+    /// version directive, with `%YAML 1.2`, or with newer numeric versions use
+    /// [`Schema::Yaml12`].
+    YamlVersionDirective,
 }
 
 /// Options for loading YAML into constructed trees or Serde values.
@@ -32,6 +38,17 @@ impl LoadOptions {
     pub const fn yaml_1_1() -> Self {
         Self {
             schema: Schema::Yaml11,
+        }
+    }
+
+    /// Creates load options that follow each document's `%YAML` version directive.
+    ///
+    /// `%YAML 1.1` documents use YAML 1.1 compatibility construction. Documents
+    /// without a version directive, with `%YAML 1.2`, or with newer numeric
+    /// versions use the YAML 1.2-oriented default construction.
+    pub const fn yaml_version_directive() -> Self {
+        Self {
+            schema: Schema::YamlVersionDirective,
         }
     }
 

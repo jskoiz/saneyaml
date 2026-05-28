@@ -7,6 +7,7 @@ fuzz_target!(|input: &[u8]| {
     for options in [
         LoadOptions::new(),
         LoadOptions::new().schema(Schema::Yaml11),
+        LoadOptions::yaml_version_directive(),
     ] {
         assert_parse_invariants(input, options);
         assert_serde_invariants(input, options);

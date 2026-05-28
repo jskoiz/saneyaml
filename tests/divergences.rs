@@ -16,6 +16,24 @@ fn divergence_yaml_1_1_boolean_words_are_strings() {
 }
 
 #[test]
+fn divergence_yaml_1_1_version_directive_switching_requires_explicit_option() {
+    let default =
+        parse_str("%YAML 1.1\n---\nflag: ON\n").expect("default entrypoint accepts directive");
+    let yaml::NodeValue::Mapping(entries) = default.value else {
+        panic!("expected mapping");
+    };
+    assert_eq!(entries[0].1.as_str(), Some("ON"));
+
+    let directive = LoadOptions::yaml_version_directive()
+        .parse_str("%YAML 1.1\n---\nflag: ON\n")
+        .expect("directive-driven option follows YAML version");
+    let yaml::NodeValue::Mapping(entries) = directive.value else {
+        panic!("expected directive-driven mapping");
+    };
+    assert!(matches!(entries[0].1.value, yaml::NodeValue::Bool(true)));
+}
+
+#[test]
 fn divergence_merge_keys_expand_by_default_in_loaded_trees() {
     let node =
         parse_str("defaults: &defaults\n  retries: 3\njob:\n  <<: *defaults\n  name: deploy\n")

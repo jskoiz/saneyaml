@@ -307,6 +307,7 @@ struct Parser {
     pos: usize,
     input_len: usize,
     schema: Schema,
+    active_schema: Schema,
     anchors: AnchorRegistry,
     events: Option<EventRecorder>,
     active_tag_handles: HashMap<String, String>,
@@ -481,11 +482,13 @@ impl Parser {
     }
 
     fn new_with_options(input: &str, options: LoadOptions) -> Result<Self> {
+        let schema = options.selected_schema();
         Ok(Self {
             lines: preprocess(input)?,
             pos: 0,
             input_len: input.len(),
-            schema: options.selected_schema(),
+            schema,
+            active_schema: default_construction_schema(schema),
             anchors: AnchorRegistry::new(input.len()),
             events: None,
             active_tag_handles: HashMap::new(),
@@ -664,6 +667,7 @@ impl Parser {
                     let marker_span = line.local_span(0, 3);
                     self.pos += 1;
                     if let Some((rest_start, rest)) = document_start_rest(&line.content) {
+                        self.activate_document_schema(&directives);
                         self.emit_document_start(true, directives, marker_span);
                         self.anchors.reset_document();
                         let doc = match self.parse_document_start_value(
@@ -698,6 +702,7 @@ impl Parser {
                         return docs;
                     }
                     if let Some((span, explicit, directives)) = pending_start.take() {
+                        self.activate_document_schema(&directives);
                         self.emit_document_start(explicit, directives, span);
                         self.emit_null_scalar(span);
                         self.emit_document_end(true, line.span());
@@ -726,6 +731,7 @@ impl Parser {
                             self.active_tag_handles.clear();
                             (line.span(), false, EventDocumentDirectives::default())
                         };
+                    self.activate_document_schema(&directives);
                     self.emit_document_start(explicit, directives, start_span);
                     self.anchors.reset_document();
                     let doc = match self.parse_node(0) {
@@ -752,6 +758,7 @@ impl Parser {
             return docs;
         }
         if let Some((span, explicit, directives)) = pending_start {
+            self.activate_document_schema(&directives);
             self.emit_document_start(explicit, directives, span);
             self.emit_null_scalar(span);
             self.emit_document_end(false, span);
@@ -821,6 +828,10 @@ impl Parser {
         self.active_tag_handles = mem::take(&mut self.pending_tag_handles);
         self.pending_directives = false;
         mem::take(&mut self.pending_document_directives)
+    }
+
+    fn activate_document_schema(&mut self, directives: &EventDocumentDirectives) {
+        self.active_schema = schema_for_directives(self.schema, directives);
     }
 
     fn reject_trailing_content_after_document_node(&self) -> Result<()> {
@@ -2349,11 +2360,11 @@ impl Parser {
                 &mut self.anchors,
                 self.events.as_mut(),
                 &self.active_tag_handles,
-                self.schema,
+                self.active_schema,
             )
             .parse();
         }
-        let node = parse_scalar(text, line, local_start, self.schema)?;
+        let node = parse_scalar(text, line, local_start, self.active_schema)?;
         self.emit_scalar_node(&node, scalar_style_for_text(text));
         Ok(node)
     }
@@ -2709,6 +2720,29 @@ fn parse_yaml_version(text: &str) -> Option<(u8, u8)> {
         return None;
     }
     Some((major, minor.parse().ok()?))
+}
+
+fn default_construction_schema(schema: Schema) -> Schema {
+    match schema {
+        Schema::Yaml11 => Schema::Yaml11,
+        Schema::Yaml12 | Schema::YamlVersionDirective => Schema::Yaml12,
+    }
+}
+
+fn schema_for_directives(schema: Schema, directives: &EventDocumentDirectives) -> Schema {
+    match schema {
+        Schema::YamlVersionDirective
+            if directives
+                .yaml_version
+                .as_ref()
+                .is_some_and(|version| version.major == 1 && version.minor == 1) =>
+        {
+            Schema::Yaml11
+        }
+        Schema::YamlVersionDirective => Schema::Yaml12,
+        Schema::Yaml11 => Schema::Yaml11,
+        Schema::Yaml12 => Schema::Yaml12,
+    }
 }
 
 fn valid_tag_handle(handle: &str) -> bool {

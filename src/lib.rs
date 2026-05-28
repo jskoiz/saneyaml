@@ -2,7 +2,8 @@
 //! configuration-shaped YAML.
 //!
 //! The preview API focuses on YAML 1.2 parser events, loaded document trees
-//! with default merge-key expansion, `serde_yaml`-style
+//! with default merge-key expansion, explicit and directive-driven YAML 1.1
+//! scalar construction options, `serde_yaml`-style
 //! `Value`/`Mapping`/`Number` workflows, typed Serde reads, structural writes,
 //! and line/column diagnostics. See `MIGRATION.md`,
 //! `COMPATIBILITY.md`, and `DEVELOPER_PREVIEW.md` for the current adoption

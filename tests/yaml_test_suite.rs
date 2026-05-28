@@ -1143,6 +1143,11 @@ fn yts_parse_bec7_mus6__yaml_version_directive_variants_are_syntax_only() {
     assert_eq!(entries[0].1.as_str(), Some("off"));
     assert_eq!(entries[1].0.as_str(), Some("yes"));
     assert_eq!(entries[1].1.as_str(), Some("no"));
+
+    let error = yaml::LoadOptions::yaml_version_directive()
+        .parse_str("%YAML 1.1\n---\non: off\nyes: no\n")
+        .expect_err("directive-driven YAML 1.1 resolves colliding boolean keys");
+    assert!(error.to_string().contains("duplicate mapping key `true`"));
 }
 
 #[test]

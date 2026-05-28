@@ -62,8 +62,10 @@ Additional crate surfaces useful during migration:
 - `yaml::LoadOptions::yaml_1_1()` and `yaml::Schema::Yaml11` opt into legacy
   YAML 1.1 boolean/null and numeric scalar construction, including legacy
   radix and sexagesimal numeric spellings, for callers that know their corpus
-  depends on those rules. Default entrypoints remain YAML 1.2-oriented and
-  `%YAML 1.1` directives do not switch schemas automatically.
+  depends on those rules. `yaml::LoadOptions::yaml_version_directive()` and
+  `yaml::Schema::YamlVersionDirective` apply that legacy construction per
+  document only when the document declares `%YAML 1.1`. Default entrypoints
+  remain YAML 1.2-oriented.
 - `yaml::from_node` preserves parser spans while deserializing from a loaded tree.
 - `yaml::from_documents_str`, `from_documents_slice`, and
   `from_documents_reader` return typed vectors for YAML streams.
@@ -192,7 +194,10 @@ testing each adopter's own YAML corpus.
   `yaml::Timestamp` through `as_timestamp()` and typed Serde reads. `!!binary`
   payloads are retained as tagged strings in `Value`/`Node` while decoding for
   typed byte targets such as `Vec<u8>`, `deserialize_bytes`, and
-  `deserialize_byte_buf`.
+  `deserialize_byte_buf`. Directive-driven loading is available through
+  `LoadOptions::yaml_version_directive()`, where `%YAML 1.1` selects the legacy
+  construction mode and absent, `%YAML 1.2`, or newer numeric directives keep
+  YAML 1.2-oriented construction.
 - Untagged merge keys are expanded by default in loaded trees and Serde reads.
   `Value::apply_merge()` remains available for caller-built values and is
   idempotent for values parsed by this crate.
@@ -223,7 +228,7 @@ testing each adopter's own YAML corpus.
   replacement readiness.
 - Keep growing default merge and `apply_merge` coverage with sustained fuzz
   runs and minimized discoveries beyond the curated seed corpus.
-- Finish directive-driven YAML 1.1 schema decisions, editable lossless
+- Finish broader YAML 1.1/libyaml compatibility decisions, editable lossless
   formatting/emission, and the long-term graph API contract before claiming
   full YAML compatibility.
 - Choose the public package name and final license before publishing.

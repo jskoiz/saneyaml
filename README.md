@@ -15,8 +15,9 @@ The first milestone focuses on:
   document trees.
 - Explicit `LoadOptions::yaml_1_1()` construction for legacy YAML 1.1
   booleans/nulls, `yaml::Timestamp` typed reads for timestamp-shaped scalars,
-  and numeric forms that fit the current value model, without silently switching
-  schemas from `%YAML 1.1` directives.
+  and numeric forms that fit the current value model, plus
+  `LoadOptions::yaml_version_directive()` for callers that want `%YAML 1.1`
+  document headers to select that legacy construction mode.
 - Ordered mappings, block/flow collections, quoted/plain scalars, and basic
   literal/folded block scalars.
 - Acyclic anchors and aliases expanded into the loaded tree.
@@ -50,8 +51,8 @@ The first milestone focuses on:
 
 Intentional first-milestone non-goals:
 
-- Full YAML 1.1 compatibility: directive-driven schema behavior and broader
-  schema/API decisions still remain.
+- Full YAML 1.1 compatibility: broader libyaml-era behavior and schema/API
+  completeness decisions still remain.
 - Editable lossless formatting for modified documents, directive-preserving
   structural emission, and graph identity in the semantic `Node`/`Value`
   loaders.

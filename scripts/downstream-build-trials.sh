@@ -34,37 +34,11 @@ package_current_crate() {
 
 run_packaged_smoke() {
   local smoke="$tmp/serde-yaml-alias-smoke"
-  mkdir -p "$smoke/src"
-  cat >"$smoke/Cargo.toml" <<EOF
-[package]
-name = "serde-yaml-alias-smoke"
-version = "0.0.0"
-edition = "2021"
-publish = false
-
-[dependencies]
-serde = { version = "1.0", features = ["derive"] }
-serde_yaml = { package = "yaml", path = "$package_dir" }
-EOF
-  cat >"$smoke/src/main.rs" <<'EOF'
-use serde::Deserialize;
-
-#[derive(Debug, Deserialize)]
-struct Config {
-    name: String,
-    ports: Vec<u16>,
-}
-
-fn main() {
-    let config: Config = serde_yaml::from_str("name: api\nports: [80, 443]\n").unwrap();
-    assert_eq!(config.name, "api");
-    assert_eq!(config.ports, [80, 443]);
-
-    let value: serde_yaml::Value =
-        serde_yaml::from_str("defaults: &defaults\n  retries: 3\njob:\n  <<: *defaults\n").unwrap();
-    assert_eq!(value["job"]["retries"].as_u64(), Some(3));
-}
-EOF
+  cp -R "$repo_root/tests/fixtures/downstream/package-alias-smoke" "$smoke"
+  mv "$smoke/Cargo.toml.template" "$smoke/Cargo.toml"
+  YAML_PACKAGE_DIR="$package_dir" perl -0pi -e \
+    's#__YAML_PACKAGE_DIR__#$ENV{YAML_PACKAGE_DIR}#g' \
+    "$smoke/Cargo.toml"
   cargo check --manifest-path "$smoke/Cargo.toml" --quiet
 }
 

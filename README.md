@@ -50,7 +50,8 @@ The first milestone focuses on:
   compare real downstream YAML inputs against `serde_yaml`.
 - Packaged downstream smoke, Pingora, rust-i18n, and cfn-guard build trials
   that consume this crate under the `serde_yaml` dependency name from clean
-  temporary checkouts.
+  temporary checkouts, including a checked-in package-alias smoke fixture that
+  compiles covered `serde_yaml::...` API paths against this package.
 - A downstream-shaped migration harness, compileable migration example,
   Ubuntu-only CI workflow, non-mutating all-target fuzz smoke script, and
   real-world config benchmark command.

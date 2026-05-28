@@ -32,6 +32,20 @@ let config: Config = yaml::from_str(input)?;
 let value: yaml::Value = yaml::from_slice(bytes)?;
 ```
 
+For low-friction compile checks, existing `serde_yaml::...` paths can also be
+kept while Cargo points that dependency name at this package:
+
+```toml
+[dependencies]
+serde_yaml = { package = "yaml", path = "/Users/jk/Desktop/yaml" }
+```
+
+That dependency-alias path is covered by
+`tests/fixtures/downstream/package-alias-smoke` and
+`scripts/downstream-build-trials.sh smoke-only`. It is a package-resolution
+tool for the covered public API surface, not a blanket promise that every
+`serde_yaml` behavior or formatting byte matches.
+
 The low-friction path is to replace owned config reads and common
 `serde_yaml::Value` usage first. Keep compatibility-sensitive code covered by
 tests that exercise the actual downstream YAML files.
@@ -183,6 +197,9 @@ testing each adopter's own YAML corpus.
 
 ## Required Call-Site Changes
 
+- For the covered public API surface, downstreams may first use
+  `serde_yaml = { package = "yaml", ... }` and keep existing `serde_yaml::...`
+  paths while compiling against this crate.
 - Replace `serde_yaml::Value`, `serde_yaml::Mapping`, and
   `serde_yaml::Number` imports with `yaml::Value`, `yaml::Mapping`, and
   `yaml::Number`.

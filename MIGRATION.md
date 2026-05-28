@@ -216,9 +216,11 @@ testing each adopter's own YAML corpus.
   YAML 1.2-oriented construction. Default loading still treats decimal-looking
   leading-zero scalars such as `0123` as decimal integers; YAML 1.1 opt-in
   treats the same spelling as octal. `tests/yaml11_conformance.rs` includes
-  directive-driven migration fixtures covering legacy boolean words, octal,
-  hex, sexagesimal, timestamps, explicit binary, collection tags, merge-key
-  expansion, and boolean-key duplicate diagnostics.
+  directive-driven migration fixtures covering legacy boolean words, null
+  spellings, float spellings, octal, hex, binary numeric, sexagesimal,
+  timestamp time-zone forms, explicit binary, invalid binary typed-target
+  diagnostics, collection tags, merge-key expansion, numeric-key collisions,
+  and boolean-key duplicate diagnostics.
 - YAML 1.1 collection tags are retained as tagged collections in `Node` and
   `Value`, not converted to new public value variants. Typed Serde reads
   understand `!!set` as set-like sequence targets from mapping keys, `!!omap`

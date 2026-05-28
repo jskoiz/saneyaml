@@ -67,6 +67,11 @@ struct LegacyServiceConfig {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+struct LegacyBinaryPayload {
+    payload: Vec<u8>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
 struct LegacyService {
     mode: i64,
     enabled: bool,
@@ -77,7 +82,7 @@ struct LegacyService {
 #[test]
 fn yaml11_conformance_manifest_is_complete() {
     let manifest = manifest();
-    assert_eq!(manifest.case.len(), 10);
+    assert_eq!(manifest.case.len(), 13);
     let manifest_paths = manifest
         .case
         .iter()
@@ -89,7 +94,15 @@ fn yaml11_conformance_manifest_is_complete() {
     for case in &manifest.case {
         assert!(matches!(
             case.kind.as_str(),
-            "set" | "omap" | "pairs" | "bundle" | "scalar-matrix" | "merge" | "duplicate-key"
+            "set"
+                | "omap"
+                | "pairs"
+                | "bundle"
+                | "scalar-matrix"
+                | "merge"
+                | "duplicate-key"
+                | "multi-doc"
+                | "binary"
         ));
         assert!(matches!(case.expected.as_str(), "accept" | "error"));
         assert!(
@@ -317,6 +330,123 @@ fn yaml11_legacy_bool_key_collision_fixture_keeps_default_safe_and_reports_legac
             .to_string()
             .contains("duplicate mapping key `true`")
     );
+    assert_eq!(directive.span().line, 4);
+    assert_eq!(directive.span().column, 1);
+}
+
+#[test]
+fn yaml11_legacy_scalar_edge_stream_switches_per_document() {
+    let source = read_fixture("legacy-scalar-edge-stream.yaml");
+    let docs: Vec<Value> = LoadOptions::yaml_version_directive()
+        .from_documents_str(&source)
+        .expect("directive-driven edge stream");
+
+    assert_eq!(docs.len(), 2);
+    let legacy = &docs[0];
+    assert!(legacy["nulls"]["tilde"].is_null());
+    assert!(legacy["nulls"]["lower"].is_null());
+    assert!(legacy["nulls"]["upper"].is_null());
+    assert!(
+        legacy["floats"]["inf"]
+            .as_f64()
+            .expect("positive infinity")
+            .is_infinite()
+    );
+    assert!(
+        legacy["floats"]["neg_inf"]
+            .as_f64()
+            .expect("negative infinity")
+            .is_sign_negative()
+    );
+    assert!(legacy["floats"]["nan"].as_f64().expect("NaN").is_nan());
+    assert_eq!(legacy["floats"]["sexagesimal"].as_f64(), Some(4830.5));
+    assert_eq!(legacy["numbers"]["invalid_octal"].as_str(), Some("09"));
+    assert_eq!(legacy["numbers"]["binary"].as_i64(), Some(10));
+    for (field, source) in [
+        ("date", "2026-05-24"),
+        ("datetime_z", "2026-05-24T12:34:56Z"),
+        ("spaced_offset", "2026-05-24 12:34:56 -7"),
+        ("fractional", "2026-05-24t12:34:56.789+05:30"),
+    ] {
+        assert_eq!(
+            legacy["timestamps"][field].as_timestamp(),
+            Timestamp::parse_yaml_1_1(source),
+            "{field} timestamp"
+        );
+    }
+    assert_eq!(legacy["payload"].as_str(), Some("SGVsbG8="));
+    assert_eq!(
+        legacy["payload"]
+            .as_tagged()
+            .expect("binary tag retained")
+            .tag,
+        yaml::Tag::new("!<tag:yaml.org,2002:binary>")
+    );
+
+    let defaulted = &docs[1];
+    assert_eq!(defaulted["flag"].as_str(), Some("ON"));
+    assert_eq!(defaulted["octal"].as_i64(), Some(123));
+    assert_eq!(defaulted["timestamp"].as_str(), Some("2026-05-24"));
+    assert!(defaulted["timestamp"].as_timestamp().is_none());
+
+    let streamed = LoadOptions::yaml_version_directive()
+        .deserializer_from_str(&source)
+        .map(Value::deserialize)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("directive-driven stream deserializes");
+    assert_eq!(streamed, docs);
+}
+
+#[test]
+fn yaml11_legacy_invalid_binary_fixture_reports_typed_decode_error() {
+    let source = read_fixture("legacy-invalid-binary.yaml");
+
+    let retained: Value = LoadOptions::yaml_version_directive()
+        .from_str(&source)
+        .expect("invalid binary spelling is retained until byte target decode");
+    assert_eq!(retained["payload"].as_str(), Some("SGVsbG8*"));
+    assert_eq!(
+        retained["payload"]
+            .as_tagged()
+            .expect("binary tag retained")
+            .tag,
+        yaml::Tag::new("!!binary")
+    );
+
+    let error = LoadOptions::yaml_version_directive()
+        .from_str::<LegacyBinaryPayload>(&source)
+        .expect_err("invalid binary payload rejects typed byte target");
+    assert!(
+        error
+            .to_string()
+            .contains("invalid explicit !!binary scalar"),
+        "{error}"
+    );
+    assert_eq!(error.span().line, 3);
+    assert_eq!(error.span().column, 19);
+}
+
+#[test]
+fn yaml11_legacy_numeric_key_collision_fixture_keeps_default_safe() {
+    let source = read_fixture("legacy-numeric-key-collision.yaml");
+
+    let default: Value = yaml::from_str(&source).expect("default keeps decimal key identity safe");
+    let Value::Mapping(default_entries) = default else {
+        panic!("expected default mapping");
+    };
+    assert_eq!(default_entries.len(), 2);
+
+    let explicit = LoadOptions::yaml_1_1()
+        .parse_str(&source)
+        .expect_err("explicit YAML 1.1 numeric keys collide");
+    assert!(explicit.to_string().contains("duplicate mapping key `8`"));
+    assert_eq!(explicit.span().line, 4);
+    assert_eq!(explicit.span().column, 1);
+
+    let directive = LoadOptions::yaml_version_directive()
+        .parse_str(&source)
+        .expect_err("directive-driven YAML 1.1 numeric keys collide");
+    assert!(directive.to_string().contains("duplicate mapping key `8`"));
     assert_eq!(directive.span().line, 4);
     assert_eq!(directive.span().column, 1);
 }

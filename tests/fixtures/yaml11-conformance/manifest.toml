@@ -67,3 +67,24 @@ path = "legacy-bool-key-collision.yaml"
 kind = "duplicate-key"
 tag = "%YAML 1.1"
 expected = "error"
+
+[[case]]
+id = "legacy-scalar-edge-stream"
+path = "legacy-scalar-edge-stream.yaml"
+kind = "multi-doc"
+tag = "%YAML 1.1"
+expected = "accept"
+
+[[case]]
+id = "legacy-invalid-binary"
+path = "legacy-invalid-binary.yaml"
+kind = "binary"
+tag = "%YAML 1.1"
+expected = "error"
+
+[[case]]
+id = "legacy-numeric-key-collision"
+path = "legacy-numeric-key-collision.yaml"
+kind = "duplicate-key"
+tag = "%YAML 1.1"
+expected = "error"

@@ -34,8 +34,8 @@ pub mod with;
 
 pub mod mapping {
     pub use crate::ast::{
-        Entry, Index, IntoIter, IntoKeys, IntoValues, Iter, IterMut, Keys, Mapping, OccupiedEntry,
-        VacantEntry, Values, ValuesMut,
+        Entry, IntoIter, IntoKeys, IntoValues, Iter, IterMut, Keys, Mapping, MappingIndex as Index,
+        OccupiedEntry, VacantEntry, Values, ValuesMut,
     };
 }
 

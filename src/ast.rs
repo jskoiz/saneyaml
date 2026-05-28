@@ -489,48 +489,44 @@ impl Mapping {
 
     pub fn remove<I>(&mut self, index: I) -> Option<Value>
     where
-        I: Index,
+        I: MappingIndex,
     {
         self.swap_remove(index)
     }
 
     pub fn remove_entry<I>(&mut self, index: I) -> Option<(Value, Value)>
     where
-        I: Index,
+        I: MappingIndex,
     {
         self.swap_remove_entry(index)
     }
 
     pub fn swap_remove<I>(&mut self, index: I) -> Option<Value>
     where
-        I: Index,
+        I: MappingIndex,
     {
-        let pos = mapping_index_position(self, &index)?;
-        Some(self.entries.swap_remove(pos).1)
+        index.swap_remove_from(self)
     }
 
     pub fn swap_remove_entry<I>(&mut self, index: I) -> Option<(Value, Value)>
     where
-        I: Index,
+        I: MappingIndex,
     {
-        let pos = mapping_index_position(self, &index)?;
-        Some(self.entries.swap_remove(pos))
+        index.swap_remove_entry_from(self)
     }
 
     pub fn shift_remove<I>(&mut self, index: I) -> Option<Value>
     where
-        I: Index,
+        I: MappingIndex,
     {
-        let pos = mapping_index_position(self, &index)?;
-        Some(self.entries.remove(pos).1)
+        index.shift_remove_from(self)
     }
 
     pub fn shift_remove_entry<I>(&mut self, index: I) -> Option<(Value, Value)>
     where
-        I: Index,
+        I: MappingIndex,
     {
-        let pos = mapping_index_position(self, &index)?;
-        Some(self.entries.remove(pos))
+        index.shift_remove_entry_from(self)
     }
 
     pub fn retain<F>(&mut self, mut keep: F)
@@ -542,23 +538,23 @@ impl Mapping {
 
     pub fn get<I>(&self, index: I) -> Option<&Value>
     where
-        I: Index,
+        I: MappingIndex,
     {
         index.index_into_mapping(self)
     }
 
     pub fn get_mut<I>(&mut self, index: I) -> Option<&mut Value>
     where
-        I: Index,
+        I: MappingIndex,
     {
         index.index_into_mapping_mut(self)
     }
 
     pub fn contains_key<I>(&self, index: I) -> bool
     where
-        I: Index,
+        I: MappingIndex,
     {
-        self.get(index).is_some()
+        index.is_key_into_mapping(self)
     }
 
     pub fn len(&self) -> usize {
@@ -1050,18 +1046,6 @@ impl<'a> VacantEntry<'a> {
     }
 }
 
-fn mapping_index_position<I>(mapping: &Mapping, index: &I) -> Option<usize>
-where
-    I: Index,
-{
-    let value = index.index_into_mapping(mapping)?;
-    let value_ptr = value as *const Value;
-    mapping
-        .entries
-        .iter()
-        .position(|(_, existing)| std::ptr::eq(existing, value_ptr))
-}
-
 impl Extend<(Value, Value)> for Mapping {
     fn extend<T: IntoIterator<Item = (Value, Value)>>(&mut self, iter: T) {
         for (key, value) in iter {
@@ -1109,7 +1093,7 @@ impl IntoIterator for Mapping {
 
 impl<I> StdIndex<I> for Mapping
 where
-    I: Index,
+    I: MappingIndex,
 {
     type Output = Value;
 
@@ -1122,7 +1106,7 @@ where
 
 impl<I> StdIndexMut<I> for Mapping
 where
-    I: Index,
+    I: MappingIndex,
 {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         index
@@ -1173,19 +1157,62 @@ impl<'de> Visitor<'de> for MappingVisitor {
     }
 }
 
-pub trait Index {
+mod index_private {
+    pub trait Sealed {}
+
+    impl Sealed for usize {}
+    impl Sealed for str {}
+    impl Sealed for String {}
+    impl Sealed for super::Value {}
+
+    impl<T> Sealed for &T where T: ?Sized + Sealed {}
+}
+
+/// A key type that can index into a YAML [`Value`].
+///
+/// This trait is sealed; downstream crates can use the built-in implementations
+/// for sequence indices (`usize`) and mapping keys (`str`, `String`, `Value`,
+/// and references to those types), but cannot implement new index types.
+pub trait Index: index_private::Sealed {
+    /// Returns the value at this index, or `None` if the current value does not
+    /// contain it.
     fn index_into<'a>(&self, value: &'a Value) -> Option<&'a Value>;
+    /// Returns the mutable value at this index, or `None` if the current value
+    /// does not contain it.
     fn index_into_mut<'a>(&self, value: &'a mut Value) -> Option<&'a mut Value>;
+    /// Returns the mutable value at this index, inserting null mapping entries
+    /// for missing mapping keys where `serde_yaml` would.
     fn index_or_insert<'a>(&self, value: &'a mut Value) -> &'a mut Value;
+}
+
+/// A key type that can index directly into a YAML [`Mapping`].
+///
+/// This trait is sealed; downstream crates can use string-like keys or `Value`
+/// keys, but cannot implement new mapping index types. Unlike [`Index`], this
+/// trait does not include `usize` because a `Mapping` has no sequence position
+/// indexing surface.
+pub trait MappingIndex: index_private::Sealed {
+    /// Returns whether the mapping contains this key.
+    fn is_key_into_mapping(&self, mapping: &Mapping) -> bool;
+    /// Returns the value for this key, if present.
     fn index_into_mapping<'a>(&self, mapping: &'a Mapping) -> Option<&'a Value>;
+    /// Returns the mutable value for this key, if present.
     fn index_into_mapping_mut<'a>(&self, mapping: &'a mut Mapping) -> Option<&'a mut Value>;
+    /// Removes this key using swap removal.
+    fn swap_remove_from(&self, mapping: &mut Mapping) -> Option<Value>;
+    /// Removes this key and value using swap removal.
+    fn swap_remove_entry_from(&self, mapping: &mut Mapping) -> Option<(Value, Value)>;
+    /// Removes this key while preserving order.
+    fn shift_remove_from(&self, mapping: &mut Mapping) -> Option<Value>;
+    /// Removes this key and value while preserving order.
+    fn shift_remove_entry_from(&self, mapping: &mut Mapping) -> Option<(Value, Value)>;
 }
 
 impl Index for usize {
     fn index_into<'a>(&self, value: &'a Value) -> Option<&'a Value> {
         match value {
             Value::Sequence(items) => items.get(*self),
-            Value::Mapping(mapping) => self.index_into_mapping(mapping),
+            Value::Mapping(mapping) => mapping.get(numeric_index_key(*self)),
             Value::Tagged(tagged) => self.index_into(&tagged.value),
             _ => None,
         }
@@ -1194,7 +1221,7 @@ impl Index for usize {
     fn index_into_mut<'a>(&self, value: &'a mut Value) -> Option<&'a mut Value> {
         match value {
             Value::Sequence(items) => items.get_mut(*self),
-            Value::Mapping(mapping) => self.index_into_mapping_mut(mapping),
+            Value::Mapping(mapping) => mapping.get_mut(numeric_index_key(*self)),
             Value::Tagged(tagged) => self.index_into_mut(&mut tagged.value),
             _ => None,
         }
@@ -1210,9 +1237,6 @@ impl Index for usize {
                     });
                 }
                 Value::Mapping(mapping) => {
-                    if let Some(index) = numeric_index_position_in_mapping(mapping, *self) {
-                        return &mut mapping.entries[index].1;
-                    }
                     return mapping
                         .entry(numeric_index_key(*self))
                         .or_insert(Value::Null);
@@ -1224,14 +1248,6 @@ impl Index for usize {
                 ),
             }
         }
-    }
-
-    fn index_into_mapping<'a>(&self, mapping: &'a Mapping) -> Option<&'a Value> {
-        numeric_index_position_in_mapping(mapping, *self).map(|index| &mapping.entries[index].1)
-    }
-
-    fn index_into_mapping_mut<'a>(&self, mapping: &'a mut Mapping) -> Option<&'a mut Value> {
-        numeric_index_position_in_mapping(mapping, *self).map(|index| &mut mapping.entries[index].1)
     }
 }
 
@@ -1272,18 +1288,6 @@ impl Index for str {
             }
         }
     }
-
-    fn index_into_mapping<'a>(&self, mapping: &'a Mapping) -> Option<&'a Value> {
-        mapping.entries.iter().find_map(|(key, value)| {
-            matches!(key, Value::String(existing) if existing == self).then_some(value)
-        })
-    }
-
-    fn index_into_mapping_mut<'a>(&self, mapping: &'a mut Mapping) -> Option<&'a mut Value> {
-        mapping.entries.iter_mut().find_map(|(key, value)| {
-            matches!(key, Value::String(existing) if existing == self).then_some(value)
-        })
-    }
 }
 
 impl Index for &str {
@@ -1297,14 +1301,6 @@ impl Index for &str {
 
     fn index_or_insert<'a>(&self, value: &'a mut Value) -> &'a mut Value {
         str::index_or_insert(self, value)
-    }
-
-    fn index_into_mapping<'a>(&self, mapping: &'a Mapping) -> Option<&'a Value> {
-        str::index_into_mapping(self, mapping)
-    }
-
-    fn index_into_mapping_mut<'a>(&self, mapping: &'a mut Mapping) -> Option<&'a mut Value> {
-        str::index_into_mapping_mut(self, mapping)
     }
 }
 
@@ -1320,20 +1316,12 @@ impl Index for String {
     fn index_or_insert<'a>(&self, value: &'a mut Value) -> &'a mut Value {
         self.as_str().index_or_insert(value)
     }
-
-    fn index_into_mapping<'a>(&self, mapping: &'a Mapping) -> Option<&'a Value> {
-        self.as_str().index_into_mapping(mapping)
-    }
-
-    fn index_into_mapping_mut<'a>(&self, mapping: &'a mut Mapping) -> Option<&'a mut Value> {
-        self.as_str().index_into_mapping_mut(mapping)
-    }
 }
 
 impl Index for Value {
     fn index_into<'a>(&self, value: &'a Value) -> Option<&'a Value> {
         match value {
-            Value::Mapping(mapping) => self.index_into_mapping(mapping),
+            Value::Mapping(mapping) => mapping.get(self),
             Value::Tagged(tagged) => self.index_into(&tagged.value),
             _ => None,
         }
@@ -1341,7 +1329,7 @@ impl Index for Value {
 
     fn index_into_mut<'a>(&self, value: &'a mut Value) -> Option<&'a mut Value> {
         match value {
-            Value::Mapping(mapping) => self.index_into_mapping_mut(mapping),
+            Value::Mapping(mapping) => mapping.get_mut(self),
             Value::Tagged(tagged) => self.index_into_mut(&mut tagged.value),
             _ => None,
         }
@@ -1365,20 +1353,6 @@ impl Index for Value {
             }
         }
     }
-
-    fn index_into_mapping<'a>(&self, mapping: &'a Mapping) -> Option<&'a Value> {
-        mapping
-            .entries
-            .iter()
-            .find_map(|(key, value)| (key == self).then_some(value))
-    }
-
-    fn index_into_mapping_mut<'a>(&self, mapping: &'a mut Mapping) -> Option<&'a mut Value> {
-        mapping
-            .entries
-            .iter_mut()
-            .find_map(|(key, value)| (key == self).then_some(value))
-    }
 }
 
 impl Index for &Value {
@@ -1393,13 +1367,145 @@ impl Index for &Value {
     fn index_or_insert<'a>(&self, value: &'a mut Value) -> &'a mut Value {
         (*self).index_or_insert(value)
     }
+}
+
+impl MappingIndex for str {
+    fn is_key_into_mapping(&self, mapping: &Mapping) -> bool {
+        mapping
+            .entries
+            .iter()
+            .any(|(key, _)| matches!(key, Value::String(existing) if existing == self))
+    }
 
     fn index_into_mapping<'a>(&self, mapping: &'a Mapping) -> Option<&'a Value> {
-        (*self).index_into_mapping(mapping)
+        mapping.entries.iter().find_map(|(key, value)| {
+            matches!(key, Value::String(existing) if existing == self).then_some(value)
+        })
     }
 
     fn index_into_mapping_mut<'a>(&self, mapping: &'a mut Mapping) -> Option<&'a mut Value> {
-        (*self).index_into_mapping_mut(mapping)
+        mapping.entries.iter_mut().find_map(|(key, value)| {
+            matches!(key, Value::String(existing) if existing == self).then_some(value)
+        })
+    }
+
+    fn swap_remove_from(&self, mapping: &mut Mapping) -> Option<Value> {
+        string_index_position_in_mapping(mapping, self)
+            .map(|index| mapping.entries.swap_remove(index).1)
+    }
+
+    fn swap_remove_entry_from(&self, mapping: &mut Mapping) -> Option<(Value, Value)> {
+        string_index_position_in_mapping(mapping, self)
+            .map(|index| mapping.entries.swap_remove(index))
+    }
+
+    fn shift_remove_from(&self, mapping: &mut Mapping) -> Option<Value> {
+        string_index_position_in_mapping(mapping, self).map(|index| mapping.entries.remove(index).1)
+    }
+
+    fn shift_remove_entry_from(&self, mapping: &mut Mapping) -> Option<(Value, Value)> {
+        string_index_position_in_mapping(mapping, self).map(|index| mapping.entries.remove(index))
+    }
+}
+
+impl MappingIndex for String {
+    fn is_key_into_mapping(&self, mapping: &Mapping) -> bool {
+        self.as_str().is_key_into_mapping(mapping)
+    }
+
+    fn index_into_mapping<'a>(&self, mapping: &'a Mapping) -> Option<&'a Value> {
+        self.as_str().index_into_mapping(mapping)
+    }
+
+    fn index_into_mapping_mut<'a>(&self, mapping: &'a mut Mapping) -> Option<&'a mut Value> {
+        self.as_str().index_into_mapping_mut(mapping)
+    }
+
+    fn swap_remove_from(&self, mapping: &mut Mapping) -> Option<Value> {
+        self.as_str().swap_remove_from(mapping)
+    }
+
+    fn swap_remove_entry_from(&self, mapping: &mut Mapping) -> Option<(Value, Value)> {
+        self.as_str().swap_remove_entry_from(mapping)
+    }
+
+    fn shift_remove_from(&self, mapping: &mut Mapping) -> Option<Value> {
+        self.as_str().shift_remove_from(mapping)
+    }
+
+    fn shift_remove_entry_from(&self, mapping: &mut Mapping) -> Option<(Value, Value)> {
+        self.as_str().shift_remove_entry_from(mapping)
+    }
+}
+
+impl MappingIndex for Value {
+    fn is_key_into_mapping(&self, mapping: &Mapping) -> bool {
+        mapping.entries.iter().any(|(key, _)| key == self)
+    }
+
+    fn index_into_mapping<'a>(&self, mapping: &'a Mapping) -> Option<&'a Value> {
+        mapping
+            .entries
+            .iter()
+            .find_map(|(key, value)| (key == self).then_some(value))
+    }
+
+    fn index_into_mapping_mut<'a>(&self, mapping: &'a mut Mapping) -> Option<&'a mut Value> {
+        mapping
+            .entries
+            .iter_mut()
+            .find_map(|(key, value)| (key == self).then_some(value))
+    }
+
+    fn swap_remove_from(&self, mapping: &mut Mapping) -> Option<Value> {
+        value_index_position_in_mapping(mapping, self)
+            .map(|index| mapping.entries.swap_remove(index).1)
+    }
+
+    fn swap_remove_entry_from(&self, mapping: &mut Mapping) -> Option<(Value, Value)> {
+        value_index_position_in_mapping(mapping, self)
+            .map(|index| mapping.entries.swap_remove(index))
+    }
+
+    fn shift_remove_from(&self, mapping: &mut Mapping) -> Option<Value> {
+        value_index_position_in_mapping(mapping, self).map(|index| mapping.entries.remove(index).1)
+    }
+
+    fn shift_remove_entry_from(&self, mapping: &mut Mapping) -> Option<(Value, Value)> {
+        value_index_position_in_mapping(mapping, self).map(|index| mapping.entries.remove(index))
+    }
+}
+
+impl<T> MappingIndex for &T
+where
+    T: ?Sized + MappingIndex,
+{
+    fn is_key_into_mapping(&self, mapping: &Mapping) -> bool {
+        (**self).is_key_into_mapping(mapping)
+    }
+
+    fn index_into_mapping<'a>(&self, mapping: &'a Mapping) -> Option<&'a Value> {
+        (**self).index_into_mapping(mapping)
+    }
+
+    fn index_into_mapping_mut<'a>(&self, mapping: &'a mut Mapping) -> Option<&'a mut Value> {
+        (**self).index_into_mapping_mut(mapping)
+    }
+
+    fn swap_remove_from(&self, mapping: &mut Mapping) -> Option<Value> {
+        (**self).swap_remove_from(mapping)
+    }
+
+    fn swap_remove_entry_from(&self, mapping: &mut Mapping) -> Option<(Value, Value)> {
+        (**self).swap_remove_entry_from(mapping)
+    }
+
+    fn shift_remove_from(&self, mapping: &mut Mapping) -> Option<Value> {
+        (**self).shift_remove_from(mapping)
+    }
+
+    fn shift_remove_entry_from(&self, mapping: &mut Mapping) -> Option<(Value, Value)> {
+        (**self).shift_remove_entry_from(mapping)
     }
 }
 
@@ -1429,13 +1535,18 @@ fn numeric_index_key(index: usize) -> Value {
     Value::Number(Number::Unsigned(index as u128))
 }
 
-fn numeric_index_position_in_mapping(mapping: &Mapping, index: usize) -> Option<usize> {
-    let index = index as u128;
-    mapping.entries.iter().position(|(key, _)| match key {
-        Value::Number(Number::Unsigned(value)) => *value == index,
-        Value::Number(Number::Integer(value)) => u128::try_from(*value).ok() == Some(index),
-        _ => false,
-    })
+fn value_index_position_in_mapping(mapping: &Mapping, index: &Value) -> Option<usize> {
+    mapping
+        .entries
+        .iter()
+        .position(|(existing, _)| existing == index)
+}
+
+fn string_index_position_in_mapping(mapping: &Mapping, index: &str) -> Option<usize> {
+    mapping
+        .entries
+        .iter()
+        .position(|(existing, _)| matches!(existing, Value::String(value) if value == index))
 }
 
 fn value_type_name(value: &Value) -> &'static str {

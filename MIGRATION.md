@@ -165,9 +165,12 @@ testing each adopter's own YAML corpus.
   as null in both crates.
 - Aliases are expanded into loaded trees; graph identity is not preserved.
 - Comments and original formatting are discarded.
-- `yaml::Index` is public for this prototype. Downstream code should use the
-  normal string/usize indexing and lookup APIs rather than implementing the
-  trait as a stable extension point.
+- `yaml::Index` and `yaml::mapping::Index` are sealed, like `serde_yaml`'s
+  indexing traits. Downstream code should use the normal string, `usize`, and
+  `Value` lookup APIs rather than implementing indexing as an extension point.
+  `usize` indexes `Value` sequences and numeric mapping keys; direct
+  `Mapping` indexing accepts string-like keys or `Value` keys, not sequence
+  positions.
 - Full upstream YAML test-suite coverage is not claimed; selected-suite scope
   and deferred parity cases remain documented in `BASELINE.md` and
   `COMPATIBILITY.md`.

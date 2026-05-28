@@ -2210,9 +2210,10 @@ fn serde_api_value_usize_index_reads_numeric_mapping_keys() {
     assert_eq!(value[42].as_str(), reference[42].as_str());
 
     let mut mapping: Mapping = yaml::from_str("42: answer\n").expect("mapping");
-    assert_eq!(mapping[42].as_str(), Some("answer"));
-    mapping[42] = Value::String("patched".to_string());
-    assert_eq!(mapping[42].as_str(), Some("patched"));
+    let key = Value::from(42);
+    assert_eq!(mapping.get(&key).and_then(Value::as_str), Some("answer"));
+    mapping.insert(key.clone(), Value::String("patched".to_string()));
+    assert_eq!(mapping.get(&key).and_then(Value::as_str), Some("patched"));
 }
 
 #[test]
@@ -2293,8 +2294,13 @@ fn serde_api_mapping_matches_common_serde_yaml_read_helpers() {
 
 #[test]
 fn serde_api_mapping_iterators_match_public_serde_yaml_surface() {
+    fn assert_value_index<T: ?Sized + yaml::Index>() {}
     fn assert_mapping_index<T: ?Sized + yaml::mapping::Index>() {}
 
+    assert_value_index::<usize>();
+    assert_value_index::<str>();
+    assert_value_index::<String>();
+    assert_value_index::<Value>();
     assert_mapping_index::<str>();
     assert_mapping_index::<String>();
     assert_mapping_index::<Value>();

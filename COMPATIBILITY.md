@@ -74,7 +74,7 @@ Migration-facing API status is tracked by `MIGRATION.md` and the executable
 |---|---|---|
 | `from_str`, `from_slice`, `from_reader` | `yaml::from_str`, `yaml::from_slice`, `yaml::from_reader` | Config-shaped typed reads and `Value` reads covered; reader-backed borrowed targets remain owned-only |
 | `Deserializer::{from_str, from_slice, from_reader}` | `yaml::Deserializer::{from_str, from_slice, from_reader}` | Direct Serde use and stream iteration covered, with one empty-stream iterator divergence documented below |
-| `Value`, `Mapping`, `Number` | `yaml::Value`, `yaml::Mapping`, `yaml::Number` | Common read, mutation, indexing, helper, trait, and number conversion surfaces covered |
+| `Value`, `Mapping`, `Number` | `yaml::Value`, `yaml::Mapping`, `yaml::Number` | Common read, mutation, sealed indexing, helper, trait, and number conversion surfaces covered |
 | `value::to_value`, `value::Serializer` | `yaml::value::to_value`, `yaml::value::Serializer` | Value-backed serialization covered for common config shapes, tags, bytes, and 128-bit integer policy |
 | `to_string`, `to_writer`, `Serializer` | `yaml::to_string`, `yaml::to_writer`, `yaml::Serializer` | Structural writer support covered; byte-for-byte emitter formatting parity remains out of scope |
 | `with::singleton_map`, `with::singleton_map_recursive` | `yaml::with::singleton_map`, `yaml::with::singleton_map_recursive` | Read/write enum-field annotation paths covered |
@@ -93,8 +93,10 @@ deserialize into `String`, `!Ports [80, 443]` into `Vec<u16>`, and
 match `serde_yaml::Value` by acting as empty sequence or mapping inputs when
 the target type asks for a collection, and parser-backed empty or void nodes
 also act as empty collection inputs while explicit `null` and `~` remain null
-scalars. String/index lookup returns a null sentinel for missing paths. Parser
-spans remain on
+scalars. String/index lookup returns a null sentinel for missing paths.
+`yaml::Index` and `yaml::mapping::Index` are sealed preview traits; use the
+built-in string, `usize`, and `Value` lookup surfaces instead of implementing
+custom index types. Parser spans remain on
 `yaml::Node`, whose recursive tree payload is `yaml::NodeValue`; typed
 `from_str` and `from_node` continue to deserialize from that spanful tree so
 error diagnostics keep source locations. Direct Serde use through

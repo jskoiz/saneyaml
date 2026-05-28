@@ -418,6 +418,10 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   `yaml-rust2` 0.11.0 and `saphyr` 0.0.6, covering the same GitHub Actions,
   Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and Ansible fixture set
   used by event parity
+- pinned external downstream replay fixtures from direct `serde_yaml` users:
+  Pingora typed server/proxy configs, rust-i18n locale maps, and cfn-guard
+  CloudFormation/rule-test YAML that exercises `serde_yaml::Value` plus
+  short-form intrinsic tags such as `!Ref`, `!GetAtt`, and `!Sub`
 
 The adoption path should be driven by failing conformance fixtures, real-world
 config incompatibilities, and safety gaps. Compatibility shims are deliberately

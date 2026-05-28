@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::net::Ipv4Addr;
 use std::path::{Path, PathBuf};
+use yaml::{Tag, Value};
 
 const SOURCE: &str = include_str!("fixtures/downstream/SOURCE.toml");
 const FIXTURE_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/downstream");
@@ -30,7 +31,7 @@ struct DownstreamFixture {
 #[test]
 fn external_downstream_manifest_records_provenance_and_files() {
     let manifest = downstream_manifest();
-    assert_eq!(manifest.fixture.len(), 7);
+    assert_eq!(manifest.fixture.len(), 10);
 
     let projects: BTreeSet<_> = manifest
         .fixture
@@ -39,7 +40,11 @@ fn external_downstream_manifest_records_provenance_and_files() {
         .collect();
     assert_eq!(
         projects,
-        BTreeSet::from(["cloudflare/pingora", "longbridge/rust-i18n"])
+        BTreeSet::from([
+            "aws-cloudformation/cloudformation-guard",
+            "cloudflare/pingora",
+            "longbridge/rust-i18n",
+        ])
     );
 
     for fixture in manifest.fixture {
@@ -190,6 +195,86 @@ fn external_rust_i18n_unicode_and_placeholders_survive_migration() {
     assert_eq!(message, Some("你好，%{name}。这是你的消息：%{msg}"));
 }
 
+#[test]
+fn external_cfn_guard_cloudformation_template_matches_serde_yaml() {
+    let value = assert_value_matches_serde(include_str!(
+        "fixtures/downstream/cfn-guard/cfn-lambda.yaml"
+    ));
+
+    let service_token = &value["Resources"]["AllSecurityGroups"]["Properties"]["ServiceToken"];
+    assert_tagged_scalar(
+        service_token,
+        "GetAtt",
+        "AppendItemToListFunction.Arn",
+        "CloudFormation service token",
+    );
+
+    let zip_file = &value["Resources"]["AppendItemToListFunction"]["Properties"]["Code"]["ZipFile"];
+    let tagged = assert_tagged_scalar(zip_file, "Sub", "", "CloudFormation inline Lambda");
+    assert!(
+        tagged
+            .value
+            .as_str()
+            .is_some_and(|source| source.contains("exports.handler = function(event, context)")),
+        "inline Lambda body survives tagged block scalar"
+    );
+
+    let security_group_ids = &value["Resources"]["MyEC2Instance"]["Properties"]["SecurityGroupIds"];
+    assert_tagged_scalar(
+        security_group_ids,
+        "GetAtt",
+        "AllSecurityGroups.Value",
+        "CloudFormation security group id lookup",
+    );
+
+    let output = yaml::to_string(&value).expect("yaml writes cfn-guard template value");
+    let reparsed: Value = yaml::from_str(&output).expect("yaml reparses cfn-guard template output");
+    assert!(reparsed.equivalent(&value));
+}
+
+#[test]
+fn external_cfn_guard_rule_test_specs_match_serde_yaml() {
+    let test_spec = assert_value_matches_serde(include_str!(
+        "fixtures/downstream/cfn-guard/test-command-test.yaml"
+    ));
+    assert_eq!(
+        test_spec[0]["name"].as_str(),
+        Some("CodeBuild project with safe environment variables, PASS")
+    );
+    assert_eq!(
+        test_spec[0]["expectations"]["rules"]["REDSHIFT_ENCRYPTED_CMK"].as_str(),
+        Some("PASS")
+    );
+    assert_tagged_scalar(
+        &test_spec[0]["input"]["Resources"]["myCluster"]["Properties"]["KmsKeyId"]["Fn::ImportValue"],
+        "Sub",
+        "${pSecretKmsKey}",
+        "nested CloudFormation import value",
+    );
+
+    let s3_spec = assert_value_matches_serde(include_str!(
+        "fixtures/downstream/cfn-guard/s3-bucket-logging-enabled-tests.yaml"
+    ));
+    assert_eq!(
+        s3_spec[0]["expectations"]["rules"]["S3_BUCKET_LOGGING_ENABLED"].as_str(),
+        Some("SKIP")
+    );
+    assert_eq!(
+        s3_spec[2]["expectations"]["rules"]["S3_BUCKET_LOGGING_ENABLED"].as_str(),
+        Some("PASS")
+    );
+    assert_eq!(
+        s3_spec[3]["expectations"]["rules"]["S3_BUCKET_LOGGING_ENABLED"].as_str(),
+        Some("FAIL")
+    );
+    assert_tagged_scalar(
+        &s3_spec[2]["input"]["Resources"]["ExampleS3"]["Properties"]["LoggingConfiguration"]["DestinationBucketName"],
+        "Ref",
+        "LoggingBucket",
+        "S3 logging destination bucket",
+    );
+}
+
 fn downstream_manifest() -> DownstreamManifest {
     toml::from_str(SOURCE).expect("downstream SOURCE.toml parses")
 }
@@ -207,6 +292,31 @@ where
     let reference: T = serde_yaml::from_str(input).expect("serde_yaml downstream parse");
     assert_eq!(parsed, reference);
     parsed
+}
+
+fn assert_value_matches_serde(input: &str) -> Value {
+    let parsed: Value = yaml::from_str(input).expect("yaml downstream value parse");
+    let reference: serde_yaml::Value =
+        serde_yaml::from_str(input).expect("serde_yaml downstream value parse");
+    let reference = yaml::to_value(reference).expect("serde_yaml value converts to yaml::Value");
+    assert!(parsed.equivalent(&reference));
+    parsed
+}
+
+fn assert_tagged_scalar<'a>(
+    value: &'a Value,
+    expected_tag: &str,
+    expected_scalar: &str,
+    context: &str,
+) -> &'a yaml::TaggedValue {
+    let tagged = value
+        .as_tagged()
+        .unwrap_or_else(|| panic!("{context} must be tagged"));
+    assert_eq!(tagged.tag, Tag::new(expected_tag), "{context}");
+    if !expected_scalar.is_empty() {
+        assert_eq!(tagged.value.as_str(), Some(expected_scalar), "{context}");
+    }
+    tagged
 }
 
 fn lookup_locale_path<'a>(

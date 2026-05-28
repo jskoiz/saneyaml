@@ -1,0 +1,8 @@
+base: &base
+  ? [region, tier]
+  : inherited
+  simple: base
+target:
+  <<: *base
+  ? [region, tier]
+  : explicit

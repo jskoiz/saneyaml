@@ -1,0 +1,9 @@
+defaults: &defaults {retries: 3, timeout: 10}
+tagged: !Job
+  <<: *defaults
+  timeout: 30
+jobs:
+  - name: build
+    config: !Config
+      <<: *defaults
+      retries: 5

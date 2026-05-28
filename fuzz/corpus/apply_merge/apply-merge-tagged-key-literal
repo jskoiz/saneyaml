@@ -1,0 +1,1 @@
+target: {!Thing <<: tagged, plain: value}

@@ -1,0 +1,4 @@
+base: &base {a: 1, nested: {x: y}}
+target:
+  '<<': *base
+  b: 2

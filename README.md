@@ -27,6 +27,8 @@ The first milestone focuses on:
   value serialization, tagged values, and document markers.
 - A `serde_yaml` swap harness and migration-readiness report for common
   downstream config-loading paths.
+- Pinned external replay fixtures from Pingora, rust-i18n, and cfn-guard that
+  compare real downstream YAML inputs against `serde_yaml`.
 - A downstream-shaped migration harness, compileable migration example,
   Ubuntu-only CI workflow, non-mutating all-target fuzz smoke script, and
   real-world config benchmark command.

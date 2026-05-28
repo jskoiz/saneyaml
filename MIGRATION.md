@@ -95,6 +95,11 @@ from real `serde_yaml` users:
 - `longbridge/rust-i18n` at commit
   `97cf091c24e4bc09a0acb397a8d9d7da8b6abc56`, MIT, covering locale maps,
   nested translation trees, Unicode text, and interpolation placeholders.
+- `aws-cloudformation/cloudformation-guard` / `cfn-guard` 3.2.0 at commit
+  `ae35f4e6a5618ffb1f3653c084c450f82fc2fc51`, Apache-2.0, covering
+  CloudFormation templates and cfn-guard rule-test specs loaded through
+  `serde_yaml::Value`, including short-form intrinsic tags such as `!Ref`,
+  `!GetAtt`, and `!Sub`.
 
 Focused proof command:
 
@@ -179,6 +184,8 @@ testing each adopter's own YAML corpus.
 ## Next Adoption Blockers
 
 - Add migration-impact wording directly to every divergence record.
-- Add a third ecosystem replay and real external crate build trials before
-  claiming broad ecosystem replacement readiness.
+- Add real external crate build trials before claiming broad ecosystem
+  replacement readiness.
+- Keep growing `apply_merge` coverage with sustained fuzz runs and minimized
+  discoveries beyond the curated seed corpus.
 - Choose the public package name and final license before publishing.

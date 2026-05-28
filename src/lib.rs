@@ -28,6 +28,7 @@ mod de;
 mod emit;
 mod error;
 mod key_identity;
+pub mod lossless;
 mod parse;
 mod schema;
 mod ser;
@@ -60,6 +61,11 @@ pub use de::{
     from_reader, from_slice, from_str, from_value,
 };
 pub use error::{Diagnostic, Error, Location, RelatedDiagnostic, Result, Span};
+pub use lossless::{
+    AliasId, AnchorId, LosslessAlias, LosslessAnchor, LosslessDocument, LosslessNode,
+    LosslessNodeKind, LosslessStream, LosslessTrivia, LosslessTriviaKind, NodeId, parse_lossless,
+    parse_lossless_bytes,
+};
 pub use parse::{
     CollectionStyle, Event, EventAnchor, EventDocumentDirectives, EventMeta, EventTag,
     EventTagDirective, EventYamlVersion, ScalarStyle, parse_bytes, parse_documents, parse_events,

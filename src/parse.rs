@@ -2630,7 +2630,7 @@ fn push_preprocessed_line(out: &mut Vec<Line>, no: usize, start: usize, raw: Str
     Ok(())
 }
 
-fn comment_start(raw: &str) -> Option<usize> {
+pub(crate) fn comment_start(raw: &str) -> Option<usize> {
     let mut single = false;
     let mut double = false;
     let mut escaped = false;

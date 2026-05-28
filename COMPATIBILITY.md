@@ -3,8 +3,9 @@
 This crate is aiming at a replacement candidate for **Serde read paths first**:
 `serde_yaml`-style `from_str`, `from_slice`, and `from_reader` for common
 developer configuration files, with parser/tree/event behavior compared against
-`yaml-rust2` and `saphyr`. It is not claiming byte-for-byte emitter parity or a
-lossless YAML editor surface.
+`yaml-rust2` and `saphyr`. It now includes a source-backed lossless graph view
+for retaining existing YAML text, but it is not claiming byte-for-byte emitter
+parity or an editable lossless formatting engine for modified documents.
 
 The compatibility target is intentionally split:
 
@@ -22,12 +23,12 @@ The compatibility target is intentionally split:
 | `on`, `off`, `yes`, `no` | Strings by default; booleans in explicit YAML 1.1 construction, including duplicate-key collisions such as `on` and `yes` | Often booleans; aliases like `on` and `yes` can collide as the same key | Compare per schema | Usually data-model dependent |
 | Duplicate keys | Error for duplicate scalar, sequence, and mapping keys after alias expansion, with mapping-key identity order-insensitive like public `Mapping` equality and typed scalar key domains distinct (`1` and `"1"` are different keys); nonnegative signed and unsigned integer keys share identity; signed-zero float keys share identity; raw events still expose duplicate keys | Psych/libyaml can construct duplicate scalar keys as last-wins values | yaml-rust2 rejects some duplicate collection keys, while saphyr accepts selected cases such as X38W | `serde_yaml` rejects duplicate scalar keys |
 | Merge key `<<` | Expanded by default in loaded trees and Serde `Value` reads after alias expansion; raw events still expose `<<` and alias references; `Value::apply_merge()` remains available for caller-built values | Common legacy feature, often expanded with earlier merge-list mappings winning and explicit target keys overriding merged keys | Preserved literally in current tree loaders | Preserved literally in `Value`; opt-in `Value::apply_merge()` expands merges |
-| Anchors and aliases | Supported for acyclic value expansion; graph identity is not preserved; colon-bearing anchor names and anchors on empty scalar nodes are accepted with recorded tree-shape divergences | Supported, sometimes with graph identity and legacy loader-specific tree shapes | Supported by clone-on-alias loading; saphyr loads selected empty scalar anchor nodes as empty strings | Data-model dependent, accepted in common read paths |
+| Anchors and aliases | Semantic `Node`/`Value` loading supports acyclic value expansion and does not preserve graph identity; `LosslessStream` preserves alias-to-anchor identity with stable graph ids; colon-bearing anchor names and anchors on empty scalar nodes are accepted with recorded tree-shape divergences | Supported, sometimes with graph identity and legacy loader-specific tree shapes | Supported by clone-on-alias loading; saphyr loads selected empty scalar anchor nodes as empty strings | Data-model dependent, accepted in common read paths |
 | Custom tags | Preserved as tagged tree/Value nodes for `Value` and Serde enum support; transparent metadata for ordinary typed Serde reads; `%TAG` handles are resolved for the following explicit document; undeclared named handles are rejected; schema coercion is not implemented | Supported as tags | Supported as tags | Partial/lossy |
 | Multiline quoted flow scalars | Supported with YAML line folding | Some libyaml paths reject selected YAML 1.2 flow-key cases | Accepted by yaml-rust2/saphyr | Some cases rejected |
 | Adjacent flow mapping values | Accept YAML 1.2 adjacent flow mapping values, including colon-prefixed adjacent plain scalars | Psych/libyaml accepts C2DT but rejects 5MUD, 5T43, and 58MP | yaml-rust2/saphyr accept all four selected cases | `serde_yaml` accepts C2DT but rejects 5MUD, 5T43, and 58MP |
 | Bare/explicit document streams | YAML 1.2 bare documents after `...` are supported, including root literal scalars whose content begins at column 1, and directive-looking lines inside open flow collections are parsed as content | Some libyaml-era paths reject these streams or treat percent-prefixed flow content as directive-sensitive | Accepted by yaml-rust2/saphyr | `serde_yaml` rejects the full M7A3 stream after the first document and rejects UT92 |
-| Comments/formatting | Discarded | Not semantic | Not semantic | Discarded |
+| Comments/formatting | Semantic `Node`/`Value` loaders discard comments and formatting; `LosslessStream` retains the original source for byte-stable replay and exposes comments/blank lines as trivia | Not semantic | Not semantic | Discarded |
 | Emission | Deterministic structural YAML for emittable trees; duplicate-effective mapping keys, over-depth trees including caller-built complex keys, and directly nested tags are rejected before output; public writers follow `serde_yaml` document-marker policy by omitting `---` for the first ordinary document and inserting `---` between stream documents | Manual comparison only | Manual comparison only | Public writer document-marker policy is matched; byte-for-byte formatting parity remains out of scope |
 | Numeric, timestamp, and binary extensions | Decimal ints/floats plus underscores and YAML special floats are resolved by default; explicit YAML 1.1 construction also resolves leading-zero octal, hex, binary numeric, and two/three-part sexagesimal int/float forms that fit `Number`, retains timestamp-shaped plain scalars as `!!timestamp` tagged strings, and decodes explicit `!!binary` only for typed byte targets | YAML 1.1 has broad numeric/timestamp/binary typing, including sexagesimal and legacy radix forms in libyaml/Psych paths | YAML 1.2 core support varies by crate | Data-model dependent |
 | Directives | Numeric `%YAML` version directives and `%TAG` are accepted as syntax/event inputs; reserved unknown directives are ignored but still require an explicit document start; version directives do not switch scalar schema; directive metadata is exposed on `DocumentStart` events | Exposed and may affect version/schema handling | Exposed by parser layers | Usually not a Serde value |
@@ -68,6 +69,8 @@ Current read APIs:
   `yaml::with::singleton_map_recursive::serialize` for write-side enum field
   annotations compatible with the corresponding `serde_yaml::with` helpers
 - `yaml::parse_str`, `parse_bytes`, `parse_documents`, and `parse_events`
+- `yaml::parse_lossless`, `parse_lossless_bytes`, and `yaml::LosslessStream`
+  for source-backed comment/trivia preservation and anchor/alias graph identity
 - `yaml::LoadOptions::{new, yaml_1_1, schema}` and `yaml::Schema` for explicit
   construction-schema selection across parser and Serde read entrypoints
 
@@ -200,8 +203,10 @@ A normalized loaded-tree parity harness also compares selected document value
 shapes against `yaml-rust2::YamlLoader` and `saphyr::Yaml`. It strips tag
 metadata when comparing with `yaml-rust2`, whose tree type has no tag variant,
 and keeps a separate tag-preserving comparison against `saphyr` for custom
-tagged nodes. This is value-shape parity, not a claim of graph identity,
-lossless source preservation, or universal schema agreement.
+tagged nodes. This is value-shape parity, not a claim of graph identity in the
+semantic loaded tree or universal schema agreement. Use `yaml::LosslessStream`
+when the caller needs source-backed comments, scalar spelling, and alias graph
+identity.
 
 Relative to libyaml, the event layer maps document implicitness to explicit
 marker booleans, document directives to `DocumentStart` metadata, scalar and
@@ -211,9 +216,11 @@ style to `ScalarStyle`, and sequence/mapping spelling to `CollectionStyle`.
 marker token itself; directives stay on `DocumentStart`, and root properties
 after `---` stay on the following node event. `%TAG` directives are
 per-document and do not leak. Libyaml-only event metadata remains intentionally
-out of scope: scalar plain/quoted implicit tag flags, sequence/mapping implicit
-tag flags, raw scalar spelling, schema construction decisions, and graph
-identity are not exposed.
+out of scope for `parse_events`: scalar plain/quoted implicit tag flags,
+sequence/mapping implicit tag flags, raw scalar spelling, schema construction
+decisions, and graph identity are not exposed there. `LosslessStream` keeps the
+source buffer and links aliases to stable anchor ids for graph-sensitive
+callers.
 
 Event policy:
 
@@ -271,13 +278,16 @@ Serde numeric policy:
 - integer range errors from `from_str`, `from_slice`, `from_reader`,
   `from_node`, and `Deserializer::from_str` preserve the scalar span.
 
-Known event limitations remain:
+Known event and semantic-loader limitations remain:
 
-- raw scalar spelling is not exposed; scalar event values are normalized
+- raw scalar spelling is not exposed by `parse_events`; scalar event values are
+  normalized. `LosslessStream::source_fragment(node.span())` can recover the
+  source spelling for retained graph nodes.
 - document start markers can carry root node content/properties such as
   `--- &root`, but document end markers still reject non-comment trailing text
 - tree loading still expands acyclic aliases and does not preserve graph
   identity, even though `parse_events` exposes alias events without expansion
+  and `LosslessStream` exposes alias-to-anchor identity separately
 
 ## Fixture Gates
 

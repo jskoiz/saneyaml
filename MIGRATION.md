@@ -69,6 +69,9 @@ Additional crate surfaces useful during migration:
   `from_documents_reader` return typed vectors for YAML streams.
 - `yaml::parse_events` and `yaml::parse_documents` expose parser/event proof
   surfaces that `serde_yaml` does not provide directly.
+- `yaml::parse_lossless` and `yaml::LosslessStream` provide a separate
+  source-backed graph surface for callers that need byte-stable replay,
+  comments/trivia, scalar spelling, directives, and alias-to-anchor identity.
 
 ## Executable Proof
 
@@ -188,8 +191,11 @@ testing each adopter's own YAML corpus.
   `from_reader(empty)` yield one null document, matching
   `serde_yaml::Deserializer::from_str("")`. Direct `from_str::<Value>("")` and
   direct `Value::deserialize(...)` also treat empty input as null in both crates.
-- Aliases are expanded into loaded trees; graph identity is not preserved.
-- Comments and original formatting are discarded.
+- Aliases are expanded into semantic `Node`/`Value` loaded trees; graph identity
+  is preserved only through the separate `LosslessStream` API.
+- Comments and original formatting are discarded by semantic `Node`/`Value`
+  loaders, but retained by `LosslessStream` for source-backed replay and graph
+  inspection.
 - `yaml::Index` and `yaml::mapping::Index` are sealed, like `serde_yaml`'s
   indexing traits. Downstream code should use the normal string, `usize`, and
   `Value` lookup APIs rather than implementing indexing as an extension point.
@@ -207,6 +213,6 @@ testing each adopter's own YAML corpus.
   smoke before claiming broad ecosystem replacement readiness.
 - Keep growing default merge and `apply_merge` coverage with sustained fuzz
   runs and minimized discoveries beyond the curated seed corpus.
-- Finish native date/time APIs, comment/format preservation, and alias graph
-  identity before claiming full YAML compatibility.
+- Finish native date/time APIs, editable lossless formatting/emission, and the
+  long-term graph API contract before claiming full YAML compatibility.
 - Choose the public package name and final license before publishing.

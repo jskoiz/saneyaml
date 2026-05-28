@@ -22,6 +22,9 @@ The first milestone focuses on:
 - Acyclic anchors and aliases expanded into the loaded tree.
 - Default YAML merge-key expansion for loaded trees and Serde reads, while raw
   parser events still expose `<<` and alias events.
+- A source-backed `yaml::parse_lossless` / `yaml::LosslessStream` API that
+  keeps the original source for byte-stable replay, exposes comments and blank
+  lines as trivia, and represents anchors/aliases with stable graph ids.
 - Deterministic structural emission with `parse(emit(tree)) == tree` for
   emittable trees; duplicate-effective mapping keys, untagged literal merge
   keys, over-depth trees, and directly nested tags are rejected before output.
@@ -48,8 +51,9 @@ Intentional first-milestone non-goals:
 
 - Full YAML 1.1 compatibility: native date/time values and broader schema/API
   decisions still remain.
-- YAML graph identity, comment preservation, lossless formatting, and
-  directive-preserving emission.
+- Editable lossless formatting for modified documents, directive-preserving
+  structural emission, and graph identity in the semantic `Node`/`Value`
+  loaders.
 - Kubernetes schema validation or automated ecosystem migration tooling.
 
 ## Verification
@@ -59,6 +63,7 @@ cargo test --test serde_yaml_swap_harness
 cargo test --test downstream_migration_harness
 cargo test --test external_downstream_migration
 cargo test --test libyaml_probe_manifest
+cargo test --test lossless_roundtrip --test graph_identity
 scripts/downstream-build-trials.sh rust-i18n
 cargo test --test baseline_audit
 RUSTDOCFLAGS='-D missing_docs' cargo doc --no-deps

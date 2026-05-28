@@ -72,6 +72,9 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_case_summary_contains(&artifact, "duplicate-scalar-keys", "second");
     assert_case_summary_contains(&artifact, "explicit-core-tags", "Hello");
     assert_case_summary_contains(&artifact, "explicit-core-tags", "123");
+    assert_case_summary_contains(&artifact, "explicit-core-tags", "string_null");
+    assert_case_summary_contains(&artifact, "explicit-core-tags", "TrueClass");
+    assert_case_summary_contains(&artifact, "explicit-core-tags", "NilClass");
     assert_case_summary_contains(&artifact, "null-like-string-targets", "NilClass");
     assert_case_summary_contains(&artifact, "numeric-key-identity", "Float");
 

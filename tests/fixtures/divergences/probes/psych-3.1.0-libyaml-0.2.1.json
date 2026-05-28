@@ -289,6 +289,56 @@
               "class": "Float",
               "value": "4830.5"
             }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "string_null"
+            },
+            "value": {
+              "class": "String",
+              "value": "null"
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "string_bool"
+            },
+            "value": {
+              "class": "String",
+              "value": "true"
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "bool_on"
+            },
+            "value": {
+              "class": "TrueClass",
+              "value": true
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "bool_false"
+            },
+            "value": {
+              "class": "FalseClass",
+              "value": false
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "null_value"
+            },
+            "value": {
+              "class": "NilClass",
+              "value": null
+            }
           }
         ]
       }

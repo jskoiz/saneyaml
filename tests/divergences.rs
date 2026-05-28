@@ -323,6 +323,9 @@ fn divergence_explicit_core_tags_record_is_present() {
     assert!(record.contains("explicit-core-tags"));
     assert!(record.contains("!!timestamp"));
     assert!(record.contains("!!float .inf"));
+    assert!(record.contains("!!str null"));
+    assert!(record.contains("!!bool ON"));
+    assert!(record.contains("!!null null"));
     assert!(record.contains("serde_yaml 0.9.34"));
     assert!(record.contains("yaml-rust2 0.11.0"));
     assert!(record.contains("saphyr 0.0.6"));
@@ -331,6 +334,8 @@ fn divergence_explicit_core_tags_record_is_present() {
     assert!(record.contains("Infinity"));
     assert!(record.contains("BadValue"));
     assert!(record.contains("typed byte targets decode explicit !!binary"));
+    assert!(record.contains("explicit !!str values override implicit scalar resolution"));
+    assert!(record.contains("explicit !!bool and !!null typed reads"));
     assert!(record.contains("explicit !!timestamp yaml::Timestamp reads"));
     assert!(record.contains("decision"));
 }
@@ -344,7 +349,7 @@ fn divergence_explicit_core_tags_reference_matrix_matches_record() {
         record.contains("saphyr 0.0.6 reports !!binary, !!int 0x7B, and !!timestamp as BadValue")
     );
 
-    let input = "payload: !!binary SGVsbG8=\nvalue: !!int 0x7B\ndate: !!timestamp 2026-05-24\ninf: !!float .inf\n";
+    let input = "payload: !!binary SGVsbG8=\nvalue: !!int 0x7B\ndate: !!timestamp 2026-05-24\ninf: !!float .inf\nstring_null: !!str null\nbool_true: !!bool true\nnull_value: !!null null\n";
 
     let ours: yaml::Value = yaml::from_str(input).expect("ours explicit core tags");
     assert_eq!(
@@ -367,6 +372,12 @@ fn divergence_explicit_core_tags_reference_matrix_matches_record() {
         ours["inf"].as_tagged().expect("float tag").tag,
         yaml::Tag::new("!!float")
     );
+    assert_eq!(ours["string_null"].as_str(), Some("null"));
+    assert_eq!(ours["bool_true"].as_bool(), Some(true));
+    assert_eq!(ours["null_value"].as_null(), Some(()));
+    let ours_bool_on: bool =
+        yaml::from_str("!!bool ON\n").expect("ours explicit YAML 1.1 bool tag");
+    assert!(ours_bool_on);
 
     let serde_yaml: serde_yaml::Value =
         serde_yaml::from_str(input).expect("serde_yaml explicit core tags");
@@ -378,6 +389,17 @@ fn divergence_explicit_core_tags_reference_matrix_matches_record() {
             .as_f64()
             .expect("serde_yaml inf")
             .is_infinite()
+    );
+    assert_eq!(serde_yaml["string_null"].as_str(), Some("null"));
+    assert_eq!(serde_yaml["bool_true"].as_bool(), Some(true));
+    assert!(serde_yaml["null_value"].is_null());
+    let serde_yaml_bool_on =
+        serde_yaml::from_str::<bool>("!!bool ON\n").expect_err("serde_yaml rejects !!bool ON");
+    assert!(
+        serde_yaml_bool_on
+            .to_string()
+            .contains("expected a boolean"),
+        "{serde_yaml_bool_on}"
     );
 
     let yaml_rust2 =

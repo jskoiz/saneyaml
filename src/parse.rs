@@ -3266,7 +3266,7 @@ fn core_scalar_tag_preserves_source(tag: &Tag) -> bool {
     tag.handle == "!!"
         && matches!(
             tag.suffix.as_str(),
-            "binary" | "float" | "int" | "timestamp"
+            "binary" | "bool" | "float" | "int" | "null" | "str" | "timestamp"
         )
 }
 
@@ -3361,15 +3361,7 @@ fn parse_scalar_with_schema(text: &str, span: Span, schema: Schema) -> Result<No
 }
 
 fn parse_yaml11_bool(text: &str) -> Option<bool> {
-    match text {
-        "y" | "Y" | "yes" | "Yes" | "YES" | "true" | "True" | "TRUE" | "on" | "On" | "ON" => {
-            Some(true)
-        }
-        "n" | "N" | "no" | "No" | "NO" | "false" | "False" | "FALSE" | "off" | "Off" | "OFF" => {
-            Some(false)
-        }
-        _ => None,
-    }
+    yaml11::parse_bool(text)
 }
 
 fn yaml11_timestamp_node(text: &str, span: Span) -> Node {

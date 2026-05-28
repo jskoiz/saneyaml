@@ -381,6 +381,12 @@ struct CoercedNumber {
     span: Option<Span>,
 }
 
+#[derive(Clone, Copy)]
+struct CoercedBool {
+    value: bool,
+    span: Option<Span>,
+}
+
 fn explicit_core_int_number_node(node: &Node) -> Result<Option<CoercedNumber>, Error> {
     let Some(node) = explicit_core_tagged_node(node, "int") else {
         return Ok(None);
@@ -447,6 +453,48 @@ fn explicit_core_binary_bytes_node(node: &Node) -> Result<Option<Vec<u8>>, Error
     }
 }
 
+fn explicit_core_bool_node(node: &Node) -> Result<Option<CoercedBool>, Error> {
+    let Some(node) = explicit_core_tagged_node(node, "bool") else {
+        return Ok(None);
+    };
+    match &node.value {
+        NodeValue::Bool(value) => Ok(Some(CoercedBool {
+            value: *value,
+            span: Some(node.span),
+        })),
+        NodeValue::String(value) => {
+            let raw = node
+                .scalar_source()
+                .map(|source| source.raw())
+                .unwrap_or(value);
+            parse_explicit_core_bool_text(raw, Some(node.span)).map(|value| {
+                Some(CoercedBool {
+                    value,
+                    span: Some(node.span),
+                })
+            })
+        }
+        _ => Err(type_error("bool", node)),
+    }
+}
+
+fn explicit_core_null_node(node: &Node) -> Result<bool, Error> {
+    let Some(node) = explicit_core_tagged_node(node, "null") else {
+        return Ok(false);
+    };
+    match &node.value {
+        NodeValue::Null => Ok(true),
+        NodeValue::String(value) => {
+            let raw = node
+                .scalar_source()
+                .map(|source| source.raw())
+                .unwrap_or(value);
+            parse_explicit_core_null_text(raw, Some(node.span)).map(|()| true)
+        }
+        _ => Err(type_error("unit/null", node)),
+    }
+}
+
 fn explicit_core_tagged_node<'a>(mut node: &'a Node, suffix: &str) -> Option<&'a Node> {
     while let NodeValue::Tagged(tagged) = &node.value {
         if tagged.tag.handle == "!!" && tagged.tag.suffix == suffix {
@@ -497,6 +545,32 @@ fn explicit_core_binary_bytes_value(value: &Value) -> Result<Option<Vec<u8>>, Er
     }
 }
 
+fn explicit_core_bool_value(value: &Value) -> Result<Option<CoercedBool>, Error> {
+    let Some(value) = explicit_core_tagged_value(value, "bool") else {
+        return Ok(None);
+    };
+    match value {
+        Value::Bool(value) => Ok(Some(CoercedBool {
+            value: *value,
+            span: None,
+        })),
+        Value::String(value) => parse_explicit_core_bool_text(value, None)
+            .map(|value| Some(CoercedBool { value, span: None })),
+        other => Err(type_error_value("bool", other)),
+    }
+}
+
+fn explicit_core_null_value(value: &Value) -> Result<bool, Error> {
+    let Some(value) = explicit_core_tagged_value(value, "null") else {
+        return Ok(false);
+    };
+    match value {
+        Value::Null => Ok(true),
+        Value::String(value) => parse_explicit_core_null_text(value, None).map(|()| true),
+        other => Err(type_error_value("unit/null", other)),
+    }
+}
+
 fn explicit_core_tagged_value<'a>(mut value: &'a Value, suffix: &str) -> Option<&'a Value> {
     while let Value::Tagged(tagged) = value {
         if tagged.tag.handle == "!!" && tagged.tag.suffix == suffix {
@@ -530,6 +604,17 @@ fn parse_explicit_core_float_text(raw: &str, span: Option<Span>) -> Result<Numbe
         .parse::<f64>()
         .map(Number::from)
         .map_err(|_| Error::new("failed to parse explicit !!float scalar", span))
+}
+
+fn parse_explicit_core_bool_text(raw: &str, span: Option<Span>) -> Result<bool, Error> {
+    yaml11::parse_bool(raw)
+        .ok_or_else(|| Error::new("failed to parse explicit !!bool scalar", span))
+}
+
+fn parse_explicit_core_null_text(raw: &str, span: Option<Span>) -> Result<(), Error> {
+    yaml11::is_null(raw)
+        .then_some(())
+        .ok_or_else(|| Error::new("failed to parse explicit !!null scalar", span))
 }
 
 fn decode_yaml_binary(raw: &str, span: Option<Span>) -> Result<Vec<u8>, Error> {
@@ -825,6 +910,9 @@ impl<'de, 'tree> de::Deserializer<'de> for InputNode<'tree, 'de> {
     where
         V: Visitor<'de>,
     {
+        if let Some(value) = explicit_core_bool_node(self.node)? {
+            return with_optional_span(visitor.visit_bool(value.value), value.span);
+        }
         let node = self.untag().node;
         match &node.value {
             NodeValue::Bool(value) => visitor.visit_bool(*value),
@@ -1085,6 +1173,9 @@ impl<'de, 'tree> de::Deserializer<'de> for InputNode<'tree, 'de> {
     where
         V: Visitor<'de>,
     {
+        if explicit_core_null_node(self.node)? {
+            return visitor.visit_none();
+        }
         let node = self.untag();
         match &node.node.value {
             NodeValue::Null => visitor.visit_none(),
@@ -1096,6 +1187,9 @@ impl<'de, 'tree> de::Deserializer<'de> for InputNode<'tree, 'de> {
     where
         V: Visitor<'de>,
     {
+        if explicit_core_null_node(self.node)? {
+            return visitor.visit_unit();
+        }
         let node = self.untag().node;
         match &node.value {
             NodeValue::Null => visitor.visit_unit(),
@@ -1289,6 +1383,9 @@ impl<'de> de::Deserializer<'de> for &'de Node {
     where
         V: Visitor<'de>,
     {
+        if let Some(value) = explicit_core_bool_node(self)? {
+            return with_optional_span(visitor.visit_bool(value.value), value.span);
+        }
         let node = untag_node(self);
         match &node.value {
             NodeValue::Bool(value) => visitor.visit_bool(*value),
@@ -1554,6 +1651,9 @@ impl<'de> de::Deserializer<'de> for &'de Node {
     where
         V: Visitor<'de>,
     {
+        if explicit_core_null_node(self)? {
+            return visitor.visit_none();
+        }
         let node = untag_node(self);
         match &node.value {
             NodeValue::Null => visitor.visit_none(),
@@ -1565,6 +1665,9 @@ impl<'de> de::Deserializer<'de> for &'de Node {
     where
         V: Visitor<'de>,
     {
+        if explicit_core_null_node(self)? {
+            return visitor.visit_unit();
+        }
         let node = untag_node(self);
         match &node.value {
             NodeValue::Null => visitor.visit_unit(),
@@ -1738,6 +1841,9 @@ impl<'de> de::Deserializer<'de> for Node {
     where
         V: Visitor<'de>,
     {
+        if let Some(value) = explicit_core_bool_node(&self)? {
+            return with_optional_span(visitor.visit_bool(value.value), value.span);
+        }
         let node = untag_node_owned(self);
         match node.value {
             NodeValue::Bool(value) => visitor.visit_bool(value),
@@ -1994,6 +2100,9 @@ impl<'de> de::Deserializer<'de> for Node {
     where
         V: Visitor<'de>,
     {
+        if explicit_core_null_node(&self)? {
+            return visitor.visit_none();
+        }
         let node = untag_node_owned(self);
         match node.value {
             NodeValue::Null => visitor.visit_none(),
@@ -2009,6 +2118,9 @@ impl<'de> de::Deserializer<'de> for Node {
     where
         V: Visitor<'de>,
     {
+        if explicit_core_null_node(&self)? {
+            return visitor.visit_unit();
+        }
         let node = untag_node_owned(self);
         match node.value {
             NodeValue::Null => visitor.visit_unit(),
@@ -2186,6 +2298,9 @@ impl<'de> de::Deserializer<'de> for Value {
     where
         V: Visitor<'de>,
     {
+        if let Some(value) = explicit_core_bool_value(&self)? {
+            return with_optional_span(visitor.visit_bool(value.value), value.span);
+        }
         match untag_value_owned(self) {
             Value::Bool(value) => visitor.visit_bool(value),
             other => Err(type_error_value("bool", &other)),
@@ -2391,6 +2506,9 @@ impl<'de> de::Deserializer<'de> for Value {
     where
         V: Visitor<'de>,
     {
+        if explicit_core_null_value(&self)? {
+            return visitor.visit_none();
+        }
         match untag_value_owned(self) {
             Value::Null => visitor.visit_none(),
             other => visitor.visit_some(other),
@@ -2401,6 +2519,9 @@ impl<'de> de::Deserializer<'de> for Value {
     where
         V: Visitor<'de>,
     {
+        if explicit_core_null_value(&self)? {
+            return visitor.visit_unit();
+        }
         match untag_value_owned(self) {
             Value::Null => visitor.visit_unit(),
             other => Err(type_error_value("unit/null", &other)),
@@ -3461,6 +3582,9 @@ impl<'de> de::Deserializer<'de> for &'de Value {
     where
         V: Visitor<'de>,
     {
+        if let Some(value) = explicit_core_bool_value(self)? {
+            return with_optional_span(visitor.visit_bool(value.value), value.span);
+        }
         let value = untag_value(self);
         match value {
             Value::Bool(value) => visitor.visit_bool(*value),
@@ -3682,6 +3806,9 @@ impl<'de> de::Deserializer<'de> for &'de Value {
     where
         V: Visitor<'de>,
     {
+        if explicit_core_null_value(self)? {
+            return visitor.visit_none();
+        }
         let value = untag_value(self);
         match value {
             Value::Null => visitor.visit_none(),
@@ -3693,6 +3820,9 @@ impl<'de> de::Deserializer<'de> for &'de Value {
     where
         V: Visitor<'de>,
     {
+        if explicit_core_null_value(self)? {
+            return visitor.visit_unit();
+        }
         let value = untag_value(self);
         match value {
             Value::Null => visitor.visit_unit(),

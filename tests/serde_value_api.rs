@@ -3174,6 +3174,97 @@ nan: !!float .nan
 }
 
 #[test]
+fn serde_api_explicit_core_scalar_tags_override_implicit_resolution() {
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct ExplicitCoreScalars {
+        string_null: String,
+        optional_string_null: Option<String>,
+        string_bool: String,
+        yes: bool,
+        off: bool,
+        maybe: Option<String>,
+        unit: (),
+    }
+
+    let input = "\
+string_null: !!str null
+optional_string_null: !!str null
+string_bool: !!str true
+yes: !!bool YES
+off: !!bool off
+maybe: !!null null
+unit: !!null ~
+";
+    let expected = ExplicitCoreScalars {
+        string_null: "null".to_string(),
+        optional_string_null: Some("null".to_string()),
+        string_bool: "true".to_string(),
+        yes: true,
+        off: false,
+        maybe: None,
+        unit: (),
+    };
+
+    let typed: ExplicitCoreScalars = yaml::from_str(input).expect("explicit core scalar tags");
+    let direct: ExplicitCoreScalars =
+        ExplicitCoreScalars::deserialize(yaml::Deserializer::from_str(input))
+            .expect("direct explicit core scalar tags");
+    let node = yaml::parse_str(input).expect("explicit core scalar tag node");
+    let from_node: ExplicitCoreScalars =
+        yaml::from_node(&node).expect("explicit core scalar tags from node");
+    let value: Value = yaml::from_str(input).expect("explicit core scalar tag value");
+    let from_value: ExplicitCoreScalars =
+        yaml::from_value(value.clone()).expect("explicit core scalar tags from value");
+    let from_value_ref =
+        ExplicitCoreScalars::deserialize(&value).expect("explicit core scalar tags by ref");
+
+    assert_eq!(typed, expected);
+    assert_eq!(direct, expected);
+    assert_eq!(from_node, expected);
+    assert_eq!(from_value, expected);
+    assert_eq!(from_value_ref, expected);
+
+    assert_eq!(
+        value["string_null"].as_tagged().expect("!!str tag").tag,
+        Tag::new("!!str")
+    );
+    assert_eq!(value["string_null"].as_str(), Some("null"));
+    assert_eq!(value["string_bool"].as_str(), Some("true"));
+    assert_eq!(
+        value["yes"].as_tagged().expect("!!bool tag").tag,
+        Tag::new("!!bool")
+    );
+    assert_eq!(value["yes"].as_bool(), Some(true));
+    assert_eq!(value["off"].as_bool(), Some(false));
+    assert_eq!(
+        value["maybe"].as_tagged().expect("!!null tag").tag,
+        Tag::new("!!null")
+    );
+    assert_eq!(value["maybe"].as_null(), Some(()));
+
+    let directive_bool: bool = LoadOptions::yaml_version_directive()
+        .from_str("%YAML 1.1\n--- !!bool YES\n")
+        .expect("directive-driven explicit bool");
+    assert!(directive_bool);
+
+    let bool_error = yaml::from_str::<bool>("!!bool maybe\n").expect_err("invalid explicit bool");
+    assert!(
+        bool_error
+            .to_string()
+            .contains("failed to parse explicit !!bool scalar"),
+        "{bool_error}"
+    );
+    let null_error =
+        yaml::from_str::<Option<String>>("!!null foo\n").expect_err("invalid explicit null");
+    assert!(
+        null_error
+            .to_string()
+            .contains("failed to parse explicit !!null scalar"),
+        "{null_error}"
+    );
+}
+
+#[test]
 fn serde_api_percent_tag_resolves_handles_and_stays_transparent_for_typed_reads() {
     let input = "%TAG !e! tag:example.com,2026:\n---\nvalue: !e!Thing tagged\n";
     let value: Value = yaml::from_str(input).expect("tag directive value");

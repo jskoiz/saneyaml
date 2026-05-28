@@ -1,4 +1,4 @@
-use crate::{Error, Span, key_identity::same_key_identity};
+use crate::{Error, Span, key_identity::same_key_identity, yaml11};
 use serde::de::{self, EnumAccess, MapAccess, SeqAccess, VariantAccess, Visitor};
 use std::borrow::Cow;
 use std::cmp::Ordering;
@@ -650,8 +650,38 @@ fn tag_suffix_needs_verbatim(suffix: &str) -> bool {
                 .any(|ch| ch.is_whitespace() || matches!(ch, ',' | '[' | ']' | '{' | '}')))
 }
 
+fn is_core_tag(tag: &Tag, suffix: &str) -> bool {
+    tag.handle == "!!" && tag.suffix == suffix
+}
+
 fn is_timestamp_tag(tag: &Tag) -> bool {
-    tag.handle == "!!" && tag.suffix == "timestamp"
+    is_core_tag(tag, "timestamp")
+}
+
+fn is_bool_tag(tag: &Tag) -> bool {
+    is_core_tag(tag, "bool")
+}
+
+fn is_null_tag(tag: &Tag) -> bool {
+    is_core_tag(tag, "null")
+}
+
+fn explicit_core_bool_value(value: &Value) -> Option<bool> {
+    match value {
+        Value::Bool(value) => Some(*value),
+        Value::String(value) => yaml11::parse_bool(value),
+        Value::Tagged(tagged) => explicit_core_bool_value(&tagged.value),
+        _ => None,
+    }
+}
+
+fn explicit_core_null_value(value: &Value) -> Option<()> {
+    match value {
+        Value::Null => Some(()),
+        Value::String(value) if yaml11::is_null(value) => Some(()),
+        Value::Tagged(tagged) => explicit_core_null_value(&tagged.value),
+        _ => None,
+    }
 }
 
 /// Spanful YAML tagged node.
@@ -2159,8 +2189,12 @@ impl Value {
     /// Returns `Some(())` if this value is null.
     pub fn as_null(&self) -> Option<()> {
         match self {
+            Value::Null => Some(()),
+            Value::Tagged(tagged) if is_null_tag(&tagged.tag) => {
+                explicit_core_null_value(&tagged.value)
+            }
             Value::Tagged(tagged) => tagged.value.as_null(),
-            _ => self.is_null().then_some(()),
+            _ => None,
         }
     }
 
@@ -2168,6 +2202,9 @@ impl Value {
     pub fn as_bool(&self) -> Option<bool> {
         match self {
             Value::Bool(value) => Some(*value),
+            Value::Tagged(tagged) if is_bool_tag(&tagged.tag) => {
+                explicit_core_bool_value(&tagged.value)
+            }
             Value::Tagged(tagged) => tagged.value.as_bool(),
             _ => None,
         }
@@ -2284,14 +2321,12 @@ impl Value {
 
     /// Returns whether this value is null.
     pub fn is_null(&self) -> bool {
-        matches!(self, Value::Null)
-            || matches!(self, Value::Tagged(tagged) if tagged.value.is_null())
+        self.as_null().is_some()
     }
 
     /// Returns whether this value is a boolean.
     pub fn is_bool(&self) -> bool {
-        matches!(self, Value::Bool(_))
-            || matches!(self, Value::Tagged(tagged) if tagged.value.is_bool())
+        self.as_bool().is_some()
     }
 
     /// Returns whether this value is numeric.

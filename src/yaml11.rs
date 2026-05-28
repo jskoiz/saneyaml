@@ -1,5 +1,21 @@
 use crate::Number;
 
+pub(crate) fn parse_bool(text: &str) -> Option<bool> {
+    match text {
+        "y" | "Y" | "yes" | "Yes" | "YES" | "true" | "True" | "TRUE" | "on" | "On" | "ON" => {
+            Some(true)
+        }
+        "n" | "N" | "no" | "No" | "NO" | "false" | "False" | "FALSE" | "off" | "Off" | "OFF" => {
+            Some(false)
+        }
+        _ => None,
+    }
+}
+
+pub(crate) fn is_null(text: &str) -> bool {
+    text.is_empty() || text == "~" || text.eq_ignore_ascii_case("null")
+}
+
 pub(crate) fn parse_implicit_numeric_extension(text: &str) -> Option<Number> {
     if let Some(number) = parse_sexagesimal_number(text) {
         return Some(number);

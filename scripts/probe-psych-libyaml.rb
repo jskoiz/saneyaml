@@ -71,6 +71,11 @@ CASES = [
       timestamp: !!timestamp 2026-05-24
       float: !!float .inf
       sexagesimal_float: !!float 1:20:30.5
+      string_null: !!str null
+      string_bool: !!str true
+      bool_on: !!bool ON
+      bool_false: !!bool false
+      null_value: !!null null
     YAML
   },
   {

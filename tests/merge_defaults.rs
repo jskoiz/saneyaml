@@ -122,3 +122,18 @@ fn default_merge_keeps_tagged_merge_key_literal() {
         "tagged << key must not be default-expanded"
     );
 }
+
+#[test]
+fn default_merge_keeps_explicit_string_merge_key_literal() {
+    let input = "target: {!!str <<: tagged, plain: value}\n";
+    let value: Value = yaml::from_str(input).expect("explicit string merge key stays literal");
+    let target = value["target"].as_mapping().expect("target mapping");
+
+    assert_eq!(value["target"]["plain"].as_str(), Some("value"));
+    assert!(
+        target.keys().any(|key| matches!(key, Value::Tagged(tagged)
+            if tagged.tag == yaml::Tag::new("!!str")
+                && tagged.value.as_str() == Some("<<"))),
+        "explicit string << key must not be default-expanded"
+    );
+}

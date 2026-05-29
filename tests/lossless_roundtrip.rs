@@ -385,6 +385,12 @@ fn lossless_edit_rejects_invalid_structural_mapping_edits() {
         .delete_block_mapping_entry_source(flow_mapping.id(), "image")
         .expect_err("flow deletion rejected");
     assert!(error.to_string().contains("requires a block mapping"));
+
+    let block_error = stream
+        .edit()
+        .insert_flow_mapping_entry_source(service.id(), "ports: []")
+        .expect_err("block insertion through flow helper rejected");
+    assert!(block_error.to_string().contains("requires a flow mapping"));
 }
 
 #[test]
@@ -397,6 +403,50 @@ fn lossless_edit_inserts_block_mapping_entry_after_final_line_without_trailing_n
         .expect("insert final entry");
 
     assert_eq!(output, "service:\n  image: nginx\n  replicas: 2\n");
+}
+
+#[test]
+fn lossless_edit_structurally_updates_flow_mapping_entries() {
+    let input = "\
+service: {image: nginx, ports: [80], labels: {role: web}} # keep
+after: true
+";
+    let stream = parse_lossless(input).expect("lossless parse");
+    let service = flow_mapping_with_key(&stream, "image");
+
+    let mut edit = stream.edit();
+    edit.insert_flow_mapping_entry_source(service.id(), "replicas: 2")
+        .expect("insert flow entry");
+    edit.delete_flow_mapping_entry_source(service.id(), "ports")
+        .expect("delete flow entry");
+    let output = edit.finish().expect("validated flow mapping edit");
+
+    assert_eq!(
+        output,
+        "\
+service: {image: nginx, labels: {role: web}, replicas: 2} # keep
+after: true
+"
+    );
+    let edited = parse_lossless(&output).expect("edited source reparses");
+    assert_eq!(edited.comments().count(), 1);
+}
+
+#[test]
+fn lossless_edit_handles_empty_and_single_entry_flow_mappings() {
+    let empty = parse_lossless("service: {}\n").expect("lossless parse");
+    let mapping = flow_mapping_by_len(&empty, 0);
+    let output = empty
+        .insert_flow_mapping_entry_source(mapping.id(), "replicas: 2")
+        .expect("insert into empty flow mapping");
+    assert_eq!(output, "service: {replicas: 2}\n");
+
+    let single = parse_lossless("service: {replicas: 2}\n").expect("lossless parse");
+    let mapping = flow_mapping_by_len(&single, 1);
+    let output = single
+        .delete_flow_mapping_entry_source(mapping.id(), "replicas")
+        .expect("delete single flow mapping entry");
+    assert_eq!(output, "service: {}\n");
 }
 
 #[test]
@@ -486,6 +536,12 @@ fn lossless_edit_rejects_invalid_structural_sequence_edits() {
         .delete_block_sequence_item_source(flow_sequence.id(), 0)
         .expect_err("flow deletion rejected");
     assert!(error.to_string().contains("requires a block sequence"));
+
+    let block_error = stream
+        .edit()
+        .insert_flow_sequence_item_source(steps.id(), 1, "test")
+        .expect_err("block insertion through flow helper rejected");
+    assert!(block_error.to_string().contains("requires a flow sequence"));
 }
 
 #[test]
@@ -498,6 +554,41 @@ fn lossless_edit_appends_block_sequence_item_after_final_line_without_trailing_n
         .expect("append final item");
 
     assert_eq!(output, "steps:\n  - build\n  - test\n");
+}
+
+#[test]
+fn lossless_edit_structurally_updates_flow_sequence_items() {
+    let input = "steps: [build, test, deploy] # keep\n";
+    let stream = parse_lossless(input).expect("lossless parse");
+    let steps = flow_sequence_with_item(&stream, "build");
+
+    let mut edit = stream.edit();
+    edit.insert_flow_sequence_item_source(steps.id(), 1, "fmt")
+        .expect("insert flow item");
+    edit.delete_flow_sequence_item_source(steps.id(), 2)
+        .expect("delete flow item");
+    let output = edit.finish().expect("validated flow sequence edit");
+
+    assert_eq!(output, "steps: [build, fmt, test] # keep\n");
+    let edited = parse_lossless(&output).expect("edited source reparses");
+    assert_eq!(edited.comments().count(), 1);
+}
+
+#[test]
+fn lossless_edit_handles_empty_and_single_item_flow_sequences() {
+    let empty = parse_lossless("steps: []\n").expect("lossless parse");
+    let sequence = flow_sequence_by_len(&empty, 0);
+    let output = empty
+        .insert_flow_sequence_item_source(sequence.id(), 0, "build")
+        .expect("insert into empty flow sequence");
+    assert_eq!(output, "steps: [build]\n");
+
+    let single = parse_lossless("steps: [build]\n").expect("lossless parse");
+    let sequence = flow_sequence_by_len(&single, 1);
+    let output = single
+        .delete_flow_sequence_item_source(sequence.id(), 0)
+        .expect("delete single flow sequence item");
+    assert_eq!(output, "steps: []\n");
 }
 
 #[test]
@@ -548,6 +639,43 @@ fn lossless_edit_rejects_overlapping_replacements() {
     assert!(error.to_string().contains("lossless replacements overlap"));
 }
 
+fn flow_mapping_with_key<'a>(
+    stream: &'a yaml::LosslessStream,
+    key: &str,
+) -> &'a yaml::LosslessNode {
+    stream
+        .nodes()
+        .iter()
+        .find(|node| match node.kind() {
+            LosslessNodeKind::Mapping {
+                style: CollectionStyle::Flow,
+                entries,
+            } => entries.iter().any(|(key_id, _)| {
+                stream
+                    .node(*key_id)
+                    .is_some_and(|key_node| matches!(key_node.kind(), LosslessNodeKind::Scalar { value, .. } if value == key))
+            }),
+            _ => false,
+        })
+        .expect("flow mapping with key")
+}
+
+fn flow_mapping_by_len(stream: &yaml::LosslessStream, len: usize) -> &yaml::LosslessNode {
+    stream
+        .nodes()
+        .iter()
+        .find(|node| {
+            matches!(
+                node.kind(),
+                LosslessNodeKind::Mapping {
+                    style: CollectionStyle::Flow,
+                    entries,
+                } if entries.len() == len
+            )
+        })
+        .expect("flow mapping with entry count")
+}
+
 fn block_mapping_with_key<'a>(
     stream: &'a yaml::LosslessStream,
     key: &str,
@@ -588,6 +716,43 @@ fn block_sequence_with_item<'a>(
             _ => false,
         })
         .expect("block sequence with item")
+}
+
+fn flow_sequence_with_item<'a>(
+    stream: &'a yaml::LosslessStream,
+    value: &str,
+) -> &'a yaml::LosslessNode {
+    stream
+        .nodes()
+        .iter()
+        .find(|node| match node.kind() {
+            LosslessNodeKind::Sequence {
+                style: CollectionStyle::Flow,
+                children,
+            } => children.iter().any(|child| {
+                stream.node(*child).is_some_and(|child_node| {
+                    sequence_node_contains_scalar_value(stream, child_node, value)
+                })
+            }),
+            _ => false,
+        })
+        .expect("flow sequence with item")
+}
+
+fn flow_sequence_by_len(stream: &yaml::LosslessStream, len: usize) -> &yaml::LosslessNode {
+    stream
+        .nodes()
+        .iter()
+        .find(|node| {
+            matches!(
+                node.kind(),
+                LosslessNodeKind::Sequence {
+                    style: CollectionStyle::Flow,
+                    children,
+                } if children.len() == len
+            )
+        })
+        .expect("flow sequence with item count")
 }
 
 fn sequence_node_contains_scalar_value(

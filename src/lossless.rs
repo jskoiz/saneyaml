@@ -254,6 +254,30 @@ impl LosslessStream {
         edit.finish()
     }
 
+    /// Inserts one complete entry into a flow mapping and returns edited YAML.
+    ///
+    /// This is a convenience wrapper around
+    /// [`LosslessEdit::insert_flow_mapping_entry_source`].
+    pub fn insert_flow_mapping_entry_source(
+        &self,
+        mapping: NodeId,
+        entry_source: impl Into<String>,
+    ) -> Result<String> {
+        let mut edit = self.edit();
+        edit.insert_flow_mapping_entry_source(mapping, entry_source)?;
+        edit.finish()
+    }
+
+    /// Deletes one scalar-keyed flow mapping entry and returns edited YAML.
+    ///
+    /// This is a convenience wrapper around
+    /// [`LosslessEdit::delete_flow_mapping_entry_source`].
+    pub fn delete_flow_mapping_entry_source(&self, mapping: NodeId, key: &str) -> Result<String> {
+        let mut edit = self.edit();
+        edit.delete_flow_mapping_entry_source(mapping, key)?;
+        edit.finish()
+    }
+
     /// Replaces one sequence item's value source and returns edited YAML.
     ///
     /// This is a convenience wrapper around
@@ -295,6 +319,35 @@ impl LosslessStream {
     ) -> Result<String> {
         let mut edit = self.edit();
         edit.delete_block_sequence_item_source(sequence, index)?;
+        edit.finish()
+    }
+
+    /// Inserts one item into a flow sequence and returns edited YAML.
+    ///
+    /// This is a convenience wrapper around
+    /// [`LosslessEdit::insert_flow_sequence_item_source`].
+    pub fn insert_flow_sequence_item_source(
+        &self,
+        sequence: NodeId,
+        index: usize,
+        item_source: impl Into<String>,
+    ) -> Result<String> {
+        let mut edit = self.edit();
+        edit.insert_flow_sequence_item_source(sequence, index, item_source)?;
+        edit.finish()
+    }
+
+    /// Deletes one item from a flow sequence and returns edited YAML.
+    ///
+    /// This is a convenience wrapper around
+    /// [`LosslessEdit::delete_flow_sequence_item_source`].
+    pub fn delete_flow_sequence_item_source(
+        &self,
+        sequence: NodeId,
+        index: usize,
+    ) -> Result<String> {
+        let mut edit = self.edit();
+        edit.delete_flow_sequence_item_source(sequence, index)?;
         edit.finish()
     }
 }
@@ -493,6 +546,90 @@ impl LosslessEdit<'_> {
         self.delete_source_span(span)
     }
 
+    /// Inserts one complete mapping entry into a flow mapping.
+    ///
+    /// `entry_source` is raw YAML source that must parse as exactly one mapping
+    /// entry, for example `replicas: 2`. The entry is appended before the flow
+    /// mapping's closing `}` and the final stream is reparsed before
+    /// [`Self::finish`] returns it.
+    pub fn insert_flow_mapping_entry_source(
+        &mut self,
+        mapping: NodeId,
+        entry_source: impl Into<String>,
+    ) -> Result<&mut Self> {
+        let mapping_node = self.mapping_node(mapping)?;
+        let LosslessNodeKind::Mapping { style, entries } = mapping_node.kind() else {
+            unreachable!("mapping_node only returns mapping nodes");
+        };
+        if *style != CollectionStyle::Flow {
+            return Err(Error::new(
+                "structural mapping entry insertion requires a flow mapping",
+                Some(mapping_node.span()),
+            ));
+        }
+        let entry_source = entry_source.into();
+        ensure_single_mapping_entry_fragment(&entry_source, mapping_node.span())?;
+        let insertion = if let Some((_, last_value)) = entries.last() {
+            let last_value = self
+                .stream
+                .node(*last_value)
+                .ok_or_else(|| Error::new("lossless mapping value id is out of bounds", None))?;
+            let offset = last_value.span().end;
+            return self.insert_source(offset, format!(", {entry_source}"));
+        } else {
+            entry_source
+        };
+        let offset = self.flow_collection_closing_offset(mapping_node, b'}')?;
+        self.insert_source(offset, insertion)
+    }
+
+    /// Deletes one scalar-keyed entry from a flow mapping.
+    ///
+    /// The deletion also removes the adjacent comma separator so the remaining
+    /// flow mapping reparses while preserving unrelated source bytes.
+    pub fn delete_flow_mapping_entry_source(
+        &mut self,
+        mapping: NodeId,
+        key: &str,
+    ) -> Result<&mut Self> {
+        let mapping_node = self.mapping_node(mapping)?;
+        let LosslessNodeKind::Mapping { style, entries } = mapping_node.kind() else {
+            unreachable!("mapping_node only returns mapping nodes");
+        };
+        if *style != CollectionStyle::Flow {
+            return Err(Error::new(
+                "structural mapping entry deletion requires a flow mapping",
+                Some(mapping_node.span()),
+            ));
+        }
+        let (entry_index, entry) = self.unique_mapping_entry_index_by_key(mapping, key)?;
+        let key_node = self
+            .stream
+            .node(entry.key)
+            .ok_or_else(|| Error::new("lossless mapping key id is out of bounds", None))?;
+        let value_node = self
+            .stream
+            .node(entry.value)
+            .ok_or_else(|| Error::new("lossless mapping value id is out of bounds", None))?;
+        let (start, end) = if entries.len() == 1 {
+            (key_node.span().start, value_node.span().end)
+        } else if entry_index + 1 < entries.len() {
+            let next_key = self
+                .stream
+                .node(entries[entry_index + 1].0)
+                .ok_or_else(|| Error::new("lossless mapping key id is out of bounds", None))?;
+            (key_node.span().start, next_key.span().start)
+        } else {
+            let previous_value = self
+                .stream
+                .node(entries[entry_index - 1].1)
+                .ok_or_else(|| Error::new("lossless mapping value id is out of bounds", None))?;
+            (previous_value.span().end, value_node.span().end)
+        };
+        let span = self.stream.source_span(start, end)?;
+        self.delete_source_span(span)
+    }
+
     /// Replaces the value source for one sequence item.
     ///
     /// The replacement is raw YAML source for the item value. For block
@@ -628,6 +765,108 @@ impl LosslessEdit<'_> {
         self.delete_source_span(span)
     }
 
+    /// Inserts one complete item into a flow sequence.
+    ///
+    /// `item_source` is raw YAML source for the item value. The inserted source
+    /// is placed before the selected item index, or before the closing `]` when
+    /// appending, and the final stream is reparsed before [`Self::finish`]
+    /// returns it.
+    pub fn insert_flow_sequence_item_source(
+        &mut self,
+        sequence: NodeId,
+        index: usize,
+        item_source: impl Into<String>,
+    ) -> Result<&mut Self> {
+        let sequence_node = self.sequence_node(sequence)?;
+        let LosslessNodeKind::Sequence { style, children } = sequence_node.kind() else {
+            unreachable!("sequence_node only returns sequence nodes");
+        };
+        if *style != CollectionStyle::Flow {
+            return Err(Error::new(
+                "structural sequence item insertion requires a flow sequence",
+                Some(sequence_node.span()),
+            ));
+        }
+        if index > children.len() {
+            return Err(Error::new(
+                format!(
+                    "lossless sequence item index {index} is out of bounds for {} items",
+                    children.len()
+                ),
+                Some(sequence_node.span()),
+            ));
+        }
+        let item_source = item_source.into();
+        ensure_single_node_fragment(&item_source, sequence_node.span(), "sequence item source")?;
+        let insertion = if children.is_empty() {
+            item_source
+        } else if index == children.len() {
+            format!(", {item_source}")
+        } else {
+            format!("{item_source}, ")
+        };
+        let offset = if index == children.len() {
+            if let Some(last_child) = children.last() {
+                self.stream
+                    .node(*last_child)
+                    .ok_or_else(|| Error::new("lossless sequence item id is out of bounds", None))?
+                    .span()
+                    .end
+            } else {
+                self.flow_collection_closing_offset(sequence_node, b']')?
+            }
+        } else {
+            self.stream
+                .node(children[index])
+                .ok_or_else(|| Error::new("lossless sequence item id is out of bounds", None))?
+                .span()
+                .start
+        };
+        self.insert_source(offset, insertion)
+    }
+
+    /// Deletes one item from a flow sequence.
+    ///
+    /// The deletion also removes the adjacent comma separator so the remaining
+    /// flow sequence reparses while preserving unrelated source bytes.
+    pub fn delete_flow_sequence_item_source(
+        &mut self,
+        sequence: NodeId,
+        index: usize,
+    ) -> Result<&mut Self> {
+        let sequence_node = self.sequence_node(sequence)?;
+        let LosslessNodeKind::Sequence { style, children } = sequence_node.kind() else {
+            unreachable!("sequence_node only returns sequence nodes");
+        };
+        if *style != CollectionStyle::Flow {
+            return Err(Error::new(
+                "structural sequence item deletion requires a flow sequence",
+                Some(sequence_node.span()),
+            ));
+        }
+        let item = self.sequence_item(sequence, index)?;
+        let item_node = self
+            .stream
+            .node(item)
+            .ok_or_else(|| Error::new("lossless sequence item id is out of bounds", None))?;
+        let (start, end) =
+            if children.len() == 1 {
+                (item_node.span().start, item_node.span().end)
+            } else if index + 1 < children.len() {
+                let next_item = self.stream.node(children[index + 1]).ok_or_else(|| {
+                    Error::new("lossless sequence item id is out of bounds", None)
+                })?;
+                (item_node.span().start, next_item.span().start)
+            } else {
+                let previous_item = self.stream.node(children[index - 1]).ok_or_else(|| {
+                    Error::new("lossless sequence item id is out of bounds", None)
+                })?;
+                (previous_item.span().end, item_node.span().end)
+            };
+        let span = self.stream.source_span(start, end)?;
+        self.delete_source_span(span)
+    }
+
     /// Returns validated edited YAML with untouched source bytes preserved.
     pub fn finish(mut self) -> Result<String> {
         self.replacements
@@ -711,20 +950,35 @@ impl LosslessEdit<'_> {
     }
 
     fn unique_mapping_entry_by_key(&self, mapping: NodeId, key: &str) -> Result<MappingEntry> {
+        self.unique_mapping_entry_index_by_key(mapping, key)
+            .map(|(_, entry)| entry)
+    }
+
+    fn unique_mapping_entry_index_by_key(
+        &self,
+        mapping: NodeId,
+        key: &str,
+    ) -> Result<(usize, MappingEntry)> {
         let mapping_node = self.mapping_node(mapping)?;
         let LosslessNodeKind::Mapping { entries, .. } = mapping_node.kind() else {
             unreachable!("mapping_node only returns mapping nodes");
         };
-        let mut matches = entries.iter().filter_map(|(key_id, value_id)| {
-            let key_node = self.stream.node(*key_id)?;
-            match key_node.kind() {
-                LosslessNodeKind::Scalar { value, .. } if value == key => Some(MappingEntry {
-                    key: *key_id,
-                    value: *value_id,
-                }),
-                _ => None,
-            }
-        });
+        let mut matches = entries
+            .iter()
+            .enumerate()
+            .filter_map(|(index, (key_id, value_id))| {
+                let key_node = self.stream.node(*key_id)?;
+                match key_node.kind() {
+                    LosslessNodeKind::Scalar { value, .. } if value == key => Some((
+                        index,
+                        MappingEntry {
+                            key: *key_id,
+                            value: *value_id,
+                        },
+                    )),
+                    _ => None,
+                }
+            });
         let Some(entry) = matches.next() else {
             return Err(Error::new(
                 format!("lossless mapping entry {key:?} was not found"),
@@ -785,6 +1039,23 @@ impl LosslessEdit<'_> {
             ));
         }
         Ok(span)
+    }
+
+    fn flow_collection_closing_offset(&self, node: &LosslessNode, delimiter: u8) -> Result<usize> {
+        let span = node.span();
+        let Some(offset) = span.end.checked_sub(1) else {
+            return Err(Error::new(
+                "lossless flow collection span is empty",
+                Some(span),
+            ));
+        };
+        if self.stream.source.as_bytes().get(offset) != Some(&delimiter) {
+            return Err(Error::new(
+                "lossless flow collection closing delimiter was not found",
+                Some(span),
+            ));
+        }
+        Ok(offset)
     }
 
     fn validate_replacements(&self) -> Result<()> {

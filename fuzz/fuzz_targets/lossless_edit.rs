@@ -83,18 +83,32 @@ fn assert_structural_lossless_edit_invariants(
             edit.replace_mapping_value_source(mapping, &key, edit_input.replacement)
         }
         EditMode::MappingInsert => {
-            let Some(mapping) = select_block_mapping(stream, edit_input.selector) else {
+            let Some(mapping) = select_mapping_insertion(stream, edit_input.selector) else {
                 return true;
             };
-            edit.insert_block_mapping_entry_source(mapping, edit_input.replacement)
+            match mapping_style(stream, mapping) {
+                Some(CollectionStyle::Block) => {
+                    edit.insert_block_mapping_entry_source(mapping, edit_input.replacement)
+                }
+                Some(CollectionStyle::Flow) => {
+                    edit.insert_flow_mapping_entry_source(mapping, edit_input.replacement)
+                }
+                None => return true,
+            }
         }
         EditMode::MappingDelete => {
             let Some((mapping, key)) =
-                select_scalar_keyed_mapping(stream, edit_input.selector, true)
+                select_scalar_keyed_mapping(stream, edit_input.selector, false)
             else {
                 return true;
             };
-            edit.delete_block_mapping_entry_source(mapping, &key)
+            match mapping_style(stream, mapping) {
+                Some(CollectionStyle::Block) => {
+                    edit.delete_block_mapping_entry_source(mapping, &key)
+                }
+                Some(CollectionStyle::Flow) => edit.delete_flow_mapping_entry_source(mapping, &key),
+                None => return true,
+            }
         }
         EditMode::SequenceItem => {
             let Some((sequence, index)) = select_sequence_item(stream, edit_input.selector, false)
@@ -104,19 +118,34 @@ fn assert_structural_lossless_edit_invariants(
             edit.replace_sequence_item_source(sequence, index, edit_input.replacement)
         }
         EditMode::SequenceInsert => {
-            let Some((sequence, index)) =
-                select_block_sequence_insertion(stream, edit_input.selector)
+            let Some((sequence, index)) = select_sequence_insertion(stream, edit_input.selector)
             else {
                 return true;
             };
-            edit.insert_block_sequence_item_source(sequence, index, edit_input.replacement)
+            match sequence_style(stream, sequence) {
+                Some(CollectionStyle::Block) => {
+                    edit.insert_block_sequence_item_source(sequence, index, edit_input.replacement)
+                }
+                Some(CollectionStyle::Flow) => {
+                    edit.insert_flow_sequence_item_source(sequence, index, edit_input.replacement)
+                }
+                None => return true,
+            }
         }
         EditMode::SequenceDelete => {
-            let Some((sequence, index)) = select_sequence_item(stream, edit_input.selector, true)
+            let Some((sequence, index)) = select_sequence_item(stream, edit_input.selector, false)
             else {
                 return true;
             };
-            edit.delete_block_sequence_item_source(sequence, index)
+            match sequence_style(stream, sequence) {
+                Some(CollectionStyle::Block) => {
+                    edit.delete_block_sequence_item_source(sequence, index)
+                }
+                Some(CollectionStyle::Flow) => {
+                    edit.delete_flow_sequence_item_source(sequence, index)
+                }
+                None => return true,
+            }
         }
         _ => return false,
     };
@@ -296,16 +325,12 @@ fn select_scalar_keyed_mapping(
     candidates.get(selector % candidates.len()).cloned()
 }
 
-fn select_block_mapping(stream: &LosslessStream, selector: usize) -> Option<NodeId> {
+fn select_mapping_insertion(stream: &LosslessStream, selector: usize) -> Option<NodeId> {
     let candidates = stream
         .nodes()
         .iter()
         .filter_map(|node| match node.kind() {
-            LosslessNodeKind::Mapping { style, entries }
-                if *style == CollectionStyle::Block && !entries.is_empty() =>
-            {
-                Some(node.id())
-            }
+            LosslessNodeKind::Mapping { .. } => Some(node.id()),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -339,19 +364,12 @@ fn select_sequence_item(
     Some((sequence, selector % len))
 }
 
-fn select_block_sequence_insertion(
-    stream: &LosslessStream,
-    selector: usize,
-) -> Option<(NodeId, usize)> {
+fn select_sequence_insertion(stream: &LosslessStream, selector: usize) -> Option<(NodeId, usize)> {
     let candidates = stream
         .nodes()
         .iter()
         .filter_map(|node| match node.kind() {
-            LosslessNodeKind::Sequence { style, children }
-                if *style == CollectionStyle::Block && !children.is_empty() =>
-            {
-                Some((node.id(), children.len()))
-            }
+            LosslessNodeKind::Sequence { children, .. } => Some((node.id(), children.len())),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -360,6 +378,20 @@ fn select_block_sequence_insertion(
     }
     let (sequence, len) = candidates.get(selector % candidates.len()).copied()?;
     Some((sequence, selector % (len + 1)))
+}
+
+fn mapping_style(stream: &LosslessStream, mapping: NodeId) -> Option<CollectionStyle> {
+    match stream.node(mapping)?.kind() {
+        LosslessNodeKind::Mapping { style, .. } => Some(*style),
+        _ => None,
+    }
+}
+
+fn sequence_style(stream: &LosslessStream, sequence: NodeId) -> Option<CollectionStyle> {
+    match stream.node(sequence)?.kind() {
+        LosslessNodeKind::Sequence { style, .. } => Some(*style),
+        _ => None,
+    }
 }
 
 fn edited_source(source: &str, span: Span, replacement: &str) -> Option<String> {

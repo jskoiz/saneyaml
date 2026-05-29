@@ -85,12 +85,13 @@ Notable completed release-candidate behavior:
 - A Psych/libyaml coverage ledger now groups the 28 pinned probe cases into
   eight behavior families and tracks seven explicit next-probe gaps, keeping
   YAML 1.1/libyaml scope auditable without claiming blanket compatibility.
-- `LosslessEdit` now has source-backed scalar-keyed block mapping helpers for
-  value replacement, entry insertion, and entry deletion while preserving
-  untouched comments, aliases, and formatting and reparsing the final YAML.
-- `LosslessEdit` now also has source-backed block sequence helpers for item
-  replacement, insertion, and deletion with indentation-preserving source
-  formatting plus direct lossless-edit fuzz/property replay seeds.
+- `LosslessEdit` now has source-backed scalar-keyed block/flow mapping entry
+  helpers for value replacement, entry insertion, and entry deletion while
+  preserving untouched comments, aliases, and formatting and reparsing the
+  final YAML.
+- `LosslessEdit` now also has source-backed block/flow sequence item helpers for
+  item replacement, insertion, and deletion, with source-preserving formatting
+  plus direct lossless-edit fuzz/property replay seeds.
 - The YAML test-suite coverage ledger now pins the full upstream denominator at
   402 cases, maps the 131 selected cases to canonical upstream IDs, and records
   the 271 not-imported cases as explicit coverage debt.
@@ -101,6 +102,6 @@ Notable completed release-candidate behavior:
 
 Known release-candidate gaps remain tracked in `BASELINE.md`,
 `COMPATIBILITY.md`, and `MIGRATION.md`: complete YAML 1.1 ecosystem parity,
-full arbitrary structural lossless formatting beyond block mapping entry and
-block sequence item helpers, semantic `Node`/`Value` graph identity, final
-package metadata, and external publication.
+full arbitrary structural lossless formatting beyond targeted block/flow
+mapping entry and sequence item helpers, semantic `Node`/`Value` graph
+identity, final package metadata, and external publication.

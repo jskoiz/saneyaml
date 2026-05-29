@@ -1,0 +1,4 @@
+mode=seq-insert index=1
+steps: [build, test]
+=== yaml replacement ===
+fmt

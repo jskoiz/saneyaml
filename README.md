@@ -39,8 +39,9 @@ The first milestone focuses on:
   those ids against `yaml-rust2` and `saphyr` parser anchor events for
   manifest-owned selected YAML-suite anchor/alias cases, real-world Compose
   graph fixtures, and YAML 1.1 graph fixtures, and can produce validated node
-  and raw source-span edits, block mapping entry value/insert/delete edits,
-  block sequence item value/insert/delete edits, and raw insertions/deletions
+  and raw source-span edits, block/flow mapping entry
+  value/insert/delete edits, block/flow sequence item
+  value/insert/delete edits, and raw insertions/deletions
   while preserving untouched bytes. Real-world Docker Compose anchor cases
   including an adapted official Compose-spec fragment, YAML 1.1 merge/comment
   graph fixtures, and Ansible/Kubernetes lossless replay cases are
@@ -85,9 +86,9 @@ Intentional first-milestone non-goals:
   recovery, YAML 1.1 lossless graph parser-event cross-checks, and an
   eight-family Psych/libyaml coverage ledger are covered, but broader
   libyaml-era behavior and schema/API completeness decisions still remain.
-- Full arbitrary structural lossless editing beyond block mapping entry and
-  block sequence item helpers, directive-preserving structural emission, and
-  graph identity in the semantic `Node`/`Value` loaders.
+- Full arbitrary structural lossless editing beyond targeted block/flow mapping
+  entry and sequence item helpers, directive-preserving structural emission,
+  and graph identity in the semantic `Node`/`Value` loaders.
 - Full upstream YAML test-suite coverage is not claimed yet; the pinned
   coverage ledger records 402 upstream cases, 131 selected cases, and 271
   not-imported cases as explicit coverage debt.

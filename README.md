@@ -79,9 +79,9 @@ Intentional first-milestone non-goals:
 
 - Full YAML 1.1 compatibility: collection/structural tags, explicit scalar
   tags, directive-driven scalar edges, fixture-backed Psych-style merge-edge
-  recovery, and YAML 1.1 lossless graph parser-event cross-checks are covered,
-  but broader libyaml-era behavior and schema/API completeness decisions still
-  remain.
+  recovery, YAML 1.1 lossless graph parser-event cross-checks, and an
+  eight-family Psych/libyaml coverage ledger are covered, but broader
+  libyaml-era behavior and schema/API completeness decisions still remain.
 - Full structural lossless editing beyond validated source-span editing,
   directive-preserving structural emission, and graph identity in the semantic
   `Node`/`Value` loaders.

@@ -11,6 +11,8 @@ const PROBE_ARTIFACT: &str =
     include_str!("fixtures/divergences/probes/psych-3.1.0-libyaml-0.2.1.json");
 const PROBE_COMPARISON: &str =
     include_str!("fixtures/divergences/probes/psych-libyaml-comparison.toml");
+const PROBE_COVERAGE: &str =
+    include_str!("fixtures/divergences/probes/psych-libyaml-coverage.toml");
 const ROOT: &str = env!("CARGO_MANIFEST_DIR");
 
 #[test]
@@ -321,6 +323,135 @@ fn psych_libyaml_probe_cases_have_rust_policy_gate() {
                 rust_probe.output
             );
         }
+    }
+}
+
+#[test]
+fn psych_libyaml_probe_coverage_ledger_groups_all_pinned_cases() {
+    let artifact: Json = serde_json::from_str(PROBE_ARTIFACT).expect("probe artifact JSON");
+    let comparison: Toml = toml::from_str(PROBE_COMPARISON).expect("comparison manifest TOML");
+    let coverage: Toml = toml::from_str(PROBE_COVERAGE).expect("coverage ledger TOML");
+    assert_eq!(toml_str(&coverage, "schema"), "psych-libyaml-coverage-v1");
+    assert_eq!(artifact["ruby"].as_str(), Some(toml_str(&coverage, "ruby")));
+    assert_eq!(
+        artifact["psych"].as_str(),
+        Some(toml_str(&coverage, "psych")),
+    );
+    assert_eq!(
+        artifact["libyaml"].as_str(),
+        Some(toml_str(&coverage, "libyaml")),
+    );
+    assert!(
+        toml_str(&coverage, "coverage_policy")
+            .contains("not blanket YAML 1.1/libyaml compatibility"),
+        "coverage policy must avoid claiming blanket libyaml compatibility",
+    );
+
+    for path_key in ["probe_artifact", "comparison_manifest"] {
+        let path = toml_str(&coverage, path_key);
+        assert!(
+            Path::new(ROOT).join(path).is_file(),
+            "coverage ledger {path_key} must point to an existing file",
+        );
+    }
+
+    let artifact_ids = artifact["cases"]
+        .as_array()
+        .expect("artifact cases")
+        .iter()
+        .map(|case| case["id"].as_str().expect("artifact case id"))
+        .collect::<BTreeSet<_>>();
+    let comparison_cases = comparison["case"].as_array().expect("comparison cases");
+    let comparison_ids = comparison_cases
+        .iter()
+        .map(|case| toml_str(case, "id"))
+        .collect::<BTreeSet<_>>();
+    assert_eq!(comparison_ids, artifact_ids);
+    assert_eq!(
+        coverage["probe_case_count"].as_integer(),
+        Some(artifact_ids.len() as i64),
+    );
+
+    let families = coverage["behavior_family"]
+        .as_array()
+        .expect("coverage behavior families");
+    assert_eq!(
+        coverage["behavior_family_count"].as_integer(),
+        Some(families.len() as i64),
+    );
+    assert_eq!(families.len(), 8);
+
+    let mut family_ids = BTreeSet::new();
+    let mut family_case_union = BTreeSet::new();
+    for family in families {
+        let id = toml_str(family, "id");
+        assert!(family_ids.insert(id), "duplicate behavior family {id}");
+        assert!(
+            matches!(
+                toml_str(family, "status"),
+                "covered" | "partial" | "covered-divergence"
+            ),
+            "{id} must use a known coverage status",
+        );
+        for field in ["summary", "adoption_risk", "next_expansion"] {
+            assert!(
+                !toml_str(family, field).trim().is_empty(),
+                "{id} must document {field}",
+            );
+        }
+
+        let cases = toml_str_array(family, "cases");
+        assert!(!cases.is_empty(), "{id} must own at least one probe case");
+        for case_id in &cases {
+            assert!(
+                artifact_ids.contains(case_id),
+                "{id} references unknown probe case {case_id}",
+            );
+            family_case_union.insert(*case_id);
+        }
+
+        let actual_entrypoints = comparison_cases
+            .iter()
+            .filter(|case| cases.contains(&toml_str(case, "id")))
+            .map(|case| toml_str(case, "rust_entrypoint"))
+            .collect::<BTreeSet<_>>();
+        for entrypoint in toml_str_array(family, "rust_entrypoints") {
+            assert!(
+                actual_entrypoints.contains(entrypoint),
+                "{id} must include a case for rust entrypoint {entrypoint}",
+            );
+        }
+    }
+    assert_eq!(
+        family_case_union, artifact_ids,
+        "every pinned Psych/libyaml probe case must belong to a behavior family",
+    );
+
+    let gaps = coverage["tracked_gap"]
+        .as_array()
+        .expect("coverage tracked gaps");
+    assert_eq!(
+        coverage["tracked_gap_count"].as_integer(),
+        Some(gaps.len() as i64),
+    );
+    assert_eq!(gaps.len(), 7);
+    let mut gap_ids = BTreeSet::new();
+    for gap in gaps {
+        let id = toml_str(gap, "id");
+        assert!(gap_ids.insert(id), "duplicate tracked gap {id}");
+        let family = toml_str(gap, "family");
+        assert!(
+            family_ids.contains(family),
+            "tracked gap {id} must link to a behavior family",
+        );
+        assert!(
+            !toml_str(gap, "reason").trim().is_empty(),
+            "tracked gap {id} must explain why coverage is incomplete",
+        );
+        assert!(
+            !toml_str_array(gap, "next_probe_candidates").is_empty(),
+            "tracked gap {id} must list next probe candidates",
+        );
     }
 }
 

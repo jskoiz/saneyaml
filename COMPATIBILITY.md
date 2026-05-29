@@ -22,8 +22,11 @@ The compatibility target is intentionally split:
   `psych-libyaml-comparison.toml` manifest classifies every pinned probe case
   as matching Psych/libyaml or as an intentional Rust policy divergence, then
   `libyaml_probe_manifest` executes the matching Rust parser, value, directive,
-  or lossless entrypoint. Default loading stays YAML 1.2-oriented; explicit
-  YAML 1.1 construction covers the scalar forms listed here with
+  or lossless entrypoint. A separate `psych-libyaml-coverage.toml` ledger groups
+  the 28 pinned probe cases into eight behavior families and tracks the next
+  missing libyaml-era probes without claiming blanket compatibility. Default
+  loading stays YAML 1.2-oriented; explicit YAML 1.1 construction covers the
+  scalar forms listed here with
   `yaml::Timestamp` typed reads while keeping byte payloads tagged unless the
   caller asks for a typed byte target.
 
@@ -292,7 +295,10 @@ rejection, and directive-looking flow-content rejection. The
 Rust-vs-Psych policy manifest now gates all 28 pinned cases against this crate's
 chosen default, YAML 1.1, directive-driven, event, or lossless entrypoint,
 checks the Psych input SHA-256 digests against the Rust comparison inputs, and
-requires intentional divergences to link back to migration-impact records.
+requires intentional divergences to link back to migration-impact records. The
+Psych/libyaml coverage ledger keeps those 28 cases grouped into eight behavior
+families and seven tracked gaps so the remaining YAML 1.1/libyaml work is
+auditable rather than implicit.
 This crate keeps alias identity in the lossless graph surface, not semantic
 `Node` or `Value` trees. `graph_identity` now also compares
 `LosslessStream` anchor definitions and alias targets against normalized

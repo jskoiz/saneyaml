@@ -79,6 +79,9 @@ Notable completed release-candidate behavior:
   merge/tag/graph cross-checks, alias object identity, per-case input digests,
   and first-class alias redefinition/recursive identity probes as deliberate
   compatibility decisions.
+- A Psych/libyaml coverage ledger now groups the 28 pinned probe cases into
+  eight behavior families and tracks seven explicit next-probe gaps, keeping
+  YAML 1.1/libyaml scope auditable without claiming blanket compatibility.
 - The YAML test-suite coverage ledger now pins the full upstream denominator at
   402 cases, maps the 131 selected cases to canonical upstream IDs, and records
   the 271 not-imported cases as explicit coverage debt.

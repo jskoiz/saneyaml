@@ -1,0 +1,162 @@
+schema = "psych-libyaml-coverage-v1"
+probe_artifact = "tests/fixtures/divergences/probes/psych-3.1.0-libyaml-0.2.1.json"
+comparison_manifest = "tests/fixtures/divergences/probes/psych-libyaml-comparison.toml"
+ruby = "2.6.10"
+psych = "3.1.0"
+libyaml = "0.2.1"
+probe_case_count = 28
+behavior_family_count = 8
+tracked_gap_count = 7
+coverage_policy = "Pinned Psych/libyaml cases are grouped by behavior family. Covered families are executable proof for the listed cases, not blanket YAML 1.1/libyaml compatibility."
+
+[[behavior_family]]
+id = "legacy-scalar-resolution"
+status = "partial"
+summary = "Legacy scalar construction, null-like strings, boolean-key hazards, and typed scalar key identity."
+cases = [
+  "legacy-scalar-resolution",
+  "rw-github-actions-on-key",
+  "explicit-core-tags",
+  "null-like-string-targets",
+  "numeric-key-identity",
+]
+rust_entrypoints = ["default-value", "yaml11-value"]
+adoption_risk = "Callers relying on broad YAML 1.1 implicit typing need opt-in LoadOptions and local corpus checks."
+next_expansion = "Add timestamp, binary, sexagesimal, radix, bool/null alias, and overflow variants from real configs."
+
+[[behavior_family]]
+id = "merge-keys-and-recovery"
+status = "covered"
+summary = "Default merge expansion plus YAML 1.1/Psych recovery for repeated and non-mergeable merge edges."
+cases = [
+  "merge-keys",
+  "legacy-merge-edge-recovery",
+  "explicit-merge-tags",
+]
+rust_entrypoints = ["yaml11-value", "directive-value"]
+adoption_risk = "Config migration depends on clear default merge expansion and explicit YAML 1.1 recovery semantics."
+next_expansion = "Broaden merge source ordering, nested merges, duplicate overrides, and invalid merge payload permutations."
+
+[[behavior_family]]
+id = "alias-graph-identity"
+status = "partial"
+summary = "Psych object identity compared with this crate's lossless graph identity surface."
+cases = [
+  "alias-graph-identity",
+  "alias-redefinition-identity",
+  "alias-recursive-identity",
+]
+rust_entrypoints = ["lossless"]
+adoption_risk = "Semantic Node/Value loaders still clone aliases; graph-sensitive migration must use LosslessStream."
+next_expansion = "Add semantic graph API decisions or keep graph identity explicitly scoped to LosslessStream."
+
+[[behavior_family]]
+id = "parser-event-graph"
+status = "covered"
+summary = "Parser-event graph exposure for merge aliases and recursive aliases without semantic expansion."
+cases = [
+  "lossless-merge-graph",
+  "lossless-recursive-graph",
+]
+rust_entrypoints = ["events"]
+adoption_risk = "Event consumers can inspect graph syntax, but object identity is not a Serde Value contract."
+next_expansion = "Add more document-reset, anchor-shadowing, and cross-document alias rejection cases."
+
+[[behavior_family]]
+id = "yaml11-tags-and-structures"
+status = "partial"
+summary = "Explicit core, collection, and structural YAML 1.1 tags across short, canonical, and resolved spellings."
+cases = [
+  "explicit-core-tags",
+  "yaml11-collection-tags",
+  "yaml11-core-structural-tags",
+  "core-structural-tags",
+]
+rust_entrypoints = ["yaml11-value", "directive-value"]
+adoption_risk = "Typed reads expose YAML 1.1 shapes, while retained trees preserve tag metadata instead of Psych object classes."
+next_expansion = "Add malformed set/omap/pairs payloads, custom tag handles, and explicit tag typed-target coverage."
+
+[[behavior_family]]
+id = "directives-and-documents"
+status = "partial"
+summary = "YAML/TAG directives, document markers, undeclared handles, and document-start inline node properties."
+cases = [
+  "raw-event-directives",
+  "raw-event-document-markers",
+  "yaml-version-directive-schema",
+  "tag-directive-scope-and-undeclared-handles",
+  "document-start-inline-node",
+]
+rust_entrypoints = ["events"]
+adoption_risk = "Directive metadata is event-visible, but full libyaml directive acceptance/rejection parity is not claimed."
+next_expansion = "Add reserved directives, repeated directives, tag scope resets, and multi-document version switching."
+
+[[behavior_family]]
+id = "libyaml-rejection-splits"
+status = "covered-divergence"
+summary = "Valid YAML 1.2/Rust-reference cases that libyaml/Psych rejects and this crate intentionally accepts."
+cases = [
+  "adjacent-flow-mapping-scalars",
+  "multiline-quoted-flow-key",
+  "document-start-block-scalars",
+  "bare-document-streams",
+  "directive-looking-flow-content",
+]
+rust_entrypoints = ["default-value", "events"]
+adoption_risk = "Callers porting reject-policy tests from libyaml may see newly accepted valid YAML 1.2 inputs."
+next_expansion = "Import more selected upstream YAML test-suite rejection splits as coverage grows."
+
+[[behavior_family]]
+id = "safety-and-key-policy"
+status = "partial"
+summary = "Duplicate scalar keys, tab-token policy, and typed numeric key identity."
+cases = [
+  "duplicate-scalar-keys",
+  "numeric-key-identity",
+  "tab-token-separation",
+]
+rust_entrypoints = ["default-value"]
+adoption_risk = "Config safety intentionally diverges from Psych last-wins duplicate-key construction."
+next_expansion = "Add YAML 1.1 duplicate-key collisions, collection-key duplicates, and tab placement variants."
+
+[[tracked_gap]]
+id = "implicit-scalar-denominator"
+family = "legacy-scalar-resolution"
+reason = "The probe covers representative legacy scalar behavior, not the full YAML 1.1 implicit resolver matrix."
+next_probe_candidates = ["bool aliases", "null aliases", "radix integers", "sexagesimal floats", "overflow"]
+
+[[tracked_gap]]
+id = "timestamp-and-binary-object-model"
+family = "legacy-scalar-resolution"
+reason = "Psych constructs Ruby Date/Time and decoded binary values; retained Rust trees preserve tag/source metadata unless typed targets opt in."
+next_probe_candidates = ["timestamp zones", "invalid timestamp", "binary whitespace", "invalid base64"]
+
+[[tracked_gap]]
+id = "merge-recovery-permutation-matrix"
+family = "merge-keys-and-recovery"
+reason = "Merge recovery is covered for representative repeated and invalid payloads, but not all ordering and nesting permutations."
+next_probe_candidates = ["nested merge lists", "deep override order", "duplicate local keys", "merge aliases across documents"]
+
+[[tracked_gap]]
+id = "semantic-alias-object-identity"
+family = "alias-graph-identity"
+reason = "Graph identity is available through LosslessStream, not semantic Node/Value object identity."
+next_probe_candidates = ["graph-aware semantic API decision", "documented non-goal", "lossless graph editing"]
+
+[[tracked_gap]]
+id = "collection-tag-malformed-payloads"
+family = "yaml11-tags-and-structures"
+reason = "Valid set/omap/pairs/seq/map/value payloads are covered; malformed YAML 1.1 structural tag diagnostics need broader probes."
+next_probe_candidates = ["non-singleton omap entry", "set non-null values", "pairs scalar entry", "value mapping duplicates"]
+
+[[tracked_gap]]
+id = "directive-stream-boundary-matrix"
+family = "directives-and-documents"
+reason = "Directive and document-marker event behavior is covered for representative streams, not the full libyaml acceptance matrix."
+next_probe_candidates = ["reserved directives", "repeated TAG directives", "tag handle scope reset", "multi-document version switching"]
+
+[[tracked_gap]]
+id = "duplicate-key-yaml11-policy-matrix"
+family = "safety-and-key-policy"
+reason = "Duplicate scalar key rejection is pinned, but YAML 1.1 key-collision variants need broader public-entrypoint proof."
+next_probe_candidates = ["on/yes collision", "octal/decimal collision", "float signed zero", "alias-expanded keys"]

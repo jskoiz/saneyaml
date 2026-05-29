@@ -326,7 +326,8 @@ testing each adopter's own YAML corpus.
   for recording per-target corpus counts, run counts, elapsed time, statuses,
   and artifact directories before a release candidate.
 - Finish broader YAML 1.1/libyaml compatibility decisions beyond the
-  fixture-backed Psych/libyaml merge/tag/graph cross-checks, full structural
-  lossless formatting/emission beyond source-span editing, and the long-term
-  graph API contract before claiming full YAML compatibility.
+  fixture-backed Psych/libyaml merge/tag/graph cross-checks and eight-family
+  Psych/libyaml coverage ledger, full structural lossless formatting/emission
+  beyond source-span editing, and the long-term graph API contract before
+  claiming full YAML compatibility.
 - Choose the public package name and final license before publishing.

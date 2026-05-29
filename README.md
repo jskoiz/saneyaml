@@ -33,7 +33,9 @@ The first milestone focuses on:
 - Default YAML merge-key expansion for loaded trees, `from_value`, and direct
   owned/borrowed `Value` Serde reads, including explicit `!!merge` / canonical
   merge-tag keys, while raw parser events still expose `<<`, key tags, and
-  alias events.
+  alias events. Real-world Docker Compose merge-anchor fixtures are
+  loaded-tree gated by comparing merge-expanded reference-loader trees against
+  this crate's default-expanded output.
 - A source-backed `yaml::parse_lossless` / `yaml::LosslessStream` API that
   keeps the original source for byte-stable replay, exposes comments and blank
   lines as trivia, represents anchors/aliases with stable graph ids, compares

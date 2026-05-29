@@ -73,7 +73,7 @@ version = "Compose Specification, 2026-05 fixture surface"
 license = "Local test fixture; no copied production data."
 reduction = "Anchor and merge-key fixture reduced to extension defaults and service overrides."
 expected_docs = 1
-gates = ["typed-config", "event-parity", "parser-properties", "shared-reference-acceptance", "lossless-graph"]
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance", "lossless-graph"]
 
 [[fixture]]
 path = "docker-compose/compose-platform-resources.yaml"
@@ -106,7 +106,7 @@ version = "compose-spec/compose-spec spec.md at main, fragments and extension ex
 license = "Apache-2.0; Compose Specification is licensed under Apache-2.0."
 reduction = "Official Compose fragments reduced to an anchor, alias, and merge-list environment example."
 expected_docs = 1
-gates = ["typed-config", "event-parity", "parser-properties", "shared-reference-acceptance", "lossless-graph"]
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance", "lossless-graph"]
 
 [[fixture]]
 path = "kubernetes/deployment.yaml"

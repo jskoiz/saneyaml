@@ -574,7 +574,8 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
 - normalized loaded-tree parity for the registered real-world fixtures against
   `yaml-rust2` 0.11.0 and `saphyr` 0.0.6, covering the same GitHub Actions,
   Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and Ansible fixture set
-  used by event parity
+  used by event parity; Docker Compose merge-anchor fixtures compare reference
+  loader trees after applying this crate's default merge-expansion policy
 - manifest-owned lossless replay checks for Ansible tagged values and
   Kubernetes fixtures with explicit document boundaries, empty documents,
   comments, and literal block-scalar data

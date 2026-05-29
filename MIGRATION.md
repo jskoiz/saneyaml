@@ -231,7 +231,10 @@ Current real-world gates cover 27 files / 33 YAML documents across:
 - Ansible
 
 These fixtures prove config-shaped parsing, Serde reads, event/tree parity, and
-reference acceptance for the selected suite. They are not a substitute for
+reference acceptance for the selected suite. Docker Compose merge-anchor
+fixtures are tree-parity checked after normalizing reference-loader trees with
+this crate's default merge expansion policy, while raw event and lossless graph
+tests keep the original `<<` syntax visible. They are not a substitute for
 testing each adopter's own YAML corpus.
 
 ## Required Call-Site Changes

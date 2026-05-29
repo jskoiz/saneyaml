@@ -66,6 +66,10 @@ Notable completed release-candidate behavior:
 - Real-world graph coverage now includes an adapted official Compose
   Specification fragments example with multiple anchors, aliases, and a merge
   list, plus a manifest audit that detects graph-sensitive fixtures.
+- Real-world Docker Compose merge-anchor fixtures now carry loaded-tree parity:
+  reference-loader trees are normalized through this crate's default merge
+  expansion policy, while raw event and lossless graph coverage keep the source
+  `<<` syntax visible.
 - Lossless source edits and graph identity now have fuzz-corpus replay covering
   scalar, flow mapping, flow sequence replacements, YAML 1.1 merge/comment
   streams, anchor redefinition, and recursive aliases. Anchor/alias target

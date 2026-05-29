@@ -178,20 +178,6 @@ fn assert_metadata_is_complete(fixture: &FixtureRecord) {
         "parser-properties",
         "shared-reference-acceptance",
     ] {
-        if required == "tree-parity"
-            && matches!(
-                fixture.path.as_str(),
-                "docker-compose/compose-anchors.yaml"
-                    | "docker-compose/adapted-compose-spec-fragments.yaml"
-            )
-        {
-            assert!(
-                fixture.reduction.contains("anchor") || fixture.reduction.contains("merge"),
-                "{} must explain why loaded-tree parity is intentionally excluded",
-                fixture.path
-            );
-            continue;
-        }
         assert!(
             gates.contains(required),
             "{} must record {required} gate coverage",

@@ -435,6 +435,16 @@ const REAL_WORLD_TREE_CASES: &[TreeCase] = &[
         input: include_str!("fixtures/real-world/docker-compose/awesome-nginx-flask-mysql.yaml"),
     },
     TreeCase {
+        name: "docker_compose_anchors",
+        input: include_str!("fixtures/real-world/docker-compose/compose-anchors.yaml"),
+    },
+    TreeCase {
+        name: "docker_compose_adapted_compose_spec_fragments",
+        input: include_str!(
+            "fixtures/real-world/docker-compose/adapted-compose-spec-fragments.yaml"
+        ),
+    },
+    TreeCase {
         name: "docker_compose_polymorphic",
         input: include_str!("fixtures/real-world/docker-compose/compose-polymorphic.yaml"),
     },
@@ -542,9 +552,9 @@ fn loaded_tree_value_shape_matches_references_for_real_world_configs() {
     for case in REAL_WORLD_TREE_CASES {
         let ours = normalize_ours_documents(case.input, TagPolicy::Strip)
             .unwrap_or_else(|error| panic!("ours tree failed {}: {error}", case.name));
-        let yaml_rust2 = normalize_yaml_rust2_documents(case.input)
+        let yaml_rust2 = normalize_yaml_rust2_documents_with_default_merges(case.input)
             .unwrap_or_else(|error| panic!("yaml-rust2 tree failed {}: {error}", case.name));
-        let saphyr = normalize_saphyr_documents(case.input, TagPolicy::Strip)
+        let saphyr = normalize_saphyr_documents_with_default_merges(case.input, TagPolicy::Strip)
             .unwrap_or_else(|error| panic!("saphyr tree failed {}: {error}", case.name));
 
         assert_eq!(
@@ -592,6 +602,17 @@ fn normalize_yaml_rust2_documents(input: &str) -> Result<Vec<NormTree>, yaml_rus
     })
 }
 
+fn normalize_yaml_rust2_documents_with_default_merges(
+    input: &str,
+) -> Result<Vec<NormTree>, yaml_rust2::ScanError> {
+    normalize_yaml_rust2_documents(input).map(|documents| {
+        documents
+            .into_iter()
+            .map(expand_default_norm_merges)
+            .collect()
+    })
+}
+
 fn normalize_saphyr_documents(
     input: &str,
     tags: TagPolicy,
@@ -601,6 +622,84 @@ fn normalize_saphyr_documents(
             .map(|document| normalize_saphyr_node(document, tags))
             .collect()
     })
+}
+
+fn normalize_saphyr_documents_with_default_merges(
+    input: &str,
+    tags: TagPolicy,
+) -> Result<Vec<NormTree>, saphyr::ScanError> {
+    normalize_saphyr_documents(input, tags).map(|documents| {
+        documents
+            .into_iter()
+            .map(expand_default_norm_merges)
+            .collect()
+    })
+}
+
+// The Rust reference loaders keep real-world `<<` merge syntax in loaded trees.
+// For those fixtures, compare their normalized trees after applying this
+// crate's public default merge policy while raw events/lossless tests keep
+// proving source syntax retention.
+fn expand_default_norm_merges(tree: NormTree) -> NormTree {
+    match tree {
+        NormTree::Seq(items) => {
+            NormTree::Seq(items.into_iter().map(expand_default_norm_merges).collect())
+        }
+        NormTree::Map(entries) => expand_default_norm_mapping(entries),
+        NormTree::Tagged(tag, value) => {
+            NormTree::Tagged(tag, Box::new(expand_default_norm_merges(*value)))
+        }
+        other => other,
+    }
+}
+
+fn expand_default_norm_mapping(entries: Vec<(NormTree, NormTree)>) -> NormTree {
+    let mut explicit_entries = Vec::new();
+    let mut merged_entries = Vec::new();
+
+    for (key, value) in entries {
+        let key = expand_default_norm_merges(key);
+        let value = expand_default_norm_merges(value);
+        if is_norm_merge_key(&key) {
+            insert_norm_merge_entries(&mut merged_entries, norm_merge_entries(value));
+        } else {
+            explicit_entries.push((key, value));
+        }
+    }
+
+    insert_norm_merge_entries(&mut explicit_entries, merged_entries);
+    NormTree::Map(explicit_entries)
+}
+
+fn norm_merge_entries(value: NormTree) -> Vec<(NormTree, NormTree)> {
+    match value {
+        NormTree::Map(entries) => entries,
+        NormTree::Seq(items) => {
+            let mut entries = Vec::new();
+            for item in items {
+                if let NormTree::Map(item_entries) = item {
+                    insert_norm_merge_entries(&mut entries, item_entries);
+                }
+            }
+            entries
+        }
+        _ => Vec::new(),
+    }
+}
+
+fn insert_norm_merge_entries(
+    target: &mut Vec<(NormTree, NormTree)>,
+    merge_entries: Vec<(NormTree, NormTree)>,
+) {
+    for (key, value) in merge_entries {
+        if !target.iter().any(|(existing, _)| existing == &key) {
+            target.push((key, value));
+        }
+    }
+}
+
+fn is_norm_merge_key(key: &NormTree) -> bool {
+    matches!(key, NormTree::String(value) if value == "<<")
 }
 
 fn normalize_ours_node(node: &yaml::Node, tags: TagPolicy) -> NormTree {

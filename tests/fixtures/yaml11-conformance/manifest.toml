@@ -34,6 +34,13 @@ tag = "%TAG !yaml! tag:yaml.org,2002:"
 expected = "accept"
 
 [[case]]
+id = "core-structural-tags"
+path = "core-structural-tags.yaml"
+kind = "core-structural-tags"
+tag = "%TAG !yaml! tag:yaml.org,2002:"
+expected = "accept"
+
+[[case]]
 id = "set-rejects-non-null-values"
 path = "set-rejects-non-null-values.yaml"
 kind = "set"

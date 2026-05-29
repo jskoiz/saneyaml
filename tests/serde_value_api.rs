@@ -3343,9 +3343,16 @@ fn serde_api_yaml11_collection_tags_have_typed_read_contract() {
         set: BTreeSet<String>,
         omap: Vec<(String, i64)>,
         pairs: Vec<(String, i64)>,
+        seq: Vec<i64>,
+        map: BTreeMap<String, i64>,
+        value: String,
         canonical_set: BTreeSet<String>,
+        canonical_seq: Vec<String>,
+        canonical_map: BTreeMap<String, i64>,
         resolved_omap: BTreeMap<String, i64>,
         resolved_pairs: Vec<(String, i64)>,
+        resolved_seq: Vec<String>,
+        resolved_map: BTreeMap<String, i64>,
     }
 
     let input = "\
@@ -3360,17 +3367,31 @@ omap: !!omap
 pairs: !!pairs
   - repeat: 1
   - repeat: 2
+seq: !!seq [1, 2]
+map: !!map {a: 1, b: 2}
+value: !!value =
 canonical_set: !<tag:yaml.org,2002:set> {left: null, right: null}
+canonical_seq: !<tag:yaml.org,2002:seq> [alpha, beta]
+canonical_map: !<tag:yaml.org,2002:map> {limit: 10}
 resolved_omap: !yaml!omap [{left: 1}, {right: 2}]
 resolved_pairs: !yaml!pairs [{same: 1}, {same: 2}]
+resolved_seq: !yaml!seq [left, right]
+resolved_map: !yaml!map {retries: 3}
 ";
     let expected = CollectionTags {
         set: BTreeSet::from(["alpha".to_string(), "beta".to_string()]),
         omap: vec![("first".to_string(), 1), ("second".to_string(), 2)],
         pairs: vec![("repeat".to_string(), 1), ("repeat".to_string(), 2)],
+        seq: vec![1, 2],
+        map: BTreeMap::from([("a".to_string(), 1), ("b".to_string(), 2)]),
+        value: "=".to_string(),
         canonical_set: BTreeSet::from(["left".to_string(), "right".to_string()]),
+        canonical_seq: vec!["alpha".to_string(), "beta".to_string()],
+        canonical_map: BTreeMap::from([("limit".to_string(), 10)]),
         resolved_omap: BTreeMap::from([("left".to_string(), 1), ("right".to_string(), 2)]),
         resolved_pairs: vec![("same".to_string(), 1), ("same".to_string(), 2)],
+        resolved_seq: vec!["left".to_string(), "right".to_string()],
+        resolved_map: BTreeMap::from([("retries".to_string(), 3)]),
     };
 
     let typed: CollectionTags = yaml::from_str(input).expect("YAML 1.1 collection tags");
@@ -3403,6 +3424,35 @@ resolved_pairs: !yaml!pairs [{same: 1}, {same: 2}]
     assert_eq!(canonical_set.tag.suffix, "tag:yaml.org,2002:set");
     assert!(matches!(canonical_set.value, Value::Mapping(_)));
 
+    let seq = value["seq"].as_tagged().expect("seq tag is retained");
+    assert_eq!(seq.tag.handle, "!!");
+    assert_eq!(seq.tag.suffix, "seq");
+    assert!(matches!(seq.value, Value::Sequence(_)));
+
+    let map = value["map"].as_tagged().expect("map tag is retained");
+    assert_eq!(map.tag.handle, "!!");
+    assert_eq!(map.tag.suffix, "map");
+    assert!(matches!(map.value, Value::Mapping(_)));
+
+    let value_tag = value["value"].as_tagged().expect("value tag is retained");
+    assert_eq!(value_tag.tag.handle, "!!");
+    assert_eq!(value_tag.tag.suffix, "value");
+    assert_eq!(value_tag.value.as_str(), Some("="));
+
+    let canonical_seq = value["canonical_seq"]
+        .as_tagged()
+        .expect("canonical seq tag is retained");
+    assert_eq!(canonical_seq.tag.handle, "!");
+    assert_eq!(canonical_seq.tag.suffix, "tag:yaml.org,2002:seq");
+    assert!(matches!(canonical_seq.value, Value::Sequence(_)));
+
+    let canonical_map = value["canonical_map"]
+        .as_tagged()
+        .expect("canonical map tag is retained");
+    assert_eq!(canonical_map.tag.handle, "!");
+    assert_eq!(canonical_map.tag.suffix, "tag:yaml.org,2002:map");
+    assert!(matches!(canonical_map.value, Value::Mapping(_)));
+
     let resolved_omap = value["resolved_omap"]
         .as_tagged()
         .expect("resolved omap tag is retained");
@@ -3416,6 +3466,20 @@ resolved_pairs: !yaml!pairs [{same: 1}, {same: 2}]
     assert_eq!(resolved_pairs.tag.handle, "!");
     assert_eq!(resolved_pairs.tag.suffix, "tag:yaml.org,2002:pairs");
     assert!(matches!(resolved_pairs.value, Value::Sequence(_)));
+
+    let resolved_seq = value["resolved_seq"]
+        .as_tagged()
+        .expect("resolved seq tag is retained");
+    assert_eq!(resolved_seq.tag.handle, "!");
+    assert_eq!(resolved_seq.tag.suffix, "tag:yaml.org,2002:seq");
+    assert!(matches!(resolved_seq.value, Value::Sequence(_)));
+
+    let resolved_map = value["resolved_map"]
+        .as_tagged()
+        .expect("resolved map tag is retained");
+    assert_eq!(resolved_map.tag.handle, "!");
+    assert_eq!(resolved_map.tag.suffix, "tag:yaml.org,2002:map");
+    assert!(matches!(resolved_map.value, Value::Mapping(_)));
 }
 
 #[test]

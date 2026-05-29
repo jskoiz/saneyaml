@@ -262,16 +262,17 @@ testing each adopter's own YAML corpus.
   directive-driven migration fixtures covering legacy boolean words, null
   spellings, float spellings, octal, hex, binary numeric, sexagesimal,
   timestamp time-zone forms, flow-style scalar collections and mapping keys,
-  explicit binary, invalid binary typed-target diagnostics, collection tags,
-  merge-key expansion, numeric-key collisions, and boolean-key duplicate
-  diagnostics.
-- YAML 1.1 collection tags are retained as tagged collections in `Node` and
-  `Value`, not converted to new public value variants. Typed Serde reads
-  understand `!!set` as set-like sequence targets from mapping keys, `!!omap`
-  as ordered pair sequences or map targets, and `!!pairs` as pair sequences
-  that preserve duplicate keys. Non-null `!!set` entry values and non-singleton
-  `!!omap`/`!!pairs` entries are rejected for those typed reads instead of being
-  silently dropped or flattened.
+  explicit binary, invalid binary typed-target diagnostics, collection and
+  structural tags, merge-key expansion, numeric-key collisions, and boolean-key
+  duplicate diagnostics.
+- YAML 1.1 collection and structural tags are retained as tagged payloads in
+  `Node` and `Value`, not converted to new public value variants. Typed Serde
+  reads understand `!!set` as set-like sequence targets from mapping keys,
+  `!!omap` as ordered pair sequences or map targets, `!!pairs` as pair
+  sequences that preserve duplicate keys, `!!seq` as sequence targets, `!!map`
+  as map/struct targets, and `!!value` as the scalar value. Non-null `!!set`
+  entry values and non-singleton `!!omap`/`!!pairs` entries are rejected for
+  those typed reads instead of being silently dropped or flattened.
 - Untagged and explicit `!!merge` / canonical merge-tag keys are expanded by
   default in loaded trees and Serde reads. `Value::apply_merge()` remains
   available for caller-built values and is idempotent for values parsed by this

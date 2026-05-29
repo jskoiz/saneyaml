@@ -155,6 +155,25 @@ CASES = [
     YAML
   },
   {
+    id: "yaml11-core-structural-tags",
+    record: "tests/fixtures/divergences/records/yaml11-core-structural-tags.toml",
+    yaml: <<~YAML
+      %YAML 1.1
+      %TAG !yaml! tag:yaml.org,2002:
+      ---
+      short_seq: !!seq [1, 2]
+      canonical_seq: !<tag:yaml.org,2002:seq> [a, b]
+      resolved_seq: !yaml!seq [left, right]
+      short_map: !!map {a: 1, b: 2}
+      canonical_map: !<tag:yaml.org,2002:map> {c: 3}
+      resolved_map: !yaml!map {d: 4}
+      value_key: !!value =
+      value_mapping:
+        ? !!value =
+        : value
+    YAML
+  },
+  {
     id: "null-like-string-targets",
     record: "tests/fixtures/divergences/records/null-like-string-targets.toml",
     yaml: <<~YAML

@@ -160,6 +160,9 @@ fn yaml11_schema_modes_support_collection_core_tags() {
         set: BTreeSet<String>,
         omap: BTreeMap<String, i64>,
         pairs: Vec<(String, i64)>,
+        seq: Vec<i64>,
+        map: BTreeMap<String, i64>,
+        value: String,
     }
 
     let input = "\
@@ -169,11 +172,17 @@ fn yaml11_schema_modes_support_collection_core_tags() {
 set: !yaml!set {alpha: null, beta: null}
 omap: !yaml!omap [{first: 1}, {second: 2}]
 pairs: !yaml!pairs [{repeat: 1}, {repeat: 2}]
+seq: !yaml!seq [1, 2]
+map: !yaml!map {a: 1, b: 2}
+value: !yaml!value =
 ";
     let expected = CollectionTags {
         set: BTreeSet::from(["alpha".to_string(), "beta".to_string()]),
         omap: BTreeMap::from([("first".to_string(), 1), ("second".to_string(), 2)]),
         pairs: vec![("repeat".to_string(), 1), ("repeat".to_string(), 2)],
+        seq: vec![1, 2],
+        map: BTreeMap::from([("a".to_string(), 1), ("b".to_string(), 2)]),
+        value: "=".to_string(),
     };
 
     let yaml11: CollectionTags = LoadOptions::yaml_1_1()

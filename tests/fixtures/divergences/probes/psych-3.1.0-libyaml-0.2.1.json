@@ -1028,6 +1028,177 @@
       }
     },
     {
+      "id": "yaml11-core-structural-tags",
+      "record": "tests/fixtures/divergences/records/yaml11-core-structural-tags.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "short_seq"
+            },
+            "value": {
+              "class": "Array",
+              "items": [
+                {
+                  "class": "Integer",
+                  "value": "1"
+                },
+                {
+                  "class": "Integer",
+                  "value": "2"
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "canonical_seq"
+            },
+            "value": {
+              "class": "Array",
+              "items": [
+                {
+                  "class": "String",
+                  "value": "a"
+                },
+                {
+                  "class": "String",
+                  "value": "b"
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "resolved_seq"
+            },
+            "value": {
+              "class": "Array",
+              "items": [
+                {
+                  "class": "String",
+                  "value": "left"
+                },
+                {
+                  "class": "String",
+                  "value": "right"
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "short_map"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "a"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "1"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "b"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "2"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "canonical_map"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "c"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "3"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "resolved_map"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "d"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "4"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "value_key"
+            },
+            "value": {
+              "class": "String",
+              "value": "="
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "value_mapping"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "="
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "value"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
       "id": "null-like-string-targets",
       "record": "tests/fixtures/divergences/records/null-like-string-targets.toml",
       "status": "ok",

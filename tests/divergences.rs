@@ -563,6 +563,126 @@ pairs: !!pairs [{repeat: 1}, {repeat: 2}]
 }
 
 #[test]
+fn divergence_yaml11_core_structural_tags_record_is_present() {
+    let record = include_str!("fixtures/divergences/records/yaml11-core-structural-tags.toml");
+    assert!(record.contains("yaml11-core-structural-tags"));
+    assert!(record.contains("!!seq"));
+    assert!(record.contains("!!map"));
+    assert!(record.contains("!!value"));
+    assert!(record.contains("tag:yaml.org,2002:*"));
+    assert!(record.contains("serde_yaml 0.9.34"));
+    assert!(record.contains("yaml-rust2 0.11.0"));
+    assert!(record.contains("saphyr 0.0.6"));
+    assert!(record.contains("Psych 3.1.0/libyaml 0.2.1"));
+    assert!(record.contains("decision"));
+}
+
+#[test]
+fn divergence_yaml11_core_structural_tags_reference_matrix_matches_record() {
+    use std::collections::BTreeMap;
+
+    let input = "\
+%TAG !yaml! tag:yaml.org,2002:
+---
+seq: !!seq [1, 2]
+map: !!map {a: 1, b: 2}
+value: !!value =
+canonical_seq: !<tag:yaml.org,2002:seq> [left, right]
+canonical_map: !<tag:yaml.org,2002:map> {limit: 10}
+resolved_seq: !yaml!seq [alpha, beta]
+resolved_map: !yaml!map {retries: 3}
+";
+
+    #[derive(Debug, serde::Deserialize, PartialEq)]
+    struct Typed {
+        seq: Vec<i64>,
+        map: BTreeMap<String, i64>,
+        value: String,
+        canonical_seq: Vec<String>,
+        canonical_map: BTreeMap<String, i64>,
+        resolved_seq: Vec<String>,
+        resolved_map: BTreeMap<String, i64>,
+    }
+
+    let ours: Typed = yaml::from_str(input).expect("ours core structural tags");
+    assert_eq!(ours.seq, vec![1, 2]);
+    assert_eq!(
+        ours.map,
+        BTreeMap::from([("a".to_string(), 1), ("b".to_string(), 2)])
+    );
+    assert_eq!(ours.value, "=");
+    assert_eq!(
+        ours.canonical_seq,
+        vec!["left".to_string(), "right".to_string()]
+    );
+    assert_eq!(
+        ours.canonical_map,
+        BTreeMap::from([("limit".to_string(), 10)])
+    );
+    assert_eq!(
+        ours.resolved_seq,
+        vec!["alpha".to_string(), "beta".to_string()]
+    );
+    assert_eq!(
+        ours.resolved_map,
+        BTreeMap::from([("retries".to_string(), 3)])
+    );
+
+    let retained: yaml::Value = yaml::from_str(input).expect("ours retained structural tags");
+    assert_eq!(
+        retained["seq"].as_tagged().expect("seq tag").tag,
+        yaml::Tag::new("!!seq")
+    );
+    assert_eq!(
+        retained["map"].as_tagged().expect("map tag").tag,
+        yaml::Tag::new("!!map")
+    );
+    assert_eq!(
+        retained["value"].as_tagged().expect("value tag").tag,
+        yaml::Tag::new("!!value")
+    );
+    assert_eq!(
+        retained["resolved_seq"]
+            .as_tagged()
+            .expect("resolved seq tag")
+            .tag,
+        yaml::Tag::new("!<tag:yaml.org,2002:seq>")
+    );
+
+    let serde_yaml: serde_yaml::Value =
+        serde_yaml::from_str(input).expect("serde_yaml structural tags");
+    assert!(serde_yaml["seq"].is_sequence());
+    assert!(serde_yaml["map"].is_mapping());
+    assert!(serde_yaml["value"].is_string());
+
+    let yaml_rust2 =
+        yaml_rust2::YamlLoader::load_from_str(input).expect("yaml-rust2 structural tags");
+    assert!(yaml_rust2[0]["seq"].is_array());
+    assert!(yaml_rust2[0]["map"].is_hash());
+    assert_eq!(yaml_rust2[0]["value"].as_str(), Some("="));
+
+    let saphyr = saphyr::Yaml::load_from_str(input).expect("saphyr structural tags");
+    assert!(saphyr_is_sequence(&saphyr[0]["seq"]));
+    assert!(saphyr_is_mapping(&saphyr[0]["map"]));
+}
+
+fn saphyr_is_sequence(value: &saphyr::Yaml<'_>) -> bool {
+    match value {
+        saphyr::Yaml::Sequence(_) => true,
+        saphyr::Yaml::Tagged(_, value) => saphyr_is_sequence(value),
+        _ => false,
+    }
+}
+
+fn saphyr_is_mapping(value: &saphyr::Yaml<'_>) -> bool {
+    match value {
+        saphyr::Yaml::Mapping(_) => true,
+        saphyr::Yaml::Tagged(_, value) => saphyr_is_mapping(value),
+        _ => false,
+    }
+}
+
+#[test]
 fn divergence_adjacent_flow_mapping_scalars_record_is_present() {
     let record = include_str!("fixtures/divergences/records/adjacent-flow-mapping-scalars.toml");
     assert!(record.contains("adjacent-flow-mapping-scalars"));

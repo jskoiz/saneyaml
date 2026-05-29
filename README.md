@@ -21,10 +21,11 @@ The first milestone focuses on:
   document headers to select that legacy construction mode. Explicit YAML core
   tags are recognized in both short `!!int` and canonical
   `tag:yaml.org,2002:int` forms, including typed Serde reads for YAML 1.1
-  `!!set`, `!!omap`, and `!!pairs` collection tags while retaining the tags in
-  `Node`/`Value`; directive-driven fixtures cover flow-style scalar collections
-  and keys, and default loading keeps the YAML 1.2-oriented decimal treatment of
-  leading-zero values unless YAML 1.1 mode is selected.
+  `!!set`, `!!omap`, `!!pairs`, `!!seq`, `!!map`, and `!!value` tags while
+  retaining the tags in `Node`/`Value`; directive-driven fixtures cover
+  flow-style scalar collections and keys, and default loading keeps the YAML
+  1.2-oriented decimal treatment of leading-zero values unless YAML 1.1 mode is
+  selected.
 - Ordered mappings, block/flow collections, quoted/plain scalars, and basic
   literal/folded block scalars.
 - Acyclic anchors and aliases expanded into the loaded tree.
@@ -71,8 +72,8 @@ The first milestone focuses on:
 
 Intentional first-milestone non-goals:
 
-- Full YAML 1.1 compatibility: collection tags, explicit scalar tags,
-  directive-driven scalar edges, and Psych-style merge-edge recovery are
+- Full YAML 1.1 compatibility: collection/structural tags, explicit scalar
+  tags, directive-driven scalar edges, and Psych-style merge-edge recovery are
   covered, but broader libyaml-era behavior and schema/API completeness
   decisions still remain.
 - Full structural lossless editing beyond validated source-span editing,

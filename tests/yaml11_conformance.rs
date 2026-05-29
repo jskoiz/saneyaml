@@ -68,6 +68,18 @@ struct LegacyServiceConfig {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+struct CoreStructuralTags {
+    short_seq: Vec<i64>,
+    canonical_seq: Vec<String>,
+    resolved_seq: Vec<String>,
+    short_map: BTreeMap<String, i64>,
+    canonical_map: BTreeMap<String, i64>,
+    resolved_map: BTreeMap<String, i64>,
+    value_key: String,
+    value_mapping: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
 struct LegacyBinaryPayload {
     payload: Vec<u8>,
 }
@@ -83,7 +95,7 @@ struct LegacyService {
 #[test]
 fn yaml11_conformance_manifest_is_complete() {
     let manifest = manifest();
-    assert_eq!(manifest.case.len(), 19);
+    assert_eq!(manifest.case.len(), 20);
     let manifest_paths = manifest
         .case
         .iter()
@@ -106,6 +118,7 @@ fn yaml11_conformance_manifest_is_complete() {
                 | "multi-doc"
                 | "binary"
                 | "lossless-graph-merge"
+                | "core-structural-tags"
         ));
         assert!(matches!(case.expected.as_str(), "accept" | "error"));
         assert!(
@@ -184,6 +197,83 @@ fn yaml11_collection_tags_deserialize_to_typed_rust_collections() {
             other => panic!("unhandled accepted YAML 1.1 collection case {other}"),
         }
     }
+}
+
+#[test]
+fn yaml11_core_structural_tags_are_retained_and_transparent_for_typed_reads() {
+    let source = read_fixture("core-structural-tags.yaml");
+    let expected = CoreStructuralTags {
+        short_seq: vec![1, 2],
+        canonical_seq: vec!["a".to_string(), "b".to_string()],
+        resolved_seq: vec!["left".to_string(), "right".to_string()],
+        short_map: BTreeMap::from([("a".to_string(), 1), ("b".to_string(), 2)]),
+        canonical_map: BTreeMap::from([("c".to_string(), 3)]),
+        resolved_map: BTreeMap::from([("d".to_string(), 4)]),
+        value_key: "=".to_string(),
+        value_mapping: BTreeMap::from([("=".to_string(), "value".to_string())]),
+    };
+
+    let default: CoreStructuralTags = yaml::from_str(&source).expect("default structural tags");
+    let explicit: CoreStructuralTags = LoadOptions::yaml_1_1()
+        .from_str(&source)
+        .expect("explicit YAML 1.1 structural tags");
+    let directive: CoreStructuralTags = LoadOptions::yaml_version_directive()
+        .from_str(&source)
+        .expect("directive-driven structural tags");
+    assert_eq!(default, expected);
+    assert_eq!(explicit, expected);
+    assert_eq!(directive, expected);
+
+    let value: Value = LoadOptions::yaml_version_directive()
+        .from_str(&source)
+        .expect("retained structural tags");
+    assert_tagged_child_payload(&value, "short_seq", yaml::Tag::new("!!seq"), "sequence");
+    assert_tagged_child_payload(
+        &value,
+        "canonical_seq",
+        yaml::Tag::new("!<tag:yaml.org,2002:seq>"),
+        "sequence",
+    );
+    assert_tagged_child_payload(
+        &value,
+        "resolved_seq",
+        yaml::Tag::new("!<tag:yaml.org,2002:seq>"),
+        "sequence",
+    );
+    assert_tagged_child_payload(&value, "short_map", yaml::Tag::new("!!map"), "mapping");
+    assert_tagged_child_payload(
+        &value,
+        "canonical_map",
+        yaml::Tag::new("!<tag:yaml.org,2002:map>"),
+        "mapping",
+    );
+    assert_tagged_child_payload(
+        &value,
+        "resolved_map",
+        yaml::Tag::new("!<tag:yaml.org,2002:map>"),
+        "mapping",
+    );
+
+    let tagged_value = value["value_key"]
+        .as_tagged()
+        .expect("!!value scalar tag retained");
+    assert_eq!(tagged_value.tag, yaml::Tag::new("!!value"));
+    assert_eq!(tagged_value.value.as_str(), Some("="));
+    assert_eq!(value["value_key"].as_str(), Some("="));
+    assert_tagged_key(
+        &value["value_mapping"],
+        yaml::Tag::new("!!value"),
+        "=",
+        "value",
+    );
+
+    let lossless = yaml::parse_lossless(&source).expect("structural tags parse losslessly");
+    assert_eq!(lossless.as_source(), source);
+    assert_eq!(lossless.to_string(), source);
+    assert!(
+        lossless.as_source().contains("!yaml!seq"),
+        "%TAG-resolved seq tag is retained in source replay"
+    );
 }
 
 #[test]
@@ -822,6 +912,17 @@ fn assert_tagged_payload(source: &str, handle: &str, suffix: &str, shape: &str) 
     match (&tagged.value, shape) {
         (Value::Mapping(_), "mapping") | (Value::Sequence(_), "sequence") => {}
         (other, _) => panic!("unexpected tagged payload shape {other:?}"),
+    }
+}
+
+fn assert_tagged_child_payload(value: &Value, key: &str, tag: yaml::Tag, shape: &str) {
+    let tagged = value[key]
+        .as_tagged()
+        .unwrap_or_else(|| panic!("{key} tag is retained"));
+    assert_eq!(tagged.tag, tag);
+    match (&tagged.value, shape) {
+        (Value::Mapping(_), "mapping") | (Value::Sequence(_), "sequence") => {}
+        (other, _) => panic!("unexpected tagged payload shape for {key}: {other:?}"),
     }
 }
 

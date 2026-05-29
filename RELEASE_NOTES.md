@@ -14,10 +14,11 @@ Notable completed release-candidate behavior:
 - Explicit YAML core scalar tags retain tag/source metadata and support typed
   Serde reads for strings, booleans, nulls, integers, floats, timestamps, and
   binary byte targets.
-- YAML 1.1 collection tags `!!set`, `!!omap`, and `!!pairs` retain tagged
-  collection payloads in `Node`/`Value` and support typed Serde reads for
-  set-like targets, ordered pair sequences, `!!omap` map targets, and
-  duplicate-preserving `!!pairs` pair sequences.
+- YAML 1.1 collection and structural tags `!!set`, `!!omap`, `!!pairs`,
+  `!!seq`, `!!map`, and `!!value` retain tagged payloads in `Node`/`Value` and
+  support typed Serde reads for set-like targets, ordered pair sequences,
+  `!!omap` map targets, duplicate-preserving `!!pairs` pair sequences, sequence
+  targets, map/struct targets, and scalar `!!value` reads.
 - The migration harness records YAML 1.1 scalar construction as an explicit
   call-site choice, including the default decimal treatment of `0123` versus
   YAML 1.1 octal interpretation under `LoadOptions`.
@@ -40,7 +41,7 @@ Notable completed release-candidate behavior:
   scalar serde build checks.
 - YAML 1.1 conformance fixtures now cover directive-driven legacy scalar
   construction, null and float spellings, timestamp time-zone forms, explicit
-  binary and collection tags, invalid binary typed-target diagnostics,
+  binary, collection, and structural tags, invalid binary typed-target diagnostics,
   flow-style scalar collections and mapping keys, merge-key expansion under
   legacy schema selection, and boolean/numeric-key duplicate diagnostics.
 - `parse_lossless` / `LosslessStream` preserve comments, trivia, anchors,

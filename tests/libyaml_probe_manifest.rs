@@ -20,6 +20,7 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "alias-graph-identity",
         "explicit-core-tags",
         "yaml11-collection-tags",
+        "yaml11-core-structural-tags",
         "raw-event-directives",
         "raw-event-document-markers",
     ] {
@@ -36,7 +37,7 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_eq!(artifact["libyaml"], "0.2.1");
 
     let cases = artifact["cases"].as_array().expect("probe cases array");
-    assert_eq!(cases.len(), 20);
+    assert_eq!(cases.len(), 21);
 
     let expected_ids = BTreeSet::from([
         "adjacent-flow-mapping-scalars",
@@ -59,6 +60,7 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "tag-directive-scope-and-undeclared-handles",
         "yaml-version-directive-schema",
         "yaml11-collection-tags",
+        "yaml11-core-structural-tags",
     ]);
     let actual_ids = cases
         .iter()
@@ -100,6 +102,10 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_case_summary_contains(&artifact, "yaml11-collection-tags", "Psych::Set");
     assert_case_summary_contains(&artifact, "yaml11-collection-tags", "Psych::Omap");
     assert_case_summary_contains(&artifact, "yaml11-collection-tags", "repeat");
+    assert_case_summary_contains(&artifact, "yaml11-core-structural-tags", "Array");
+    assert_case_summary_contains(&artifact, "yaml11-core-structural-tags", "Hash");
+    assert_case_summary_contains(&artifact, "yaml11-core-structural-tags", "value_mapping");
+    assert_case_summary_contains(&artifact, "yaml11-core-structural-tags", "\"=\"");
     assert_case_summary_contains(&artifact, "null-like-string-targets", "NilClass");
     assert_case_summary_contains(&artifact, "numeric-key-identity", "Float");
 

@@ -43,8 +43,11 @@ serde_yaml = { package = "yaml", path = "/Users/jk/Desktop/yaml" }
 That dependency-alias path is covered by
 `tests/fixtures/downstream/package-alias-smoke` and
 `scripts/downstream-build-trials.sh smoke-only`. It is a package-resolution
-and runtime smoke tool for the covered public API surface, not a blanket
-promise that every `serde_yaml` behavior or formatting byte matches.
+and runtime smoke tool for the covered public API surface, including typed
+reads, root document-stream helpers, explicit YAML 1.1 `LoadOptions`,
+`Value`/`Mapping`/`Sequence` mutation, caller-built merge expansion, lossless
+graph identity inspection, writer paths, and diagnostic locations. It is not a
+blanket promise that every `serde_yaml` behavior or formatting byte matches.
 
 The low-friction path is to replace owned config reads and common
 `serde_yaml::Value` usage first. Keep compatibility-sensitive code covered by
@@ -141,12 +144,13 @@ from real `serde_yaml` users:
 `scripts/downstream-build-trials.sh rust-i18n`, and
 `scripts/downstream-build-trials.sh cfn-guard` add real downstream build trials.
 Each packages this crate, consumes the unpacked package from a clean smoke
-project under the `serde_yaml` dependency name, then checks a pinned downstream
-checkout with its `serde_yaml` dependency rewritten to that packaged copy. The
-Pingora trial checks `pingora-core` plus the `pingora-proxy` `modify_response`
-example that uses `serde_yaml` as a dev dependency; the rust-i18n trial covers
-support, macro, and extract crates; the cfn-guard trial checks the package that
-loads CloudFormation templates and rule-test specs.
+project under the `serde_yaml` dependency name, runs expanded alias-surface
+assertions against that package, then checks a pinned downstream checkout with
+its `serde_yaml` dependency rewritten to that packaged copy. The Pingora trial
+checks `pingora-core` plus the `pingora-proxy` `modify_response` example that
+uses `serde_yaml` as a dev dependency; the rust-i18n trial covers support,
+macro, and extract crates; the cfn-guard trial checks the package that loads
+CloudFormation templates and rule-test specs.
 
 Focused proof command:
 

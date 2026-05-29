@@ -3673,6 +3673,39 @@ fn serde_api_tagged_value_can_drive_enum_deserialize_by_value_and_reference() {
 }
 
 #[test]
+fn serde_api_tagged_value_deserializer_matches_serde_yaml() {
+    let tagged = TaggedValue {
+        tag: Tag::new("Newtype"),
+        value: Value::Number(Number::Unsigned(7)),
+    };
+    let reference = serde_yaml::value::TaggedValue {
+        tag: serde_yaml::value::Tag::new("Newtype"),
+        value: serde_yaml::Value::Number(serde_yaml::Number::from(7_u64)),
+    };
+
+    let owned: TaggedEnum =
+        TaggedEnum::deserialize(tagged.clone()).expect("owned TaggedValue deserializes");
+    let borrowed: TaggedEnum =
+        TaggedEnum::deserialize(&tagged).expect("borrowed TaggedValue deserializes");
+    let into_deserializer: TaggedEnum = TaggedEnum::deserialize(tagged.clone().into_deserializer())
+        .expect("TaggedValue IntoDeserializer deserializes");
+
+    let reference_owned: TaggedEnum =
+        TaggedEnum::deserialize(reference.clone()).expect("serde_yaml owned TaggedValue");
+    let reference_borrowed: TaggedEnum =
+        TaggedEnum::deserialize(&reference).expect("serde_yaml borrowed TaggedValue");
+
+    assert_eq!(owned, TaggedEnum::Newtype(7));
+    assert_eq!(borrowed, owned);
+    assert_eq!(into_deserializer, owned);
+    assert_eq!(reference_owned, owned);
+    assert_eq!(reference_borrowed, owned);
+
+    IgnoredAny::deserialize(tagged.clone()).expect("owned TaggedValue ignores");
+    IgnoredAny::deserialize(&tagged).expect("borrowed TaggedValue ignores");
+}
+
+#[test]
 fn serde_api_tags_are_transparent_for_non_enum_typed_reads() {
     let input = "\
 name: !Env prod

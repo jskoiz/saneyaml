@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::IgnoredAny};
 use std::{collections::BTreeMap, io::Cursor};
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -152,6 +152,15 @@ fn main() {
     assert_eq!(tagged_roundtrip.value.as_str(), Some("x"));
     let tagged_enum: TaggedAction = serde_yaml::from_str("!Thing enum-value\n").unwrap();
     assert_eq!(tagged_enum, TaggedAction::Thing("enum-value".to_owned()));
+    let tagged_enum_from_owned: TaggedAction = TaggedAction::deserialize(tagged.clone()).unwrap();
+    let tagged_enum_from_ref: TaggedAction = TaggedAction::deserialize(&tagged).unwrap();
+    assert_eq!(
+        tagged_enum_from_owned,
+        TaggedAction::Thing("x".to_owned())
+    );
+    assert_eq!(tagged_enum_from_ref, tagged_enum_from_owned);
+    IgnoredAny::deserialize(tagged.clone()).unwrap();
+    IgnoredAny::deserialize(&tagged).unwrap();
 
     let value_from_root = serde_yaml::to_value(&config).unwrap();
     let value_from_module = serde_yaml::value::to_value(&config).unwrap();

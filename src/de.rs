@@ -3,7 +3,7 @@
 
 use crate::parse::parse_document_results_with_options;
 use crate::{
-    Error, Mapping, Node, NodeValue, Number, Span, Tag, Value, error::utf8_error_span,
+    Error, Mapping, Node, NodeValue, Number, Span, Tag, TaggedValue, Value, error::utf8_error_span,
     schema::LoadOptions, yaml11,
 };
 use serde::de::{
@@ -3932,6 +3932,77 @@ impl<'de> de::Deserializer<'de> for Deserializer<'de> {
 }
 
 impl<'de> IntoDeserializer<'de, Error> for Value {
+    type Deserializer = Self;
+
+    fn into_deserializer(self) -> Self::Deserializer {
+        self
+    }
+}
+
+impl<'de> de::Deserializer<'de> for TaggedValue {
+    type Error = Error;
+
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_enum(ValueTaggedEnumDeserializer {
+            tag: self.tag,
+            value: self.value,
+        })
+    }
+
+    fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        drop(self);
+        visitor.visit_unit()
+    }
+
+    forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+        bytes byte_buf option unit unit_struct newtype_struct seq tuple
+        tuple_struct map struct enum identifier
+    }
+}
+
+impl<'de> IntoDeserializer<'de, Error> for TaggedValue {
+    type Deserializer = Self;
+
+    fn into_deserializer(self) -> Self::Deserializer {
+        self
+    }
+}
+
+impl<'de> de::Deserializer<'de> for &'de TaggedValue {
+    type Error = Error;
+
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_enum(ValueRefTaggedEnumDeserializer {
+            tag: &self.tag,
+            value: &self.value,
+        })
+    }
+
+    fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_unit()
+    }
+
+    forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+        bytes byte_buf option unit unit_struct newtype_struct seq tuple
+        tuple_struct map struct enum identifier
+    }
+}
+
+impl<'de> IntoDeserializer<'de, Error> for &'de TaggedValue {
     type Deserializer = Self;
 
     fn into_deserializer(self) -> Self::Deserializer {

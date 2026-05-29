@@ -120,7 +120,8 @@ currently covers:
 - direct `IgnoredAny` deserialization that still validates malformed input and
   single-document boundaries before skipping
 - stream document iteration
-- `Value`, `Mapping`, and `Number` patch-style usage
+- `Value`, `Mapping`, `Number`, `Tag`, and `TaggedValue` patch-style and
+  direct deserializer usage
 - `to_value`, `to_string`, and `to_writer` structural writer paths
 - `with::singleton_map` enum field annotations
 - default untagged and explicit merge-tag expansion for parsed and caller-built

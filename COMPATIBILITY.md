@@ -360,9 +360,10 @@ Serde numeric policy:
 - `yaml::Value` and `yaml::Number` expose the common `serde_yaml` read-side
   numeric helpers (`is_i64`, `is_u64`, `is_f64`, finite/NaN/infinity checks),
   primitive construction, string/sequence/map construction, `Number`
-  `Display`/`FromStr`, direct `Number` deserializer support, and
-  `serde_yaml`-style public comparison/hash traits for `Value`, `Mapping`,
-  `TaggedValue`, `Tag`, and `Number` where the upstream types expose them.
+  `Display`/`FromStr`, direct deserializer support for `Number` and
+  `TaggedValue`, and `serde_yaml`-style public comparison/hash traits for
+  `Value`, `Mapping`, `TaggedValue`, `Tag`, and `Number` where the upstream
+  types expose them.
   Retained explicit `!!int` and `!!float` values keep their tag and original
   scalar spelling, but valid YAML 1.1 numeric spellings still participate in
   `Value` numeric helper methods.

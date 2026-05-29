@@ -98,10 +98,45 @@ struct LegacyService {
     owner: String,
 }
 
+#[derive(Clone, Copy)]
+struct LegacyDuplicateKeyFixture {
+    path: &'static str,
+    message: &'static str,
+    line: usize,
+    column: usize,
+}
+
+const LEGACY_DUPLICATE_KEY_FIXTURES: &[LegacyDuplicateKeyFixture] = &[
+    LegacyDuplicateKeyFixture {
+        path: "legacy-bool-key-collision.yaml",
+        message: "duplicate mapping key `true`",
+        line: 4,
+        column: 1,
+    },
+    LegacyDuplicateKeyFixture {
+        path: "legacy-numeric-key-collision.yaml",
+        message: "duplicate mapping key `8`",
+        line: 4,
+        column: 1,
+    },
+    LegacyDuplicateKeyFixture {
+        path: "legacy-signed-zero-key-collision.yaml",
+        message: "duplicate mapping key `0`",
+        line: 4,
+        column: 1,
+    },
+    LegacyDuplicateKeyFixture {
+        path: "legacy-alias-key-collision.yaml",
+        message: "duplicate mapping key `true`",
+        line: 7,
+        column: 5,
+    },
+];
+
 #[test]
 fn yaml11_conformance_manifest_is_complete() {
     let manifest = manifest();
-    assert_eq!(manifest.case.len(), 23);
+    assert_eq!(manifest.case.len(), 25);
     let manifest_paths = manifest
         .case
         .iter()
@@ -774,16 +809,13 @@ fn yaml11_legacy_bool_key_collision_fixture_keeps_default_safe_and_reports_legac
 
 #[test]
 fn yaml11_entrypoint_matrix_reports_legacy_duplicate_key_spans() {
-    for fixture in [
-        "legacy-bool-key-collision.yaml",
-        "legacy-numeric-key-collision.yaml",
-    ] {
-        let source = read_fixture(fixture);
+    for case in LEGACY_DUPLICATE_KEY_FIXTURES {
+        let source = read_fixture(case.path);
         for options in [
             LoadOptions::yaml_1_1(),
             LoadOptions::yaml_version_directive(),
         ] {
-            assert_legacy_duplicate_key_error_entrypoints(options, &source, fixture);
+            assert_legacy_duplicate_key_error_entrypoints(options, &source, case);
         }
     }
 }
@@ -1021,6 +1053,68 @@ fn yaml11_legacy_numeric_key_collision_fixture_keeps_default_safe() {
     assert_eq!(directive.span().column, 1);
 }
 
+#[test]
+fn yaml11_legacy_signed_zero_key_collision_fixture_reports_span() {
+    let source = read_fixture("legacy-signed-zero-key-collision.yaml");
+
+    let default = yaml::from_str::<Value>(&source)
+        .expect_err("default numeric key identity rejects signed zero duplicates");
+    assert!(default.to_string().contains("duplicate mapping key `0`"));
+    assert_eq!(default.span().line, 4);
+    assert_eq!(default.span().column, 1);
+
+    let explicit = LoadOptions::yaml_1_1()
+        .parse_str(&source)
+        .expect_err("explicit YAML 1.1 signed zero keys collide");
+    assert!(explicit.to_string().contains("duplicate mapping key `0`"));
+    assert_eq!(explicit.span().line, 4);
+    assert_eq!(explicit.span().column, 1);
+
+    let directive = LoadOptions::yaml_version_directive()
+        .parse_str(&source)
+        .expect_err("directive-driven YAML 1.1 signed zero keys collide");
+    assert!(directive.to_string().contains("duplicate mapping key `0`"));
+    assert_eq!(directive.span().line, 4);
+    assert_eq!(directive.span().column, 1);
+}
+
+#[test]
+fn yaml11_legacy_alias_key_collision_fixture_keeps_default_safe() {
+    let source = read_fixture("legacy-alias-key-collision.yaml");
+
+    let default: Value =
+        yaml::from_str(&source).expect("default keeps yes alias and true key distinct");
+    assert_eq!(
+        default["root"]
+            .as_mapping()
+            .expect("default root mapping")
+            .len(),
+        2
+    );
+
+    let explicit = LoadOptions::yaml_1_1()
+        .parse_str(&source)
+        .expect_err("explicit YAML 1.1 alias-expanded keys collide");
+    assert!(
+        explicit
+            .to_string()
+            .contains("duplicate mapping key `true`")
+    );
+    assert_eq!(explicit.span().line, 7);
+    assert_eq!(explicit.span().column, 5);
+
+    let directive = LoadOptions::yaml_version_directive()
+        .parse_str(&source)
+        .expect_err("directive-driven YAML 1.1 alias-expanded keys collide");
+    assert!(
+        directive
+            .to_string()
+            .contains("duplicate mapping key `true`")
+    );
+    assert_eq!(directive.span().line, 7);
+    assert_eq!(directive.span().column, 5);
+}
+
 fn assert_tagged_payload(source: &str, handle: &str, suffix: &str, shape: &str) {
     let value: Value = yaml::from_str(source).expect("tagged collection value");
     let tagged = value.as_tagged().expect("collection tag is retained");
@@ -1183,13 +1277,15 @@ fn assert_legacy_pack_public_entrypoints(
 fn assert_legacy_duplicate_key_error_entrypoints(
     options: LoadOptions,
     source: &str,
-    fixture: &str,
+    case: &LegacyDuplicateKeyFixture,
 ) {
     for (entrypoint, error) in [
+        ("parse_str", options.parse_str(source).unwrap_err()),
         (
             "parse_bytes",
             options.parse_bytes(source.as_bytes()).unwrap_err(),
         ),
+        ("from_str", options.from_str::<Value>(source).unwrap_err()),
         (
             "from_slice",
             options.from_slice::<Value>(source.as_bytes()).unwrap_err(),
@@ -1223,11 +1319,22 @@ fn assert_legacy_duplicate_key_error_entrypoints(
         ),
     ] {
         assert!(
-            error.to_string().contains("duplicate mapping key"),
-            "{fixture} {entrypoint} unexpected error: {error}"
+            error.to_string().contains(case.message),
+            "{} {entrypoint} unexpected error: {error}",
+            case.path
         );
-        assert_eq!(error.span().line, 4, "{fixture} {entrypoint} line");
-        assert_eq!(error.span().column, 1, "{fixture} {entrypoint} column");
+        assert_eq!(
+            error.span().line,
+            case.line,
+            "{} {entrypoint} line",
+            case.path
+        );
+        assert_eq!(
+            error.span().column,
+            case.column,
+            "{} {entrypoint} column",
+            case.path
+        );
     }
 }
 

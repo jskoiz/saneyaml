@@ -222,6 +222,28 @@ name: second
 rust_error_contains = "duplicate mapping key"
 
 [[case]]
+id = "yaml11-signed-zero-key-collision"
+record = "tests/fixtures/divergences/records/duplicate-scalar-keys.toml"
+psych_status = "ok"
+rust_entrypoint = "yaml11-value"
+rust_status = "error"
+rust_policy = "intentional-divergence"
+reason = "Psych keeps the later signed-zero key; this crate treats 0.0 and -0.0 as the same mapping key and rejects the duplicate with a span."
+fixture = "tests/fixtures/yaml11-conformance/legacy-signed-zero-key-collision.yaml"
+rust_error_contains = "duplicate mapping key `0`"
+
+[[case]]
+id = "yaml11-alias-key-collision"
+record = "tests/fixtures/divergences/records/duplicate-scalar-keys.toml"
+psych_status = "ok"
+rust_entrypoint = "yaml11-value"
+rust_status = "error"
+rust_policy = "intentional-divergence"
+reason = "Psych keeps the later alias-expanded YAML 1.1 key collision; this crate expands aliases for tree key identity and rejects the duplicate with a span while raw events remain available."
+fixture = "tests/fixtures/yaml11-conformance/legacy-alias-key-collision.yaml"
+rust_error_contains = "duplicate mapping key `true`"
+
+[[case]]
 id = "explicit-core-tags"
 record = "tests/fixtures/divergences/records/explicit-core-tags.toml"
 psych_status = "ok"

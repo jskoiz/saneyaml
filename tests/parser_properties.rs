@@ -15,11 +15,16 @@ use yaml::{
     Span, Tag, TaggedNode, Value,
 };
 
-const EMPTY_REQUIRED_SEEDS: &[&str] = &[];
+const PARSE_BYTES_REQUIRED_SEEDS: &[&str] = &[
+    "yaml11-alias-key-collision",
+    "yaml11-signed-zero-key-collision",
+];
 const SERDE_ENTRYPOINTS_REQUIRED_SEEDS: &[&str] = &[
+    "yaml11-alias-key-collision",
     "yaml11-omap-non-singleton-entry",
     "yaml11-pairs-scalar-entry",
     "yaml11-set-non-null-values",
+    "yaml11-signed-zero-key-collision",
     "yaml11-value-duplicate-key",
     "yaml11-value-resolved-handle",
 ];
@@ -43,6 +48,7 @@ const APPLY_MERGE_REQUIRED_SEEDS: &[&str] = &[
     "docker-compose-compose-anchors",
 ];
 const SCHEMA_MODES_REQUIRED_SEEDS: &[&str] = &[
+    "yaml11-alias-key-collision",
     "yaml11-collection-tags",
     "yaml11-directive-driven",
     "yaml11-explicit-merge-tags",
@@ -50,6 +56,7 @@ const SCHEMA_MODES_REQUIRED_SEEDS: &[&str] = &[
     "yaml11-pairs-scalar-entry",
     "yaml11-scalar-edge-stream",
     "yaml11-set-non-null-values",
+    "yaml11-signed-zero-key-collision",
     "yaml11-value-duplicate-key",
     "yaml11-value-resolved-handle",
     "yaml12-config-words",
@@ -318,9 +325,9 @@ fn fuzz_corpora_cover_release_targets_and_named_safety_seeds() {
         ("event_stream", (80, EVENT_STREAM_REQUIRED_SEEDS)),
         ("lossless_edit", (23, LOSSLESS_EDIT_REQUIRED_SEEDS)),
         ("lossless_graph", (16, LOSSLESS_GRAPH_REQUIRED_SEEDS)),
-        ("parse_bytes", (800, EMPTY_REQUIRED_SEEDS)),
-        ("schema_modes", (19, SCHEMA_MODES_REQUIRED_SEEDS)),
-        ("serde_entrypoints", (287, SERDE_ENTRYPOINTS_REQUIRED_SEEDS)),
+        ("parse_bytes", (880, PARSE_BYTES_REQUIRED_SEEDS)),
+        ("schema_modes", (21, SCHEMA_MODES_REQUIRED_SEEDS)),
+        ("serde_entrypoints", (289, SERDE_ENTRYPOINTS_REQUIRED_SEEDS)),
     ]);
     let expected_targets = expected.keys().copied().collect::<BTreeSet<_>>();
     assert_eq!(declared_fuzz_targets(), expected_targets);

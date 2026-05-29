@@ -37,6 +37,8 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "yaml11-core-structural-tags",
         "yaml11-value-resolved-handle",
         "yaml11-value-duplicate-key",
+        "yaml11-signed-zero-key-collision",
+        "yaml11-alias-key-collision",
         "legacy-merge-edge-recovery",
         "explicit-merge-tags",
         "lossless-merge-graph",
@@ -57,7 +59,7 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_eq!(artifact["libyaml"], "0.2.1");
 
     let cases = artifact["cases"].as_array().expect("probe cases array");
-    assert_eq!(cases.len(), 37);
+    assert_eq!(cases.len(), 39);
 
     let expected_ids = BTreeSet::from([
         "adjacent-flow-mapping-scalars",
@@ -90,9 +92,11 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "tab-token-separation",
         "tag-directive-scope-and-undeclared-handles",
         "yaml-version-directive-schema",
+        "yaml11-alias-key-collision",
         "yaml11-collection-tags",
         "yaml11-omap-non-singleton-entry",
         "yaml11-pairs-scalar-entry",
+        "yaml11-signed-zero-key-collision",
         "yaml11-set-non-null-payload",
         "yaml11-core-structural-tags",
         "yaml11-value-duplicate-key",
@@ -151,6 +155,8 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     let alias_recursive = case_by_id(&artifact, "alias-recursive-identity");
     assert_eq!(alias_recursive["summary"]["recursive_identity"], true);
     assert_case_summary_contains(&artifact, "duplicate-scalar-keys", "second");
+    assert_case_summary_contains(&artifact, "yaml11-signed-zero-key-collision", "negative");
+    assert_case_summary_contains(&artifact, "yaml11-alias-key-collision", "second");
     assert_case_summary_contains(&artifact, "explicit-core-tags", "Hello");
     assert_case_summary_contains(&artifact, "explicit-core-tags", "123");
     assert_case_summary_contains(&artifact, "explicit-core-tags", "string_null");
@@ -473,7 +479,7 @@ fn psych_libyaml_probe_coverage_ledger_groups_all_pinned_cases() {
         coverage["tracked_gap_count"].as_integer(),
         Some(gaps.len() as i64),
     );
-    assert_eq!(gaps.len(), 7);
+    assert_eq!(gaps.len(), 6);
     let mut gap_ids = BTreeSet::new();
     for gap in gaps {
         let id = toml_str(gap, "id");

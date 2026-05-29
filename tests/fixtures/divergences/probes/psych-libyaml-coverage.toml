@@ -4,9 +4,9 @@ comparison_manifest = "tests/fixtures/divergences/probes/psych-libyaml-compariso
 ruby = "2.6.10"
 psych = "3.1.0"
 libyaml = "0.2.1"
-probe_case_count = 37
+probe_case_count = 39
 behavior_family_count = 8
-tracked_gap_count = 7
+tracked_gap_count = 6
 coverage_policy = "Pinned Psych/libyaml cases are grouped by behavior family. Covered families are executable proof for the listed cases, not blanket YAML 1.1/libyaml compatibility."
 
 [[behavior_family]]
@@ -117,16 +117,18 @@ next_expansion = "Import more selected upstream YAML test-suite rejection splits
 
 [[behavior_family]]
 id = "safety-and-key-policy"
-status = "partial"
-summary = "Duplicate scalar keys, tab-token policy, and typed numeric key identity."
+status = "covered"
+summary = "Duplicate scalar keys, YAML 1.1 collision hazards, tab-token policy, and typed numeric key identity."
 cases = [
   "duplicate-scalar-keys",
+  "yaml11-signed-zero-key-collision",
+  "yaml11-alias-key-collision",
   "numeric-key-identity",
   "tab-token-separation",
 ]
 rust_entrypoints = ["default-value"]
 adoption_risk = "Config safety intentionally diverges from Psych last-wins duplicate-key construction."
-next_expansion = "Add YAML 1.1 duplicate-key collisions, collection-key duplicates, and tab placement variants."
+next_expansion = "Treat broader collection-key duplicate and tab placement variants as separate future policy expansions."
 
 [[tracked_gap]]
 id = "implicit-scalar-denominator"
@@ -163,9 +165,3 @@ id = "directive-stream-boundary-matrix"
 family = "directives-and-documents"
 reason = "Directive and document-marker event behavior is covered for representative streams, not the full libyaml acceptance matrix."
 next_probe_candidates = ["reserved directives", "repeated TAG directives", "tag handle scope reset", "multi-document version switching"]
-
-[[tracked_gap]]
-id = "duplicate-key-yaml11-policy-matrix"
-family = "safety-and-key-policy"
-reason = "Duplicate scalar key rejection is pinned, but YAML 1.1 key-collision variants need broader public-entrypoint proof."
-next_probe_candidates = ["on/yes collision", "octal/decimal collision", "float signed zero", "alias-expanded keys"]

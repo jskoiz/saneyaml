@@ -53,7 +53,7 @@ Notable completed release-candidate behavior:
   binary, collection, and structural tags, invalid binary typed-target diagnostics,
   flow-style scalar collections and mapping keys, merge-key expansion under
   legacy schema selection, malformed collection-tag typed-read diagnostics, and
-  boolean/numeric-key duplicate diagnostics.
+  boolean, numeric, signed-zero, and alias-expanded duplicate-key diagnostics.
 - `parse_lossless` / `LosslessStream` preserve comments, trivia, anchors,
   aliases, and stable graph ids for source-backed inspection, replay, and
   validated node/source-span edits, insertions, and deletions that preserve
@@ -89,11 +89,12 @@ Notable completed release-candidate behavior:
   merge/tag/graph cross-checks, resolved `!!value` handle and duplicate-key
   policy checks, nested merge precedence, duplicate local-key
   policy, cross-document merge alias reset, mixed invalid merge-list recovery,
-  alias object identity, per-case input digests, error locations where Psych
+  signed-zero and alias-expanded key-collision policy, alias object identity,
+  per-case input digests, error locations where Psych
   exposes them, and first-class alias redefinition/recursive identity probes as
   deliberate compatibility decisions.
-- A Psych/libyaml coverage ledger now groups the 37 pinned probe cases into
-  eight behavior families and tracks seven explicit next-probe gaps, keeping
+- A Psych/libyaml coverage ledger now groups the 39 pinned probe cases into
+  eight behavior families and tracks six explicit next-probe gaps, keeping
   YAML 1.1/libyaml scope auditable without claiming blanket compatibility.
 - `TaggedValue` now implements owned and borrowed Serde deserializer support
   for direct enum and `IgnoredAny` reads, matching the package-alias

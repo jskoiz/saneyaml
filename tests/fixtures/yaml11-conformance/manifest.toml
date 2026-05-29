@@ -146,6 +146,20 @@ tag = "%YAML 1.1"
 expected = "error"
 
 [[case]]
+id = "legacy-signed-zero-key-collision"
+path = "legacy-signed-zero-key-collision.yaml"
+kind = "duplicate-key"
+tag = "%YAML 1.1"
+expected = "error"
+
+[[case]]
+id = "legacy-alias-key-collision"
+path = "legacy-alias-key-collision.yaml"
+kind = "duplicate-key"
+tag = "%YAML 1.1"
+expected = "error"
+
+[[case]]
 id = "lossless-merge-graph"
 path = "lossless-merge-graph.yaml"
 kind = "lossless-graph-merge"

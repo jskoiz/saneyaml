@@ -280,8 +280,8 @@ testing each adopter's own YAML corpus.
   spellings, float spellings, octal, hex, binary numeric, sexagesimal,
   timestamp time-zone forms, flow-style scalar collections and mapping keys,
   explicit binary, invalid binary typed-target diagnostics, collection and
-  structural tags, merge-key expansion, numeric-key collisions, and boolean-key
-  duplicate diagnostics.
+  structural tags, merge-key expansion, boolean and numeric key collisions,
+  signed-zero key collisions, and alias-expanded duplicate-key diagnostics.
 - YAML 1.1 collection and structural tags are retained as tagged payloads in
   `Node` and `Value`, not converted to new public value variants. Typed Serde
   reads understand `!!set` as set-like sequence targets from mapping keys,

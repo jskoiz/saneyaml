@@ -182,6 +182,16 @@ CASES = [
     YAML
   },
   {
+    id: "yaml11-signed-zero-key-collision",
+    record: "tests/fixtures/divergences/records/duplicate-scalar-keys.toml",
+    yaml: fixture_yaml("tests/fixtures/yaml11-conformance/legacy-signed-zero-key-collision.yaml")
+  },
+  {
+    id: "yaml11-alias-key-collision",
+    record: "tests/fixtures/divergences/records/duplicate-scalar-keys.toml",
+    yaml: fixture_yaml("tests/fixtures/yaml11-conformance/legacy-alias-key-collision.yaml")
+  },
+  {
     id: "explicit-core-tags",
     record: "tests/fixtures/divergences/records/explicit-core-tags.toml",
     yaml: <<~YAML

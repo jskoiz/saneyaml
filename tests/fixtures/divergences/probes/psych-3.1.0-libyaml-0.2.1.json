@@ -1157,6 +1157,71 @@
       "input_bytes": 25
     },
     {
+      "id": "yaml11-signed-zero-key-collision",
+      "record": "tests/fixtures/divergences/records/duplicate-scalar-keys.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "Float",
+              "value": "0.0"
+            },
+            "value": {
+              "class": "String",
+              "value": "negative"
+            }
+          }
+        ]
+      },
+      "input_sha256": "c5c612d510a1df8a3bfc985c86dad83561283c18452d3b39cfd11189cbb21d7a",
+      "input_bytes": 43
+    },
+    {
+      "id": "yaml11-alias-key-collision",
+      "record": "tests/fixtures/divergences/records/duplicate-scalar-keys.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "key"
+            },
+            "value": {
+              "class": "TrueClass",
+              "value": true
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "root"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "TrueClass",
+                    "value": true
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "second"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "input_sha256": "fce95b21973958f5c4b17a9d83aa2eb27b4d6d92e47db8c15980030e3f851104",
+      "input_bytes": 73
+    },
+    {
       "id": "explicit-core-tags",
       "record": "tests/fixtures/divergences/records/explicit-core-tags.toml",
       "status": "ok",

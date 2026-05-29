@@ -506,9 +506,11 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and Ansible fixture set
   used by event parity
 - pinned external downstream replay fixtures from direct `serde_yaml` users:
-  Pingora typed server/proxy configs, rust-i18n locale maps, and cfn-guard
+  Pingora typed server/proxy configs, rust-i18n locale maps, cfn-guard
   CloudFormation/rule-test YAML that exercises `serde_yaml::Value` plus
-  short-form intrinsic tags such as `!Ref`, `!GetAtt`, and `!Sub`
+  short-form intrinsic tags such as `!Ref`, `!GetAtt`, and `!Sub`, and
+  Stackable operator-rs Kubernetes CRDs with nested OpenAPI schemas and
+  `x-kubernetes-*` extension fields
 
 The adoption path should be driven by failing conformance fixtures, real-world
 config incompatibilities, and safety gaps. Compatibility shims are deliberately

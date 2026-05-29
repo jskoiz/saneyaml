@@ -49,14 +49,15 @@ The first milestone focuses on:
   value serialization, tagged values, and document markers.
 - A `serde_yaml` swap harness and migration-readiness report for common
   downstream config-loading paths.
-- Pinned external replay fixtures from Pingora, rust-i18n, and cfn-guard that
-  compare real downstream YAML inputs against `serde_yaml`.
-- Packaged downstream smoke, Pingora, rust-i18n, and cfn-guard build trials
-  that consume this crate under the `serde_yaml` dependency name from clean
-  temporary checkouts, including a checked-in package-alias smoke fixture that
-  executes covered `serde_yaml::...` API paths plus explicit `LoadOptions`,
-  document-stream, merge, mapping/index, lossless graph, and diagnostic-location
-  paths against this package.
+- Pinned external replay fixtures from Pingora, rust-i18n, cfn-guard, and
+  Stackable operator-rs that compare real downstream YAML inputs against
+  `serde_yaml`, including Kubernetes CRD/OpenAPI schema documents.
+- Packaged downstream smoke, Pingora, rust-i18n, cfn-guard, and Stackable
+  operator-rs build trials that consume this crate under the `serde_yaml`
+  dependency name from clean temporary checkouts, including a checked-in
+  package-alias smoke fixture that executes covered `serde_yaml::...` API paths
+  plus explicit `LoadOptions`, document-stream, merge, mapping/index, lossless
+  graph, and diagnostic-location paths against this package.
 - A downstream-shaped migration harness, compileable migration example,
   Ubuntu-only CI workflow, non-mutating all-target fuzz smoke script, and
   real-world config benchmark command.
@@ -85,6 +86,7 @@ cargo test --test lossless_roundtrip --test graph_identity
 scripts/downstream-build-trials.sh pingora
 scripts/downstream-build-trials.sh rust-i18n
 scripts/downstream-build-trials.sh cfn-guard
+scripts/downstream-build-trials.sh stackable-operator
 cargo test --test baseline_audit
 RUSTDOCFLAGS='-D missing_docs' cargo doc --no-deps
 cargo test

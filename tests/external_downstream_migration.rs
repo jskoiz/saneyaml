@@ -7,6 +7,16 @@ use yaml::{Tag, Value};
 
 const SOURCE: &str = include_str!("fixtures/downstream/SOURCE.toml");
 const FIXTURE_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/downstream");
+const STACKABLE_OPERATOR_CRDS: &[&str] = &[
+    "stackable-operator/AuthenticationClass.yaml",
+    "stackable-operator/DummyCluster.yaml",
+    "stackable-operator/Listener.yaml",
+    "stackable-operator/ListenerClass.yaml",
+    "stackable-operator/PodListeners.yaml",
+    "stackable-operator/S3Bucket.yaml",
+    "stackable-operator/S3Connection.yaml",
+    "stackable-operator/Scaler.yaml",
+];
 
 #[derive(Debug, Deserialize)]
 struct DownstreamManifest {
@@ -31,7 +41,7 @@ struct DownstreamFixture {
 #[test]
 fn external_downstream_manifest_records_provenance_and_files() {
     let manifest = downstream_manifest();
-    assert_eq!(manifest.fixture.len(), 10);
+    assert_eq!(manifest.fixture.len(), 18);
 
     let projects: BTreeSet<_> = manifest
         .fixture
@@ -44,6 +54,7 @@ fn external_downstream_manifest_records_provenance_and_files() {
             "aws-cloudformation/cloudformation-guard",
             "cloudflare/pingora",
             "longbridge/rust-i18n",
+            "stackabletech/operator-rs",
         ])
     );
 
@@ -275,6 +286,57 @@ fn external_cfn_guard_rule_test_specs_match_serde_yaml() {
     );
 }
 
+#[test]
+fn external_stackable_operator_crds_match_serde_yaml() {
+    for path in STACKABLE_OPERATOR_CRDS {
+        let value = assert_value_matches_serde(&read_fixture(path));
+        assert_stackable_crd_header(&value, path);
+
+        let schema = &value["spec"]["versions"][0]["schema"]["openAPIV3Schema"];
+        assert_eq!(schema["type"].as_str(), Some("object"), "{path}");
+        assert!(
+            schema["properties"]["spec"].as_mapping().is_some(),
+            "{path} must expose a spec OpenAPI object"
+        );
+    }
+}
+
+#[test]
+fn external_stackable_operator_crds_cover_openapi_extensions() {
+    let listener_class = assert_value_matches_serde(include_str!(
+        "fixtures/downstream/stackable-operator/ListenerClass.yaml"
+    ));
+    assert_eq!(
+        listener_class["spec"]["group"].as_str(),
+        Some("listeners.stackable.tech")
+    );
+    assert_eq!(
+        listener_class["spec"]["names"]["kind"].as_str(),
+        Some("ListenerClass")
+    );
+    assert_eq!(
+        listener_class["spec"]["versions"][0]["schema"]["openAPIV3Schema"]["properties"]["spec"]
+            ["properties"]["serviceOverrides"]["x-kubernetes-preserve-unknown-fields"]
+            .as_bool(),
+        Some(true)
+    );
+
+    let authentication_class = assert_value_matches_serde(include_str!(
+        "fixtures/downstream/stackable-operator/AuthenticationClass.yaml"
+    ));
+    assert_eq!(
+        authentication_class["spec"]["group"].as_str(),
+        Some("authentication.stackable.tech")
+    );
+    assert!(
+        authentication_class["spec"]["versions"][0]["schema"]["openAPIV3Schema"]["properties"]
+            ["spec"]["properties"]["provider"]["oneOf"]
+            .as_sequence()
+            .is_some_and(|variants| variants.len() >= 5),
+        "AuthenticationClass provider oneOf variants survive migration"
+    );
+}
+
 fn downstream_manifest() -> DownstreamManifest {
     toml::from_str(SOURCE).expect("downstream SOURCE.toml parses")
 }
@@ -301,6 +363,24 @@ fn assert_value_matches_serde(input: &str) -> Value {
     let reference = yaml::to_value(reference).expect("serde_yaml value converts to yaml::Value");
     assert!(parsed.equivalent(&reference));
     parsed
+}
+
+fn assert_stackable_crd_header(value: &Value, path: &str) {
+    assert_eq!(
+        value["apiVersion"].as_str(),
+        Some("apiextensions.k8s.io/v1"),
+        "{path}"
+    );
+    assert_eq!(
+        value["kind"].as_str(),
+        Some("CustomResourceDefinition"),
+        "{path}"
+    );
+    assert_eq!(value["spec"]["versions"][0]["served"].as_bool(), Some(true));
+    assert_eq!(
+        value["spec"]["versions"][0]["storage"].as_bool(),
+        Some(true)
+    );
 }
 
 fn assert_tagged_scalar<'a>(

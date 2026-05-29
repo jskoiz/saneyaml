@@ -26,6 +26,10 @@ Notable completed release-candidate behavior:
   including root document-stream helpers, explicit YAML 1.1 `LoadOptions`,
   caller-built merge expansion, mapping/index ergonomics, lossless graph
   identity inspection, and diagnostic locations.
+- Pinned external downstream replay and package-alias build trials now include
+  Pingora, rust-i18n, cfn-guard, and Stackable operator-rs, with Stackable
+  adding Kubernetes CRD/OpenAPI schema fixture coverage plus serializer and
+  scalar serde build checks.
 - YAML 1.1 conformance fixtures now cover directive-driven legacy scalar
   construction, null and float spellings, timestamp time-zone forms, explicit
   binary and collection tags, invalid binary typed-target diagnostics,

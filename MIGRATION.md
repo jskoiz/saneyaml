@@ -139,10 +139,16 @@ from real `serde_yaml` users:
   CloudFormation templates and cfn-guard rule-test specs loaded through
   `serde_yaml::Value`, including short-form intrinsic tags such as `!Ref`,
   `!GetAtt`, and `!Sub`.
+- `stackabletech/operator-rs` / `stackable-operator` 0.111.1 at commit
+  `fd86c0ebf9b885be2684d7d867d513ab9df8c2e1`, Apache-2.0, covering
+  Kubernetes CustomResourceDefinition YAML with nested OpenAPI schemas,
+  `oneOf` variants, defaulted values, and `x-kubernetes-*` extension fields.
 
 `scripts/downstream-build-trials.sh pingora`,
 `scripts/downstream-build-trials.sh rust-i18n`, and
-`scripts/downstream-build-trials.sh cfn-guard` add real downstream build trials.
+`scripts/downstream-build-trials.sh cfn-guard`, and
+`scripts/downstream-build-trials.sh stackable-operator` add real downstream
+build trials.
 Each packages this crate, consumes the unpacked package from a clean smoke
 project under the `serde_yaml` dependency name, runs expanded alias-surface
 assertions against that package, then checks a pinned downstream checkout with
@@ -150,7 +156,8 @@ its `serde_yaml` dependency rewritten to that packaged copy. The Pingora trial
 checks `pingora-core` plus the `pingora-proxy` `modify_response` example that
 uses `serde_yaml` as a dev dependency; the rust-i18n trial covers support,
 macro, and extract crates; the cfn-guard trial checks the package that loads
-CloudFormation templates and rule-test specs.
+CloudFormation templates and rule-test specs; the Stackable trial checks
+`stackable-shared` production serializer use plus `k8s-version` serde tests.
 
 Focused proof command:
 
@@ -161,6 +168,7 @@ cargo test --test libyaml_probe_manifest
 scripts/downstream-build-trials.sh pingora
 scripts/downstream-build-trials.sh rust-i18n
 scripts/downstream-build-trials.sh cfn-guard
+scripts/downstream-build-trials.sh stackable-operator
 ```
 
 Broader migration proof:
@@ -288,8 +296,8 @@ testing each adopter's own YAML corpus.
 ## Next Adoption Blockers
 
 - Expand real external crate build trials beyond the current Pingora,
-  rust-i18n, and cfn-guard package smoke before claiming broad ecosystem
-  replacement readiness.
+  rust-i18n, cfn-guard, and Stackable operator-rs package smoke before claiming
+  broad ecosystem replacement readiness.
 - Keep migration-impact wording current as new divergence records are added.
 - Keep growing default merge, `apply_merge`, emitter, and lossless graph
   coverage with sustained fuzz runs and minimized discoveries beyond the

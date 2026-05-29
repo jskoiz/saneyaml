@@ -84,6 +84,16 @@ run_pingora_trial() {
   cargo check --manifest-path "$checkout/Cargo.toml" -p pingora-proxy --example modify_response
 }
 
+run_stackable_operator_trial() {
+  local checkout="$tmp/operator-rs"
+  git clone --quiet https://github.com/stackabletech/operator-rs.git "$checkout"
+  git -C "$checkout" checkout --quiet fd86c0ebf9b885be2684d7d867d513ab9df8c2e1
+  patch_serde_yaml_dependency "$checkout/Cargo.toml"
+
+  cargo check --manifest-path "$checkout/Cargo.toml" -p stackable-shared
+  cargo test --manifest-path "$checkout/Cargo.toml" -p k8s-version --features serde --lib
+}
+
 package_current_crate
 run_packaged_smoke
 
@@ -97,11 +107,14 @@ case "$trial" in
   cfn-guard)
     run_cfn_guard_trial
     ;;
+  stackable-operator)
+    run_stackable_operator_trial
+    ;;
   smoke-only)
     ;;
   *)
     echo "unknown downstream build trial: $trial" >&2
-    echo "available trials: pingora, rust-i18n, cfn-guard, smoke-only" >&2
+    echo "available trials: pingora, rust-i18n, cfn-guard, stackable-operator, smoke-only" >&2
     exit 2
     ;;
 esac

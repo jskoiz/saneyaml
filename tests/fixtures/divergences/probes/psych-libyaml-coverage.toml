@@ -4,7 +4,7 @@ comparison_manifest = "tests/fixtures/divergences/probes/psych-libyaml-compariso
 ruby = "2.6.10"
 psych = "3.1.0"
 libyaml = "0.2.1"
-probe_case_count = 35
+probe_case_count = 37
 behavior_family_count = 8
 tracked_gap_count = 7
 coverage_policy = "Pinned Psych/libyaml cases are grouped by behavior family. Covered families are executable proof for the listed cases, not blanket YAML 1.1/libyaml compatibility."
@@ -78,10 +78,12 @@ cases = [
   "yaml11-pairs-scalar-entry",
   "yaml11-core-structural-tags",
   "core-structural-tags",
+  "yaml11-value-resolved-handle",
+  "yaml11-value-duplicate-key",
 ]
 rust_entrypoints = ["yaml11-value", "directive-value", "typed-set-strings", "typed-string-i64-pairs"]
 adoption_risk = "Typed reads expose YAML 1.1 shapes, while retained trees preserve tag metadata instead of Psych object classes."
-next_expansion = "Add value-mapping duplicate payloads, custom tag handles, and explicit tag typed-target coverage."
+next_expansion = "Add broader explicit tag typed-target coverage and additional custom-handle variants from real corpora."
 
 [[behavior_family]]
 id = "directives-and-documents"
@@ -153,8 +155,8 @@ next_probe_candidates = ["graph-aware semantic API decision", "documented non-go
 [[tracked_gap]]
 id = "collection-tag-malformed-payloads"
 family = "yaml11-tags-and-structures"
-reason = "Representative malformed set, omap, and pairs typed-read diagnostics are covered; value-mapping duplicate and custom-handle payload variants remain open."
-next_probe_candidates = ["value mapping duplicates", "custom tag handles", "explicit tag typed-target variants"]
+reason = "Representative malformed set, omap, pairs, and value-key duplicate diagnostics are covered; broader explicit tag typed-target and real-corpus custom-handle variants remain open."
+next_probe_candidates = ["explicit tag typed-target variants", "real-corpus custom handles", "additional value mapping shapes"]
 
 [[tracked_gap]]
 id = "directive-stream-boundary-matrix"

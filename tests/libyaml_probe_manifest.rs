@@ -35,6 +35,8 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "yaml11-omap-non-singleton-entry",
         "yaml11-pairs-scalar-entry",
         "yaml11-core-structural-tags",
+        "yaml11-value-resolved-handle",
+        "yaml11-value-duplicate-key",
         "legacy-merge-edge-recovery",
         "explicit-merge-tags",
         "lossless-merge-graph",
@@ -55,7 +57,7 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_eq!(artifact["libyaml"], "0.2.1");
 
     let cases = artifact["cases"].as_array().expect("probe cases array");
-    assert_eq!(cases.len(), 35);
+    assert_eq!(cases.len(), 37);
 
     let expected_ids = BTreeSet::from([
         "adjacent-flow-mapping-scalars",
@@ -93,6 +95,8 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "yaml11-pairs-scalar-entry",
         "yaml11-set-non-null-payload",
         "yaml11-core-structural-tags",
+        "yaml11-value-duplicate-key",
+        "yaml11-value-resolved-handle",
     ]);
     let actual_ids = cases
         .iter()
@@ -165,6 +169,9 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_case_summary_contains(&artifact, "yaml11-core-structural-tags", "Hash");
     assert_case_summary_contains(&artifact, "yaml11-core-structural-tags", "value_mapping");
     assert_case_summary_contains(&artifact, "yaml11-core-structural-tags", "\"=\"");
+    assert_case_summary_contains(&artifact, "yaml11-value-resolved-handle", "value_key");
+    assert_case_summary_contains(&artifact, "yaml11-value-resolved-handle", "\"=\"");
+    assert_case_summary_contains(&artifact, "yaml11-value-duplicate-key", "second");
     assert_case_summary_contains(&artifact, "core-structural-tags", "Array");
     assert_case_summary_contains(&artifact, "core-structural-tags", "Hash");
     assert_case_summary_contains(&artifact, "core-structural-tags", "value_mapping");

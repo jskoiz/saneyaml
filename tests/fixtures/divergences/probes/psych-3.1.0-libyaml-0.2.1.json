@@ -1820,6 +1820,82 @@
       "input_bytes": 322
     },
     {
+      "id": "yaml11-value-resolved-handle",
+      "record": "tests/fixtures/divergences/records/yaml11-core-structural-tags.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "value_key"
+            },
+            "value": {
+              "class": "String",
+              "value": "="
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "value_mapping"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "="
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "value"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "input_sha256": "5a620e1655233cac27cb5a4d9596c6b14bc13c02587eec2d4fe0b174b97e92f1",
+      "input_bytes": 113
+    },
+    {
+      "id": "yaml11-value-duplicate-key",
+      "record": "tests/fixtures/divergences/records/yaml11-core-structural-tags.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "value_mapping"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "="
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "second"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "input_sha256": "1ec7df0ade45e6b2b3ae78c96e7d03da33ab10f6d6c4756dd8ad732245e3eef9",
+      "input_bytes": 113
+    },
+    {
       "id": "legacy-merge-edge-recovery",
       "record": "tests/fixtures/divergences/records/merge-keys.toml",
       "status": "ok",

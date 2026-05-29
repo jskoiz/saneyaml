@@ -337,6 +337,28 @@ fixture = "tests/fixtures/yaml11-conformance/core-structural-tags.yaml"
 rust_contains = ["Tagged", "short_seq", "resolved_map", "value_mapping"]
 
 [[case]]
+id = "yaml11-value-resolved-handle"
+record = "tests/fixtures/divergences/records/yaml11-core-structural-tags.toml"
+psych_status = "ok"
+rust_entrypoint = "directive-value"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "Psych constructs %TAG-resolved !!value nodes as ordinary strings and mapping keys; retained Rust Value keeps the resolved tag metadata while typed reads stay transparent."
+fixture = "tests/fixtures/yaml11-conformance/value-resolved-handle.yaml"
+rust_contains = ["Tagged", "value_key", "tag:yaml.org,2002:value"]
+
+[[case]]
+id = "yaml11-value-duplicate-key"
+record = "tests/fixtures/divergences/records/yaml11-core-structural-tags.toml"
+psych_status = "ok"
+rust_entrypoint = "directive-value"
+rust_status = "error"
+rust_policy = "intentional-divergence"
+reason = "Psych keeps the last value for duplicate !!value keys, while Rust loading treats short and %TAG-resolved !!value keys as the same scalar key identity and rejects the duplicate with a span."
+fixture = "tests/fixtures/yaml11-conformance/value-duplicate-key.yaml"
+rust_error_contains = "duplicate mapping key `=`"
+
+[[case]]
 id = "legacy-merge-edge-recovery"
 record = "tests/fixtures/divergences/records/merge-keys.toml"
 psych_status = "ok"

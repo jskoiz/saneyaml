@@ -255,6 +255,16 @@ CASES = [
     yaml: fixture_yaml("tests/fixtures/yaml11-conformance/core-structural-tags.yaml")
   },
   {
+    id: "yaml11-value-resolved-handle",
+    record: "tests/fixtures/divergences/records/yaml11-core-structural-tags.toml",
+    yaml: fixture_yaml("tests/fixtures/yaml11-conformance/value-resolved-handle.yaml")
+  },
+  {
+    id: "yaml11-value-duplicate-key",
+    record: "tests/fixtures/divergences/records/yaml11-core-structural-tags.toml",
+    yaml: fixture_yaml("tests/fixtures/yaml11-conformance/value-duplicate-key.yaml")
+  },
+  {
     id: "legacy-merge-edge-recovery",
     record: "tests/fixtures/divergences/records/merge-keys.toml",
     yaml: fixture_yaml("tests/fixtures/yaml11-conformance/legacy-merge-edge-recovery.yaml")

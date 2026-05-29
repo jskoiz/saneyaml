@@ -24,7 +24,7 @@ The compatibility target is intentionally split:
   as matching Psych/libyaml or as an intentional Rust policy divergence, then
   `libyaml_probe_manifest` executes the matching Rust parser, value, directive,
   or lossless entrypoint. A separate `psych-libyaml-coverage.toml` ledger groups
-  the 32 pinned probe cases into eight behavior families and tracks the next
+  the 37 pinned probe cases into eight behavior families and tracks the next
   missing libyaml-era probes without claiming blanket compatibility. Default
   loading stays YAML 1.2-oriented; explicit YAML 1.1 construction covers the
   scalar forms listed here with
@@ -293,18 +293,19 @@ source buffer and links aliases to stable anchor ids for graph-sensitive
 callers. The pinned Psych/libyaml probe records that libyaml-backed Ruby objects
 share alias identity, reflect alias-visible mutation, and preserve recursive
 object identity. The same probe now pins fixture-backed YAML 1.1 structural
-tag, merge recovery, nested merge precedence, duplicate local-key policy,
+tag, resolved-handle `!!value` keys, duplicate `!!value` key policy, merge
+recovery, nested merge precedence, duplicate local-key policy,
 cross-document merge alias reset, mixed invalid merge-list recovery, explicit
 merge-tag, and lossless graph parser-event cross-checks, plus libyaml-era
 parser-event behavior for YAML/TAG directives,
 document markers, document-start inline nodes, undeclared tag-handle errors,
 YAML 1.3 rejection, document-start block-scalar rejection, bare-document-stream
 rejection, and directive-looking flow-content rejection. The
-Rust-vs-Psych policy manifest now gates all 32 pinned cases against this crate's
+Rust-vs-Psych policy manifest now gates all 37 pinned cases against this crate's
 chosen default, YAML 1.1, directive-driven, event, or lossless entrypoint,
 checks the Psych input SHA-256 digests against the Rust comparison inputs, and
 requires intentional divergences to link back to migration-impact records. The
-Psych/libyaml coverage ledger keeps those 32 cases grouped into eight behavior
+Psych/libyaml coverage ledger keeps those 37 cases grouped into eight behavior
 families and seven tracked gaps so the remaining YAML 1.1/libyaml work is
 auditable rather than implicit.
 This crate keeps alias identity in the lossless graph surface, not semantic

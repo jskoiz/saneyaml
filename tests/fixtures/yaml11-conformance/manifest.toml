@@ -41,6 +41,20 @@ tag = "%TAG !yaml! tag:yaml.org,2002:"
 expected = "accept"
 
 [[case]]
+id = "value-resolved-handle"
+path = "value-resolved-handle.yaml"
+kind = "core-structural-tags"
+tag = "%TAG !yaml! tag:yaml.org,2002:"
+expected = "accept"
+
+[[case]]
+id = "value-duplicate-key"
+path = "value-duplicate-key.yaml"
+kind = "duplicate-key"
+tag = "%TAG !yaml! tag:yaml.org,2002:"
+expected = "error"
+
+[[case]]
 id = "set-rejects-non-null-values"
 path = "set-rejects-non-null-values.yaml"
 kind = "set"

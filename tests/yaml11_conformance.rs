@@ -80,6 +80,12 @@ struct CoreStructuralTags {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+struct ValueStructuralTags {
+    value_key: String,
+    value_mapping: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
 struct LegacyBinaryPayload {
     payload: Vec<u8>,
 }
@@ -95,7 +101,7 @@ struct LegacyService {
 #[test]
 fn yaml11_conformance_manifest_is_complete() {
     let manifest = manifest();
-    assert_eq!(manifest.case.len(), 21);
+    assert_eq!(manifest.case.len(), 23);
     let manifest_paths = manifest
         .case
         .iter()
@@ -274,6 +280,48 @@ fn yaml11_core_structural_tags_are_retained_and_transparent_for_typed_reads() {
         lossless.as_source().contains("!yaml!seq"),
         "%TAG-resolved seq tag is retained in source replay"
     );
+}
+
+#[test]
+fn yaml11_value_structural_tag_handles_and_duplicate_keys_are_explicit() {
+    let source = read_fixture("value-resolved-handle.yaml");
+    let typed: ValueStructuralTags = LoadOptions::yaml_version_directive()
+        .from_str(&source)
+        .expect("%TAG-resolved !!value typed read");
+    assert_eq!(
+        typed,
+        ValueStructuralTags {
+            value_key: "=".to_string(),
+            value_mapping: BTreeMap::from([("=".to_string(), "value".to_string())]),
+        }
+    );
+
+    let value: Value = LoadOptions::yaml_version_directive()
+        .from_str(&source)
+        .expect("%TAG-resolved !!value retained read");
+    assert_tagged_child_payload(
+        &value,
+        "value_key",
+        yaml::Tag::new("!<tag:yaml.org,2002:value>"),
+        "scalar",
+    );
+    assert_tagged_key(
+        &value["value_mapping"],
+        yaml::Tag::new("!<tag:yaml.org,2002:value>"),
+        "=",
+        "value",
+    );
+
+    let duplicate_source = read_fixture("value-duplicate-key.yaml");
+    let error = LoadOptions::yaml_version_directive()
+        .from_str::<Value>(&duplicate_source)
+        .expect_err("resolved !!value keys collide after tag-transparent key identity");
+    assert!(
+        error.to_string().contains("duplicate mapping key `=`"),
+        "{error}"
+    );
+    assert_eq!(error.line(), Some(7));
+    assert_eq!(error.column(), Some(5));
 }
 
 #[test]
@@ -990,7 +1038,9 @@ fn assert_tagged_child_payload(value: &Value, key: &str, tag: yaml::Tag, shape: 
         .unwrap_or_else(|| panic!("{key} tag is retained"));
     assert_eq!(tagged.tag, tag);
     match (&tagged.value, shape) {
-        (Value::Mapping(_), "mapping") | (Value::Sequence(_), "sequence") => {}
+        (Value::Mapping(_), "mapping")
+        | (Value::Sequence(_), "sequence")
+        | (Value::String(_), "scalar") => {}
         (other, _) => panic!("unexpected tagged payload shape for {key}: {other:?}"),
     }
 }

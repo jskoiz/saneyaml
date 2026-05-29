@@ -82,12 +82,13 @@ Notable completed release-candidate behavior:
   policy. The pinned Psych/libyaml probe records merge-list precedence,
   explicit merge-tag expansion, explicit merge overrides, repeated merge-key
   recovery, non-mergeable merge payload recovery, fixture-backed YAML 1.1
-  merge/tag/graph cross-checks, nested merge precedence, duplicate local-key
+  merge/tag/graph cross-checks, resolved `!!value` handle and duplicate-key
+  policy checks, nested merge precedence, duplicate local-key
   policy, cross-document merge alias reset, mixed invalid merge-list recovery,
   alias object identity, per-case input digests, error locations where Psych
   exposes them, and first-class alias redefinition/recursive identity probes as
   deliberate compatibility decisions.
-- A Psych/libyaml coverage ledger now groups the 32 pinned probe cases into
+- A Psych/libyaml coverage ledger now groups the 37 pinned probe cases into
   eight behavior families and tracks seven explicit next-probe gaps, keeping
   YAML 1.1/libyaml scope auditable without claiming blanket compatibility.
 - `TaggedValue` now implements owned and borrowed Serde deserializer support

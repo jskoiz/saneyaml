@@ -27,9 +27,13 @@ fn real_world_lossless_replay_gate_is_manifest_owned() {
         lossless_paths,
         BTreeSet::from([
             "ansible/vault-and-unsafe-tags.yaml",
+            "cloudflare/wrangler.yaml",
+            "docker-compose/awesome-nginx-flask-mysql.yaml",
             "github-actions/starter-node-ci.yml",
+            "helm/upstream-hello-world-Chart.yaml",
             "kubernetes/configmap-block-scalars.yaml",
             "kubernetes/helm-rendered-stream.yaml",
+            "openapi/operations-and-polymorphism.yaml",
         ])
     );
 
@@ -155,6 +159,55 @@ fn lossless_replay_preserves_ansible_tags_and_block_scalars() {
 }
 
 #[test]
+fn lossless_replay_preserves_compose_comments_and_flow_healthchecks() {
+    let input = include_str!("fixtures/real-world/docker-compose/awesome-nginx-flask-mysql.yaml");
+    let stream = parse_lossless(input).expect("lossless parse Docker Compose snapshot");
+
+    let comments = stream
+        .comments()
+        .map(|comment| comment.text())
+        .collect::<Vec<_>>();
+    assert!(
+        comments
+            .iter()
+            .any(|comment| comment.contains("mariadb image"))
+    );
+    assert!(comments.iter().any(|comment| comment == &"#image: mysql:8"));
+    assert!(stream.as_source().contains("depends_on: \n"));
+
+    let flow_sequence_sources = collection_sources(&stream, CollectionStyle::Flow);
+    assert!(
+        flow_sequence_sources
+            .iter()
+            .any(|source| source.starts_with("['CMD-SHELL'") && source.contains("mysqladmin ping"))
+    );
+}
+
+#[test]
+fn lossless_replay_preserves_helm_chart_comments_and_quoted_app_version() {
+    let input = include_str!("fixtures/real-world/helm/upstream-hello-world-Chart.yaml");
+    let stream = parse_lossless(input).expect("lossless parse Helm Chart snapshot");
+
+    let comments = stream
+        .comments()
+        .map(|comment| comment.text())
+        .collect::<Vec<_>>();
+    assert!(
+        comments
+            .iter()
+            .any(|comment| comment.contains("chart version"))
+    );
+    assert!(
+        comments
+            .iter()
+            .any(|comment| comment.contains("recommended to use it with quotes"))
+    );
+
+    let double_quoted_sources = scalar_sources(&stream, ScalarStyle::DoubleQuoted);
+    assert!(double_quoted_sources.contains(&"\"1.16.0\""));
+}
+
+#[test]
 fn lossless_replay_preserves_kubernetes_stream_boundaries_and_comments() {
     let input = include_str!("fixtures/real-world/kubernetes/helm-rendered-stream.yaml");
     let stream = parse_lossless(input).expect("lossless parse helm-rendered stream");
@@ -230,6 +283,56 @@ fn lossless_replay_keeps_configmap_block_scalar_data() {
     );
 }
 
+#[test]
+fn lossless_replay_preserves_openapi_block_scalars_flow_collections_and_refs() {
+    let input = include_str!("fixtures/real-world/openapi/operations-and-polymorphism.yaml");
+    let stream = parse_lossless(input).expect("lossless parse OpenAPI operations fixture");
+
+    let literal_sources = scalar_sources(&stream, ScalarStyle::Literal);
+    assert!(
+        literal_sources.iter().any(|source| source.starts_with("|-")
+            && source.contains("Requires an authenticated caller."))
+    );
+
+    let flow_sequence_sources = collection_sources(&stream, CollectionStyle::Flow);
+    assert!(flow_sequence_sources.contains(&"[orders]"));
+    assert!(flow_sequence_sources.contains(&"[id, status, line_items]"));
+    assert!(flow_sequence_sources.contains(&"[pending, paid, refunded]"));
+
+    let double_quoted_sources = scalar_sources(&stream, ScalarStyle::DoubleQuoted);
+    assert!(double_quoted_sources.contains(&"\"200\""));
+    assert!(double_quoted_sources.contains(&"\"404\""));
+    assert!(double_quoted_sources.contains(&"\"1.0.0\""));
+
+    assert!(double_quoted_sources.contains(&"\"#/components/schemas/Order\""));
+    assert!(double_quoted_sources.contains(&"\"#/components/schemas/Error\""));
+
+    let plain_values = scalar_values(&stream, ScalarStyle::Plain);
+    assert!(plain_values.contains(&"application/problem+json"));
+}
+
+#[test]
+fn lossless_replay_preserves_wrangler_comments_quoted_dates_and_flow_flags() {
+    let input = include_str!("fixtures/real-world/cloudflare/wrangler.yaml");
+    let stream = parse_lossless(input).expect("lossless parse Wrangler fixture");
+
+    let comments = stream
+        .comments()
+        .map(|comment| comment.text())
+        .collect::<Vec<_>>();
+    assert!(
+        comments
+            .iter()
+            .any(|comment| comment.contains("runtime settings"))
+    );
+
+    let double_quoted_sources = scalar_sources(&stream, ScalarStyle::DoubleQuoted);
+    assert!(double_quoted_sources.contains(&"\"2026-05-23\""));
+
+    let flow_sequence_sources = collection_sources(&stream, CollectionStyle::Flow);
+    assert!(flow_sequence_sources.contains(&"[nodejs_compat]"));
+}
+
 fn fixture_manifest() -> FixtureManifest {
     toml::from_str(SOURCE).expect("real-world fixture source manifest parses")
 }
@@ -247,6 +350,19 @@ fn literal_scalar_values(stream: &yaml::LosslessStream) -> Vec<&str> {
     scalar_values(stream, ScalarStyle::Literal)
 }
 
+fn scalar_sources(stream: &yaml::LosslessStream, expected_style: ScalarStyle) -> Vec<&str> {
+    stream
+        .nodes()
+        .iter()
+        .filter_map(|node| match node.kind() {
+            LosslessNodeKind::Scalar { style, .. } if *style == expected_style => {
+                stream.source_fragment(node.span())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
 fn scalar_values(stream: &yaml::LosslessStream, expected_style: ScalarStyle) -> Vec<&str> {
     stream
         .nodes()
@@ -254,6 +370,21 @@ fn scalar_values(stream: &yaml::LosslessStream, expected_style: ScalarStyle) -> 
         .filter_map(|node| match node.kind() {
             LosslessNodeKind::Scalar { value, style } if *style == expected_style => {
                 Some(value.as_str())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn collection_sources(stream: &yaml::LosslessStream, expected_style: CollectionStyle) -> Vec<&str> {
+    stream
+        .nodes()
+        .iter()
+        .filter_map(|node| match node.kind() {
+            LosslessNodeKind::Mapping { style, .. } | LosslessNodeKind::Sequence { style, .. }
+                if *style == expected_style =>
+            {
+                stream.source_fragment(node.span())
             }
             _ => None,
         })

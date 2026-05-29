@@ -62,7 +62,7 @@ version = "docker/awesome-compose nginx-flask-mysql/compose.yaml at commit 18f59
 license = "CC0 1.0 Universal."
 reduction = "None; upstream snapshot preserves comments, build forms, secrets, networks, list environment values, healthcheck command, and depends_on list/map shapes."
 expected_docs = 1
-gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance", "lossless-replay"]
 
 [[fixture]]
 path = "docker-compose/compose-anchors.yaml"
@@ -205,7 +205,7 @@ version = "helm/examples charts/hello-world/Chart.yaml at commit 4888ba8fb8180dd
 license = "Apache-2.0."
 reduction = "None; upstream snapshot preserves chart metadata comments, semver-like chart version, and quoted appVersion."
 expected_docs = 1
-gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance", "lossless-replay"]
 
 [[fixture]]
 path = "openapi/petstore-fragment.yaml"
@@ -225,9 +225,9 @@ source_type = "synthetic"
 source = "Locally synthesized from OpenAPI operation, parameter, and schema polymorphism conventions."
 version = "OpenAPI 3.x fixture surface"
 license = "Local test fixture; no copied production data."
-reduction = "Operation fixture preserving dynamic schema keys, examples, and oneOf-style shapes."
+reduction = "Operation fixture preserving dynamic schema keys, examples, block scalar descriptions, and oneOf-style shapes."
 expected_docs = 1
-gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance", "lossless-replay"]
 
 [[fixture]]
 path = "openapi/upstream-petstore.yaml"
@@ -247,9 +247,9 @@ source_type = "synthetic"
 source = "Locally synthesized from Cloudflare Wrangler YAML configuration conventions."
 version = "Wrangler YAML configuration, 2026-05 fixture surface"
 license = "Local test fixture; no copied production data."
-reduction = "Worker config fixture preserving bindings, vars, routes, and borrowed string reads."
+reduction = "Worker config fixture preserving comments, quoted compatibility_date, flow-style compatibility_flags, vars, routes, and borrowed string reads."
 expected_docs = 1
-gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance", "lossless-replay"]
 
 [[fixture]]
 path = "cloudflare/adapted-durable-objects-wrangler.yaml"

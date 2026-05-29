@@ -62,9 +62,10 @@ Notable completed release-candidate behavior:
   validated node/source-span edits, insertions, and deletions that preserve
   untouched bytes.
 - Real-world lossless replay is now manifest-gated for GitHub Actions workflow
-  comments, flow-style branch/matrix lists, and expression strings, plus
-  Ansible `!vault` / `!unsafe` tags and Kubernetes Helm-style streams and
-  ConfigMap block scalars.
+  comments, flow-style branch/matrix lists, Docker Compose healthcheck flow
+  commands, Helm chart comments, OpenAPI block scalars/flow collections,
+  Wrangler comments/flow flags, Ansible `!vault` / `!unsafe` tags, and
+  Kubernetes Helm-style streams and ConfigMap block scalars.
 - Real-world graph coverage now includes an adapted official Compose
   Specification fragments example with multiple anchors, aliases, and a merge
   list, plus a manifest audit that detects graph-sensitive fixtures.

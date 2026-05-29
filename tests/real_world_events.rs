@@ -478,7 +478,7 @@ fn rw_events_common_configs__source_spans_and_styles_are_stable() {
         &wrangler_events,
         "2026-05-23",
         ScalarStyle::DoubleQuoted,
-        3,
+        4,
         21,
         "\"2026-05-23\"",
     );
@@ -487,7 +487,7 @@ fn rw_events_common_configs__source_spans_and_styles_are_stable() {
         &wrangler_events,
         "nodejs_compat",
         ScalarStyle::Plain,
-        4,
+        5,
         23,
         "nodejs_compat",
     );
@@ -496,7 +496,7 @@ fn rw_events_common_configs__source_spans_and_styles_are_stable() {
         &wrangler_events,
         "example.com/*",
         ScalarStyle::Plain,
-        8,
+        9,
         14,
         "example.com/*",
     );
@@ -505,7 +505,7 @@ fn rw_events_common_configs__source_spans_and_styles_are_stable() {
         &wrangler_events,
         "00000000-0000-0000-0000-000000000000",
         ScalarStyle::Plain,
-        13,
+        14,
         18,
         "00000000-0000-0000-0000-000000000000",
     );

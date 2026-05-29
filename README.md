@@ -47,8 +47,10 @@ The first milestone focuses on:
   value/insert/delete edits, and raw insertions/deletions
   while preserving untouched bytes. Real-world Docker Compose anchor cases
   including an adapted official Compose-spec fragment, YAML 1.1 merge/comment
-  graph fixtures, GitHub Actions workflow comments/flow lists, and
-  Ansible/Kubernetes lossless replay cases are manifest-gated on this surface.
+  graph fixtures, GitHub Actions workflow comments/flow lists, Docker Compose
+  comments/flow healthchecks, Helm chart comments, OpenAPI block scalars/flow
+  collections, Wrangler comments/flow flags, and Ansible/Kubernetes lossless
+  replay cases are manifest-gated on this surface.
 - Deterministic structural emission with `parse(emit(tree)) == tree` for
   emittable trees; duplicate-effective mapping keys, untagged literal merge
   keys, over-depth trees, and directly nested tags are rejected before output.

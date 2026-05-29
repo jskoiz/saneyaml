@@ -118,8 +118,8 @@ Notable completed release-candidate behavior:
   item replacement, insertion, and deletion, with source-preserving formatting
   plus direct lossless-edit fuzz/property replay seeds.
 - The YAML test-suite coverage ledger now pins the full upstream denominator at
-  402 cases, maps the 137 selected cases to canonical upstream IDs, and records
-  the 265 not-imported cases as explicit coverage debt.
+  402 cases, maps the 146 selected cases to canonical upstream IDs, and records
+  the 256 not-imported cases as explicit coverage debt.
 - Fuzz release proof now has a manual `scripts/fuzz-release-sweep.sh` path that
   records checkout HEAD/status, target mode, target names, corpus counts, run
   counts, statuses, elapsed time, and artifact directories, while

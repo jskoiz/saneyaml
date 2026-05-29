@@ -319,7 +319,7 @@ testing each adopter's own YAML corpus.
   `Mapping` indexing accepts string-like keys or `Value` keys, not sequence
   positions.
 - Full upstream YAML test-suite coverage is not claimed; the pinned coverage
-  ledger records 402 upstream cases, 137 selected cases, and 265 not-imported
+  ledger records 402 upstream cases, 146 selected cases, and 256 not-imported
   cases, while selected-suite scope and deferred parity cases remain documented
   in `BASELINE.md` and `COMPATIBILITY.md`.
 

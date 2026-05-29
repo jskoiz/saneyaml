@@ -599,6 +599,78 @@ policy = "raw-events-tree-serde-reject"
 features = ["error", "mapping", "sequence"]
 
 [[case]]
+id = "2CMS"
+name = "over-indented multiline plain scalar mapping value is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "block", "mapping", "scalar", "indentation", "multiline"]
+
+[[case]]
+id = "62EZ"
+name = "flow mapping followed by adjacent plain content is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "flow", "mapping", "scalar"]
+
+[[case]]
+id = "7MNF"
+name = "missing mapping value after top-level key is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "block", "mapping", "scalar"]
+
+[[case]]
+id = "9CWY"
+name = "missing mapping value after block sequence is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "block", "mapping", "sequence"]
+
+[[case]]
+id = "C2SP"
+name = "multiline flow collection key is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "flow", "mapping", "multiline"]
+
+[[case]]
+id = "G7JE"
+name = "multiline plain mapping key indentation is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "block", "mapping", "scalar", "indentation", "multiline"]
+
+[[case]]
+id = "HU3P"
+name = "mapping value inserted into multiline plain scalar is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "block", "mapping", "scalar", "multiline"]
+
+[[case]]
+id = "7LBH"
+name = "multiline double-quoted mapping key indentation is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "block", "mapping", "scalar", "double-quoted", "multiline"]
+
+[[case]]
+id = "D49Q"
+name = "multiline single-quoted mapping key indentation is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "block", "mapping", "scalar", "single-quoted", "multiline"]
+
+[[case]]
 id = "ZCZ6"
 name = "nested mapping in plain single-line value is rejected"
 expected = "syntax-error"

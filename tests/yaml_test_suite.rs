@@ -153,9 +153,9 @@ fn yts_manifest_selected_cases_have_fixture_inputs_and_unique_ids() {
         }
     }
 
-    assert_eq!(manifest.case.len(), 137);
+    assert_eq!(manifest.case.len(), 146);
     assert_eq!(accepted, 93);
-    assert_eq!(error_cases, 42);
+    assert_eq!(error_cases, 51);
     assert_eq!(tree_only_rejections, 2);
 }
 
@@ -251,7 +251,7 @@ fn yts_manifest_acceptance_policy_matches_parser_event_and_serde_entrypoints() {
     }
 
     assert_eq!(accepted, 93);
-    assert_eq!(syntax_rejections, 42);
+    assert_eq!(syntax_rejections, 51);
     assert_eq!(tree_only_rejections, 2);
 }
 

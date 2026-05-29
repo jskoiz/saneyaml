@@ -1,0 +1,339 @@
+#![allow(dead_code)]
+
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+use std::net::Ipv4Addr;
+use std::path::{Path, PathBuf};
+
+const STACKABLE_OPERATOR_CRDS: &[(&str, &str)] = &[
+    (
+        "fixtures/stackable-operator/AuthenticationClass.yaml",
+        include_str!("../fixtures/stackable-operator/AuthenticationClass.yaml"),
+    ),
+    (
+        "fixtures/stackable-operator/DummyCluster.yaml",
+        include_str!("../fixtures/stackable-operator/DummyCluster.yaml"),
+    ),
+    (
+        "fixtures/stackable-operator/Listener.yaml",
+        include_str!("../fixtures/stackable-operator/Listener.yaml"),
+    ),
+    (
+        "fixtures/stackable-operator/ListenerClass.yaml",
+        include_str!("../fixtures/stackable-operator/ListenerClass.yaml"),
+    ),
+    (
+        "fixtures/stackable-operator/PodListeners.yaml",
+        include_str!("../fixtures/stackable-operator/PodListeners.yaml"),
+    ),
+    (
+        "fixtures/stackable-operator/S3Bucket.yaml",
+        include_str!("../fixtures/stackable-operator/S3Bucket.yaml"),
+    ),
+    (
+        "fixtures/stackable-operator/S3Connection.yaml",
+        include_str!("../fixtures/stackable-operator/S3Connection.yaml"),
+    ),
+    (
+        "fixtures/stackable-operator/Scaler.yaml",
+        include_str!("../fixtures/stackable-operator/Scaler.yaml"),
+    ),
+];
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+struct PingoraServerConf {
+    version: usize,
+    #[serde(default)]
+    threads: Option<usize>,
+    #[serde(default)]
+    pid_file: Option<PathBuf>,
+    #[serde(default)]
+    error_log: Option<PathBuf>,
+    #[serde(default)]
+    upgrade_sock: Option<PathBuf>,
+    #[serde(default)]
+    max_retries: Option<usize>,
+    #[serde(default)]
+    ca_file: Option<PathBuf>,
+    #[serde(default)]
+    client_bind_to_ipv4: Vec<Ipv4Addr>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(untagged)]
+enum LocaleValue {
+    String(String),
+    Integer(i64),
+    Mapping(BTreeMap<String, LocaleValue>),
+}
+
+fn main() {
+    pingora_configs_use_package_alias();
+    rust_i18n_locales_use_package_alias();
+    cfn_guard_templates_use_package_alias();
+    stackable_crds_use_package_alias();
+}
+
+fn pingora_configs_use_package_alias() {
+    for (path, input) in [
+        (
+            "fixtures/pingora/pingora-core-pingora_conf.yaml",
+            include_str!("../fixtures/pingora/pingora-core-pingora_conf.yaml"),
+        ),
+        (
+            "fixtures/pingora/pingora-proxy-pingora_conf.yaml",
+            include_str!("../fixtures/pingora/pingora-proxy-pingora_conf.yaml"),
+        ),
+        (
+            "fixtures/pingora/pingora-proxy-example-conf.yaml",
+            include_str!("../fixtures/pingora/pingora-proxy-example-conf.yaml"),
+        ),
+    ] {
+        let parsed: PingoraServerConf = serde_yaml::from_str(input).expect("pingora parses");
+        assert_eq!(parsed.version, 1, "{path}");
+
+        let emitted = serde_yaml::to_string(&parsed).expect("pingora emits");
+        let reparsed: PingoraServerConf =
+            serde_yaml::from_str(&emitted).expect("pingora emitted YAML reparses");
+        assert_eq!(reparsed, parsed, "{path}");
+    }
+
+    let core: PingoraServerConf = serde_yaml::from_str(include_str!(
+        "../fixtures/pingora/pingora-core-pingora_conf.yaml"
+    ))
+    .expect("core config parses");
+    assert_eq!(core.client_bind_to_ipv4, [Ipv4Addr::new(127, 0, 0, 2)]);
+    assert_eq!(
+        core.ca_file.as_deref(),
+        Some(Path::new("tests/keys/server.crt"))
+    );
+
+    let example: PingoraServerConf = serde_yaml::from_str(include_str!(
+        "../fixtures/pingora/pingora-proxy-example-conf.yaml"
+    ))
+    .expect("example config parses");
+    assert_eq!(example.threads, Some(2));
+    assert_eq!(example.max_retries, Some(5));
+    assert_eq!(
+        example.pid_file.as_deref(),
+        Some(Path::new("/tmp/load_balancer.pid"))
+    );
+}
+
+fn rust_i18n_locales_use_package_alias() {
+    for (path, input) in [
+        (
+            "fixtures/rust-i18n/app-en.yml",
+            include_str!("../fixtures/rust-i18n/app-en.yml"),
+        ),
+        (
+            "fixtures/rust-i18n/app-fr.yml",
+            include_str!("../fixtures/rust-i18n/app-fr.yml"),
+        ),
+        (
+            "fixtures/rust-i18n/user.en.yaml",
+            include_str!("../fixtures/rust-i18n/user.en.yaml"),
+        ),
+        (
+            "fixtures/rust-i18n/v2.yml",
+            include_str!("../fixtures/rust-i18n/v2.yml"),
+        ),
+    ] {
+        let locale: BTreeMap<String, LocaleValue> =
+            serde_yaml::from_str(input).expect("rust-i18n locale parses");
+        assert!(!locale.is_empty(), "{path}");
+    }
+
+    let app_en: BTreeMap<String, LocaleValue> =
+        serde_yaml::from_str(include_str!("../fixtures/rust-i18n/app-en.yml"))
+            .expect("app-en locale parses");
+    assert_eq!(
+        app_en.get("hello"),
+        Some(&LocaleValue::String("Hello, %{name}!".to_owned()))
+    );
+
+    let user: BTreeMap<String, LocaleValue> =
+        serde_yaml::from_str(include_str!("../fixtures/rust-i18n/user.en.yaml"))
+            .expect("user locale parses");
+    assert!(matches!(
+        user.get("messages"),
+        Some(LocaleValue::Mapping(messages)) if messages.contains_key("user")
+    ));
+
+    let v2: BTreeMap<String, LocaleValue> =
+        serde_yaml::from_str(include_str!("../fixtures/rust-i18n/v2.yml"))
+            .expect("v2 locale parses");
+    let hello = lookup_locale_path(&v2, &["nested_locale_test", "hello", "ja"]);
+    assert!(hello.is_some_and(|value| value.ends_with(" test2")));
+    let message = lookup_locale_path(&v2, &["t_kmFrQ2nnJsvUh3Ckxmki0", "zh-CN"]);
+    assert!(message.is_some_and(|value| value.contains("%{name}") && value.contains("%{msg}")));
+}
+
+fn cfn_guard_templates_use_package_alias() {
+    let value: serde_yaml::Value =
+        serde_yaml::from_str(include_str!("../fixtures/cfn-guard/cfn-lambda.yaml"))
+            .expect("cfn-lambda parses");
+
+    let service_token = &value["Resources"]["AllSecurityGroups"]["Properties"]["ServiceToken"];
+    assert_tagged_scalar(
+        service_token,
+        "GetAtt",
+        "AppendItemToListFunction.Arn",
+        "CloudFormation service token",
+    );
+
+    let zip_file = &value["Resources"]["AppendItemToListFunction"]["Properties"]["Code"]
+        ["ZipFile"];
+    let tagged = assert_tagged_scalar(zip_file, "Sub", "", "CloudFormation inline Lambda");
+    assert!(
+        tagged
+            .value
+            .as_str()
+            .is_some_and(|source| source.contains("exports.handler = function(event, context)")),
+        "inline Lambda body survives tagged block scalar"
+    );
+
+    let security_group_ids =
+        &value["Resources"]["MyEC2Instance"]["Properties"]["SecurityGroupIds"];
+    assert_tagged_scalar(
+        security_group_ids,
+        "GetAtt",
+        "AllSecurityGroups.Value",
+        "CloudFormation security group id lookup",
+    );
+
+    let test_spec: serde_yaml::Value =
+        serde_yaml::from_str(include_str!("../fixtures/cfn-guard/test-command-test.yaml"))
+            .expect("cfn-guard test spec parses");
+    assert_eq!(
+        test_spec[0]["expectations"]["rules"]["REDSHIFT_ENCRYPTED_CMK"].as_str(),
+        Some("PASS")
+    );
+    assert_tagged_scalar(
+        &test_spec[0]["input"]["Resources"]["myCluster"]["Properties"]["KmsKeyId"]
+            ["Fn::ImportValue"],
+        "Sub",
+        "${pSecretKmsKey}",
+        "nested CloudFormation import value",
+    );
+
+    let s3_spec: serde_yaml::Value = serde_yaml::from_str(include_str!(
+        "../fixtures/cfn-guard/s3-bucket-logging-enabled-tests.yaml"
+    ))
+    .expect("s3 logging spec parses");
+    assert_eq!(
+        s3_spec[0]["expectations"]["rules"]["S3_BUCKET_LOGGING_ENABLED"].as_str(),
+        Some("SKIP")
+    );
+    assert_eq!(
+        s3_spec[2]["expectations"]["rules"]["S3_BUCKET_LOGGING_ENABLED"].as_str(),
+        Some("PASS")
+    );
+    assert_tagged_scalar(
+        &s3_spec[2]["input"]["Resources"]["ExampleS3"]["Properties"]["LoggingConfiguration"]
+            ["DestinationBucketName"],
+        "Ref",
+        "LoggingBucket",
+        "S3 logging destination bucket",
+    );
+}
+
+fn stackable_crds_use_package_alias() {
+    for (path, input) in STACKABLE_OPERATOR_CRDS {
+        let value: serde_yaml::Value = serde_yaml::from_str(input).expect("stackable CRD parses");
+        assert_stackable_crd_header(&value, path);
+
+        let schema = &value["spec"]["versions"][0]["schema"]["openAPIV3Schema"];
+        assert_eq!(schema["type"].as_str(), Some("object"), "{path}");
+        assert!(
+            schema["properties"]["spec"].as_mapping().is_some(),
+            "{path} must expose a spec OpenAPI object"
+        );
+    }
+
+    let listener_class: serde_yaml::Value = serde_yaml::from_str(include_str!(
+        "../fixtures/stackable-operator/ListenerClass.yaml"
+    ))
+    .expect("ListenerClass parses");
+    assert_eq!(
+        listener_class["spec"]["group"].as_str(),
+        Some("listeners.stackable.tech")
+    );
+    assert_eq!(
+        listener_class["spec"]["versions"][0]["schema"]["openAPIV3Schema"]["properties"]["spec"]
+            ["properties"]["serviceOverrides"]["x-kubernetes-preserve-unknown-fields"]
+            .as_bool(),
+        Some(true)
+    );
+
+    let authentication_class: serde_yaml::Value = serde_yaml::from_str(include_str!(
+        "../fixtures/stackable-operator/AuthenticationClass.yaml"
+    ))
+    .expect("AuthenticationClass parses");
+    assert_eq!(
+        authentication_class["spec"]["group"].as_str(),
+        Some("authentication.stackable.tech")
+    );
+    assert!(
+        authentication_class["spec"]["versions"][0]["schema"]["openAPIV3Schema"]["properties"]
+            ["spec"]["properties"]["provider"]["oneOf"]
+            .as_sequence()
+            .is_some_and(|variants| variants.len() >= 5),
+        "AuthenticationClass provider oneOf variants survive package alias smoke"
+    );
+}
+
+fn assert_stackable_crd_header(value: &serde_yaml::Value, path: &str) {
+    assert_eq!(
+        value["apiVersion"].as_str(),
+        Some("apiextensions.k8s.io/v1"),
+        "{path}"
+    );
+    assert_eq!(
+        value["kind"].as_str(),
+        Some("CustomResourceDefinition"),
+        "{path}"
+    );
+    assert_eq!(value["spec"]["versions"][0]["served"].as_bool(), Some(true));
+    assert_eq!(
+        value["spec"]["versions"][0]["storage"].as_bool(),
+        Some(true)
+    );
+}
+
+fn assert_tagged_scalar<'a>(
+    value: &'a serde_yaml::Value,
+    expected_tag: &str,
+    expected_scalar: &str,
+    context: &str,
+) -> &'a serde_yaml::TaggedValue {
+    let tagged = value
+        .as_tagged()
+        .unwrap_or_else(|| panic!("{context} must be tagged"));
+    assert_eq!(
+        tagged.tag,
+        serde_yaml::Tag::new(expected_tag),
+        "{context}"
+    );
+    if !expected_scalar.is_empty() {
+        assert_eq!(tagged.value.as_str(), Some(expected_scalar), "{context}");
+    }
+    tagged
+}
+
+fn lookup_locale_path<'a>(
+    root: &'a BTreeMap<String, LocaleValue>,
+    path: &[&str],
+) -> Option<&'a str> {
+    let mut current = root.get(path.first().copied()?)?;
+    for segment in &path[1..] {
+        current = match current {
+            LocaleValue::Mapping(map) => map.get(*segment)?,
+            _ => return None,
+        };
+    }
+    match current {
+        LocaleValue::String(value) => Some(value),
+        _ => None,
+    }
+}

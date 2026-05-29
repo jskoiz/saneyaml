@@ -53,8 +53,13 @@ and diagnostic locations. A real-world package-alias smoke copies the checked-in
 GitHub Actions, Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and
 Ansible fixture registry into a clean downstream crate and parses representative
 fields through `serde_yaml::...` imports, including default Docker Compose merge
-expansion. These are package-resolution and runtime smoke tools, not blanket
-promises that every `serde_yaml` behavior or formatting byte matches.
+expansion. An external downstream package-alias smoke separately copies the
+checked-in Pingora, rust-i18n, cfn-guard, and Stackable fixture reductions into
+a clean downstream crate and exercises typed reads, structural emits, tagged
+CloudFormation `Value` access, locale trees, and Kubernetes CRD/OpenAPI shapes
+through `serde_yaml::...` imports. These are package-resolution and runtime
+smoke tools, not blanket promises that every `serde_yaml` behavior or
+formatting byte matches.
 
 The low-friction path is to replace owned config reads and common
 `serde_yaml::Value` usage first. Keep compatibility-sensitive code covered by
@@ -159,10 +164,10 @@ from real `serde_yaml` users:
 build trials.
 Each packages this crate, consumes the unpacked package from a clean smoke
 project under the `serde_yaml` dependency name, runs strict upstream-compatible
-expanded alias-surface assertions, and parses representative checked-in
-real-world config fixtures against that package, then checks a pinned downstream
-checkout with its `serde_yaml` dependency rewritten to that packaged copy. The
-Pingora trial
+expanded alias-surface assertions, parses representative checked-in real-world
+config fixtures, and replays the checked-in external downstream fixture
+reductions against that package, then checks a pinned downstream checkout with
+its `serde_yaml` dependency rewritten to that packaged copy. The Pingora trial
 checks `pingora-core` plus the `pingora-proxy` `modify_response` example that
 uses `serde_yaml` as a dev dependency; the rust-i18n trial covers support,
 macro, and extract crates; the cfn-guard trial checks the package that loads

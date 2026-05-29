@@ -71,6 +71,21 @@ run_real_world_package_alias_smoke() {
   cargo run --manifest-path "$smoke/Cargo.toml" --quiet
 }
 
+run_external_downstream_package_alias_smoke() {
+  local smoke="$tmp/serde-yaml-external-downstream-alias-smoke"
+  cp -R "$repo_root/tests/fixtures/downstream/package-alias-external-downstream-smoke" "$smoke"
+  mkdir -p "$smoke/fixtures"
+  cp -R "$repo_root/tests/fixtures/downstream/pingora" "$smoke/fixtures/pingora"
+  cp -R "$repo_root/tests/fixtures/downstream/rust-i18n" "$smoke/fixtures/rust-i18n"
+  cp -R "$repo_root/tests/fixtures/downstream/cfn-guard" "$smoke/fixtures/cfn-guard"
+  cp -R "$repo_root/tests/fixtures/downstream/stackable-operator" "$smoke/fixtures/stackable-operator"
+  mv "$smoke/Cargo.toml.template" "$smoke/Cargo.toml"
+  YAML_PACKAGE_DIR="$package_dir" perl -0pi -e \
+    's#__YAML_PACKAGE_DIR__#$ENV{YAML_PACKAGE_DIR}#g' \
+    "$smoke/Cargo.toml"
+  cargo run --manifest-path "$smoke/Cargo.toml" --quiet
+}
+
 patch_serde_yaml_dependency() {
   local manifest="$1"
   YAML_PACKAGE_DIR="$package_dir" perl -0pi -e \
@@ -127,6 +142,7 @@ package_current_crate
 run_packaged_smoke
 run_strict_package_alias_smoke
 run_real_world_package_alias_smoke
+run_external_downstream_package_alias_smoke
 
 case "$trial" in
   pingora)

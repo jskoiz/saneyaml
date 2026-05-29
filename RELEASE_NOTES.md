@@ -36,9 +36,13 @@ Notable completed release-candidate behavior:
   Kubernetes, Helm, OpenAPI, Wrangler, and Ansible documents through
   `serde_yaml::...` imports.
 - Pinned external downstream replay and package-alias build trials now include
-  Pingora, rust-i18n, cfn-guard, and Stackable operator-rs, with Stackable
-  adding Kubernetes CRD/OpenAPI schema fixture coverage plus serializer and
-  scalar serde build checks.
+  Pingora, rust-i18n, cfn-guard, and Stackable operator-rs. The package smoke
+  now also replays checked-in reductions from those downstreams through the
+  packaged crate under the `serde_yaml` dependency name, covering typed Pingora
+  config reads, locale trees, CloudFormation short-form tags, and Stackable
+  CRD/OpenAPI shapes before the live checkout trials run. Stackable adds
+  Kubernetes CRD/OpenAPI schema fixture coverage plus serializer and scalar
+  serde build checks.
 - YAML 1.1 conformance fixtures now cover directive-driven legacy scalar
   construction, null and float spellings, timestamp time-zone forms, explicit
   binary, collection, and structural tags, invalid binary typed-target diagnostics,

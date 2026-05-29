@@ -66,7 +66,9 @@ The first milestone focuses on:
   mapping/index, lossless graph, and diagnostic-location paths, plus a
   packaged real-world alias smoke that copies the fixture registry into a clean
   downstream crate and parses GitHub Actions, Docker Compose, Kubernetes, Helm,
-  OpenAPI, Wrangler, and Ansible files through `serde_yaml::...` imports.
+  OpenAPI, Wrangler, and Ansible files through `serde_yaml::...` imports, plus
+  an external downstream package-alias smoke over checked-in Pingora,
+  rust-i18n, cfn-guard, and Stackable operator fixtures.
 - A downstream-shaped migration harness, compileable migration example,
   Ubuntu-only CI workflow with all-target fuzz-smoke wiring, non-mutating
   fuzz replay script, and real-world config benchmark command.

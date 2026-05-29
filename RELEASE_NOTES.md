@@ -47,13 +47,13 @@ Notable completed release-candidate behavior:
   Helm values/dependencies, OpenAPI polymorphism, Wrangler durable object
   migrations, and Ansible vault/unsafe tags.
 - Pinned external downstream replay and package-alias build trials now include
-  Pingora, rust-i18n, cfn-guard, and Stackable operator-rs. The package smoke
-  now also replays checked-in reductions from those downstreams through the
-  packaged crate under the `serde_yaml` dependency name, covering typed Pingora
-  config reads, locale trees, CloudFormation short-form tags, and Stackable
-  CRD/OpenAPI shapes before the live checkout trials run. Stackable adds
-  Kubernetes CRD/OpenAPI schema fixture coverage plus serializer and scalar
-  serde build checks.
+  Pingora, rust-i18n, cfn-guard, navi, and Stackable operator-rs. The package
+  smoke now also replays checked-in reductions from those downstreams through
+  the packaged crate under the `serde_yaml` dependency name, covering typed
+  Pingora config reads, locale trees, CloudFormation short-form tags, navi
+  string and reader config loads, and Stackable CRD/OpenAPI shapes before the
+  live checkout trials run. Stackable adds Kubernetes CRD/OpenAPI schema
+  fixture coverage plus serializer and scalar serde build checks.
 - YAML 1.1 conformance fixtures now cover directive-driven legacy scalar
   construction, bool/null aliases, null and float spellings, radix and
   sexagesimal numerics, oversized numeric spellings, timestamp time-zone and
@@ -134,8 +134,11 @@ Notable completed release-candidate behavior:
   item replacement, insertion, and deletion, with source-preserving formatting
   plus direct lossless-edit fuzz/property replay seeds.
 - The YAML test-suite coverage ledger now pins the full upstream denominator at
-  402 cases, maps the 146 selected cases to canonical upstream IDs, and records
-  the 256 not-imported cases as explicit coverage debt.
+  402 cases, maps the 154 selected cases to canonical upstream IDs, and records
+  the 248 not-imported cases as explicit coverage debt. The selected set now
+  includes eight additional official directive/version cases covering `%YAML`
+  1.2 syntax, reserved directives, mid-stream version directives, and malformed
+  YAML directive variants.
 - Fuzz release proof now has a manual `scripts/fuzz-release-sweep.sh` path that
   records checkout HEAD/status, target mode, target names, corpus counts, run
   counts, statuses, elapsed time, and artifact directories, while

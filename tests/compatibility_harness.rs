@@ -415,6 +415,21 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "yts_27na_yaml_version_1_2_directive",
+        input: include_str!("fixtures/yaml-test-suite/data/27NA/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_6zkb_stream_yaml_version_directive",
+        input: include_str!("fixtures/yaml-test-suite/data/6ZKB/in.yaml"),
+        docs: 3,
+    },
+    Case {
+        name: "yts_9dxl_mapping_stream_yaml_version_directive",
+        input: include_str!("fixtures/yaml-test-suite/data/9DXL/in.yaml"),
+        docs: 3,
+    },
+    Case {
         name: "yts_mus6_02_yaml_version_extra_spaces",
         input: include_str!("fixtures/yaml-test-suite/data/MUS6-02/in.yaml"),
         docs: 1,

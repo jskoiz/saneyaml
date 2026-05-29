@@ -1007,6 +1007,54 @@ policy = "raw-events-tree-serde-accept"
 features = ["directive", "document", "scalar", "spec"]
 
 [[case]]
+id = "27NA"
+name = "YAML directive indicator"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["directive", "document", "scalar", "spec"]
+
+[[case]]
+id = "2LFX"
+name = "reserved directive with warning"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["directive", "document", "scalar", "comment", "spec"]
+
+[[case]]
+id = "6ZKB"
+name = "document stream with mid-stream YAML directive"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["directive", "stream", "document", "mapping", "null", "spec"]
+
+[[case]]
+id = "9DXL"
+name = "mapping document stream with mid-stream YAML directive"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["directive", "stream", "document", "mapping", "null", "spec"]
+
+[[case]]
+id = "MUS6/00"
+name = "YAML 1.1 directive without required separation"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["directive", "document", "error"]
+
+[[case]]
+id = "MUS6/01"
+name = "YAML directive after document start"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["directive", "document", "error"]
+
+[[case]]
 id = "MUS6/02"
 name = "YAML 1.1 directive with extra separation"
 expected = "accept"
@@ -1029,6 +1077,22 @@ expected = "accept"
 source = "selected-yaml-test-suite-fixture"
 policy = "raw-events-tree-serde-accept"
 features = ["directive", "document", "null", "comment"]
+
+[[case]]
+id = "MUS6/05"
+name = "reserved directive with short YAML spelling"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["directive", "document", "null"]
+
+[[case]]
+id = "MUS6/06"
+name = "reserved directive with long YAML spelling"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["directive", "document", "null"]
 
 [[case]]
 id = "6VJK"
@@ -1260,9 +1324,15 @@ event = [
     "9SA2",
     "S4JQ",
     "BEC7",
+    "27NA",
+    "2LFX",
+    "6ZKB",
+    "9DXL",
     "MUS6/02",
     "MUS6/03",
     "MUS6/04",
+    "MUS6/05",
+    "MUS6/06",
     "6CK3",
 ]
 
@@ -1354,9 +1424,15 @@ tree = [
     "MZX3",
     "6M2F",
     "BEC7",
+    "27NA",
+    "2LFX",
+    "6ZKB",
+    "9DXL",
     "MUS6/02",
     "MUS6/03",
     "MUS6/04",
+    "MUS6/05",
+    "MUS6/06",
     "U3C3",
     "6CK3",
     "FTA2",
@@ -1430,6 +1506,9 @@ shared_reference = [
     "KSS4",
     "MZX3",
     "S4JQ",
+    "27NA",
+    "6ZKB",
+    "9DXL",
     "MUS6/02",
     "MUS6/03",
     "MUS6/04",
@@ -1459,6 +1538,9 @@ shared_reference_deferred = [
     "6M2F",
     "W4TN",
     "BEC7",
+    "2LFX",
+    "MUS6/05",
+    "MUS6/06",
     "R4YG",
     "FP8R",
     "DK3J",

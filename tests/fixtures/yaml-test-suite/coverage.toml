@@ -2,8 +2,8 @@ schema = "yaml-test-suite-coverage-v1"
 upstream = "https://github.com/yaml/yaml-test-suite"
 upstream_commit = "6ad3d2c62885d82fc349026c136ef560838fdf3d"
 upstream_case_count = 402
-selected_case_count = 146
-not_imported_case_count = 256
+selected_case_count = 154
+not_imported_case_count = 248
 id_format = "Upstream slash IDs for directories containing in.yaml at the pinned data branch commit."
 selection_policy = "The selected manifest is a hand-curated YAML 1.2 core/config milestone subset; not-imported cases remain explicit coverage debt."
 
@@ -539,9 +539,17 @@ selected_cases = [
   "BU8L",
   "W4TN",
   "BEC7",
+  "27NA",
+  "2LFX",
+  "6ZKB",
+  "9DXL",
+  "MUS6/00",
+  "MUS6/01",
   "MUS6/02",
   "MUS6/03",
   "MUS6/04",
+  "MUS6/05",
+  "MUS6/06",
   "6VJK",
   "6FWR",
   "4Q9F",
@@ -564,11 +572,9 @@ selected_cases = [
 not_imported_cases = [
   "229Q",
   "26DV",
-  "27NA",
   "2AUY",
   "2G84/02",
   "2G84/03",
-  "2LFX",
   "2XXW",
   "33X3",
   "35KP",
@@ -616,7 +622,6 @@ not_imported_cases = [
   "6SLA",
   "6WLZ",
   "6XDY",
-  "6ZKB",
   "735Y",
   "74H7",
   "753E",
@@ -640,7 +645,6 @@ not_imported_cases = [
   "96NN/01",
   "98YD",
   "9BXH",
-  "9DXL",
   "9FMG",
   "9J7A",
   "9MAG",
@@ -737,10 +741,6 @@ not_imported_cases = [
   "M7NX",
   "M9B4",
   "MJS9",
-  "MUS6/00",
-  "MUS6/01",
-  "MUS6/05",
-  "MUS6/06",
   "MXS3",
   "MYW6",
   "N4JP",

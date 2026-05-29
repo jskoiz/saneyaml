@@ -113,7 +113,7 @@ Intentional first-milestone non-goals:
   `LosslessStream` for alias graph identity and merge-effective source
   inspection.
 - Full upstream YAML test-suite coverage is not claimed yet; the pinned
-  coverage ledger records 402 upstream cases, 146 selected cases, and 256
+  coverage ledger records 402 upstream cases, 154 selected cases, and 248
   not-imported cases as explicit coverage debt.
 - Kubernetes schema validation or automated ecosystem migration tooling.
 

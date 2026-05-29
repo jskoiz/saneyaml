@@ -158,6 +158,21 @@ const SHARED_REFERENCE_DIVERGENCES: &[DeferredDivergenceCase] = &[
         record_source: YAML_VERSION_DIRECTIVE_SCHEMA_RECORD,
     },
     DeferredDivergenceCase {
+        id: "2LFX",
+        record_case: "raw-event-directives",
+        record_source: RAW_EVENT_DIRECTIVES_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "MUS6/05",
+        record_case: "raw-event-directives",
+        record_source: RAW_EVENT_DIRECTIVES_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "MUS6/06",
+        record_case: "raw-event-directives",
+        record_source: RAW_EVENT_DIRECTIVES_RECORD,
+    },
+    DeferredDivergenceCase {
         id: "R4YG",
         record_case: "tab-token-separation",
         record_source: TAB_TOKEN_SEPARATION_RECORD,

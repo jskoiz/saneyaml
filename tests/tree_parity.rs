@@ -379,6 +379,22 @@ const VALUE_SHAPE_CASES: &[TreeCase] = &[
         input: include_str!("fixtures/yaml-test-suite/data/BEC7/in.yaml"),
     },
     TreeCase {
+        name: "yts_27na_yaml_version_1_2_directive",
+        input: include_str!("fixtures/yaml-test-suite/data/27NA/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_2lfx_reserved_directive_with_comment",
+        input: include_str!("fixtures/yaml-test-suite/data/2LFX/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_6zkb_stream_yaml_version_directive",
+        input: include_str!("fixtures/yaml-test-suite/data/6ZKB/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_9dxl_mapping_stream_yaml_version_directive",
+        input: include_str!("fixtures/yaml-test-suite/data/9DXL/in.yaml"),
+    },
+    TreeCase {
         name: "yts_mus6_02_yaml_version_extra_spaces",
         input: include_str!("fixtures/yaml-test-suite/data/MUS6-02/in.yaml"),
     },
@@ -389,6 +405,14 @@ const VALUE_SHAPE_CASES: &[TreeCase] = &[
     TreeCase {
         name: "yts_mus6_04_yaml_version_comment",
         input: include_str!("fixtures/yaml-test-suite/data/MUS6-04/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_mus6_05_reserved_short_yaml_spelling",
+        input: include_str!("fixtures/yaml-test-suite/data/MUS6-05/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_mus6_06_reserved_long_yaml_spelling",
+        input: include_str!("fixtures/yaml-test-suite/data/MUS6-06/in.yaml"),
     },
     TreeCase {
         name: "yts_u3c3_tag_directive_scalar",

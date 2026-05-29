@@ -18,6 +18,35 @@ fn schema_mode_defaults_to_yaml_12_config_behavior() {
 }
 
 #[test]
+fn load_options_default_carries_schema_and_input_limit_defaults() {
+    assert_eq!(LoadOptions::default(), LoadOptions::new());
+    assert_eq!(
+        LoadOptions::new().selected_max_input_bytes(),
+        Some(yaml::DEFAULT_MAX_INPUT_BYTES)
+    );
+    assert_eq!(
+        LoadOptions::yaml_1_1().selected_max_input_bytes(),
+        Some(yaml::DEFAULT_MAX_INPUT_BYTES)
+    );
+    assert_eq!(
+        LoadOptions::yaml_version_directive().selected_max_input_bytes(),
+        Some(yaml::DEFAULT_MAX_INPUT_BYTES)
+    );
+    assert_eq!(
+        LoadOptions::new()
+            .max_input_bytes(16)
+            .selected_max_input_bytes(),
+        Some(16)
+    );
+    assert_eq!(
+        LoadOptions::new()
+            .without_input_limit()
+            .selected_max_input_bytes(),
+        None
+    );
+}
+
+#[test]
 fn yaml_version_directive_schema_switches_each_document() {
     let input = "\
 %YAML 1.1

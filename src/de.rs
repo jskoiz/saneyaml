@@ -47,6 +47,7 @@ pub(crate) fn from_slice_with_options<'de, T>(
 where
     T: serde::Deserialize<'de>,
 {
+    options.check_input_len(input.len())?;
     let input = std::str::from_utf8(input)
         .map_err(|err| Error::new("input is not valid UTF-8", utf8_error_span(input, err)))?;
     from_str_with_options(input, options)
@@ -61,18 +62,12 @@ where
     from_reader_with_options(reader, LoadOptions::new())
 }
 
-pub(crate) fn from_reader_with_options<R, T>(
-    mut reader: R,
-    options: LoadOptions,
-) -> crate::Result<T>
+pub(crate) fn from_reader_with_options<R, T>(reader: R, options: LoadOptions) -> crate::Result<T>
 where
     R: Read,
     T: DeserializeOwned,
 {
-    let mut input = Vec::new();
-    reader
-        .read_to_end(&mut input)
-        .map_err(|err| Error::new(format!("failed to read YAML input: {err}"), Span::default()))?;
+    let input = read_to_end_with_options(reader, options)?;
     from_slice_with_options(&input, options)
 }
 
@@ -136,6 +131,7 @@ pub(crate) fn from_documents_slice_with_options<T>(
 where
     T: DeserializeOwned,
 {
+    options.check_input_len(input.len())?;
     let input = std::str::from_utf8(input)
         .map_err(|err| Error::new("input is not valid UTF-8", utf8_error_span(input, err)))?;
     from_documents_str_with_options(input, options)
@@ -151,18 +147,38 @@ where
 }
 
 pub(crate) fn from_documents_reader_with_options<T, R>(
-    mut reader: R,
+    reader: R,
     options: LoadOptions,
 ) -> crate::Result<Vec<T>>
 where
     T: DeserializeOwned,
     R: Read,
 {
-    let mut input = Vec::new();
-    reader
-        .read_to_end(&mut input)
-        .map_err(|err| Error::new(format!("failed to read YAML input: {err}"), Span::default()))?;
+    let input = read_to_end_with_options(reader, options)?;
     from_documents_slice_with_options(&input, options)
+}
+
+fn read_to_end_with_options<R>(reader: R, options: LoadOptions) -> crate::Result<Vec<u8>>
+where
+    R: Read,
+{
+    let mut input = Vec::new();
+    if let Some(max) = options.selected_max_input_bytes() {
+        let limit = u64::try_from(max).unwrap_or(u64::MAX).saturating_add(1);
+        let mut reader = reader.take(limit);
+        reader.read_to_end(&mut input).map_err(read_error)?;
+        if input.len() > max {
+            return Err(options.input_limit_error());
+        }
+    } else {
+        let mut reader = reader;
+        reader.read_to_end(&mut input).map_err(read_error)?;
+    }
+    Ok(input)
+}
+
+fn read_error(err: std::io::Error) -> Error {
+    Error::new(format!("failed to read YAML input: {err}"), Span::default())
 }
 
 /// Streaming Serde deserializer over one or more YAML documents.
@@ -193,6 +209,9 @@ impl<'de> Deserializer<'de> {
 
     /// Creates a streaming deserializer from UTF-8 YAML bytes using load options.
     pub fn from_slice_with_options(input: &'de [u8], options: LoadOptions) -> Self {
+        if let Err(error) = options.check_input_len(input.len()) {
+            return Self::from_parse_result(Err(error));
+        }
         match std::str::from_utf8(input) {
             Ok(input) => Self::from_str_with_options(input, options),
             Err(err) => Self::from_parse_result(Err(Error::new(
@@ -211,13 +230,12 @@ impl<'de> Deserializer<'de> {
     }
 
     /// Reads a YAML stream and creates a streaming deserializer using load options.
-    pub fn from_reader_with_options<R>(mut reader: R, options: LoadOptions) -> Self
+    pub fn from_reader_with_options<R>(reader: R, options: LoadOptions) -> Self
     where
         R: Read,
     {
-        let mut input = Vec::new();
-        match reader.read_to_end(&mut input) {
-            Ok(_) => match std::str::from_utf8(&input) {
+        match read_to_end_with_options(reader, options) {
+            Ok(input) => match std::str::from_utf8(&input) {
                 Ok(input) => Self::from_document_results(
                     parse_document_results_with_options(input, options),
                     None,
@@ -227,10 +245,7 @@ impl<'de> Deserializer<'de> {
                     utf8_error_span(&input, err),
                 ))),
             },
-            Err(err) => Self::from_parse_result(Err(Error::new(
-                format!("failed to read YAML input: {err}"),
-                Span::default(),
-            ))),
+            Err(error) => Self::from_parse_result(Err(error)),
         }
     }
 

@@ -76,10 +76,10 @@ tests that exercise the actual downstream YAML files.
 |---|---|---|
 | `serde_yaml::from_str` | `yaml::from_str` | Covered for typed config reads, `Value`, borrowed string targets, and diagnostics |
 | `serde_yaml::from_slice` | `yaml::from_slice` | Covered for typed config reads, `Value`, UTF-8 errors, and borrowed string targets |
-| `serde_yaml::from_reader` | `yaml::from_reader` | Covered for owned typed reads; borrowed targets remain owned-only |
+| `serde_yaml::from_reader` | `yaml::from_reader` | Covered for owned typed reads with bounded input loading; borrowed targets remain owned-only |
 | `serde_yaml::Deserializer::from_str` | `yaml::Deserializer::from_str` | Covered for single-document Serde use and multi-document iteration |
 | `serde_yaml::Deserializer::from_slice` | `yaml::Deserializer::from_slice` | Covered for direct Serde use and diagnostics |
-| `serde_yaml::Deserializer::from_reader` | `yaml::Deserializer::from_reader` | Covered for owned direct Serde use; no borrowed output from consumed readers |
+| `serde_yaml::Deserializer::from_reader` | `yaml::Deserializer::from_reader` | Covered for owned direct Serde use with bounded input loading; no borrowed output from consumed readers |
 | `serde_yaml::Value` | `yaml::Value` | Covered for common reads, mutation, indexing, merge expansion, tags, traits, and `Deserialize` |
 | `serde_yaml::Mapping` | `yaml::Mapping` | Covered for insertion, lookup, entry API, iteration, equality, hashing, and ordering |
 | `serde_yaml::Number` | `yaml::Number` | Covered for helpers, parsing, display, direct deserialization, and widened integer targets |
@@ -100,6 +100,10 @@ Additional crate surfaces useful during migration:
   `yaml::Schema::YamlVersionDirective` apply that legacy construction per
   document only when the document declares `%YAML 1.1`. Default entrypoints
   remain YAML 1.2-oriented.
+- `yaml::LoadOptions` enforces a 64 MiB input byte ceiling by default across
+  string, slice, reader, document-stream, and direct deserializer paths. Use
+  `max_input_bytes()` to tune the ceiling for a call site, or
+  `without_input_limit()` only when a caller has already bounded the source.
 - `yaml::from_node` preserves parser spans while deserializing from a loaded tree.
 - `yaml::from_documents_str`, `from_documents_slice`, and
   `from_documents_reader` return typed vectors for YAML streams.

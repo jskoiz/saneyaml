@@ -1,8 +1,11 @@
 //! Load options and schema selection for constructed YAML document trees.
 
-use crate::{Node, Result, de, parse};
+use crate::{Error, Node, Result, Span, de, parse};
 use serde::de::DeserializeOwned;
 use std::io::Read;
+
+/// Default maximum YAML input size accepted by loading entrypoints.
+pub const DEFAULT_MAX_INPUT_BYTES: usize = 64 * 1024 * 1024;
 
 /// Scalar construction schema used by tree and Serde loading.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -21,9 +24,16 @@ pub enum Schema {
 }
 
 /// Options for loading YAML into constructed trees or Serde values.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LoadOptions {
     pub(crate) schema: Schema,
+    max_input_bytes: Option<usize>,
+}
+
+impl Default for LoadOptions {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LoadOptions {
@@ -31,6 +41,7 @@ impl LoadOptions {
     pub const fn new() -> Self {
         Self {
             schema: Schema::Yaml12,
+            max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
         }
     }
 
@@ -38,6 +49,7 @@ impl LoadOptions {
     pub const fn yaml_1_1() -> Self {
         Self {
             schema: Schema::Yaml11,
+            max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
         }
     }
 
@@ -49,6 +61,7 @@ impl LoadOptions {
     pub const fn yaml_version_directive() -> Self {
         Self {
             schema: Schema::YamlVersionDirective,
+            max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
         }
     }
 
@@ -61,6 +74,42 @@ impl LoadOptions {
     /// Returns the selected scalar construction schema.
     pub const fn selected_schema(self) -> Schema {
         self.schema
+    }
+
+    /// Returns options with a maximum input size in bytes.
+    pub const fn max_input_bytes(mut self, max_input_bytes: usize) -> Self {
+        self.max_input_bytes = Some(max_input_bytes);
+        self
+    }
+
+    /// Returns options without an input size limit.
+    pub const fn without_input_limit(mut self) -> Self {
+        self.max_input_bytes = None;
+        self
+    }
+
+    /// Returns the configured maximum input size in bytes.
+    pub const fn selected_max_input_bytes(self) -> Option<usize> {
+        self.max_input_bytes
+    }
+
+    pub(crate) fn check_input_len(self, len: usize) -> Result<()> {
+        if let Some(max) = self.max_input_bytes {
+            if len > max {
+                return Err(self.input_limit_error());
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn input_limit_error(self) -> Error {
+        let max = self
+            .max_input_bytes
+            .expect("input_limit_error requires a configured limit");
+        Error::new(
+            format!("YAML input exceeds configured limit of {max} bytes"),
+            Span::default(),
+        )
     }
 
     /// Parses a single UTF-8 YAML document from bytes using these options.

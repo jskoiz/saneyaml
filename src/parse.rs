@@ -256,6 +256,7 @@ pub fn parse_bytes(input: &[u8]) -> Result<Node> {
 }
 
 pub(crate) fn parse_bytes_with_options(input: &[u8], options: LoadOptions) -> Result<Node> {
+    options.check_input_len(input.len())?;
     match std::str::from_utf8(input) {
         Ok(input) => parse_str_with_options(input, options),
         Err(err) => Err(Error::new(
@@ -513,6 +514,7 @@ impl Parser {
     }
 
     fn new_with_options(input: &str, options: LoadOptions) -> Result<Self> {
+        options.check_input_len(input.len())?;
         let schema = options.selected_schema();
         Ok(Self {
             lines: preprocess(input)?,

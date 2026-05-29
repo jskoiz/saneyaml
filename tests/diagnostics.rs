@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use std::io::{self, Read};
+use std::io::{self, Cursor, Read};
 use yaml::{LoadOptions, Node, NodeValue, Value, parse_bytes, parse_str};
 
 const ALIAS_EXPANSION_BOMB: &str = "\
@@ -95,6 +95,76 @@ fn reader_failures_without_source_spans_do_not_render_zero_location() {
         assert!(!display.contains("line 0"));
         assert!(!display.contains("column 0"));
     }
+}
+
+#[test]
+fn load_options_input_limit_rejects_oversized_inputs_before_parsing() {
+    let input = "name: app\n";
+    let options = LoadOptions::new().max_input_bytes(4);
+    let mut errors = vec![
+        options.parse_str(input).expect_err("parse_str input limit"),
+        options
+            .parse_bytes(input.as_bytes())
+            .expect_err("parse_bytes input limit"),
+        options
+            .from_str::<Value>(input)
+            .expect_err("from_str input limit"),
+        options
+            .from_slice::<Value>(input.as_bytes())
+            .expect_err("from_slice input limit"),
+        options
+            .from_reader::<_, Value>(Cursor::new(input.as_bytes()))
+            .expect_err("from_reader input limit"),
+        options
+            .from_documents_str::<Value>(input)
+            .expect_err("from_documents_str input limit"),
+        options
+            .from_documents_slice::<Value>(input.as_bytes())
+            .expect_err("from_documents_slice input limit"),
+        options
+            .from_documents_reader::<Value, _>(Cursor::new(input.as_bytes()))
+            .expect_err("from_documents_reader input limit"),
+    ];
+    errors.push(
+        Value::deserialize(options.deserializer_from_str(input))
+            .expect_err("deserializer_from_str input limit"),
+    );
+    errors.push(
+        Value::deserialize(options.deserializer_from_slice(input.as_bytes()))
+            .expect_err("deserializer_from_slice input limit"),
+    );
+    errors.push(
+        Value::deserialize(options.deserializer_from_reader(Cursor::new(input.as_bytes())))
+            .expect_err("deserializer_from_reader input limit"),
+    );
+
+    for error in errors {
+        let display = error.to_string();
+        assert!(
+            display.contains("YAML input exceeds configured limit of 4 bytes"),
+            "{display}"
+        );
+        assert_eq!(error.location(), None);
+        assert!(!display.contains("line 0"));
+        assert!(!display.contains("column 0"));
+    }
+}
+
+#[test]
+fn load_options_input_limit_allows_exact_bound_and_can_be_removed() {
+    let input = "name: app\n";
+    let exact: Value = LoadOptions::new()
+        .max_input_bytes(input.len())
+        .from_reader(Cursor::new(input.as_bytes()))
+        .expect("exact input limit");
+    let unlimited: Value = LoadOptions::new()
+        .max_input_bytes(4)
+        .without_input_limit()
+        .from_str(input)
+        .expect("input limit removed");
+
+    assert_eq!(exact["name"].as_str(), Some("app"));
+    assert_eq!(unlimited["name"].as_str(), Some("app"));
 }
 
 #[test]
@@ -615,18 +685,22 @@ enum ParserEntrypoint {
     ParseBytes,
     FromStr,
     FromSlice,
+    FromReader,
     DirectDeserializerStr,
     DirectDeserializerSlice,
+    DirectDeserializerReader,
 }
 
 impl ParserEntrypoint {
-    const ALL: [Self; 6] = [
+    const ALL: [Self; 8] = [
         Self::ParseStr,
         Self::ParseBytes,
         Self::FromStr,
         Self::FromSlice,
+        Self::FromReader,
         Self::DirectDeserializerStr,
         Self::DirectDeserializerSlice,
+        Self::DirectDeserializerReader,
     ];
 
     fn name(self) -> &'static str {
@@ -635,8 +709,10 @@ impl ParserEntrypoint {
             Self::ParseBytes => "parse_bytes",
             Self::FromStr => "from_str",
             Self::FromSlice => "from_slice",
+            Self::FromReader => "from_reader",
             Self::DirectDeserializerStr => "Deserializer::from_str",
             Self::DirectDeserializerSlice => "Deserializer::from_slice",
+            Self::DirectDeserializerReader => "Deserializer::from_reader",
         }
     }
 
@@ -650,12 +726,18 @@ impl ParserEntrypoint {
             Self::FromSlice => {
                 yaml::from_slice::<Value>(input.as_bytes()).expect_err("from_slice should reject")
             }
+            Self::FromReader => yaml::from_reader::<_, Value>(Cursor::new(input.as_bytes()))
+                .expect_err("from_reader should reject"),
             Self::DirectDeserializerStr => Value::deserialize(yaml::Deserializer::from_str(input))
                 .expect_err("direct string deserializer should reject"),
             Self::DirectDeserializerSlice => {
                 Value::deserialize(yaml::Deserializer::from_slice(input.as_bytes()))
                     .expect_err("direct slice deserializer should reject")
             }
+            Self::DirectDeserializerReader => Value::deserialize(yaml::Deserializer::from_reader(
+                Cursor::new(input.as_bytes()),
+            ))
+            .expect_err("direct reader deserializer should reject"),
         }
     }
 }
@@ -679,24 +761,30 @@ struct SerdeDiagnosticCase {
 enum SerdeEntrypoint {
     FromStr,
     FromSlice,
+    FromReader,
     DirectDeserializerStr,
     DirectDeserializerSlice,
+    DirectDeserializerReader,
 }
 
 impl SerdeEntrypoint {
-    const ALL: [Self; 4] = [
+    const ALL: [Self; 6] = [
         Self::FromStr,
         Self::FromSlice,
+        Self::FromReader,
         Self::DirectDeserializerStr,
         Self::DirectDeserializerSlice,
+        Self::DirectDeserializerReader,
     ];
 
     fn name(self) -> &'static str {
         match self {
             Self::FromStr => "from_str",
             Self::FromSlice => "from_slice",
+            Self::FromReader => "from_reader",
             Self::DirectDeserializerStr => "Deserializer::from_str",
             Self::DirectDeserializerSlice => "Deserializer::from_slice",
+            Self::DirectDeserializerReader => "Deserializer::from_reader",
         }
     }
 
@@ -723,6 +811,18 @@ impl SerdeEntrypoint {
                 yaml::from_slice::<PortMatrixConfig>(input.as_bytes())
                     .expect_err("from_slice should reject")
             }
+            (Self::FromReader, SerdeShape::Strict) => {
+                yaml::from_reader::<_, StrictMatrixConfig>(Cursor::new(input.as_bytes()))
+                    .expect_err("from_reader should reject")
+            }
+            (Self::FromReader, SerdeShape::Ports) => {
+                yaml::from_reader::<_, PortsMatrixConfig>(Cursor::new(input.as_bytes()))
+                    .expect_err("from_reader should reject")
+            }
+            (Self::FromReader, SerdeShape::Port) => {
+                yaml::from_reader::<_, PortMatrixConfig>(Cursor::new(input.as_bytes()))
+                    .expect_err("from_reader should reject")
+            }
             (Self::DirectDeserializerStr, SerdeShape::Strict) => {
                 StrictMatrixConfig::deserialize(yaml::Deserializer::from_str(input))
                     .expect_err("direct string deserializer should reject")
@@ -747,6 +847,20 @@ impl SerdeEntrypoint {
                 PortMatrixConfig::deserialize(yaml::Deserializer::from_slice(input.as_bytes()))
                     .expect_err("direct slice deserializer should reject")
             }
+            (Self::DirectDeserializerReader, SerdeShape::Strict) => {
+                StrictMatrixConfig::deserialize(yaml::Deserializer::from_reader(Cursor::new(
+                    input.as_bytes(),
+                )))
+                .expect_err("direct reader deserializer should reject")
+            }
+            (Self::DirectDeserializerReader, SerdeShape::Ports) => PortsMatrixConfig::deserialize(
+                yaml::Deserializer::from_reader(Cursor::new(input.as_bytes())),
+            )
+            .expect_err("direct reader deserializer should reject"),
+            (Self::DirectDeserializerReader, SerdeShape::Port) => PortMatrixConfig::deserialize(
+                yaml::Deserializer::from_reader(Cursor::new(input.as_bytes())),
+            )
+            .expect_err("direct reader deserializer should reject"),
         }
     }
 }

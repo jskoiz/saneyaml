@@ -75,5 +75,5 @@ pub use parse::{
     EventTagDirective, EventYamlVersion, ScalarStyle, parse_bytes, parse_documents, parse_events,
     parse_str,
 };
-pub use schema::{LoadOptions, Schema};
+pub use schema::{DEFAULT_MAX_INPUT_BYTES, LoadOptions, Schema};
 pub use ser::{Serializer, to_string, to_value, to_writer};

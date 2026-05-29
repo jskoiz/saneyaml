@@ -97,9 +97,10 @@ Current read APIs:
   block/flow sequence item value/insert/delete edits, and anchor/alias graph
   identity reference-checked against parser anchor events from `yaml-rust2` and
   `saphyr`
-- `yaml::LoadOptions::{new, yaml_1_1, yaml_version_directive, schema}` and
-  `yaml::Schema` for explicit construction-schema selection across parser and
-  Serde read entrypoints
+- `yaml::LoadOptions::{new, yaml_1_1, yaml_version_directive, schema,
+  max_input_bytes, without_input_limit}` and `yaml::Schema` for explicit
+  construction-schema selection and input-size policy across parser and Serde
+  read entrypoints
 
 Migration-facing API status is tracked by `MIGRATION.md` and the executable
 `tests/serde_yaml_swap_harness.rs` harness. The current swap matrix covers:
@@ -210,6 +211,11 @@ All parser, event, and Serde read entrypoints ignore a single UTF-8 BOM only at
 stream byte offset 0, matching common `serde_yaml` and reference-loader
 behavior for BOM-prefixed config files while keeping spans anchored to the
 original byte buffer.
+All parser, loaded-tree, document-stream, reader-backed, and direct
+deserializer entrypoints enforce `LoadOptions` input-size policy before parsing.
+Default options cap YAML input at 64 MiB, `max_input_bytes()` can tighten or
+raise that ceiling, and `without_input_limit()` is an explicit opt-out for
+callers that have already bounded their input source.
 Direct input entrypoints borrow only scalars whose value can be represented as
 a slice of the original input; transformed scalars such as escaped quoted
 strings and block scalars still require owned `String`/`Cow` targets.

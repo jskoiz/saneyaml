@@ -61,6 +61,10 @@ The first milestone focuses on:
   `yaml::to_string`, `yaml::to_writer`, and `yaml::Serializer<W>` for common
   config-shaped `Serialize` values with `serde_yaml`-style 128-bit integer
   value serialization, tagged values, and document markers.
+- Bounded input loading by default: `LoadOptions` carries a 64 MiB input byte
+  ceiling for string, slice, reader, document-stream, and direct deserializer
+  entrypoints; callers can tighten it with `max_input_bytes()` or explicitly
+  remove it with `without_input_limit()`.
 - A `serde_yaml` swap harness and migration-readiness report for common
   downstream config-loading paths.
 - Pinned external replay fixtures from Pingora, rust-i18n, cfn-guard, and

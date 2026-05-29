@@ -110,6 +110,10 @@ Notable completed release-candidate behavior:
 - `TaggedValue` now implements owned and borrowed Serde deserializer support
   for direct enum and `IgnoredAny` reads, matching the package-alias
   `serde_yaml::value::TaggedValue` surface.
+- `LoadOptions` now applies a default 64 MiB input byte ceiling across parser,
+  Serde, reader, document-stream, and direct deserializer entrypoints, with
+  `max_input_bytes()` for call-site tuning and `without_input_limit()` for
+  explicitly pre-bounded sources.
 - `LosslessEdit` now has source-backed scalar-keyed block/flow mapping entry
   helpers for value replacement, entry insertion, and entry deletion while
   preserving untouched comments, aliases, and formatting and reparsing the

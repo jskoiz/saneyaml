@@ -78,6 +78,7 @@ run_external_downstream_package_alias_smoke() {
   cp -R "$repo_root/tests/fixtures/downstream/pingora" "$smoke/fixtures/pingora"
   cp -R "$repo_root/tests/fixtures/downstream/rust-i18n" "$smoke/fixtures/rust-i18n"
   cp -R "$repo_root/tests/fixtures/downstream/cfn-guard" "$smoke/fixtures/cfn-guard"
+  cp -R "$repo_root/tests/fixtures/downstream/navi" "$smoke/fixtures/navi"
   cp -R "$repo_root/tests/fixtures/downstream/stackable-operator" "$smoke/fixtures/stackable-operator"
   mv "$smoke/Cargo.toml.template" "$smoke/Cargo.toml"
   YAML_PACKAGE_DIR="$package_dir" perl -0pi -e \
@@ -117,6 +118,16 @@ run_cfn_guard_trial() {
   cargo check --manifest-path "$checkout/Cargo.toml" -p cfn-guard
 }
 
+run_navi_trial() {
+  local checkout="$tmp/navi"
+  git clone --quiet https://github.com/denisidoro/navi.git "$checkout"
+  git -C "$checkout" checkout --quiet 1ac218cb1e0e80649ef23c8a916e67efc3086833
+  patch_serde_yaml_dependency "$checkout/Cargo.toml"
+
+  cargo check --manifest-path "$checkout/Cargo.toml" --lib
+  cargo check --manifest-path "$checkout/Cargo.toml" --bin navi
+}
+
 run_pingora_trial() {
   local checkout="$tmp/pingora"
   git clone --quiet https://github.com/cloudflare/pingora.git "$checkout"
@@ -154,6 +165,9 @@ case "$trial" in
   cfn-guard)
     run_cfn_guard_trial
     ;;
+  navi)
+    run_navi_trial
+    ;;
   stackable-operator)
     run_stackable_operator_trial
     ;;
@@ -161,7 +175,7 @@ case "$trial" in
     ;;
   *)
     echo "unknown downstream build trial: $trial" >&2
-    echo "available trials: pingora, rust-i18n, cfn-guard, stackable-operator, smoke-only" >&2
+    echo "available trials: pingora, rust-i18n, cfn-guard, navi, stackable-operator, smoke-only" >&2
     exit 2
     ;;
 esac

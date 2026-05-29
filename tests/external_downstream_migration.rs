@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
+use std::io::Cursor;
 use std::net::Ipv4Addr;
 use std::path::{Path, PathBuf};
 use yaml::{Tag, Value};
@@ -41,7 +42,7 @@ struct DownstreamFixture {
 #[test]
 fn external_downstream_manifest_records_provenance_and_files() {
     let manifest = downstream_manifest();
-    assert_eq!(manifest.fixture.len(), 18);
+    assert_eq!(manifest.fixture.len(), 20);
 
     let projects: BTreeSet<_> = manifest
         .fixture
@@ -53,6 +54,7 @@ fn external_downstream_manifest_records_provenance_and_files() {
         BTreeSet::from([
             "aws-cloudformation/cloudformation-guard",
             "cloudflare/pingora",
+            "denisidoro/navi",
             "longbridge/rust-i18n",
             "stackabletech/operator-rs",
         ])
@@ -286,6 +288,102 @@ fn external_cfn_guard_rule_test_specs_match_serde_yaml() {
     );
 }
 
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(default)]
+struct NaviColorWidth {
+    color: String,
+    width_percentage: u16,
+    min_width: u16,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(default)]
+struct NaviStyle {
+    tag: NaviColorWidth,
+    comment: NaviColorWidth,
+    snippet: NaviColorWidth,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(default)]
+struct NaviFinder {
+    command: String,
+    overrides: Option<String>,
+    overrides_var: Option<String>,
+    delimiter_var: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Default, PartialEq)]
+#[serde(default)]
+struct NaviCheats {
+    path: Option<String>,
+    paths: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Default, PartialEq)]
+#[serde(default)]
+struct NaviSearch {
+    tags: Option<String>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(default)]
+struct NaviShell {
+    command: String,
+    finder_command: Option<String>,
+    forward_slash_path: bool,
+}
+
+#[derive(Debug, Deserialize, Default, PartialEq)]
+#[serde(default)]
+struct NaviClient {
+    tealdeer: bool,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(default)]
+struct NaviConfig {
+    style: NaviStyle,
+    finder: NaviFinder,
+    cheats: NaviCheats,
+    search: NaviSearch,
+    shell: NaviShell,
+    client: NaviClient,
+    source: String,
+}
+
+#[test]
+fn external_navi_config_files_match_serde_yaml_and_reader_paths() {
+    for path in ["navi/config-example.yaml", "navi/tests-config.yaml"] {
+        let input = read_fixture(path);
+        let parsed: NaviConfig = assert_yaml_matches_serde(&input);
+        assert_eq!(parsed.finder.command, "fzf", "{path}");
+        assert_eq!(parsed.style.tag.color, "cyan", "{path}");
+        assert_eq!(parsed.style.snippet.color, "white", "{path}");
+
+        let reader_parsed: NaviConfig = assert_yaml_reader_matches_serde(&input);
+        assert_eq!(reader_parsed, parsed, "{path}");
+    }
+
+    let example: NaviConfig =
+        assert_yaml_matches_serde(include_str!("fixtures/downstream/navi/config-example.yaml"));
+    assert_eq!(example.shell.command, "bash");
+    assert_eq!(example.style.comment.width_percentage, 42);
+    assert!(!example.client.tealdeer);
+
+    let test_config: NaviConfig = assert_yaml_reader_matches_serde(include_str!(
+        "fixtures/downstream/navi/tests-config.yaml"
+    ));
+    assert_eq!(test_config.shell.finder_command.as_deref(), Some("bash"));
+    assert_eq!(test_config.style.comment.color, "yellow");
+    assert!(
+        test_config
+            .shell
+            .command
+            .contains("BASH_ENV=\"${NAVI_HOME}/tests/helpers.sh\"")
+    );
+}
+
 #[test]
 fn external_stackable_operator_crds_match_serde_yaml() {
     for path in STACKABLE_OPERATOR_CRDS {
@@ -356,6 +454,18 @@ where
     parsed
 }
 
+fn assert_yaml_reader_matches_serde<T>(input: &str) -> T
+where
+    T: DeserializeOwned + PartialEq + std::fmt::Debug,
+{
+    let parsed: T =
+        yaml::from_reader(Cursor::new(input.as_bytes())).expect("yaml downstream reader parse");
+    let reference: T = serde_yaml::from_reader(Cursor::new(input.as_bytes()))
+        .expect("serde_yaml downstream reader parse");
+    assert_eq!(parsed, reference);
+    parsed
+}
+
 fn assert_value_matches_serde(input: &str) -> Value {
     let parsed: Value = yaml::from_str(input).expect("yaml downstream value parse");
     let reference: serde_yaml::Value =
@@ -363,6 +473,69 @@ fn assert_value_matches_serde(input: &str) -> Value {
     let reference = yaml::to_value(reference).expect("serde_yaml value converts to yaml::Value");
     assert!(parsed.equivalent(&reference));
     parsed
+}
+
+impl Default for NaviColorWidth {
+    fn default() -> Self {
+        Self {
+            color: "blue".to_owned(),
+            width_percentage: 26,
+            min_width: 20,
+        }
+    }
+}
+
+impl Default for NaviStyle {
+    fn default() -> Self {
+        Self {
+            tag: NaviColorWidth {
+                color: "cyan".to_owned(),
+                width_percentage: 26,
+                min_width: 20,
+            },
+            comment: NaviColorWidth {
+                color: "blue".to_owned(),
+                width_percentage: 42,
+                min_width: 45,
+            },
+            snippet: NaviColorWidth::default(),
+        }
+    }
+}
+
+impl Default for NaviFinder {
+    fn default() -> Self {
+        Self {
+            command: "fzf".to_owned(),
+            overrides: None,
+            overrides_var: None,
+            delimiter_var: None,
+        }
+    }
+}
+
+impl Default for NaviShell {
+    fn default() -> Self {
+        Self {
+            command: "bash".to_owned(),
+            finder_command: None,
+            forward_slash_path: false,
+        }
+    }
+}
+
+impl Default for NaviConfig {
+    fn default() -> Self {
+        Self {
+            style: NaviStyle::default(),
+            finder: NaviFinder::default(),
+            cheats: NaviCheats::default(),
+            search: NaviSearch::default(),
+            shell: NaviShell::default(),
+            client: NaviClient::default(),
+            source: "BUILT-IN".to_owned(),
+        }
+    }
 }
 
 fn assert_stackable_crd_header(value: &Value, path: &str) {

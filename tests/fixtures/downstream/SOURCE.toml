@@ -119,6 +119,30 @@ yaml_surface = "cfn-guard rule-test specification with PASS/FAIL/SKIP expectatio
 reduction_notes = "Copied unchanged from the crates.io source package for the pinned VCS commit."
 
 [[fixture]]
+project = "denisidoro/navi"
+crate = "navi"
+version = "2.25.0-beta1"
+repo = "https://github.com/denisidoro/navi"
+commit = "1ac218cb1e0e80649ef23c8a916e67efc3086833"
+license = "Apache-2.0"
+source_path = "docs/examples/configuration/config-example.yaml"
+local_path = "navi/config-example.yaml"
+yaml_surface = "typed CLI configuration loaded through serde_yaml::from_str and serde_yaml::from_reader"
+reduction_notes = "Copied unchanged from the pinned upstream commit."
+
+[[fixture]]
+project = "denisidoro/navi"
+crate = "navi"
+version = "2.25.0-beta1"
+repo = "https://github.com/denisidoro/navi"
+commit = "1ac218cb1e0e80649ef23c8a916e67efc3086833"
+license = "Apache-2.0"
+source_path = "tests/config.yaml"
+local_path = "navi/tests-config.yaml"
+yaml_surface = "integration-test CLI configuration loaded through serde_yaml::from_reader with shell command strings and nested defaults"
+reduction_notes = "Copied unchanged from the pinned upstream commit."
+
+[[fixture]]
 project = "stackabletech/operator-rs"
 crate = "stackable-operator"
 version = "0.111.1"

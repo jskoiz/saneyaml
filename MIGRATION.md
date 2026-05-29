@@ -59,12 +59,12 @@ merge expansion plus Kubernetes CRD/OpenAPI schema bodies, Helm values and
 dependency metadata, OpenAPI polymorphism, Wrangler durable object migrations,
 and Ansible `!vault` / `!unsafe` tags. An external downstream package-alias
 smoke separately copies the
-checked-in Pingora, rust-i18n, cfn-guard, and Stackable fixture reductions into
-a clean downstream crate and exercises typed reads, structural emits, tagged
-CloudFormation `Value` access, locale trees, and Kubernetes CRD/OpenAPI shapes
-through `serde_yaml::...` imports. These are package-resolution and runtime
-smoke tools, not blanket promises that every `serde_yaml` behavior or
-formatting byte matches.
+checked-in Pingora, rust-i18n, cfn-guard, navi, and Stackable fixture reductions
+into a clean downstream crate and exercises typed reads, reader paths,
+structural emits, tagged CloudFormation `Value` access, locale trees, CLI config
+defaults, and Kubernetes CRD/OpenAPI shapes through `serde_yaml::...` imports.
+These are package-resolution and runtime smoke tools, not blanket promises that
+every `serde_yaml` behavior or formatting byte matches.
 
 The low-friction path is to replace owned config reads and common
 `serde_yaml::Value` usage first. Keep compatibility-sensitive code covered by
@@ -171,14 +171,20 @@ from real `serde_yaml` users:
   CloudFormation templates and cfn-guard rule-test specs loaded through
   `serde_yaml::Value`, including short-form intrinsic tags such as `!Ref`,
   `!GetAtt`, and `!Sub`.
+- `denisidoro/navi` / `navi` 2.25.0-beta1 at commit
+  `1ac218cb1e0e80649ef23c8a916e67efc3086833`, Apache-2.0, covering typed CLI
+  configuration loaded through `serde_yaml::from_str` and
+  `serde_yaml::from_reader`, nested defaults, shell command strings, and
+  commented example config files.
 - `stackabletech/operator-rs` / `stackable-operator` 0.111.1 at commit
   `fd86c0ebf9b885be2684d7d867d513ab9df8c2e1`, Apache-2.0, covering
   Kubernetes CustomResourceDefinition YAML with nested OpenAPI schemas,
   `oneOf` variants, defaulted values, and `x-kubernetes-*` extension fields.
 
 `scripts/downstream-build-trials.sh pingora`,
-`scripts/downstream-build-trials.sh rust-i18n`, and
-`scripts/downstream-build-trials.sh cfn-guard`, and
+`scripts/downstream-build-trials.sh rust-i18n`,
+`scripts/downstream-build-trials.sh cfn-guard`,
+`scripts/downstream-build-trials.sh navi`, and
 `scripts/downstream-build-trials.sh stackable-operator` add real downstream
 build trials.
 Each packages this crate, consumes the unpacked package from a clean smoke
@@ -190,8 +196,10 @@ its `serde_yaml` dependency rewritten to that packaged copy. The Pingora trial
 checks `pingora-core` plus the `pingora-proxy` `modify_response` example that
 uses `serde_yaml` as a dev dependency; the rust-i18n trial covers support,
 macro, and extract crates; the cfn-guard trial checks the package that loads
-CloudFormation templates and rule-test specs; the Stackable trial checks
-`stackable-shared` production serializer use plus `k8s-version` serde tests.
+CloudFormation templates and rule-test specs; the navi trial checks the library
+and CLI binary that load typed YAML config through string and reader paths; the
+Stackable trial checks `stackable-shared` production serializer use plus
+`k8s-version` serde tests.
 
 Focused proof command:
 
@@ -203,6 +211,7 @@ scripts/downstream-build-trials.sh smoke-only
 scripts/downstream-build-trials.sh pingora
 scripts/downstream-build-trials.sh rust-i18n
 scripts/downstream-build-trials.sh cfn-guard
+scripts/downstream-build-trials.sh navi
 scripts/downstream-build-trials.sh stackable-operator
 ```
 
@@ -344,9 +353,9 @@ testing each adopter's own YAML corpus.
 
 ## Next Adoption Blockers
 
-- Expand real external crate build trials beyond the current Pingora,
-  rust-i18n, cfn-guard, and Stackable operator-rs package smoke before claiming
-  broad ecosystem replacement readiness.
+- Continue expanding real external crate build trials beyond the current
+  Pingora, rust-i18n, cfn-guard, navi, and Stackable operator-rs package smoke
+  before claiming broad ecosystem replacement readiness.
 - Keep migration-impact wording current as new divergence records are added.
 - Keep growing default merge, `apply_merge`, emitter, and lossless graph
   coverage with sustained fuzz runs and minimized discoveries beyond the

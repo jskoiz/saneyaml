@@ -236,9 +236,10 @@ testing each adopter's own YAML corpus.
   treats the same spelling as octal. `tests/yaml11_conformance.rs` includes
   directive-driven migration fixtures covering legacy boolean words, null
   spellings, float spellings, octal, hex, binary numeric, sexagesimal,
-  timestamp time-zone forms, explicit binary, invalid binary typed-target
-  diagnostics, collection tags, merge-key expansion, numeric-key collisions,
-  and boolean-key duplicate diagnostics.
+  timestamp time-zone forms, flow-style scalar collections and mapping keys,
+  explicit binary, invalid binary typed-target diagnostics, collection tags,
+  merge-key expansion, numeric-key collisions, and boolean-key duplicate
+  diagnostics.
 - YAML 1.1 collection tags are retained as tagged collections in `Node` and
   `Value`, not converted to new public value variants. Typed Serde reads
   understand `!!set` as set-like sequence targets from mapping keys, `!!omap`

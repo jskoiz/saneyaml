@@ -135,9 +135,9 @@ binary, and two/three-part sexagesimal int/float forms, and retains
 timestamp-shaped plain scalars as `!!timestamp` tagged strings with
 `yaml::Timestamp` available through `as_timestamp()` and typed Serde fields.
 The directive-driven migration fixtures cover the same scalar construction
-surface together with default merge-key expansion and boolean-key collision
-diagnostics, so `%YAML 1.1` behavior is checked as a public loading mode rather
-than only as individual scalar helpers.
+surface in block and flow collections together with default merge-key expansion
+and boolean-key collision diagnostics, so `%YAML 1.1` behavior is checked as a
+public loading mode rather than only as individual scalar helpers.
 Explicit `!!binary` payloads remain tagged strings in retained `Value`/`Node`
 trees, but typed byte targets such as `Vec<u8>`, `deserialize_bytes`, and
 `deserialize_byte_buf` decode the base64 payload. Supported explicit YAML core

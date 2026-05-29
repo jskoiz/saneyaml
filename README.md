@@ -22,8 +22,9 @@ The first milestone focuses on:
   tags are recognized in both short `!!int` and canonical
   `tag:yaml.org,2002:int` forms, including typed Serde reads for YAML 1.1
   `!!set`, `!!omap`, and `!!pairs` collection tags while retaining the tags in
-  `Node`/`Value`; default loading keeps the YAML 1.2-oriented decimal treatment
-  of leading-zero values unless YAML 1.1 mode is selected.
+  `Node`/`Value`; directive-driven fixtures cover flow-style scalar collections
+  and keys, and default loading keeps the YAML 1.2-oriented decimal treatment of
+  leading-zero values unless YAML 1.1 mode is selected.
 - Ordered mappings, block/flow collections, quoted/plain scalars, and basic
   literal/folded block scalars.
 - Acyclic anchors and aliases expanded into the loaded tree.

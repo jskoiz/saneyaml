@@ -78,6 +78,33 @@ clock: 1:20
 }
 
 #[test]
+fn yaml_version_directive_schema_switches_flow_collection_scalars() {
+    let input = "\
+%YAML 1.1
+---
+items: [ON, 012, 0x10, 1:20, 2026-05-24]
+";
+    let default: Value = yaml::from_str(input).expect("default flow collection scalars");
+    assert_eq!(default["items"][0].as_str(), Some("ON"));
+    assert_eq!(default["items"][1].as_i64(), Some(12));
+    assert_eq!(default["items"][2].as_str(), Some("0x10"));
+    assert_eq!(default["items"][3].as_str(), Some("1:20"));
+    assert_eq!(default["items"][4].as_str(), Some("2026-05-24"));
+
+    let directive: Value = LoadOptions::yaml_version_directive()
+        .from_str(input)
+        .expect("directive flow collection scalars");
+    assert_eq!(directive["items"][0].as_bool(), Some(true));
+    assert_eq!(directive["items"][1].as_i64(), Some(10));
+    assert_eq!(directive["items"][2].as_i64(), Some(16));
+    assert_eq!(directive["items"][3].as_i64(), Some(4800));
+    assert_eq!(
+        directive["items"][4].as_timestamp(),
+        Timestamp::parse_yaml_1_1("2026-05-24")
+    );
+}
+
+#[test]
 fn yaml_version_directive_schema_supports_resolved_canonical_core_tags() {
     #[derive(Debug, Deserialize, PartialEq)]
     struct ResolvedCoreTags {

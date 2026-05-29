@@ -83,7 +83,7 @@ struct LegacyService {
 #[test]
 fn yaml11_conformance_manifest_is_complete() {
     let manifest = manifest();
-    assert_eq!(manifest.case.len(), 15);
+    assert_eq!(manifest.case.len(), 16);
     let manifest_paths = manifest
         .case
         .iter()
@@ -100,6 +100,7 @@ fn yaml11_conformance_manifest_is_complete() {
                 | "pairs"
                 | "bundle"
                 | "scalar-matrix"
+                | "flow-scalar-matrix"
                 | "merge"
                 | "duplicate-key"
                 | "multi-doc"
@@ -548,6 +549,69 @@ fn yaml11_legacy_scalar_edge_stream_switches_per_document() {
             .minor,
         1
     );
+}
+
+#[test]
+fn yaml11_legacy_flow_scalar_fixture_switches_inside_flow_collections() {
+    let source = read_fixture("legacy-flow-scalar-directive.yaml");
+
+    let default: Value = yaml::from_str(&source).expect("default flow scalar fixture");
+    assert_eq!(default["flow_scalars"][0].as_str(), Some("ON"));
+    assert_eq!(default["flow_scalars"][1].as_i64(), Some(12));
+    assert_eq!(default["flow_scalars"][2].as_str(), Some("0x10"));
+    assert_eq!(default["flow_scalars"][3].as_str(), Some("1:20"));
+    assert_eq!(default["flow_scalars"][4].as_str(), Some("2026-05-24"));
+    assert_eq!(default["flow_mapping"]["enabled"].as_str(), Some("OFF"));
+    assert_eq!(default["flow_mapping"]["octal"].as_i64(), Some(12));
+    assert_eq!(default["flow_mapping"]["hex"].as_str(), Some("0x10"));
+    assert_eq!(default["flow_mapping"]["clock"].as_str(), Some("1:20"));
+    assert_eq!(default["flow_keys"]["on"].as_str(), Some("push"));
+    assert_eq!(default["flow_keys"]["off"].as_str(), Some("stop"));
+    assert_eq!(default["flow_keys"][12].as_str(), Some("octal"));
+    assert_eq!(default["flow_keys"]["012"].as_str(), Some("quoted"));
+
+    let directive: Value = LoadOptions::yaml_version_directive()
+        .from_str(&source)
+        .expect("directive-driven flow scalar fixture");
+    assert_eq!(directive["flow_scalars"][0].as_bool(), Some(true));
+    assert_eq!(directive["flow_scalars"][1].as_i64(), Some(10));
+    assert_eq!(directive["flow_scalars"][2].as_i64(), Some(16));
+    assert_eq!(directive["flow_scalars"][3].as_i64(), Some(4800));
+    assert_eq!(
+        directive["flow_scalars"][4].as_timestamp(),
+        Timestamp::parse_yaml_1_1("2026-05-24")
+    );
+    assert_eq!(directive["flow_mapping"]["enabled"].as_bool(), Some(false));
+    assert_eq!(directive["flow_mapping"]["octal"].as_i64(), Some(10));
+    assert_eq!(directive["flow_mapping"]["hex"].as_i64(), Some(16));
+    assert_eq!(directive["flow_mapping"]["clock"].as_i64(), Some(4800));
+
+    let flow_keys = directive["flow_keys"]
+        .as_mapping()
+        .expect("flow keys mapping");
+    assert_eq!(
+        flow_keys.get(Value::from(true)).and_then(Value::as_str),
+        Some("push")
+    );
+    assert_eq!(
+        flow_keys.get(Value::from(false)).and_then(Value::as_str),
+        Some("stop")
+    );
+    assert_eq!(
+        flow_keys.get(Value::from(10i64)).and_then(Value::as_str),
+        Some("octal")
+    );
+    assert_eq!(flow_keys.get("012").and_then(Value::as_str), Some("quoted"));
+
+    let explicit: Value = LoadOptions::yaml_1_1()
+        .from_str(&source)
+        .expect("explicit YAML 1.1 flow scalar fixture");
+    assert!(explicit.equivalent(&directive));
+
+    let parsed = LoadOptions::yaml_version_directive()
+        .parse_str(&source)
+        .expect("directive-driven flow scalar tree parses");
+    assert!(Value::from(&parsed).equivalent(&directive));
 }
 
 #[test]

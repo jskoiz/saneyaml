@@ -90,6 +90,13 @@ tag = "%YAML 1.1"
 expected = "accept"
 
 [[case]]
+id = "legacy-flow-scalar-directive"
+path = "legacy-flow-scalar-directive.yaml"
+kind = "flow-scalar-matrix"
+tag = "%YAML 1.1"
+expected = "accept"
+
+[[case]]
 id = "legacy-invalid-binary"
 path = "legacy-invalid-binary.yaml"
 kind = "binary"

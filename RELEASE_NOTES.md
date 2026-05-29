@@ -26,8 +26,8 @@ Notable completed release-candidate behavior:
 - YAML 1.1 conformance fixtures now cover directive-driven legacy scalar
   construction, null and float spellings, timestamp time-zone forms, explicit
   binary and collection tags, invalid binary typed-target diagnostics,
-  merge-key expansion under legacy schema selection, and boolean/numeric-key
-  duplicate diagnostics.
+  flow-style scalar collections and mapping keys, merge-key expansion under
+  legacy schema selection, and boolean/numeric-key duplicate diagnostics.
 - `parse_lossless` / `LosslessStream` preserve comments, trivia, anchors,
   aliases, and stable graph ids for source-backed inspection, replay, and
   validated node/source-span edits, insertions, and deletions that preserve

@@ -6,8 +6,11 @@ use serde::{
     de::{self, DeserializeOwned, Visitor},
 };
 use std::fmt;
-use std::{collections::BTreeMap, io::Cursor};
-use yaml::{Error, Span, Value};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    io::Cursor,
+};
+use yaml::{Error, LoadOptions, Span, Value};
 
 fuzz_target!(|input: &[u8]| {
     assert_single_document_entrypoint(input);
@@ -16,6 +19,7 @@ fuzz_target!(|input: &[u8]| {
     assert_config_string_map_entrypoints(input);
     assert_numeric_map_entrypoints(input);
     assert_typed_reader_entrypoints(input);
+    assert_yaml11_collection_tag_entrypoints(input);
     assert_borrowed_entrypoints(input);
     assert_byte_entrypoints(input);
 });
@@ -59,6 +63,13 @@ struct RootStringConfig {
     root: BTreeMap<String, String>,
     #[serde(default)]
     alias_value: Option<String>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct ValueStructuralTags {
+    value_key: String,
+    #[serde(default)]
+    value_mapping: BTreeMap<String, String>,
 }
 
 #[derive(Debug)]
@@ -248,6 +259,30 @@ fn assert_typed_reader_entrypoints(input: &[u8]) {
     assert_owned_reader_entrypoint::<OwnedReaderConfig>(input);
     assert_owned_reader_entrypoint::<TaggedAliasValues>(input);
     assert_owned_reader_entrypoint::<RootStringConfig>(input);
+}
+
+fn assert_yaml11_collection_tag_entrypoints(input: &[u8]) {
+    for options in [
+        LoadOptions::new(),
+        LoadOptions::yaml_1_1(),
+        LoadOptions::yaml_version_directive(),
+    ] {
+        assert_load_options_reader_pair::<BTreeSet<String>>(input, options);
+        assert_load_options_reader_pair::<Vec<(String, i64)>>(input, options);
+        assert_load_options_reader_pair::<ValueStructuralTags>(input, options);
+    }
+}
+
+fn assert_load_options_reader_pair<T>(input: &[u8], options: LoadOptions)
+where
+    T: DeserializeOwned + fmt::Debug + PartialEq,
+{
+    assert_entrypoint_pair(
+        input,
+        "LoadOptions from_slice/from_reader",
+        options.from_slice::<T>(input),
+        options.from_reader::<_, T>(Cursor::new(input)),
+    );
 }
 
 fn assert_owned_reader_entrypoint<T>(input: &[u8])

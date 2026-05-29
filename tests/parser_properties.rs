@@ -16,6 +16,13 @@ use yaml::{
 };
 
 const EMPTY_REQUIRED_SEEDS: &[&str] = &[];
+const SERDE_ENTRYPOINTS_REQUIRED_SEEDS: &[&str] = &[
+    "yaml11-omap-non-singleton-entry",
+    "yaml11-pairs-scalar-entry",
+    "yaml11-set-non-null-values",
+    "yaml11-value-duplicate-key",
+    "yaml11-value-resolved-handle",
+];
 const EVENT_STREAM_REQUIRED_SEEDS: &[&str] = &[
     "alias-expansion-bomb",
     "alias-recursive-flow",
@@ -39,7 +46,12 @@ const SCHEMA_MODES_REQUIRED_SEEDS: &[&str] = &[
     "yaml11-collection-tags",
     "yaml11-directive-driven",
     "yaml11-explicit-merge-tags",
+    "yaml11-omap-non-singleton-entry",
+    "yaml11-pairs-scalar-entry",
     "yaml11-scalar-edge-stream",
+    "yaml11-set-non-null-values",
+    "yaml11-value-duplicate-key",
+    "yaml11-value-resolved-handle",
     "yaml12-config-words",
 ];
 const LOSSLESS_GRAPH_REQUIRED_SEEDS: &[&str] = &[
@@ -307,8 +319,8 @@ fn fuzz_corpora_cover_release_targets_and_named_safety_seeds() {
         ("lossless_edit", (23, LOSSLESS_EDIT_REQUIRED_SEEDS)),
         ("lossless_graph", (16, LOSSLESS_GRAPH_REQUIRED_SEEDS)),
         ("parse_bytes", (800, EMPTY_REQUIRED_SEEDS)),
-        ("schema_modes", (14, SCHEMA_MODES_REQUIRED_SEEDS)),
-        ("serde_entrypoints", (250, EMPTY_REQUIRED_SEEDS)),
+        ("schema_modes", (19, SCHEMA_MODES_REQUIRED_SEEDS)),
+        ("serde_entrypoints", (287, SERDE_ENTRYPOINTS_REQUIRED_SEEDS)),
     ]);
     let expected_targets = expected.keys().copied().collect::<BTreeSet<_>>();
     assert_eq!(declared_fuzz_targets(), expected_targets);
@@ -706,6 +718,13 @@ struct RootStringConfig {
     alias_value: Option<String>,
 }
 
+#[derive(Debug, Deserialize, PartialEq)]
+struct ValueStructuralTags {
+    value_key: String,
+    #[serde(default)]
+    value_mapping: BTreeMap<String, String>,
+}
+
 #[derive(Debug)]
 struct FuzzBytes;
 
@@ -756,6 +775,7 @@ fn assert_serde_entrypoint_invariants(input: &[u8]) {
     assert_config_string_map_entrypoints(input);
     assert_numeric_map_entrypoints(input);
     assert_typed_reader_entrypoints(input);
+    assert_yaml11_collection_tag_entrypoints(input);
     assert_borrowed_entrypoints(input);
     assert_byte_entrypoints(input);
 }
@@ -779,6 +799,7 @@ fn assert_schema_mode_invariants(input: &[u8]) {
             }
             Err(error) => assert_error_invariants(input, &error),
         }
+        assert_yaml11_collection_tag_options(input, options);
     }
 }
 
@@ -1521,6 +1542,34 @@ fn assert_typed_reader_entrypoints(input: &[u8]) {
     assert_owned_reader_entrypoint::<OwnedReaderConfig>(input);
     assert_owned_reader_entrypoint::<TaggedAliasValues>(input);
     assert_owned_reader_entrypoint::<RootStringConfig>(input);
+}
+
+fn assert_yaml11_collection_tag_entrypoints(input: &[u8]) {
+    for options in [
+        LoadOptions::new(),
+        LoadOptions::yaml_1_1(),
+        LoadOptions::yaml_version_directive(),
+    ] {
+        assert_yaml11_collection_tag_options(input, options);
+    }
+}
+
+fn assert_yaml11_collection_tag_options(input: &[u8], options: LoadOptions) {
+    assert_load_options_reader_pair::<BTreeSet<String>>(input, options);
+    assert_load_options_reader_pair::<Vec<(String, i64)>>(input, options);
+    assert_load_options_reader_pair::<ValueStructuralTags>(input, options);
+}
+
+fn assert_load_options_reader_pair<T>(input: &[u8], options: LoadOptions)
+where
+    T: DeserializeOwned + std::fmt::Debug + PartialEq,
+{
+    assert_entrypoint_pair(
+        input,
+        "LoadOptions from_slice/from_reader",
+        options.from_slice::<T>(input),
+        options.from_reader::<_, T>(Cursor::new(input)),
+    );
 }
 
 fn assert_owned_reader_entrypoint<T>(input: &[u8])

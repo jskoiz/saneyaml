@@ -71,6 +71,10 @@ Notable completed release-candidate behavior:
   selected YAML-suite anchor/alias cases, and manifest-owned Docker Compose
   anchor cases. YAML 1.1 merge/comment graph seeds are promoted into
   deterministic conformance fixtures.
+- Serde and schema-mode fuzz corpora now require YAML 1.1 malformed `!!set`,
+  `!!omap`, and `!!pairs` seeds plus resolved and duplicate `!!value` key
+  seeds, so recent compatibility diagnostics replay through the fuzz/property
+  safety gates.
 - Emitter round-trip fuzz coverage now exercises `to_string`, `to_writer`, and
   streaming `Serializer` output against parsed-tree and `Value` replay.
 - The Ubuntu CI workflow now installs nightly plus `cargo-fuzz` and runs a

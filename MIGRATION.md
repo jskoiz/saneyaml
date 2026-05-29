@@ -104,7 +104,9 @@ Additional crate surfaces useful during migration:
   string, slice, reader, document-stream, and direct deserializer paths.
   `yaml::parse_lossless_bytes` applies the same default ceiling before UTF-8
   validation. Use `max_input_bytes()` to tune the ceiling for a loader call site,
-  or `without_input_limit()` only when a caller has already bounded the source.
+  `max_alias_expansion_nodes()` to tune alias expansion work for untrusted
+  config loads, or `without_input_limit()` only when a caller has already
+  bounded the source.
 - `yaml::from_node` preserves parser spans while deserializing from a loaded tree.
 - `yaml::from_documents_str`, `from_documents_slice`, and
   `from_documents_reader` return typed vectors for YAML streams.

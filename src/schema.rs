@@ -7,6 +7,12 @@ use std::io::Read;
 /// Default maximum YAML input size accepted by loading entrypoints.
 pub const DEFAULT_MAX_INPUT_BYTES: usize = 64 * 1024 * 1024;
 
+/// Default alias expansion budget multiplier per input byte.
+pub const DEFAULT_ALIAS_EXPANSION_FACTOR: usize = 64;
+
+/// Minimum alias expansion budget used by default loading options.
+pub const DEFAULT_MIN_ALIAS_EXPANSION_NODES: usize = 1024;
+
 /// Scalar construction schema used by tree and Serde loading.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum Schema {
@@ -28,6 +34,7 @@ pub enum Schema {
 pub struct LoadOptions {
     pub(crate) schema: Schema,
     max_input_bytes: Option<usize>,
+    max_alias_expansion_nodes: Option<usize>,
 }
 
 impl Default for LoadOptions {
@@ -42,6 +49,7 @@ impl LoadOptions {
         Self {
             schema: Schema::Yaml12,
             max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
+            max_alias_expansion_nodes: None,
         }
     }
 
@@ -50,6 +58,7 @@ impl LoadOptions {
         Self {
             schema: Schema::Yaml11,
             max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
+            max_alias_expansion_nodes: None,
         }
     }
 
@@ -62,6 +71,7 @@ impl LoadOptions {
         Self {
             schema: Schema::YamlVersionDirective,
             max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
+            max_alias_expansion_nodes: None,
         }
     }
 
@@ -91,6 +101,30 @@ impl LoadOptions {
     /// Returns the configured maximum input size in bytes.
     pub const fn selected_max_input_bytes(self) -> Option<usize> {
         self.max_input_bytes
+    }
+
+    /// Returns options with a maximum number of alias-expanded nodes.
+    ///
+    /// The default budget remains input-size derived. This option lets callers
+    /// loading untrusted configuration tighten that expansion work directly.
+    pub const fn max_alias_expansion_nodes(mut self, max_alias_expansion_nodes: usize) -> Self {
+        self.max_alias_expansion_nodes = Some(max_alias_expansion_nodes);
+        self
+    }
+
+    /// Returns the configured maximum number of alias-expanded nodes.
+    ///
+    /// `None` means the default input-size-derived budget is selected.
+    pub const fn selected_max_alias_expansion_nodes(self) -> Option<usize> {
+        self.max_alias_expansion_nodes
+    }
+
+    pub(crate) fn alias_expansion_budget(self, input_len: usize) -> usize {
+        self.max_alias_expansion_nodes.unwrap_or_else(|| {
+            input_len
+                .saturating_mul(DEFAULT_ALIAS_EXPANSION_FACTOR)
+                .max(DEFAULT_MIN_ALIAS_EXPANSION_NODES)
+        })
     }
 
     pub(crate) fn check_input_len(self, len: usize) -> Result<()> {

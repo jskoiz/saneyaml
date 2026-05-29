@@ -113,7 +113,8 @@ Notable completed release-candidate behavior:
 - `LoadOptions` now applies a default 64 MiB input byte ceiling across parser,
   Serde, reader, document-stream, and direct deserializer entrypoints, and
   `parse_lossless_bytes` now checks that default ceiling before UTF-8 validation.
-  Loader paths keep `max_input_bytes()` for call-site tuning and
+  Loader paths keep `max_input_bytes()` for byte-limit tuning,
+  `max_alias_expansion_nodes()` for alias expansion work tuning, and
   `without_input_limit()` for explicitly pre-bounded sources.
 - `LosslessEdit` now has source-backed scalar-keyed block/flow mapping entry
   helpers for value replacement, entry insertion, and entry deletion while

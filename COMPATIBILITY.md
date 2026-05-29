@@ -98,9 +98,9 @@ Current read APIs:
   identity reference-checked against parser anchor events from `yaml-rust2` and
   `saphyr`
 - `yaml::LoadOptions::{new, yaml_1_1, yaml_version_directive, schema,
-  max_input_bytes, without_input_limit}` and `yaml::Schema` for explicit
-  construction-schema selection and input-size policy across parser and Serde
-  read entrypoints
+  max_input_bytes, without_input_limit, max_alias_expansion_nodes}` and
+  `yaml::Schema` for explicit construction-schema selection, input-size policy,
+  and alias expansion policy across parser and Serde read entrypoints
 
 Migration-facing API status is tracked by `MIGRATION.md` and the executable
 `tests/serde_yaml_swap_harness.rs` harness. The current swap matrix covers:
@@ -214,9 +214,11 @@ original byte buffer.
 All parser, loaded-tree, document-stream, reader-backed, and direct
 deserializer entrypoints enforce `LoadOptions` input-size policy before parsing.
 `parse_lossless_bytes` applies the same 64 MiB default ceiling before UTF-8
-validation. Default options cap YAML input at 64 MiB, `max_input_bytes()` can
-tighten or raise that ceiling, and `without_input_limit()` is an explicit
-opt-out for callers that have already bounded their input source.
+validation. Default options cap YAML input at 64 MiB and use an
+input-size-derived alias expansion budget. `max_input_bytes()` can tighten or
+raise the byte ceiling, `max_alias_expansion_nodes()` can tune alias expansion
+work for untrusted config loads, and `without_input_limit()` is an explicit
+input-size opt-out for callers that have already bounded their source.
 Direct input entrypoints borrow only scalars whose value can be represented as
 a slice of the original input; transformed scalars such as escaped quoted
 strings and block scalars still require owned `String`/`Cow` targets.

@@ -621,6 +621,60 @@ fn alias_expansion_boundary_keeps_raw_events_safe() {
 }
 
 #[test]
+fn load_options_alias_expansion_limit_rejects_across_entrypoints() {
+    let input = "base: &base {a: 1}\ntarget: *base\n";
+    let options = LoadOptions::new().max_alias_expansion_nodes(2);
+    let mut errors = vec![
+        options
+            .parse_str(input)
+            .expect_err("parse_str alias expansion budget"),
+        options
+            .parse_bytes(input.as_bytes())
+            .expect_err("parse_bytes alias expansion budget"),
+        options
+            .from_str::<Value>(input)
+            .expect_err("from_str alias expansion budget"),
+        options
+            .from_slice::<Value>(input.as_bytes())
+            .expect_err("from_slice alias expansion budget"),
+        options
+            .from_reader::<_, Value>(Cursor::new(input.as_bytes()))
+            .expect_err("from_reader alias expansion budget"),
+        options
+            .from_documents_str::<Value>(input)
+            .expect_err("from_documents_str alias expansion budget"),
+        options
+            .from_documents_slice::<Value>(input.as_bytes())
+            .expect_err("from_documents_slice alias expansion budget"),
+        options
+            .from_documents_reader::<Value, _>(Cursor::new(input.as_bytes()))
+            .expect_err("from_documents_reader alias expansion budget"),
+    ];
+    errors.push(
+        Value::deserialize(options.deserializer_from_str(input))
+            .expect_err("deserializer_from_str alias expansion budget"),
+    );
+    errors.push(
+        Value::deserialize(options.deserializer_from_slice(input.as_bytes()))
+            .expect_err("deserializer_from_slice alias expansion budget"),
+    );
+    errors.push(
+        Value::deserialize(options.deserializer_from_reader(Cursor::new(input.as_bytes())))
+            .expect_err("deserializer_from_reader alias expansion budget"),
+    );
+
+    for error in errors {
+        assert_configured_alias_expansion_error(&error, input);
+    }
+
+    let relaxed: Value = LoadOptions::new()
+        .max_alias_expansion_nodes(3)
+        .from_str(input)
+        .expect("caller-selected alias budget permits this expansion");
+    assert_eq!(relaxed["target"]["a"].as_i64(), Some(1));
+}
+
+#[test]
 fn alias_expanded_duplicate_key_boundaries_report_errors() {
     let key = nested_flow_sequence(TEST_MAX_DEPTH / 2);
     let input = format!("key: &key {key}\nroot:\n  ? *key\n  : first\n  ? {key}\n  : second\n");
@@ -699,6 +753,13 @@ fn assert_alias_expansion_error(error: &yaml::Error) {
         &ALIAS_EXPANSION_BOMB[error.span().start..error.span().end],
         "*d"
     );
+}
+
+fn assert_configured_alias_expansion_error(error: &yaml::Error, input: &str) {
+    assert!(error.to_string().contains("alias expansion limit exceeded"));
+    assert_eq!(error.span().line, 2);
+    assert_eq!(error.span().column, 9);
+    assert_eq!(&input[error.span().start..error.span().end], "*base");
 }
 
 fn assert_depth_limit_error(error: &yaml::Error) {

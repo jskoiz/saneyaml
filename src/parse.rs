@@ -12,7 +12,6 @@ use std::collections::HashMap;
 use std::mem;
 
 pub(crate) const MAX_DEPTH: usize = 128;
-const MIN_ALIAS_EXPANSION_BUDGET: usize = 1024;
 
 /// A raw parser event emitted while reading a YAML stream.
 #[derive(Clone, Debug, PartialEq)]
@@ -430,12 +429,12 @@ struct AnchorRegistry {
 }
 
 impl AnchorRegistry {
-    fn new(input_len: usize) -> Self {
+    fn new(expansion_budget: usize) -> Self {
         Self {
             entries: HashMap::new(),
             generation: 0,
             expanded_nodes: 0,
-            expansion_budget: input_len.saturating_mul(64).max(MIN_ALIAS_EXPANSION_BUDGET),
+            expansion_budget,
         }
     }
 
@@ -516,13 +515,14 @@ impl Parser {
     fn new_with_options(input: &str, options: LoadOptions) -> Result<Self> {
         options.check_input_len(input.len())?;
         let schema = options.selected_schema();
+        let alias_expansion_budget = options.alias_expansion_budget(input.len());
         Ok(Self {
             lines: preprocess(input)?,
             pos: 0,
             input_len: input.len(),
             schema,
             active_schema: default_construction_schema(schema),
-            anchors: AnchorRegistry::new(input.len()),
+            anchors: AnchorRegistry::new(alias_expansion_budget),
             events: None,
             active_tag_handles: HashMap::new(),
             pending_tag_handles: HashMap::new(),

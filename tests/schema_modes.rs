@@ -20,17 +20,31 @@ fn schema_mode_defaults_to_yaml_12_config_behavior() {
 #[test]
 fn load_options_default_carries_schema_and_input_limit_defaults() {
     assert_eq!(LoadOptions::default(), LoadOptions::new());
+    assert_eq!(yaml::DEFAULT_ALIAS_EXPANSION_FACTOR, 64);
+    assert_eq!(yaml::DEFAULT_MIN_ALIAS_EXPANSION_NODES, 1024);
     assert_eq!(
         LoadOptions::new().selected_max_input_bytes(),
         Some(yaml::DEFAULT_MAX_INPUT_BYTES)
+    );
+    assert_eq!(
+        LoadOptions::new().selected_max_alias_expansion_nodes(),
+        None
     );
     assert_eq!(
         LoadOptions::yaml_1_1().selected_max_input_bytes(),
         Some(yaml::DEFAULT_MAX_INPUT_BYTES)
     );
     assert_eq!(
+        LoadOptions::yaml_1_1().selected_max_alias_expansion_nodes(),
+        None
+    );
+    assert_eq!(
         LoadOptions::yaml_version_directive().selected_max_input_bytes(),
         Some(yaml::DEFAULT_MAX_INPUT_BYTES)
+    );
+    assert_eq!(
+        LoadOptions::yaml_version_directive().selected_max_alias_expansion_nodes(),
+        None
     );
     assert_eq!(
         LoadOptions::new()
@@ -43,6 +57,12 @@ fn load_options_default_carries_schema_and_input_limit_defaults() {
             .without_input_limit()
             .selected_max_input_bytes(),
         None
+    );
+    assert_eq!(
+        LoadOptions::new()
+            .max_alias_expansion_nodes(32)
+            .selected_max_alias_expansion_nodes(),
+        Some(32)
     );
 }
 

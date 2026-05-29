@@ -75,5 +75,8 @@ pub use parse::{
     EventTagDirective, EventYamlVersion, ScalarStyle, parse_bytes, parse_documents, parse_events,
     parse_str,
 };
-pub use schema::{DEFAULT_MAX_INPUT_BYTES, LoadOptions, Schema};
+pub use schema::{
+    DEFAULT_ALIAS_EXPANSION_FACTOR, DEFAULT_MAX_INPUT_BYTES, DEFAULT_MIN_ALIAS_EXPANSION_NODES,
+    LoadOptions, Schema,
+};
 pub use ser::{Serializer, to_string, to_value, to_writer};

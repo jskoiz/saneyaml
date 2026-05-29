@@ -7,6 +7,40 @@ use yaml_rust2::parser::MarkedEventReceiver;
 
 const REAL_WORLD_SOURCE: &str = include_str!("fixtures/real-world/SOURCE.toml");
 const REAL_WORLD_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/real-world");
+const YAML_SUITE_MANIFEST: &str = include_str!("fixtures/yaml-test-suite/manifest.toml");
+const YAML_SUITE_ROOT: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/fixtures/yaml-test-suite/data"
+);
+
+#[derive(Debug, Deserialize)]
+struct SuiteManifest {
+    case: Vec<SuiteCase>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SuiteCase {
+    id: String,
+    name: String,
+    expected: String,
+    features: Vec<String>,
+}
+
+impl SuiteCase {
+    fn fixture_dir(&self) -> String {
+        self.id.replace('/', "-")
+    }
+
+    fn has_graph_syntax(&self) -> bool {
+        self.features
+            .iter()
+            .any(|feature| matches!(feature.as_str(), "anchor" | "alias"))
+    }
+
+    fn raw_events_should_parse(&self) -> bool {
+        self.expected != "syntax-error"
+    }
+}
 
 #[derive(Debug, Deserialize)]
 struct RealWorldManifest {
@@ -23,8 +57,16 @@ struct RealWorldFixture {
 enum GraphOp {
     DocumentStart,
     DocumentEnd,
-    Anchor { id: String },
+    Anchor { id: String, kind: GraphNodeKind },
     Alias { target: String },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum GraphNodeKind {
+    Scalar,
+    Sequence,
+    Mapping,
+    Alias,
 }
 
 #[derive(Default)]
@@ -344,6 +386,58 @@ fn real_world_lossless_graph_manifest_cases_match_reference_parser_events() {
     }
 }
 
+#[test]
+fn yaml_suite_anchor_alias_cases_match_reference_parser_events() {
+    let manifest: SuiteManifest =
+        toml::from_str(YAML_SUITE_MANIFEST).expect("YAML-suite manifest parses");
+    let cases = manifest
+        .case
+        .iter()
+        .filter(|case| case.raw_events_should_parse() && case.has_graph_syntax())
+        .collect::<Vec<_>>();
+    let ids = cases
+        .iter()
+        .map(|case| case.id.as_str())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        ids,
+        BTreeSet::from([
+            "2SXE", "3GZX", "6BFJ", "6M2F", "9KAX", "BU8L", "FTA2", "KSS4", "PW8X", "RZP5", "SKE5",
+            "U3XV", "X38W", "XW4D",
+        ])
+    );
+
+    for case in cases {
+        let path = Path::new(YAML_SUITE_ROOT)
+            .join(case.fixture_dir())
+            .join("in.yaml");
+        let input = fs::read_to_string(&path).unwrap_or_else(|error| {
+            panic!(
+                "read YAML-suite graph fixture {} ({}): {error}",
+                case.id, case.name
+            )
+        });
+        let ours = normalize_lossless_graph(&input)
+            .unwrap_or_else(|error| panic!("{} lossless graph: {error}", case.id));
+        assert_eq!(
+            ours,
+            normalize_yaml_rust2_graph(&input)
+                .unwrap_or_else(|error| panic!("{} yaml-rust2 graph: {error}", case.id)),
+            "yaml-rust2 graph identity parity for {} ({})",
+            case.id,
+            case.name
+        );
+        assert_eq!(
+            ours,
+            normalize_saphyr_graph(&input)
+                .unwrap_or_else(|error| panic!("{} saphyr graph: {error}", case.id)),
+            "saphyr graph identity parity for {} ({})",
+            case.id,
+            case.name
+        );
+    }
+}
+
 fn normalize_lossless_graph(input: &str) -> yaml::Result<Vec<GraphOp>> {
     let stream = parse_lossless(input)?;
     let mut normalizer = GraphNormalizer::default();
@@ -372,6 +466,7 @@ fn push_lossless_graph_node(
     if let Some(anchor) = node.anchor() {
         graph.push(GraphOp::Anchor {
             id: normalizer.define_lossless(anchor),
+            kind: lossless_graph_kind(node.kind()),
         });
     }
 
@@ -391,6 +486,15 @@ fn push_lossless_graph_node(
         LosslessNodeKind::Alias { target, .. } => graph.push(GraphOp::Alias {
             target: normalizer.alias_lossless(*target),
         }),
+    }
+}
+
+fn lossless_graph_kind(kind: &LosslessNodeKind) -> GraphNodeKind {
+    match kind {
+        LosslessNodeKind::Scalar { .. } => GraphNodeKind::Scalar,
+        LosslessNodeKind::Sequence { .. } => GraphNodeKind::Sequence,
+        LosslessNodeKind::Mapping { .. } => GraphNodeKind::Mapping,
+        LosslessNodeKind::Alias { .. } => GraphNodeKind::Alias,
     }
 }
 
@@ -418,13 +522,26 @@ fn normalize_yaml_rust2_graph(input: &str) -> Result<Vec<GraphOp>, yaml_rust2::s
             }),
             yaml_rust2::parser::Event::Scalar(_, _, anchor, _) => {
                 if let Some(id) = normalizer.define(anchor) {
-                    graph.push(GraphOp::Anchor { id });
+                    graph.push(GraphOp::Anchor {
+                        id,
+                        kind: GraphNodeKind::Scalar,
+                    });
                 }
             }
-            yaml_rust2::parser::Event::SequenceStart(anchor, _)
-            | yaml_rust2::parser::Event::MappingStart(anchor, _) => {
+            yaml_rust2::parser::Event::SequenceStart(anchor, _) => {
                 if let Some(id) = normalizer.define(anchor) {
-                    graph.push(GraphOp::Anchor { id });
+                    graph.push(GraphOp::Anchor {
+                        id,
+                        kind: GraphNodeKind::Sequence,
+                    });
+                }
+            }
+            yaml_rust2::parser::Event::MappingStart(anchor, _) => {
+                if let Some(id) = normalizer.define(anchor) {
+                    graph.push(GraphOp::Anchor {
+                        id,
+                        kind: GraphNodeKind::Mapping,
+                    });
                 }
             }
         }
@@ -454,13 +571,26 @@ fn normalize_saphyr_graph(input: &str) -> Result<Vec<GraphOp>, saphyr_parser::Sc
             }),
             saphyr_parser::Event::Scalar(_, _, anchor, _) => {
                 if let Some(id) = normalizer.define(anchor) {
-                    graph.push(GraphOp::Anchor { id });
+                    graph.push(GraphOp::Anchor {
+                        id,
+                        kind: GraphNodeKind::Scalar,
+                    });
                 }
             }
-            saphyr_parser::Event::SequenceStart(anchor, _)
-            | saphyr_parser::Event::MappingStart(anchor, _) => {
+            saphyr_parser::Event::SequenceStart(anchor, _) => {
                 if let Some(id) = normalizer.define(anchor) {
-                    graph.push(GraphOp::Anchor { id });
+                    graph.push(GraphOp::Anchor {
+                        id,
+                        kind: GraphNodeKind::Sequence,
+                    });
+                }
+            }
+            saphyr_parser::Event::MappingStart(anchor, _) => {
+                if let Some(id) = normalizer.define(anchor) {
+                    graph.push(GraphOp::Anchor {
+                        id,
+                        kind: GraphNodeKind::Mapping,
+                    });
                 }
             }
         }

@@ -287,11 +287,12 @@ This crate keeps alias identity in the lossless graph surface, not semantic
 `Node` or `Value` trees. `graph_identity` now also compares
 `LosslessStream` anchor definitions and alias targets against normalized
 `yaml-rust2` and `saphyr` parser anchor events for anchor redefinition,
-recursive aliases, document anchor resets, merge aliases, YAML test-suite
-aliases, manifest-owned real-world Docker Compose anchors, and YAML 1.1
-merge/comment graph fixtures. The real-world graph gate now includes an
-adapted official Compose Specification fragment that uses multiple anchors,
-aliases, and a merge list. `real_world_lossless` also gates byte-stable
+recursive aliases, document anchor resets, merge aliases, all selected
+YAML-suite anchor/alias cases that are expected to parse as raw events,
+manifest-owned real-world Docker Compose anchors, and YAML 1.1 merge/comment
+graph fixtures. The real-world graph gate now includes an adapted official
+Compose Specification fragment that uses multiple anchors, aliases, and a merge
+list. `real_world_lossless` also gates byte-stable
 `LosslessStream` replay for Ansible tags, Kubernetes Helm-style explicit
 document boundaries/comments/empty documents, and ConfigMap literal block
 scalar data.

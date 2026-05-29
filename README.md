@@ -35,12 +35,13 @@ The first milestone focuses on:
 - A source-backed `yaml::parse_lossless` / `yaml::LosslessStream` API that
   keeps the original source for byte-stable replay, exposes comments and blank
   lines as trivia, represents anchors/aliases with stable graph ids, compares
-  those ids against `yaml-rust2` and `saphyr` parser anchor events, and can
-  produce validated node and raw source-span edits, insertions, and deletions
-  while preserving untouched bytes. YAML 1.1 merge/comment graph fixtures,
-  real-world Docker Compose anchor cases including an adapted official
-  Compose-spec fragment, and Ansible/Kubernetes lossless replay cases are
-  manifest-gated on this surface.
+  those ids against `yaml-rust2` and `saphyr` parser anchor events for
+  manifest-derived selected YAML-suite anchor/alias cases, real-world Compose
+  graph fixtures, and YAML 1.1 graph fixtures, and can produce validated node
+  and raw source-span edits, insertions, and deletions while preserving
+  untouched bytes. Real-world Docker Compose anchor cases including an adapted
+  official Compose-spec fragment, YAML 1.1 merge/comment graph fixtures, and
+  Ansible/Kubernetes lossless replay cases are manifest-gated on this surface.
 - Deterministic structural emission with `parse(emit(tree)) == tree` for
   emittable trees; duplicate-effective mapping keys, untagged literal merge
   keys, over-depth trees, and directly nested tags are rejected before output.

@@ -48,6 +48,8 @@ Notable completed release-candidate behavior:
   aliases, and stable graph ids for source-backed inspection, replay, and
   validated node/source-span edits, insertions, and deletions that preserve
   untouched bytes.
+- Real-world lossless replay is now manifest-gated for Ansible `!vault` /
+  `!unsafe` tags and Kubernetes Helm-style streams and ConfigMap block scalars.
 - Lossless source edits and graph identity now have fuzz-corpus replay covering
   scalar, flow mapping, flow sequence replacements, YAML 1.1 merge/comment
   streams, anchor redefinition, and recursive aliases. Anchor/alias target

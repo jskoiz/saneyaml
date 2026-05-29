@@ -289,7 +289,10 @@ This crate keeps alias identity in the lossless graph surface, not semantic
 `yaml-rust2` and `saphyr` parser anchor events for anchor redefinition,
 recursive aliases, document anchor resets, merge aliases, YAML test-suite
 aliases, manifest-owned real-world Docker Compose anchors, and YAML 1.1
-merge/comment graph fixtures.
+merge/comment graph fixtures. `real_world_lossless` also gates byte-stable
+`LosslessStream` replay for Ansible tags, Kubernetes Helm-style explicit
+document boundaries/comments/empty documents, and ConfigMap literal block
+scalar data.
 
 Event policy:
 
@@ -531,6 +534,9 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   `yaml-rust2` 0.11.0 and `saphyr` 0.0.6, covering the same GitHub Actions,
   Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and Ansible fixture set
   used by event parity
+- manifest-owned lossless replay checks for Ansible tagged values and
+  Kubernetes fixtures with explicit document boundaries, empty documents,
+  comments, and literal block-scalar data
 - pinned external downstream replay fixtures from direct `serde_yaml` users:
   Pingora typed server/proxy configs, rust-i18n locale maps, cfn-guard
   CloudFormation/rule-test YAML that exercises `serde_yaml::Value` plus

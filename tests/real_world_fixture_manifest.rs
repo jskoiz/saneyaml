@@ -144,6 +144,7 @@ fn assert_metadata_is_complete(fixture: &FixtureRecord) {
                     | "parser-properties"
                     | "shared-reference-acceptance"
                     | "lossless-graph"
+                    | "lossless-replay"
             ),
             "{} records unsupported gate {gate}",
             fixture.path
@@ -176,6 +177,17 @@ fn assert_metadata_is_complete(fixture: &FixtureRecord) {
                 || fixture.reduction.contains("alias")
                 || fixture.reduction.contains("merge"),
             "{} must explain the graph-sensitive fixture shape",
+            fixture.path
+        );
+    }
+    if gates.contains("lossless-replay") {
+        assert!(
+            fixture.reduction.contains("comment")
+                || fixture.reduction.contains("tag")
+                || fixture.reduction.contains("block scalar")
+                || fixture.reduction.contains("boundar")
+                || fixture.reduction.contains("empty document"),
+            "{} must explain the lossless replay-sensitive fixture shape",
             fixture.path
         );
     }

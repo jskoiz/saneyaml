@@ -38,7 +38,8 @@ The first milestone focuses on:
   those ids against `yaml-rust2` and `saphyr` parser anchor events, and can
   produce validated node and raw source-span edits, insertions, and deletions
   while preserving untouched bytes. YAML 1.1 merge/comment graph fixtures and
-  real-world Docker Compose anchor cases are manifest-gated on this surface.
+  real-world Docker Compose anchor cases plus Ansible/Kubernetes lossless
+  replay cases are manifest-gated on this surface.
 - Deterministic structural emission with `parse(emit(tree)) == tree` for
   emittable trees; duplicate-effective mapping keys, untagged literal merge
   keys, over-depth trees, and directly nested tags are rejected before output.
@@ -89,7 +90,7 @@ cargo test --test downstream_migration_harness
 cargo test --test external_downstream_migration
 cargo test --test libyaml_probe_manifest
 cargo test --test yaml11_conformance
-cargo test --test lossless_roundtrip --test graph_identity
+cargo test --test lossless_roundtrip --test graph_identity --test real_world_lossless
 scripts/downstream-build-trials.sh smoke-only
 scripts/downstream-build-trials.sh pingora
 scripts/downstream-build-trials.sh rust-i18n

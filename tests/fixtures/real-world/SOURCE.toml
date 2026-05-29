@@ -139,7 +139,7 @@ version = "Helm v3 rendered Kubernetes manifests, 2026-05 fixture surface"
 license = "Local test fixture; no copied production data."
 reduction = "Rendered stream preserving explicit boundaries, comments, and empty documents."
 expected_docs = 5
-gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance", "lossless-replay"]
 
 [[fixture]]
 path = "kubernetes/configmap-block-scalars.yaml"
@@ -150,7 +150,7 @@ version = "Kubernetes v1 ConfigMap, 2026-05 fixture surface"
 license = "Local test fixture; no copied production data."
 reduction = "ConfigMap data fixture preserving literal block scalar comments and blank lines."
 expected_docs = 1
-gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance", "lossless-replay"]
 
 [[fixture]]
 path = "kubernetes/upstream-guestbook-frontend-deployment.yaml"
@@ -282,4 +282,4 @@ version = "Ansible playbook YAML, 2026-05 fixture surface"
 license = "Local test fixture; no copied production data."
 reduction = "Tagged value fixture preserving vault block scalar and unsafe template tags."
 expected_docs = 1
-gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance", "lossless-replay"]

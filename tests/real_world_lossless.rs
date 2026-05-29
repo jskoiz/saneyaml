@@ -2,7 +2,10 @@ use serde::Deserialize;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
-use yaml::{CollectionStyle, LosslessNodeKind, ScalarStyle, parse_lossless};
+use yaml::{
+    CollectionStyle, LosslessEffectiveMappingSource, LosslessNodeKind, LosslessStream, NodeId,
+    ScalarStyle, parse_lossless,
+};
 
 const FIXTURE_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/real-world");
 const SOURCE: &str = include_str!("fixtures/real-world/SOURCE.toml");
@@ -333,6 +336,40 @@ fn lossless_replay_preserves_wrangler_comments_quoted_dates_and_flow_flags() {
     assert!(flow_sequence_sources.contains(&"[nodejs_compat]"));
 }
 
+#[test]
+fn lossless_effective_mapping_view_expands_compose_merge_without_rewriting_source() {
+    let input =
+        include_str!("fixtures/real-world/docker-compose/adapted-compose-spec-fragments.yaml");
+    let stream = parse_lossless(input).expect("lossless parse Compose spec fragment");
+    let root = stream.documents()[0].root().expect("root mapping");
+    let services = mapping_value_by_scalar_key(&stream, root, "services");
+    let frontend = mapping_value_by_scalar_key(&stream, services, "frontend");
+    let environment = mapping_value_by_scalar_key(&stream, frontend, "environment");
+
+    let entries = stream
+        .effective_mapping_entries(environment)
+        .expect("Compose environment effective entries");
+
+    assert_eq!(stream.as_source(), input);
+    assert!(
+        stream
+            .nodes()
+            .iter()
+            .any(|node| stream.source_fragment(node.span()) == Some("<<")),
+        "raw merge key remains available for source-preserving tools"
+    );
+    assert_effective_scalar_entry(&stream, &entries, "YET_ANOTHER", "VARIABLE", None, false);
+    assert_effective_scalar_entry(
+        &stream,
+        &entries,
+        "FOO",
+        "BAR",
+        Some("default-environment"),
+        false,
+    );
+    assert_effective_scalar_entry(&stream, &entries, "KEY", "VALUE", Some("keys"), false);
+}
+
 fn fixture_manifest() -> FixtureManifest {
     toml::from_str(SOURCE).expect("real-world fixture source manifest parses")
 }
@@ -389,4 +426,61 @@ fn collection_sources(stream: &yaml::LosslessStream, expected_style: CollectionS
             _ => None,
         })
         .collect()
+}
+
+fn mapping_value_by_scalar_key(stream: &LosslessStream, mapping: NodeId, key: &str) -> NodeId {
+    let mapping = stream.node(mapping).expect("mapping node");
+    let LosslessNodeKind::Mapping { entries, .. } = mapping.kind() else {
+        panic!("expected mapping node");
+    };
+    entries
+        .iter()
+        .find_map(|(entry_key, value)| {
+            (scalar_value(stream, *entry_key) == Some(key)).then_some(*value)
+        })
+        .unwrap_or_else(|| panic!("mapping key {key:?} not found"))
+}
+
+fn assert_effective_scalar_entry(
+    stream: &LosslessStream,
+    entries: &[yaml::LosslessEffectiveMappingEntry],
+    key: &str,
+    value: &str,
+    merge_anchor: Option<&str>,
+    overridden: bool,
+) {
+    let entry = entries
+        .iter()
+        .find(|entry| {
+            scalar_value(stream, entry.key()) == Some(key)
+                && scalar_value(stream, entry.value()) == Some(value)
+        })
+        .unwrap_or_else(|| panic!("effective entry {key:?}: {value:?} not found"));
+    assert_eq!(entry.is_overridden(), overridden);
+    match (entry.source(), merge_anchor) {
+        (source, None) => assert!(source.is_explicit(), "expected explicit entry"),
+        (
+            LosslessEffectiveMappingSource::Merge {
+                alias,
+                target_anchor,
+                ..
+            },
+            Some(expected),
+        ) => {
+            let alias = alias.and_then(|id| stream.alias(id)).expect("merge alias");
+            let target = target_anchor
+                .and_then(|id| stream.anchor(id))
+                .expect("target anchor");
+            assert_eq!(alias.name(), expected);
+            assert_eq!(target.name(), expected);
+        }
+        (source, Some(expected)) => panic!("expected merge entry from {expected}, got {source:?}"),
+    }
+}
+
+fn scalar_value(stream: &LosslessStream, node: NodeId) -> Option<&str> {
+    match stream.node(node)?.kind() {
+        LosslessNodeKind::Scalar { value, .. } => Some(value),
+        _ => None,
+    }
 }

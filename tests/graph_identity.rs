@@ -2,7 +2,10 @@ use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
-use yaml::{AnchorId, LosslessNodeKind, NodeId, Value, parse_lossless};
+use yaml::{
+    AnchorId, LosslessEffectiveMappingSource, LosslessNodeKind, LosslessStream, NodeId, Value,
+    parse_lossless,
+};
 use yaml_rust2::parser::MarkedEventReceiver;
 
 const REAL_WORLD_SOURCE: &str = include_str!("fixtures/real-world/SOURCE.toml");
@@ -195,6 +198,49 @@ fn lossless_graph_keeps_merge_key_and_alias_raw() {
         stream.node(stream.aliases()[0].node()).expect("merge alias").kind(),
         LosslessNodeKind::Alias { name, .. } if name == "base"
     ));
+}
+
+#[test]
+fn lossless_effective_mapping_view_preserves_merge_provenance() {
+    let input = "\
+base: &base {a: 1, b: base}
+override: &override {b: override, c: 3}
+merged:
+  <<: [*base, *override]
+  b: explicit
+  d: 4
+";
+    let stream = parse_lossless(input).expect("lossless parse");
+    let root = stream.documents()[0].root().expect("root mapping");
+    let merged = mapping_value_by_scalar_key(&stream, root, "merged");
+
+    let entries = stream
+        .effective_mapping_entries(merged)
+        .expect("effective mapping entries");
+
+    assert!(
+        stream
+            .nodes()
+            .iter()
+            .any(|node| stream.source_fragment(node.span()) == Some("<<")),
+        "raw merge key remains in the lossless graph"
+    );
+
+    let explicit_b = effective_entry(&stream, &entries, "b", Some("explicit"));
+    assert!(explicit_b.source().is_explicit());
+    assert!(!explicit_b.is_overridden());
+
+    let inherited_a = effective_entry(&stream, &entries, "a", Some("1"));
+    assert_merge_provenance(&stream, inherited_a.source(), "base");
+    assert!(!inherited_a.is_overridden());
+
+    let inherited_c = effective_entry(&stream, &entries, "c", Some("3"));
+    assert_merge_provenance(&stream, inherited_c.source(), "override");
+    assert!(!inherited_c.is_overridden());
+
+    let inherited_b = effective_entry(&stream, &entries, "b", Some("base"));
+    assert_merge_provenance(&stream, inherited_b.source(), "base");
+    assert!(inherited_b.is_overridden());
 }
 
 #[test]
@@ -514,6 +560,63 @@ fn yaml_suite_anchor_alias_cases_match_reference_parser_events() {
             case.id,
             case.name
         );
+    }
+}
+
+fn mapping_value_by_scalar_key(stream: &LosslessStream, mapping: NodeId, key: &str) -> NodeId {
+    let mapping = stream.node(mapping).expect("mapping node");
+    let LosslessNodeKind::Mapping { entries, .. } = mapping.kind() else {
+        panic!("expected mapping node");
+    };
+    entries
+        .iter()
+        .find_map(|(entry_key, value)| {
+            (scalar_value(stream, *entry_key) == Some(key)).then_some(*value)
+        })
+        .unwrap_or_else(|| panic!("mapping key {key:?} not found"))
+}
+
+fn effective_entry<'a>(
+    stream: &LosslessStream,
+    entries: &'a [yaml::LosslessEffectiveMappingEntry],
+    key: &str,
+    value: Option<&str>,
+) -> &'a yaml::LosslessEffectiveMappingEntry {
+    entries
+        .iter()
+        .find(|entry| {
+            scalar_value(stream, entry.key()) == Some(key)
+                && value.is_none_or(|value| scalar_value(stream, entry.value()) == Some(value))
+        })
+        .unwrap_or_else(|| panic!("effective entry {key:?} / {value:?} not found"))
+}
+
+fn assert_merge_provenance(
+    stream: &LosslessStream,
+    source: LosslessEffectiveMappingSource,
+    expected_anchor: &str,
+) {
+    let LosslessEffectiveMappingSource::Merge {
+        merge_key,
+        alias,
+        target_anchor,
+    } = source
+    else {
+        panic!("expected merge-derived entry");
+    };
+    assert_eq!(scalar_value(stream, merge_key), Some("<<"));
+    let alias = alias.and_then(|id| stream.alias(id)).expect("merge alias");
+    let target = target_anchor
+        .and_then(|id| stream.anchor(id))
+        .expect("target anchor");
+    assert_eq!(alias.name(), expected_anchor);
+    assert_eq!(target.name(), expected_anchor);
+}
+
+fn scalar_value(stream: &LosslessStream, node: NodeId) -> Option<&str> {
+    match stream.node(node)?.kind() {
+        LosslessNodeKind::Scalar { value, .. } => Some(value),
+        _ => None,
     }
 }
 

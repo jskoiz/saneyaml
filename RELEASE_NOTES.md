@@ -61,6 +61,11 @@ Notable completed release-candidate behavior:
   aliases, and stable graph ids for source-backed inspection, replay, and
   validated node/source-span edits, insertions, and deletions that preserve
   untouched bytes.
+- `LosslessStream::effective_mapping_entries` adds a read-only view over
+  mapping nodes that expands merge aliases for inspection while preserving raw
+  `<<` nodes, original source text, and alias/anchor provenance. The effective
+  mapping tests cover overridden merge entries and the real-world Compose
+  fragment proves effective environment keys without rewriting the source.
 - Real-world lossless replay is now manifest-gated for GitHub Actions workflow
   comments, flow-style branch/matrix lists, Docker Compose healthcheck flow
   commands, Helm chart comments, OpenAPI block scalars/flow collections,

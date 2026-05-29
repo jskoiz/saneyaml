@@ -42,9 +42,11 @@ The first milestone focuses on:
   those ids against `yaml-rust2` and `saphyr` parser anchor events for
   manifest-owned selected YAML-suite anchor/alias cases, real-world Compose
   graph fixtures, YAML 1.1 graph fixtures, and edited output after reparsing,
-  and can produce validated node and raw source-span edits, block/flow mapping entry
-  value/insert/delete edits, block/flow sequence item
-  value/insert/delete edits, and raw insertions/deletions
+  exposes a read-only effective mapping view that expands merge aliases while
+  retaining raw `<<` source and alias/anchor provenance, and can produce
+  validated node and raw source-span edits, block/flow mapping entry
+  value/insert/delete edits, block/flow sequence item value/insert/delete
+  edits, and raw insertions/deletions
   while preserving untouched bytes. Real-world Docker Compose anchor cases
   including an adapted official Compose-spec fragment, YAML 1.1 merge/comment
   graph fixtures, GitHub Actions workflow comments/flow lists, Docker Compose
@@ -103,7 +105,8 @@ Intentional first-milestone non-goals:
 - Full arbitrary structural lossless editing beyond targeted block/flow mapping
   entry and sequence item helpers and directive-preserving structural emission.
   Semantic `Node`/`Value` loaders intentionally stay value-oriented; use
-  `LosslessStream` for alias graph identity.
+  `LosslessStream` for alias graph identity and merge-effective source
+  inspection.
 - Full upstream YAML test-suite coverage is not claimed yet; the pinned
   coverage ledger records 402 upstream cases, 146 selected cases, and 256
   not-imported cases as explicit coverage debt.

@@ -65,6 +65,87 @@ impl AliasId {
     }
 }
 
+/// Source provenance for a lossless effective mapping entry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LosslessEffectiveMappingSource {
+    /// Entry was written directly in the requested mapping.
+    Explicit,
+    /// Entry came from a YAML merge key in the requested mapping or one of its
+    /// merged sources.
+    Merge {
+        /// Source key node for the `<<` merge entry that introduced this value.
+        merge_key: NodeId,
+        /// Alias node used by that merge entry, when the entry was introduced
+        /// through `<<: *anchor` or a merge-list alias.
+        alias: Option<AliasId>,
+        /// Anchor definition targeted by the merge alias, when available.
+        target_anchor: Option<AnchorId>,
+    },
+}
+
+impl LosslessEffectiveMappingSource {
+    /// Returns whether this entry was written directly in the requested mapping.
+    pub fn is_explicit(self) -> bool {
+        matches!(self, Self::Explicit)
+    }
+
+    /// Returns the merge-key node that introduced this entry, if any.
+    pub fn merge_key(self) -> Option<NodeId> {
+        match self {
+            Self::Explicit => None,
+            Self::Merge { merge_key, .. } => Some(merge_key),
+        }
+    }
+
+    /// Returns the merge alias that introduced this entry, if any.
+    pub fn alias(self) -> Option<AliasId> {
+        match self {
+            Self::Explicit => None,
+            Self::Merge { alias, .. } => alias,
+        }
+    }
+
+    /// Returns the target anchor for the merge alias that introduced this entry,
+    /// if any.
+    pub fn target_anchor(self) -> Option<AnchorId> {
+        match self {
+            Self::Explicit => None,
+            Self::Merge { target_anchor, .. } => target_anchor,
+        }
+    }
+}
+
+/// Entry in a mapping's lossless effective view.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LosslessEffectiveMappingEntry {
+    key: NodeId,
+    value: NodeId,
+    source: LosslessEffectiveMappingSource,
+    overridden: bool,
+}
+
+impl LosslessEffectiveMappingEntry {
+    /// Returns the source key node.
+    pub fn key(&self) -> NodeId {
+        self.key
+    }
+
+    /// Returns the source value node.
+    pub fn value(&self) -> NodeId {
+        self.value
+    }
+
+    /// Returns whether the entry was explicit or merge-derived.
+    pub fn source(&self) -> LosslessEffectiveMappingSource {
+        self.source
+    }
+
+    /// Returns whether another effective entry shadows this scalar key.
+    pub fn is_overridden(&self) -> bool {
+        self.overridden
+    }
+}
+
 /// YAML stream that keeps the original source and a graph-shaped node view.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LosslessStream {
@@ -159,6 +240,26 @@ impl LosslessStream {
         self.trivia
             .iter()
             .filter(|trivia| trivia.kind == LosslessTriviaKind::Comment)
+    }
+
+    /// Returns a mapping's explicit and merge-derived effective entries.
+    ///
+    /// The underlying lossless graph still preserves the raw `<<` merge key,
+    /// alias nodes, comments, and source formatting. This view expands merge
+    /// aliases for inspection only and keeps source provenance for each derived
+    /// entry. Entries shadowed by an earlier effective scalar key are retained
+    /// with [`LosslessEffectiveMappingEntry::is_overridden`] set.
+    pub fn effective_mapping_entries(
+        &self,
+        mapping: NodeId,
+    ) -> Result<Vec<LosslessEffectiveMappingEntry>> {
+        let mut entries = self.collect_effective_mapping_entries(
+            mapping,
+            LosslessEffectiveMappingSource::Explicit,
+            &mut Vec::new(),
+        )?;
+        self.mark_effective_mapping_overrides(&mut entries);
+        Ok(entries)
     }
 
     /// Starts a source-preserving edit session for this stream.
@@ -350,6 +451,150 @@ impl LosslessStream {
         let mut edit = self.edit();
         edit.delete_flow_sequence_item_source(sequence, index)?;
         edit.finish()
+    }
+
+    fn collect_effective_mapping_entries(
+        &self,
+        mapping: NodeId,
+        explicit_source: LosslessEffectiveMappingSource,
+        stack: &mut Vec<NodeId>,
+    ) -> Result<Vec<LosslessEffectiveMappingEntry>> {
+        if stack.contains(&mapping) {
+            return Err(Error::new(
+                "recursive lossless merge expansion is not supported",
+                self.node(mapping).map(LosslessNode::span),
+            ));
+        }
+        stack.push(mapping);
+
+        let mapping_node = self
+            .node(mapping)
+            .ok_or_else(|| Error::new("lossless mapping node id is out of bounds", None))?;
+        let LosslessNodeKind::Mapping { entries, .. } = mapping_node.kind() else {
+            return Err(Error::new(
+                "lossless effective entries require a mapping node",
+                Some(mapping_node.span()),
+            ));
+        };
+
+        let mut explicit_entries = Vec::new();
+        let mut merged_entries = Vec::new();
+        for (key, value) in entries {
+            if self.is_lossless_merge_key(*key)? {
+                self.collect_lossless_merge_value(*key, *value, &mut merged_entries, stack)?;
+            } else {
+                explicit_entries.push(LosslessEffectiveMappingEntry {
+                    key: *key,
+                    value: *value,
+                    source: explicit_source,
+                    overridden: false,
+                });
+            }
+        }
+
+        stack.pop();
+        explicit_entries.extend(merged_entries);
+        Ok(explicit_entries)
+    }
+
+    fn collect_lossless_merge_value(
+        &self,
+        merge_key: NodeId,
+        value: NodeId,
+        output: &mut Vec<LosslessEffectiveMappingEntry>,
+        stack: &mut Vec<NodeId>,
+    ) -> Result<()> {
+        let value_node = self
+            .node(value)
+            .ok_or_else(|| Error::new("lossless merge value node id is out of bounds", None))?;
+        match value_node.kind() {
+            LosslessNodeKind::Alias { alias, target, .. } => {
+                let target_node = self
+                    .anchor(*target)
+                    .and_then(|anchor| self.node(anchor.node()))
+                    .ok_or_else(|| {
+                        Error::new(
+                            "lossless merge alias target is out of bounds",
+                            Some(value_node.span()),
+                        )
+                    })?;
+                if !matches!(target_node.kind(), LosslessNodeKind::Mapping { .. }) {
+                    return Err(Error::new(
+                        "lossless merge alias must target a mapping",
+                        Some(value_node.span()),
+                    ));
+                }
+                output.extend(self.collect_effective_mapping_entries(
+                    target_node.id(),
+                    LosslessEffectiveMappingSource::Merge {
+                        merge_key,
+                        alias: Some(*alias),
+                        target_anchor: Some(*target),
+                    },
+                    stack,
+                )?);
+                Ok(())
+            }
+            LosslessNodeKind::Sequence { children, .. } => {
+                for child in children {
+                    self.collect_lossless_merge_value(merge_key, *child, output, stack)?;
+                }
+                Ok(())
+            }
+            LosslessNodeKind::Mapping { .. } => {
+                output.extend(self.collect_effective_mapping_entries(
+                    value_node.id(),
+                    LosslessEffectiveMappingSource::Merge {
+                        merge_key,
+                        alias: None,
+                        target_anchor: None,
+                    },
+                    stack,
+                )?);
+                Ok(())
+            }
+            LosslessNodeKind::Scalar { .. } => Err(Error::new(
+                "lossless merge value must be a mapping, alias, or sequence",
+                Some(value_node.span()),
+            )),
+        }
+    }
+
+    fn mark_effective_mapping_overrides(&self, entries: &mut [LosslessEffectiveMappingEntry]) {
+        let mut seen = Vec::<String>::new();
+        for entry in entries {
+            let Some(key) = self.scalar_key(entry.key) else {
+                continue;
+            };
+            if seen.iter().any(|seen| seen == key) {
+                entry.overridden = true;
+            } else {
+                seen.push(key.to_owned());
+            }
+        }
+    }
+
+    fn is_lossless_merge_key(&self, key: NodeId) -> Result<bool> {
+        let key_node = self
+            .node(key)
+            .ok_or_else(|| Error::new("lossless mapping key id is out of bounds", None))?;
+        let LosslessNodeKind::Scalar { value, .. } = key_node.kind() else {
+            return Ok(false);
+        };
+        if value != "<<" {
+            return Ok(false);
+        }
+        Ok(match key_node.tag() {
+            None => true,
+            Some(tag) => tag.tag.is_yaml_core("merge"),
+        })
+    }
+
+    fn scalar_key(&self, key: NodeId) -> Option<&str> {
+        match self.node(key)?.kind() {
+            LosslessNodeKind::Scalar { value, .. } => Some(value),
+            _ => None,
+        }
     }
 }
 

@@ -116,9 +116,10 @@ Additional crate surfaces useful during migration:
   source-backed graph surface for callers that need byte-stable replay,
   comments/trivia, scalar spelling, directives, alias-to-anchor identity checked
   against `yaml-rust2` and `saphyr` parser anchor events for manifest-owned
-  selected YAML-suite anchor/alias cases and real-world graph fixtures, and
-  validated node/source-span edits, insertions, and deletions that preserve
-  untouched bytes.
+  selected YAML-suite anchor/alias cases and real-world graph fixtures,
+  merge-effective mapping inspection that retains raw `<<` source and
+  alias/anchor provenance, and validated node/source-span edits, insertions,
+  and deletions that preserve untouched bytes.
 
 ## Executable Proof
 
@@ -334,10 +335,10 @@ testing each adopter's own YAML corpus.
 
 | Area | Migration impact |
 |---|---|
-| Default merge expansion | Parsed `Node`/`Value`, `from_value`, direct owned/borrowed `Value` deserializers, and other Serde reads expand untagged and explicit merge-tag `<<` keys by default. Code that inspected merge syntax should switch to `parse_events`, `LosslessStream`, or inspect caller-built `Value` before deserializing; explicit `!!str <<` and custom-tagged `<<` keys remain literal. |
+| Default merge expansion | Parsed `Node`/`Value`, `from_value`, direct owned/borrowed `Value` deserializers, and other Serde reads expand untagged and explicit merge-tag `<<` keys by default. Code that inspected merge syntax should switch to `parse_events`, `LosslessStream`, `LosslessStream::effective_mapping_entries`, or inspect caller-built `Value` before deserializing; explicit `!!str <<` and custom-tagged `<<` keys remain literal. |
 | YAML 1.1 compatibility | Legacy scalar, collection, and merge-edge recovery behavior is available through explicit schema/tag paths. Default entrypoints stay YAML 1.2-oriented, so corpora that require YAML 1.1 typing or Psych-style repeated/invalid merge recovery need opt-in tests. |
-| Alias graph identity | Semantic `Node`/`Value` trees intentionally clone acyclic aliases and reject recursive alias expansion. Graph-sensitive callers should use `LosslessStream`; its anchor definitions and alias targets are checked against reference parser anchor events for redefinition, recursive, document-reset, merge, YAML 1.1 merge/comment graph fixtures, post-edit source output, manifest-owned selected YAML-suite anchor/alias cases, and manifest-owned real-world Docker Compose anchor cases including an adapted official Compose Specification fragment. |
-| Lossless formatting | `LosslessStream` preserves source, comments, trivia, directives, anchors, aliases, tags, and scalar spelling for replay/inspection. `LosslessEdit` can replace retained node or raw source spans, update scalar-keyed block/flow mapping values, insert or delete block/flow mapping entries, update block/flow sequence items, insert or delete block/flow sequence items, insert source, delete source spans, and validate the final YAML while preserving untouched bytes. Manifest-owned real-world replay now gates GitHub Actions comments, flow-style lists, and expression strings, Ansible tagged scalars, plus Kubernetes streams and block scalar fixtures. |
+| Alias graph identity | Semantic `Node`/`Value` trees intentionally clone acyclic aliases and reject recursive alias expansion. Graph-sensitive callers should use `LosslessStream`; its anchor definitions and alias targets are checked against reference parser anchor events for redefinition, recursive, document-reset, merge, YAML 1.1 merge/comment graph fixtures, post-edit source output, manifest-owned selected YAML-suite anchor/alias cases, and manifest-owned real-world Docker Compose anchor cases including an adapted official Compose Specification fragment. `LosslessStream::effective_mapping_entries` exposes merge-derived entries with alias/anchor provenance for callers that need effective config inspection without losing graph identity. |
+| Lossless formatting | `LosslessStream` preserves source, comments, trivia, directives, anchors, aliases, tags, and scalar spelling for replay/inspection, including a merge-effective mapping view that leaves the original source untouched. `LosslessEdit` can replace retained node or raw source spans, update scalar-keyed block/flow mapping values, insert or delete block/flow mapping entries, update block/flow sequence items, insert or delete block/flow sequence items, insert source, delete source spans, and validate the final YAML while preserving untouched bytes. Manifest-owned real-world replay now gates GitHub Actions comments, flow-style lists, and expression strings, Ansible tagged scalars, plus Kubernetes streams and block scalar fixtures. |
 | Parser acceptance differences | Some YAML 1.2 inputs rejected by libyaml are accepted, and some malformed libyaml-tolerated inputs are rejected. Divergence records now carry per-case migration impact. |
 | Package readiness | The crate remains local-preview only until public name, license, version, and crates.io approval are selected by the user. |
 

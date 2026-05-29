@@ -355,16 +355,16 @@ The compatibility harness checks shared acceptance across this crate,
 `serde_yaml`, `yaml-rust2`, and `saphyr`, plus dedicated Rust-reference
 parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
 
-- the pinned selected YAML test-suite manifest, currently 123 fixtures with
+- the pinned selected YAML test-suite manifest, currently 131 fixtures with
   explicit per-case `expected`, `source`, and parser/tree/Serde `policy`
-  fields: 80 normal accepts, 41 syntax/error rejects, and YAML-suite
+  fields: 87 normal accepts, 42 syntax/error rejects, and YAML-suite
   2JQS/X38W as intentional tree/Serde-only rejections while raw parser events
   remain available. The manifest also owns the selected-suite parity ledger:
   `parity.event`, `parity.tree`, and `parity.shared_reference` must match the
   Rust source gates exactly. Current selected-suite ledgers cover event parity
-  for all 80 accepted cases with no event-shape deferrals, loaded-tree
-  value-shape parity for 78 accepted cases with 2 documented tree-shape
-  deferrals, and shared-reference acceptance for 57 accepted cases with 23
+  for all 87 accepted cases with no event-shape deferrals, loaded-tree
+  value-shape parity for 85 accepted cases with 2 documented tree-shape
+  deferrals, and shared-reference acceptance for 61 accepted cases with 26
   documented `serde_yaml`/libyaml divergence deferrals
 - core scalars
 - explicit YAML 1.1 schema-mode scalars, including boolean aliases, retained
@@ -400,9 +400,10 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
 - block scalar tab-starting content lines are rejected with span diagnostics,
   including YAML-suite Y79Y, while indented tab content is accepted, including
   YAML-suite Y79Y/001
-- tabs used as token separation are accepted where YAML 1.2 permits them,
-  including YAML-suite 6BCT, 6CA3, Q5MG, Y79Y/002, and Y79Y/010, with a
-  recorded `serde_yaml`/libyaml divergence for the root/tab separation cases
+- tabs used as token separation, blank-line content, and quoted-scalar content
+  are accepted where YAML 1.2 permits them, including YAML-suite 6BCT, 6CA3,
+  Q5MG, Y79Y/002, Y79Y/010, and accepted DK95 variants, with recorded
+  `serde_yaml`/libyaml divergences for the libyaml-rejected tab cases
 - block scalar trailing-line chomping, including literal keep chomping with a
   spaces-only content line from YAML-suite 6FWR and empty scalar chomping from
   YAML-suite K858, with empty block scalar event spelling normalized against
@@ -476,12 +477,13 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   9KBC/CXX2 block mappings on explicit document-start lines, 4JVG
   duplicate anchor properties on one node, and 2G84 malformed block scalar
   indentation indicators, plus JY7Z/Q4CL trailing content after double-quoted
-  mapping values, and QB6E/DK95-01 wrong-indented multiline double-quoted
-  mapping values
+  mapping values, and QB6E/DK95/01/DK95/06 wrong-indented multiline
+  double-quoted or nested mapping values
 - selected upstream YAML-suite double-quoted scalar fixtures, including
-  3RLN-001/3RLN-002 escaped and indentation tabs, KH5V-001 inline escaped
-  tabs, 6WPF/KSS4 same-indent folded continuations, and even-backslash folded
-  line continuations that preserve literal backslashes
+  3RLN-001/3RLN-002 escaped and indentation tabs, DK95/02 and DK95/08
+  tab-containing folded continuations, KH5V-001 inline escaped tabs,
+  6WPF/KSS4 same-indent folded continuations, and even-backslash folded line
+  continuations that preserve literal backslashes
 - custom YAML tags for Serde enum, `Value::Tagged`, and transparent typed read support
 - GitHub Actions, including matrix expressions, workflow_dispatch inputs,
   array-form triggers, preset permissions, string/list/group runner targets,

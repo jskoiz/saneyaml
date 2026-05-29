@@ -153,9 +153,9 @@ fn yts_manifest_selected_cases_have_fixture_inputs_and_unique_ids() {
         }
     }
 
-    assert_eq!(manifest.case.len(), 123);
-    assert_eq!(accepted, 80);
-    assert_eq!(error_cases, 41);
+    assert_eq!(manifest.case.len(), 131);
+    assert_eq!(accepted, 87);
+    assert_eq!(error_cases, 42);
     assert_eq!(tree_only_rejections, 2);
 }
 
@@ -250,8 +250,8 @@ fn yts_manifest_acceptance_policy_matches_parser_event_and_serde_entrypoints() {
         accepted += 1;
     }
 
-    assert_eq!(accepted, 80);
-    assert_eq!(syntax_rejections, 41);
+    assert_eq!(accepted, 87);
+    assert_eq!(syntax_rejections, 42);
     assert_eq!(tree_only_rejections, 2);
 }
 
@@ -1871,6 +1871,95 @@ fn yts_parse_double_quoted_tabs_and_same_indent_continuations() {
 }
 
 #[test]
+fn yts_parse_dk95__tab_looking_indentation_variants() {
+    for (name, input, expected) in [
+        (
+            "DK95/00",
+            include_str!("fixtures/yaml-test-suite/data/DK95-00/in.yaml"),
+            "bar",
+        ),
+        (
+            "DK95/02",
+            include_str!("fixtures/yaml-test-suite/data/DK95-02/in.yaml"),
+            "bar baz",
+        ),
+        (
+            "DK95/08",
+            include_str!("fixtures/yaml-test-suite/data/DK95-08/in.yaml"),
+            "bar baz \t \t ",
+        ),
+    ] {
+        let doc = parse_str(input).unwrap_or_else(|error| panic!("{name} parses: {error}"));
+        let Value::Mapping(entries) = &doc.value else {
+            panic!("{name} should load as a mapping");
+        };
+        assert_eq!(entries.len(), 1, "{name}");
+        assert_eq!(entries[0].0.as_str(), Some("foo"), "{name}");
+        assert_eq!(entries[0].1.as_str(), Some(expected), "{name}");
+
+        let events = parse_events(input)
+            .unwrap_or_else(|error| panic!("{name} event parser accepts: {error}"));
+        assert!(
+            events.iter().any(|event| {
+                matches!(
+                    event,
+                    Event::Scalar { value, .. } if value == expected
+                )
+            }),
+            "{name} exposes the expected folded scalar"
+        );
+    }
+
+    for (name, input, expected_len) in [
+        (
+            "DK95/03",
+            include_str!("fixtures/yaml-test-suite/data/DK95-03/in.yaml"),
+            1,
+        ),
+        (
+            "DK95/04",
+            include_str!("fixtures/yaml-test-suite/data/DK95-04/in.yaml"),
+            2,
+        ),
+        (
+            "DK95/05",
+            include_str!("fixtures/yaml-test-suite/data/DK95-05/in.yaml"),
+            2,
+        ),
+    ] {
+        let doc = parse_str(input).unwrap_or_else(|error| panic!("{name} parses: {error}"));
+        let Value::Mapping(entries) = &doc.value else {
+            panic!("{name} should load as a mapping");
+        };
+        assert_eq!(entries.len(), expected_len, "{name}");
+        assert_eq!(entries[0].0.as_str(), Some("foo"), "{name}");
+        assert!(matches!(
+            entries[0].1.value,
+            Value::Number(Number::Integer(1))
+        ));
+        if expected_len == 2 {
+            assert_eq!(entries[1].0.as_str(), Some("bar"), "{name}");
+            assert!(matches!(
+                entries[1].1.value,
+                Value::Number(Number::Integer(2))
+            ));
+        }
+
+        parse_events(input).unwrap_or_else(|error| panic!("{name} event parser accepts: {error}"));
+    }
+
+    let doc = parse_str(include_str!(
+        "fixtures/yaml-test-suite/data/DK95-07/in.yaml"
+    ))
+    .expect("DK95/07 parses tab-only line before explicit document start");
+    assert!(matches!(doc.value, Value::Null));
+    parse_events(include_str!(
+        "fixtures/yaml-test-suite/data/DK95-07/in.yaml"
+    ))
+    .expect("DK95/07 event parser accepts tab-only line before document start");
+}
+
+#[test]
 fn yts_parse_double_quoted_even_backslash_fold_preserves_literal_backslash() {
     let cases = [
         ("even-two-backslashes", "value: \"a\\\\\n  b\"\n", "a\\ b"),
@@ -2058,7 +2147,7 @@ fn yts_reject_jy7z_q4cl__trailing_content_after_double_quoted_mapping_values() {
 }
 
 #[test]
-fn yts_reject_qb6e_dk95_01__wrong_indented_multiline_double_quoted_scalars() {
+fn yts_reject_qb6e_dk95__wrong_indented_multiline_double_quoted_scalars() {
     for (name, input, expected, line, column) in [
         (
             "QB6E",
@@ -2068,11 +2157,18 @@ fn yts_reject_qb6e_dk95_01__wrong_indented_multiline_double_quoted_scalars() {
             1,
         ),
         (
-            "DK95-01",
+            "DK95/01",
             include_str!("fixtures/yaml-test-suite/data/DK95-01/in.yaml"),
             "tabs are not allowed for indentation",
             2,
             1,
+        ),
+        (
+            "DK95/06",
+            include_str!("fixtures/yaml-test-suite/data/DK95-06/in.yaml"),
+            "tabs are not allowed for indentation",
+            3,
+            3,
         ),
     ] {
         let error = match parse_str(input) {

@@ -383,12 +383,76 @@ policy = "raw-events-tree-serde-reject"
 features = ["error", "double-quoted", "mapping", "scalar", "indentation"]
 
 [[case]]
-id = "DK95-01"
+id = "DK95/00"
+name = "space-tab content after mapping key is accepted"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "mapping", "scalar", "indentation", "tab"]
+
+[[case]]
+id = "DK95/01"
 name = "tab-looking indentation in multiline quoted scalar is rejected"
 expected = "syntax-error"
 source = "selected-yaml-test-suite-fixture"
 policy = "raw-events-tree-serde-reject"
 features = ["error", "double-quoted", "mapping", "scalar", "tab"]
+
+[[case]]
+id = "DK95/02"
+name = "space-tab double-quoted continuation indentation is accepted"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["double-quoted", "mapping", "scalar", "indentation", "tab"]
+
+[[case]]
+id = "DK95/03"
+name = "space-tab blank line before mapping is accepted"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["blank-line", "block", "mapping", "scalar", "tab"]
+
+[[case]]
+id = "DK95/04"
+name = "tab-only blank line between mapping entries is accepted"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["blank-line", "block", "mapping", "scalar", "tab"]
+
+[[case]]
+id = "DK95/05"
+name = "space-tab blank line between mapping entries is accepted"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["blank-line", "block", "mapping", "scalar", "tab"]
+
+[[case]]
+id = "DK95/06"
+name = "tab-looking indentation under nested mapping is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "block", "mapping", "indentation", "tab"]
+
+[[case]]
+id = "DK95/07"
+name = "tab-only line before explicit document start is accepted"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["blank-line", "document", "tab"]
+
+[[case]]
+id = "DK95/08"
+name = "tabs in double-quoted folded scalar content are accepted"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["double-quoted", "mapping", "scalar", "fold", "tab"]
 
 [[case]]
 id = "9JBA"
@@ -1048,6 +1112,13 @@ event = [
     "Y79Y/010",
     "3RLN-001",
     "3RLN-002",
+    "DK95/00",
+    "DK95/02",
+    "DK95/03",
+    "DK95/04",
+    "DK95/05",
+    "DK95/07",
+    "DK95/08",
     "KH5V-001",
     "6WPF",
     "KSS4",
@@ -1124,6 +1195,13 @@ tree = [
     "Y79Y/010",
     "3RLN-001",
     "3RLN-002",
+    "DK95/00",
+    "DK95/02",
+    "DK95/03",
+    "DK95/04",
+    "DK95/05",
+    "DK95/07",
+    "DK95/08",
     "KH5V-001",
     "6WPF",
     "KSS4",
@@ -1205,6 +1283,10 @@ shared_reference = [
     "Y79Y/002",
     "3RLN-001",
     "3RLN-002",
+    "DK95/02",
+    "DK95/05",
+    "DK95/07",
+    "DK95/08",
     "KH5V-001",
     "6WPF",
     "KSS4",
@@ -1229,6 +1311,9 @@ shared_reference_deferred = [
     "Q5MG",
     "Y79Y/001",
     "Y79Y/010",
+    "DK95/00",
+    "DK95/03",
+    "DK95/04",
     "5MUD",
     "5T43",
     "58MP",

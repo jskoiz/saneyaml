@@ -247,6 +247,34 @@ const VALUE_SHAPE_CASES: &[TreeCase] = &[
         input: include_str!("fixtures/yaml-test-suite/data/3RLN-002/in.yaml"),
     },
     TreeCase {
+        name: "yts_dk95_00_space_tab_mapping_value",
+        input: include_str!("fixtures/yaml-test-suite/data/DK95-00/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_dk95_02_space_tab_double_quoted_continuation",
+        input: include_str!("fixtures/yaml-test-suite/data/DK95-02/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_dk95_03_space_tab_blank_line_before_mapping",
+        input: include_str!("fixtures/yaml-test-suite/data/DK95-03/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_dk95_04_tab_only_blank_line_between_mapping_entries",
+        input: include_str!("fixtures/yaml-test-suite/data/DK95-04/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_dk95_05_space_tab_blank_line_between_mapping_entries",
+        input: include_str!("fixtures/yaml-test-suite/data/DK95-05/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_dk95_07_tab_only_line_before_document_start",
+        input: include_str!("fixtures/yaml-test-suite/data/DK95-07/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_dk95_08_tabs_in_double_quoted_folded_scalar",
+        input: include_str!("fixtures/yaml-test-suite/data/DK95-08/in.yaml"),
+    },
+    TreeCase {
         name: "yts_kh5v_001_double_quoted_inline_tab",
         input: include_str!("fixtures/yaml-test-suite/data/KH5V-001/in.yaml"),
     },

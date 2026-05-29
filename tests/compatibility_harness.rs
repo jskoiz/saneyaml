@@ -340,6 +340,26 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "yts_dk95_02_space_tab_double_quoted_continuation",
+        input: include_str!("fixtures/yaml-test-suite/data/DK95-02/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_dk95_05_space_tab_blank_line_between_mapping_entries",
+        input: include_str!("fixtures/yaml-test-suite/data/DK95-05/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_dk95_07_tab_only_line_before_document_start",
+        input: include_str!("fixtures/yaml-test-suite/data/DK95-07/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_dk95_08_tabs_in_double_quoted_folded_scalar",
+        input: include_str!("fixtures/yaml-test-suite/data/DK95-08/in.yaml"),
+        docs: 1,
+    },
+    Case {
         name: "yts_kh5v_001_double_quoted_inline_tab",
         input: include_str!("fixtures/yaml-test-suite/data/KH5V-001/in.yaml"),
         docs: 1,
@@ -1516,16 +1536,24 @@ fn compatibility_double_quoted_mapping_value_trailing_content_rejections_match_r
 
 #[test]
 fn compatibility_multiline_quoted_scalar_indentation_rejections_match_yaml_rust2_saphyr() {
-    for (name, input, expected) in [
+    for (name, input, expected, serde_yaml_accepts) in [
         (
             "QB6E",
             include_str!("fixtures/yaml-test-suite/data/QB6E/in.yaml"),
             "multiline quoted scalar continuation is not sufficiently indented",
+            true,
         ),
         (
-            "DK95-01",
+            "DK95/01",
             include_str!("fixtures/yaml-test-suite/data/DK95-01/in.yaml"),
             "tabs are not allowed for indentation",
+            true,
+        ),
+        (
+            "DK95/06",
+            include_str!("fixtures/yaml-test-suite/data/DK95-06/in.yaml"),
+            "tabs are not allowed for indentation",
+            false,
         ),
     ] {
         let error =
@@ -1536,8 +1564,18 @@ fn compatibility_multiline_quoted_scalar_indentation_rejections_match_yaml_rust2
             "{name}: ours preserves diagnostic location"
         );
         parse_events(input).expect_err("event parser rejects quoted scalar indentation");
-        serde_yaml::from_str::<serde_yaml::Value>(input)
-            .expect("serde_yaml/libyaml accepts this YAML-suite invalid input");
+        let serde_yaml_result = serde_yaml::from_str::<serde_yaml::Value>(input);
+        if serde_yaml_accepts {
+            assert!(
+                serde_yaml_result.is_ok(),
+                "serde_yaml/libyaml accepts this YAML-suite invalid input for {name}: {serde_yaml_result:?}"
+            );
+        } else {
+            assert!(
+                serde_yaml_result.is_err(),
+                "serde_yaml/libyaml rejects this YAML-suite invalid input for {name}"
+            );
+        }
         yaml_rust2::YamlLoader::load_from_str(input)
             .expect_err("yaml-rust2 rejects YAML-suite quoted scalar indentation");
         saphyr::Yaml::load_from_str(input)
@@ -1622,6 +1660,59 @@ fn compatibility_separation_tabs_match_reference_crates() {
         serde_yaml::from_str::<serde_yaml::Value>(input).is_err(),
         "serde_yaml/libyaml rejects YAML 1.2 tab separation fixture 6BCT"
     );
+}
+
+#[test]
+fn compatibility_dk95_tab_looking_indentation_matches_rust_references() {
+    for (name, input, serde_yaml_accepts) in [
+        (
+            "DK95/00",
+            include_str!("fixtures/yaml-test-suite/data/DK95-00/in.yaml"),
+            false,
+        ),
+        (
+            "DK95/02",
+            include_str!("fixtures/yaml-test-suite/data/DK95-02/in.yaml"),
+            true,
+        ),
+        (
+            "DK95/03",
+            include_str!("fixtures/yaml-test-suite/data/DK95-03/in.yaml"),
+            false,
+        ),
+        (
+            "DK95/04",
+            include_str!("fixtures/yaml-test-suite/data/DK95-04/in.yaml"),
+            false,
+        ),
+        (
+            "DK95/05",
+            include_str!("fixtures/yaml-test-suite/data/DK95-05/in.yaml"),
+            true,
+        ),
+        (
+            "DK95/07",
+            include_str!("fixtures/yaml-test-suite/data/DK95-07/in.yaml"),
+            true,
+        ),
+        (
+            "DK95/08",
+            include_str!("fixtures/yaml-test-suite/data/DK95-08/in.yaml"),
+            true,
+        ),
+    ] {
+        parse_str(input).unwrap_or_else(|error| panic!("ours accepts {name}: {error}"));
+        parse_events(input).unwrap_or_else(|error| panic!("event parser accepts {name}: {error}"));
+        yaml_rust2::YamlLoader::load_from_str(input)
+            .unwrap_or_else(|error| panic!("yaml-rust2 accepts {name}: {error}"));
+        saphyr::Yaml::load_from_str(input)
+            .unwrap_or_else(|error| panic!("saphyr accepts {name}: {error}"));
+        assert_eq!(
+            serde_yaml::from_str::<serde_yaml::Value>(input).is_ok(),
+            serde_yaml_accepts,
+            "serde_yaml/libyaml acceptance for YAML 1.2 DK95 tab fixture {name}"
+        );
+    }
 }
 
 #[test]

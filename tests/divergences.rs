@@ -581,7 +581,10 @@ fn divergence_flow_collection_comment_separation_record_is_present() {
 fn divergence_tab_token_separation_record_is_present() {
     let record = include_str!("fixtures/divergences/records/tab-token-separation.toml");
     assert!(record.contains("tab-token-separation"));
-    for case in ["6BCT", "6CA3", "Q5MG", "Y79Y/001", "Y79Y/010", "R4YG"] {
+    for case in [
+        "6BCT", "6CA3", "Q5MG", "Y79Y/001", "Y79Y/010", "DK95/00", "DK95/02", "DK95/03", "DK95/04",
+        "DK95/05", "DK95/07", "DK95/08", "R4YG",
+    ] {
         assert!(record.contains(case));
     }
     assert!(record.contains("serde_yaml 0.9.34"));
@@ -598,6 +601,7 @@ fn divergence_quoted_scalar_continuation_indentation_record_is_present() {
     assert!(record.contains("quoted-scalar-continuation-indentation"));
     assert!(record.contains("QB6E"));
     assert!(record.contains("DK95/01"));
+    assert!(record.contains("DK95/06"));
     assert!(record.contains("serde_yaml 0.9.34"));
     assert!(record.contains("yaml-rust2 0.11.0"));
     assert!(record.contains("saphyr 0.0.6"));

@@ -108,6 +108,21 @@ const SHARED_REFERENCE_DIVERGENCES: &[DeferredDivergenceCase] = &[
         record_source: TAB_TOKEN_SEPARATION_RECORD,
     },
     DeferredDivergenceCase {
+        id: "DK95/00",
+        record_case: "tab-token-separation",
+        record_source: TAB_TOKEN_SEPARATION_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "DK95/03",
+        record_case: "tab-token-separation",
+        record_source: TAB_TOKEN_SEPARATION_RECORD,
+    },
+    DeferredDivergenceCase {
+        id: "DK95/04",
+        record_case: "tab-token-separation",
+        record_source: TAB_TOKEN_SEPARATION_RECORD,
+    },
+    DeferredDivergenceCase {
         id: "5MUD",
         record_case: "adjacent-flow-mapping-scalars",
         record_source: ADJACENT_FLOW_MAPPING_SCALARS_RECORD,

@@ -79,6 +79,9 @@ Notable completed release-candidate behavior:
   merge/tag/graph cross-checks, alias object identity, per-case input digests,
   and first-class alias redefinition/recursive identity probes as deliberate
   compatibility decisions.
+- The YAML test-suite coverage ledger now pins the full upstream denominator at
+  402 cases, maps the 131 selected cases to canonical upstream IDs, and records
+  the 271 not-imported cases as explicit coverage debt.
 - Fuzz release proof now has a manual `scripts/fuzz-release-sweep.sh` path that
   records target names, corpus counts, run counts, statuses, elapsed time, and
   artifact directories, while `parser_properties` gates corpus target parity,

@@ -85,6 +85,9 @@ Intentional first-milestone non-goals:
 - Full structural lossless editing beyond validated source-span editing,
   directive-preserving structural emission, and graph identity in the semantic
   `Node`/`Value` loaders.
+- Full upstream YAML test-suite coverage is not claimed yet; the pinned
+  coverage ledger records 402 upstream cases, 131 selected cases, and 271
+  not-imported cases as explicit coverage debt.
 - Kubernetes schema validation or automated ecosystem migration tooling.
 
 ## Verification
@@ -95,6 +98,7 @@ cargo test --test downstream_migration_harness
 cargo test --test external_downstream_migration
 cargo test --test libyaml_probe_manifest
 cargo test --test yaml11_conformance
+cargo test --test yaml_suite_coverage
 cargo test --test lossless_roundtrip --test graph_identity --test real_world_lossless
 scripts/downstream-build-trials.sh smoke-only
 scripts/downstream-build-trials.sh pingora

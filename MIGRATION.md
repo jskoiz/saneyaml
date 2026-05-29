@@ -298,9 +298,10 @@ testing each adopter's own YAML corpus.
   `usize` indexes `Value` sequences and numeric mapping keys; direct
   `Mapping` indexing accepts string-like keys or `Value` keys, not sequence
   positions.
-- Full upstream YAML test-suite coverage is not claimed; selected-suite scope
-  and deferred parity cases remain documented in `BASELINE.md` and
-  `COMPATIBILITY.md`.
+- Full upstream YAML test-suite coverage is not claimed; the pinned coverage
+  ledger records 402 upstream cases, 131 selected cases, and 271 not-imported
+  cases, while selected-suite scope and deferred parity cases remain documented
+  in `BASELINE.md` and `COMPATIBILITY.md`.
 
 ## Migration Impact Ledger
 

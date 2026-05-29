@@ -394,7 +394,11 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   event-shape deferrals, loaded-tree value-shape parity for 85 accepted cases
   with 2 documented tree-shape deferrals, shared-reference acceptance for 61
   accepted cases with 26 documented `serde_yaml`/libyaml divergence deferrals,
-  and lossless graph identity parity for 14 graph-sensitive raw-event cases
+  and lossless graph identity parity for 14 graph-sensitive raw-event cases.
+  `tests/fixtures/yaml-test-suite/coverage.toml` also pins the full upstream
+  denominator at 402 cases from the same upstream commit, with 131 selected
+  cases and 271 not-imported cases partitioned explicitly by
+  `yaml_suite_coverage`
 - core scalars
 - explicit YAML 1.1 schema-mode scalars, including boolean aliases, retained
   timestamp tags, legacy radix and sexagesimal numeric forms, duplicate-key

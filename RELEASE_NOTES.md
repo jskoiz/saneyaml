@@ -114,9 +114,10 @@ Notable completed release-candidate behavior:
   402 cases, maps the 131 selected cases to canonical upstream IDs, and records
   the 271 not-imported cases as explicit coverage debt.
 - Fuzz release proof now has a manual `scripts/fuzz-release-sweep.sh` path that
-  records target names, corpus counts, run counts, statuses, elapsed time, and
-  artifact directories, while `parser_properties` gates corpus target parity,
-  release floors, and named safety seeds.
+  records checkout HEAD/status, target mode, target names, corpus counts, run
+  counts, statuses, elapsed time, and artifact directories, while
+  `parser_properties` gates corpus target parity, release floors, and named
+  safety seeds.
 
 Known release-candidate gaps remain tracked in `BASELINE.md`,
 `COMPATIBILITY.md`, and `MIGRATION.md`: complete YAML 1.1 ecosystem parity,

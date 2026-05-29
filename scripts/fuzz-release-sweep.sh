@@ -7,12 +7,42 @@ summary="${YAML_FUZZ_SUMMARY:-$repo_root/target/fuzz-release-sweep.md}"
 artifact_root="${YAML_FUZZ_ARTIFACT_DIR:-$repo_root/target/fuzz-release-artifacts/$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 tmp="${TMPDIR:-/tmp}/yaml-fuzz-release-sweep.$$"
 default_targets=(parse_bytes serde_entrypoints event_stream emit_roundtrip apply_merge schema_modes lossless_graph lossless_edit)
+configured_targets=()
+while IFS= read -r target; do
+  configured_targets+=("$target")
+done < <(
+  awk '
+    /^\[\[bin\]\]/ { in_bin = 1; next }
+    in_bin && /^name = / {
+      gsub(/"/, "", $3)
+      print $3
+      in_bin = 0
+    }
+  ' "$repo_root/fuzz/Cargo.toml"
+)
+configured_target_list="${configured_targets[*]}"
+git_head="$(git -C "$repo_root" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
+git_status="$(git -C "$repo_root" status --short 2>/dev/null || true)"
+if [[ -z "$git_status" ]]; then
+  git_status_summary="clean"
+else
+  git_status_summary="dirty"
+fi
 
 if [[ -n "${YAML_FUZZ_TARGETS:-}" ]]; then
   read -r -a targets <<< "$YAML_FUZZ_TARGETS"
+  target_mode="filtered"
 else
   targets=("${default_targets[@]}")
+  target_mode="all-configured"
+  if [[ "${targets[*]}" != "$configured_target_list" ]]; then
+    echo "default fuzz release sweep targets must match fuzz/Cargo.toml" >&2
+    echo "default:    ${targets[*]}" >&2
+    echo "configured: $configured_target_list" >&2
+    exit 2
+  fi
 fi
+target_list="${targets[*]}"
 
 nightly_cargo=""
 if [[ -n "${YAML_NIGHTLY_BIN:-}" && -x "$YAML_NIGHTLY_BIN/cargo" ]]; then
@@ -41,7 +71,12 @@ mkdir -p "$tmp/corpus" "$tmp/target" "$artifact_root" "$(dirname "$summary")"
   echo
   echo "Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo "Repository: $repo_root"
+  echo "Git HEAD: $git_head"
+  echo "Git status: $git_status_summary"
   echo "Runs per target: $runs"
+  echo "Target mode: $target_mode"
+  echo "Configured targets: $configured_target_list"
+  echo "Selected targets: $target_list"
   if [[ -n "${YAML_FUZZ_SEED:-}" ]]; then
     echo "Seed: $YAML_FUZZ_SEED"
   else

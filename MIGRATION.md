@@ -340,8 +340,9 @@ testing each adopter's own YAML corpus.
 - Keep growing default merge, `apply_merge`, emitter, and lossless graph
   coverage with sustained fuzz runs and minimized discoveries beyond the
   curated seed corpus. `scripts/fuzz-release-sweep.sh` is the release-audit path
-  for recording per-target corpus counts, run counts, elapsed time, statuses,
-  and artifact directories before a release candidate.
+  for recording checkout HEAD/status, per-target corpus counts, run counts,
+  elapsed time, statuses, and artifact directories before a release candidate;
+  unfiltered sweeps must cover every configured fuzz target.
 - Keep broader YAML 1.1/libyaml compatibility decisions explicit beyond the
   fixture-backed Psych/libyaml merge/tag/graph cross-checks and eight-family
   Psych/libyaml coverage ledger, now including directive stream-boundary

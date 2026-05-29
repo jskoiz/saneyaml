@@ -1,0 +1,9 @@
+mode=seq-insert index=1
+steps:
+  - name: build
+    run: cargo build
+  - name: test
+    run: cargo test
+=== yaml replacement ===
+name: fmt
+run: cargo fmt

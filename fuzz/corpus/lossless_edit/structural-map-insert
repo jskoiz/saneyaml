@@ -1,0 +1,8 @@
+mode=map-insert index=0
+service:
+  image: nginx:latest
+  ports:
+    - "8080:80"
+=== yaml replacement ===
+labels:
+  com.example.role: web

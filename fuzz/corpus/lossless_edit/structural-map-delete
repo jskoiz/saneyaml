@@ -1,0 +1,7 @@
+mode=map-delete index=2
+service:
+  image: nginx:latest
+  ports:
+    - "8080:80"
+  command: ["web"]
+=== yaml replacement ===

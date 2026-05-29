@@ -1,0 +1,5 @@
+mode=map-delete index=0
+service:
+  image: nginx:latest
+  image: nginx:1.27
+=== yaml replacement ===

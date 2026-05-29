@@ -253,6 +253,50 @@ impl LosslessStream {
         edit.delete_block_mapping_entry_source(mapping, key)?;
         edit.finish()
     }
+
+    /// Replaces one sequence item's value source and returns edited YAML.
+    ///
+    /// This is a convenience wrapper around
+    /// [`LosslessEdit::replace_sequence_item_source`].
+    pub fn replace_sequence_item_source(
+        &self,
+        sequence: NodeId,
+        index: usize,
+        replacement: impl Into<String>,
+    ) -> Result<String> {
+        let mut edit = self.edit();
+        edit.replace_sequence_item_source(sequence, index, replacement)?;
+        edit.finish()
+    }
+
+    /// Inserts one item into a block sequence and returns edited YAML.
+    ///
+    /// This is a convenience wrapper around
+    /// [`LosslessEdit::insert_block_sequence_item_source`].
+    pub fn insert_block_sequence_item_source(
+        &self,
+        sequence: NodeId,
+        index: usize,
+        item_source: impl Into<String>,
+    ) -> Result<String> {
+        let mut edit = self.edit();
+        edit.insert_block_sequence_item_source(sequence, index, item_source)?;
+        edit.finish()
+    }
+
+    /// Deletes one item from a block sequence and returns edited YAML.
+    ///
+    /// This is a convenience wrapper around
+    /// [`LosslessEdit::delete_block_sequence_item_source`].
+    pub fn delete_block_sequence_item_source(
+        &self,
+        sequence: NodeId,
+        index: usize,
+    ) -> Result<String> {
+        let mut edit = self.edit();
+        edit.delete_block_sequence_item_source(sequence, index)?;
+        edit.finish()
+    }
 }
 
 impl fmt::Display for LosslessStream {
@@ -449,6 +493,141 @@ impl LosslessEdit<'_> {
         self.delete_source_span(span)
     }
 
+    /// Replaces the value source for one sequence item.
+    ///
+    /// The replacement is raw YAML source for the item value. For block
+    /// sequences, the leading dash and surrounding indentation are preserved;
+    /// for flow sequences, only the selected item node's source is replaced.
+    pub fn replace_sequence_item_source(
+        &mut self,
+        sequence: NodeId,
+        index: usize,
+        replacement: impl Into<String>,
+    ) -> Result<&mut Self> {
+        let sequence_node = self.sequence_node(sequence)?;
+        let LosslessNodeKind::Sequence { style, .. } = sequence_node.kind() else {
+            unreachable!("sequence_node only returns sequence nodes");
+        };
+        let item = self.sequence_item(sequence, index)?;
+        let item_node = self
+            .stream
+            .node(item)
+            .ok_or_else(|| Error::new("lossless sequence item id is out of bounds", None))?;
+        let replacement = replacement.into();
+        ensure_single_node_fragment(&replacement, sequence_node.span(), "sequence item source")?;
+        if *style == CollectionStyle::Block {
+            let start = line_start(&self.stream.source, item_node.span().start);
+            let end = line_end_including_newline(&self.stream.source, item_node.span().end);
+            let span = self.stream.source_span(start, end)?;
+            let indent = line_indent(&self.stream.source, start);
+            let replacement = format_block_sequence_item_source(&replacement, indent);
+            self.push_replacement(span, replacement)
+        } else {
+            let item_span = self.checked_node_span(item)?;
+            self.push_replacement(item_span, replacement)
+        }
+    }
+
+    /// Inserts one complete item into a block sequence.
+    ///
+    /// `item_source` is unindented YAML source for the item value, for example
+    /// `name: build\nrun: cargo build`. The inserted source is rendered with
+    /// the target sequence's existing dash indentation, and the final stream is
+    /// reparsed before [`Self::finish`] returns it.
+    pub fn insert_block_sequence_item_source(
+        &mut self,
+        sequence: NodeId,
+        index: usize,
+        item_source: impl Into<String>,
+    ) -> Result<&mut Self> {
+        let sequence = self.sequence_node(sequence)?;
+        let LosslessNodeKind::Sequence { style, children } = sequence.kind() else {
+            unreachable!("sequence_node only returns sequence nodes");
+        };
+        if *style != CollectionStyle::Block {
+            return Err(Error::new(
+                "structural sequence item insertion requires a block sequence",
+                Some(sequence.span()),
+            ));
+        }
+        if children.is_empty() {
+            return Err(Error::new(
+                "structural sequence item insertion requires a non-empty block sequence",
+                Some(sequence.span()),
+            ));
+        }
+        if index > children.len() {
+            return Err(Error::new(
+                format!(
+                    "lossless sequence item index {index} is out of bounds for {} items",
+                    children.len()
+                ),
+                Some(sequence.span()),
+            ));
+        }
+
+        let first_child = self
+            .stream
+            .node(children[0])
+            .ok_or_else(|| Error::new("lossless sequence item id is out of bounds", None))?;
+        let item_source = item_source.into();
+        ensure_single_node_fragment(&item_source, sequence.span(), "sequence item source")?;
+        let indent = line_indent(
+            &self.stream.source,
+            line_start(&self.stream.source, first_child.span().start),
+        );
+        let mut insertion = format_block_sequence_item_source(&item_source, indent);
+        let offset = if index == children.len() {
+            let last_child = self
+                .stream
+                .node(children[children.len() - 1])
+                .ok_or_else(|| Error::new("lossless sequence item id is out of bounds", None))?;
+            let offset = line_end_including_newline(&self.stream.source, last_child.span().end);
+            if offset == self.stream.source.len() && !self.stream.source.ends_with('\n') {
+                insertion.insert(0, '\n');
+            }
+            offset
+        } else {
+            let target_child = self
+                .stream
+                .node(children[index])
+                .ok_or_else(|| Error::new("lossless sequence item id is out of bounds", None))?;
+            line_start(&self.stream.source, target_child.span().start)
+        };
+        self.insert_source(offset, insertion)
+    }
+
+    /// Deletes one item from a block sequence.
+    ///
+    /// The deleted span starts at the item's dash line and ends after the
+    /// item's last source line, so inline comments and nested block values for
+    /// that item are removed while unrelated surrounding bytes are preserved.
+    pub fn delete_block_sequence_item_source(
+        &mut self,
+        sequence: NodeId,
+        index: usize,
+    ) -> Result<&mut Self> {
+        let sequence_node = self.sequence_node(sequence)?;
+        let LosslessNodeKind::Sequence { style, .. } = sequence_node.kind() else {
+            unreachable!("sequence_node only returns sequence nodes");
+        };
+        if *style != CollectionStyle::Block {
+            return Err(Error::new(
+                "structural sequence item deletion requires a block sequence",
+                Some(sequence_node.span()),
+            ));
+        }
+        let item = self.sequence_item(sequence, index)?;
+        let item_node = self
+            .stream
+            .node(item)
+            .ok_or_else(|| Error::new("lossless sequence item id is out of bounds", None))?;
+        let start = line_start(&self.stream.source, item_node.span().start);
+        let end = line_end_including_newline(&self.stream.source, item_node.span().end);
+        let span = self.stream.source_span(start, end)?;
+        self.delete_source_span(span)
+    }
+
     /// Returns validated edited YAML with untouched source bytes preserved.
     pub fn finish(mut self) -> Result<String> {
         self.replacements
@@ -559,6 +738,37 @@ impl LosslessEdit<'_> {
             ));
         }
         Ok(entry)
+    }
+
+    fn sequence_node(&self, sequence: NodeId) -> Result<&LosslessNode> {
+        let node = self
+            .stream
+            .node(sequence)
+            .ok_or_else(|| Error::new("lossless sequence node id is out of bounds", None))?;
+        if !matches!(node.kind(), LosslessNodeKind::Sequence { .. }) {
+            return Err(Error::new(
+                "lossless structural edit target is not a sequence",
+                Some(node.span()),
+            ));
+        }
+        Ok(node)
+    }
+
+    fn sequence_item(&self, sequence: NodeId, index: usize) -> Result<NodeId> {
+        let sequence_node = self.sequence_node(sequence)?;
+        let LosslessNodeKind::Sequence { children, .. } = sequence_node.kind() else {
+            unreachable!("sequence_node only returns sequence nodes");
+        };
+        let Some(item) = children.get(index).copied() else {
+            return Err(Error::new(
+                format!(
+                    "lossless sequence item index {index} is out of bounds for {} items",
+                    children.len()
+                ),
+                Some(sequence_node.span()),
+            ));
+        };
+        Ok(item)
     }
 
     fn checked_source_span(&self, span: Span) -> Result<Span> {
@@ -1270,27 +1480,7 @@ fn ensure_scalar_fragment(replacement: &str, span: Span) -> Result<()> {
 }
 
 fn ensure_single_mapping_entry_fragment(entry_source: &str, span: Span) -> Result<()> {
-    let parsed = parse_lossless(entry_source).map_err(|error| {
-        Error::new(
-            format!("mapping entry source is not valid YAML: {error}"),
-            Some(span),
-        )
-    })?;
-    if parsed.documents().len() != 1 {
-        return Err(Error::new(
-            "mapping entry source must parse as one YAML document",
-            Some(span),
-        ));
-    }
-    let root = parsed.documents()[0].root().ok_or_else(|| {
-        Error::new(
-            "mapping entry source must parse as one mapping entry",
-            Some(span),
-        )
-    })?;
-    let root = parsed
-        .node(root)
-        .ok_or_else(|| Error::new("mapping entry source root node is missing", Some(span)))?;
+    let root = single_fragment_root(entry_source, span, "mapping entry source")?;
     match root.kind() {
         LosslessNodeKind::Mapping { entries, .. } if entries.len() == 1 => Ok(()),
         _ => Err(Error::new(
@@ -1298,6 +1488,29 @@ fn ensure_single_mapping_entry_fragment(entry_source: &str, span: Span) -> Resul
             Some(span),
         )),
     }
+}
+
+fn ensure_single_node_fragment(fragment: &str, span: Span, label: &str) -> Result<()> {
+    single_fragment_root(fragment, span, label).map(|_| ())
+}
+
+fn single_fragment_root(fragment: &str, span: Span, label: &str) -> Result<LosslessNode> {
+    let parsed = parse_lossless(fragment)
+        .map_err(|error| Error::new(format!("{label} is not valid YAML: {error}"), Some(span)))?;
+    if parsed.documents().len() != 1 {
+        return Err(Error::new(
+            format!("{label} must parse as one YAML document"),
+            Some(span),
+        ));
+    }
+    let root = parsed.documents()[0]
+        .root()
+        .ok_or_else(|| Error::new(format!("{label} must parse as one YAML node"), Some(span)))?;
+    let root = parsed
+        .node(root)
+        .cloned()
+        .ok_or_else(|| Error::new(format!("{label} root node is missing"), Some(span)))?;
+    Ok(root)
 }
 
 fn line_start(source: &str, offset: usize) -> usize {
@@ -1344,4 +1557,36 @@ fn indent_entry_source(entry_source: &str, indent: &str) -> String {
         }
     }
     indented
+}
+
+fn format_block_sequence_item_source(item_source: &str, indent: &str) -> String {
+    let normalized = if item_source.ends_with('\n') {
+        item_source.to_owned()
+    } else {
+        format!("{item_source}\n")
+    };
+    let mut formatted = String::with_capacity(normalized.len() + indent.len() * 2);
+    let mut lines = normalized.split_inclusive('\n');
+    let first = lines.next().unwrap_or("\n");
+    let first_body = first.strip_suffix('\n').unwrap_or(first);
+    formatted.push_str(indent);
+    formatted.push_str("- ");
+    formatted.push_str(first_body);
+    if first.ends_with('\n') {
+        formatted.push('\n');
+    }
+    let child_indent = format!("{indent}  ");
+    for line in lines {
+        let body = line.strip_suffix('\n').unwrap_or(line);
+        if body.is_empty() {
+            formatted.push('\n');
+        } else {
+            formatted.push_str(&child_indent);
+            formatted.push_str(body);
+            if line.ends_with('\n') {
+                formatted.push('\n');
+            }
+        }
+    }
+    formatted
 }

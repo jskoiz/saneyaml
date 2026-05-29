@@ -400,6 +400,107 @@ fn lossless_edit_inserts_block_mapping_entry_after_final_line_without_trailing_n
 }
 
 #[test]
+fn lossless_edit_structurally_updates_block_sequence_items() {
+    let input = "\
+steps:
+  # keep step comment
+  - name: build
+    run: cargo build # keep run comment
+  - name: test
+    run: cargo test
+after: true
+";
+    let stream = parse_lossless(input).expect("lossless parse");
+    let steps = block_sequence_with_item(&stream, "build");
+
+    let mut edit = stream.edit();
+    edit.replace_sequence_item_source(
+        steps.id(),
+        0,
+        "\
+name: lint
+run: cargo clippy",
+    )
+    .expect("replace first step");
+    edit.insert_block_sequence_item_source(
+        steps.id(),
+        1,
+        "\
+name: fmt
+run: cargo fmt",
+    )
+    .expect("insert middle step");
+    edit.delete_block_sequence_item_source(steps.id(), 1)
+        .expect("delete original test step");
+    let output = edit.finish().expect("validated sequence edit");
+
+    assert_eq!(
+        output,
+        "\
+steps:
+  # keep step comment
+  - name: lint
+    run: cargo clippy
+  - name: fmt
+    run: cargo fmt
+after: true
+"
+    );
+    let edited = parse_lossless(&output).expect("edited source reparses");
+    assert_eq!(edited.comments().count(), 1);
+}
+
+#[test]
+fn lossless_edit_rejects_invalid_structural_sequence_edits() {
+    let stream = parse_lossless("steps:\n  - build\n").expect("lossless parse");
+    let steps = block_sequence_with_item(&stream, "build");
+
+    let missing = stream
+        .edit()
+        .replace_sequence_item_source(steps.id(), 1, "test")
+        .expect_err("missing item");
+    assert!(missing.to_string().contains("out of bounds"));
+
+    let invalid_item = stream
+        .edit()
+        .insert_block_sequence_item_source(steps.id(), 1, "one\n---\ntwo")
+        .expect_err("multi-document item rejected");
+    assert!(invalid_item.to_string().contains("one YAML document"));
+
+    let flow = parse_lossless("steps: [build]\n").expect("lossless parse");
+    let flow_sequence = flow
+        .nodes()
+        .iter()
+        .find(|node| {
+            matches!(
+                node.kind(),
+                LosslessNodeKind::Sequence {
+                    style: CollectionStyle::Flow,
+                    ..
+                }
+            )
+        })
+        .expect("flow sequence");
+    let error = flow
+        .edit()
+        .delete_block_sequence_item_source(flow_sequence.id(), 0)
+        .expect_err("flow deletion rejected");
+    assert!(error.to_string().contains("requires a block sequence"));
+}
+
+#[test]
+fn lossless_edit_appends_block_sequence_item_after_final_line_without_trailing_newline() {
+    let stream = parse_lossless("steps:\n  - build").expect("lossless parse");
+    let steps = block_sequence_with_item(&stream, "build");
+
+    let output = stream
+        .insert_block_sequence_item_source(steps.id(), 1, "test")
+        .expect("append final item");
+
+    assert_eq!(output, "steps:\n  - build\n  - test\n");
+}
+
+#[test]
 fn lossless_edit_rejects_non_scalar_scalar_replacement() {
     let stream = parse_lossless("name: api\n").expect("lossless parse");
     let scalar = stream
@@ -466,4 +567,48 @@ fn block_mapping_with_key<'a>(
             _ => false,
         })
         .expect("block mapping with key")
+}
+
+fn block_sequence_with_item<'a>(
+    stream: &'a yaml::LosslessStream,
+    value: &str,
+) -> &'a yaml::LosslessNode {
+    stream
+        .nodes()
+        .iter()
+        .find(|node| match node.kind() {
+            LosslessNodeKind::Sequence {
+                style: CollectionStyle::Block,
+                children,
+            } => children.iter().any(|child| {
+                stream.node(*child).is_some_and(|child_node| {
+                    sequence_node_contains_scalar_value(stream, child_node, value)
+                })
+            }),
+            _ => false,
+        })
+        .expect("block sequence with item")
+}
+
+fn sequence_node_contains_scalar_value(
+    stream: &yaml::LosslessStream,
+    node: &yaml::LosslessNode,
+    value: &str,
+) -> bool {
+    match node.kind() {
+        LosslessNodeKind::Scalar { value: scalar, .. } => scalar == value,
+        LosslessNodeKind::Sequence { children, .. } => children.iter().any(|child| {
+            stream
+                .node(*child)
+                .is_some_and(|node| sequence_node_contains_scalar_value(stream, node, value))
+        }),
+        LosslessNodeKind::Mapping { entries, .. } => entries.iter().any(|(key, value_id)| {
+            [*key, *value_id].into_iter().any(|node_id| {
+                stream
+                    .node(node_id)
+                    .is_some_and(|node| sequence_node_contains_scalar_value(stream, node, value))
+            })
+        }),
+        LosslessNodeKind::Alias { .. } => false,
+    }
 }

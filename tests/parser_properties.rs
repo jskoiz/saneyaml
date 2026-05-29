@@ -10,9 +10,9 @@ use std::{
     path::{Path, PathBuf},
 };
 use yaml::{
-    AnchorId, Error, Event, EventDocumentDirectives, EventMeta, LoadOptions, LosslessNodeKind,
-    LosslessStream, LosslessTriviaKind, Node, NodeId, NodeValue, Number, Schema, Span, Tag,
-    TaggedNode, Value,
+    AnchorId, CollectionStyle, Error, Event, EventDocumentDirectives, EventMeta, LoadOptions,
+    LosslessNodeKind, LosslessStream, LosslessTriviaKind, Node, NodeId, NodeValue, Number, Schema,
+    Span, Tag, TaggedNode, Value,
 };
 
 const EMPTY_REQUIRED_SEEDS: &[&str] = &[];
@@ -55,6 +55,12 @@ const LOSSLESS_EDIT_REQUIRED_SEEDS: &[&str] = &[
     "replace-flow-mapping",
     "replace-scalar",
     "replace-tagged-block-scalar",
+    "structural-map-delete",
+    "structural-map-insert",
+    "structural-map-replace",
+    "structural-sequence-delete",
+    "structural-sequence-insert",
+    "structural-sequence-replace",
 ];
 
 proptest! {
@@ -294,7 +300,7 @@ fn fuzz_corpora_cover_release_targets_and_named_safety_seeds() {
         ("apply_merge", (16, APPLY_MERGE_REQUIRED_SEEDS)),
         ("emit_roundtrip", (11, EMIT_ROUNDTRIP_REQUIRED_SEEDS)),
         ("event_stream", (80, EVENT_STREAM_REQUIRED_SEEDS)),
-        ("lossless_edit", (9, LOSSLESS_EDIT_REQUIRED_SEEDS)),
+        ("lossless_edit", (19, LOSSLESS_EDIT_REQUIRED_SEEDS)),
         ("lossless_graph", (16, LOSSLESS_GRAPH_REQUIRED_SEEDS)),
         ("parse_bytes", (800, EMPTY_REQUIRED_SEEDS)),
         ("schema_modes", (14, SCHEMA_MODES_REQUIRED_SEEDS)),
@@ -810,6 +816,12 @@ enum LosslessEditMode {
     Source,
     Insert,
     Delete,
+    MappingValue,
+    MappingInsert,
+    MappingDelete,
+    SequenceItem,
+    SequenceInsert,
+    SequenceDelete,
 }
 
 #[derive(Clone, Copy)]
@@ -830,6 +842,10 @@ fn assert_lossless_edit_invariants(input: &[u8]) {
             return;
         }
     };
+
+    if assert_structural_lossless_edit_invariants(&stream, edit_input) {
+        return;
+    }
 
     let Some(target) = select_lossless_edit_target(&stream, edit_input) else {
         return;
@@ -852,6 +868,14 @@ fn assert_lossless_edit_invariants(input: &[u8]) {
         LosslessEditMode::Source => edit.replace_source_span(target.span, replacement),
         LosslessEditMode::Insert => edit.insert_source(target.span.start, replacement),
         LosslessEditMode::Delete => edit.delete_source_span(target.span),
+        LosslessEditMode::MappingValue
+        | LosslessEditMode::MappingInsert
+        | LosslessEditMode::MappingDelete
+        | LosslessEditMode::SequenceItem
+        | LosslessEditMode::SequenceInsert
+        | LosslessEditMode::SequenceDelete => {
+            unreachable!("structural lossless edit modes are handled before raw edit dispatch")
+        }
     };
     if let Err(error) = replace_result {
         assert_error_invariants_allowing_unspanned(edit_input.source, &error);
@@ -867,6 +891,76 @@ fn assert_lossless_edit_invariants(input: &[u8]) {
     }
 }
 
+fn assert_structural_lossless_edit_invariants(
+    stream: &LosslessStream,
+    edit_input: LosslessEditInput<'_>,
+) -> bool {
+    let mut edit = stream.edit();
+    let result = match edit_input.mode {
+        LosslessEditMode::MappingValue => {
+            let Some((mapping, key)) =
+                select_scalar_keyed_mapping(stream, edit_input.selector, false)
+            else {
+                return true;
+            };
+            edit.replace_mapping_value_source(mapping, &key, edit_input.replacement)
+        }
+        LosslessEditMode::MappingInsert => {
+            let Some(mapping) = select_block_mapping(stream, edit_input.selector) else {
+                return true;
+            };
+            edit.insert_block_mapping_entry_source(mapping, edit_input.replacement)
+        }
+        LosslessEditMode::MappingDelete => {
+            let Some((mapping, key)) =
+                select_scalar_keyed_mapping(stream, edit_input.selector, true)
+            else {
+                return true;
+            };
+            edit.delete_block_mapping_entry_source(mapping, &key)
+        }
+        LosslessEditMode::SequenceItem => {
+            let Some((sequence, index)) = select_sequence_item(stream, edit_input.selector, false)
+            else {
+                return true;
+            };
+            edit.replace_sequence_item_source(sequence, index, edit_input.replacement)
+        }
+        LosslessEditMode::SequenceInsert => {
+            let Some((sequence, index)) =
+                select_block_sequence_insertion(stream, edit_input.selector)
+            else {
+                return true;
+            };
+            edit.insert_block_sequence_item_source(sequence, index, edit_input.replacement)
+        }
+        LosslessEditMode::SequenceDelete => {
+            let Some((sequence, index)) = select_sequence_item(stream, edit_input.selector, true)
+            else {
+                return true;
+            };
+            edit.delete_block_sequence_item_source(sequence, index)
+        }
+        _ => return false,
+    };
+
+    if let Err(error) = result {
+        assert_error_invariants_allowing_unspanned(edit_input.source, &error);
+        return true;
+    }
+
+    match edit.finish() {
+        Ok(output) => {
+            let edited = yaml::parse_lossless(&output).expect("structural edit output reparses");
+            assert_lossless_stream_invariants(output.as_bytes(), &edited);
+        }
+        Err(error) => {
+            assert!(!error.to_string().is_empty());
+        }
+    }
+    true
+}
+
 fn split_lossless_edit_input(input: &[u8]) -> Option<LosslessEditInput<'_>> {
     let line_end = input.iter().position(|byte| *byte == b'\n')?;
     let header = std::str::from_utf8(&input[..line_end]).ok()?;
@@ -879,6 +973,18 @@ fn split_lossless_edit_input(input: &[u8]) -> Option<LosslessEditInput<'_>> {
     Some(LosslessEditInput {
         mode: if header.contains("mode=scalar") {
             LosslessEditMode::Scalar
+        } else if header.contains("mode=map-replace") {
+            LosslessEditMode::MappingValue
+        } else if header.contains("mode=map-insert") {
+            LosslessEditMode::MappingInsert
+        } else if header.contains("mode=map-delete") {
+            LosslessEditMode::MappingDelete
+        } else if header.contains("mode=seq-replace") {
+            LosslessEditMode::SequenceItem
+        } else if header.contains("mode=seq-insert") {
+            LosslessEditMode::SequenceInsert
+        } else if header.contains("mode=seq-delete") {
+            LosslessEditMode::SequenceDelete
         } else if header.contains("mode=source") {
             LosslessEditMode::Source
         } else if header.contains("mode=insert") {
@@ -949,7 +1055,110 @@ fn select_lossless_edit_target(
             let span = stream.source_span(offset, offset).ok()?;
             Some(LosslessEditTarget { node: None, span })
         }
+        LosslessEditMode::MappingValue
+        | LosslessEditMode::MappingInsert
+        | LosslessEditMode::MappingDelete
+        | LosslessEditMode::SequenceItem
+        | LosslessEditMode::SequenceInsert
+        | LosslessEditMode::SequenceDelete => None,
     }
+}
+
+fn select_scalar_keyed_mapping(
+    stream: &LosslessStream,
+    selector: usize,
+    block_only: bool,
+) -> Option<(NodeId, String)> {
+    let candidates = stream
+        .nodes()
+        .iter()
+        .filter_map(|node| match node.kind() {
+            LosslessNodeKind::Mapping { style, entries }
+                if !block_only || *style == CollectionStyle::Block =>
+            {
+                Some((node.id(), entries))
+            }
+            _ => None,
+        })
+        .flat_map(|(mapping, entries)| {
+            entries.iter().filter_map(move |(key, _)| {
+                stream.node(*key).and_then(|node| match node.kind() {
+                    LosslessNodeKind::Scalar { value, .. } => Some((mapping, value.clone())),
+                    _ => None,
+                })
+            })
+        })
+        .collect::<Vec<_>>();
+    if candidates.is_empty() {
+        return None;
+    }
+    candidates.get(selector % candidates.len()).cloned()
+}
+
+fn select_block_mapping(stream: &LosslessStream, selector: usize) -> Option<NodeId> {
+    let candidates = stream
+        .nodes()
+        .iter()
+        .filter_map(|node| match node.kind() {
+            LosslessNodeKind::Mapping { style, entries }
+                if *style == CollectionStyle::Block && !entries.is_empty() =>
+            {
+                Some(node.id())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if candidates.is_empty() {
+        return None;
+    }
+    candidates.get(selector % candidates.len()).copied()
+}
+
+fn select_sequence_item(
+    stream: &LosslessStream,
+    selector: usize,
+    block_only: bool,
+) -> Option<(NodeId, usize)> {
+    let candidates = stream
+        .nodes()
+        .iter()
+        .filter_map(|node| match node.kind() {
+            LosslessNodeKind::Sequence { style, children }
+                if (!block_only || *style == CollectionStyle::Block) && !children.is_empty() =>
+            {
+                Some((node.id(), children.len()))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if candidates.is_empty() {
+        return None;
+    }
+    let (sequence, len) = candidates.get(selector % candidates.len()).copied()?;
+    Some((sequence, selector % len))
+}
+
+fn select_block_sequence_insertion(
+    stream: &LosslessStream,
+    selector: usize,
+) -> Option<(NodeId, usize)> {
+    let candidates = stream
+        .nodes()
+        .iter()
+        .filter_map(|node| match node.kind() {
+            LosslessNodeKind::Sequence { style, children }
+                if *style == CollectionStyle::Block && !children.is_empty() =>
+            {
+                Some((node.id(), children.len()))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if candidates.is_empty() {
+        return None;
+    }
+    let (sequence, len) = candidates.get(selector % candidates.len()).copied()?;
+    Some((sequence, selector % (len + 1)))
 }
 
 fn build_lossless_edited_source(source: &str, span: Span, replacement: &str) -> Option<String> {

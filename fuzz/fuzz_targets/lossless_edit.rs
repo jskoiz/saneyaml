@@ -1,7 +1,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use yaml::{Error, LosslessNodeKind, NodeId, Span};
+use yaml::{CollectionStyle, Error, LosslessNodeKind, LosslessStream, NodeId, Span};
 
 const REPLACEMENT_MARKER: &[u8] = b"=== yaml replacement ===\n";
 
@@ -22,6 +22,10 @@ fn assert_lossless_edit_invariants(input: &[u8]) {
         }
     };
 
+    if assert_structural_lossless_edit_invariants(&stream, edit_input) {
+        return;
+    }
+
     let Some(target) = select_target(&stream, edit_input) else {
         return;
     };
@@ -41,6 +45,14 @@ fn assert_lossless_edit_invariants(input: &[u8]) {
         EditMode::Source => edit.replace_source_span(target.span, replacement),
         EditMode::Insert => edit.insert_source(target.span.start, replacement),
         EditMode::Delete => edit.delete_source_span(target.span),
+        EditMode::MappingValue
+        | EditMode::MappingInsert
+        | EditMode::MappingDelete
+        | EditMode::SequenceItem
+        | EditMode::SequenceInsert
+        | EditMode::SequenceDelete => {
+            unreachable!("structural lossless edit modes are handled before raw edit dispatch")
+        }
     };
     if let Err(error) = replace_result {
         assert_error_invariants_allowing_unspanned(edit_input.source, &error);
@@ -54,6 +66,75 @@ fn assert_lossless_edit_invariants(input: &[u8]) {
         }
         Err(error) => assert_error_invariants_allowing_unspanned(edited.as_bytes(), &error),
     }
+}
+
+fn assert_structural_lossless_edit_invariants(
+    stream: &LosslessStream,
+    edit_input: EditInput<'_>,
+) -> bool {
+    let mut edit = stream.edit();
+    let result = match edit_input.mode {
+        EditMode::MappingValue => {
+            let Some((mapping, key)) =
+                select_scalar_keyed_mapping(stream, edit_input.selector, false)
+            else {
+                return true;
+            };
+            edit.replace_mapping_value_source(mapping, &key, edit_input.replacement)
+        }
+        EditMode::MappingInsert => {
+            let Some(mapping) = select_block_mapping(stream, edit_input.selector) else {
+                return true;
+            };
+            edit.insert_block_mapping_entry_source(mapping, edit_input.replacement)
+        }
+        EditMode::MappingDelete => {
+            let Some((mapping, key)) =
+                select_scalar_keyed_mapping(stream, edit_input.selector, true)
+            else {
+                return true;
+            };
+            edit.delete_block_mapping_entry_source(mapping, &key)
+        }
+        EditMode::SequenceItem => {
+            let Some((sequence, index)) = select_sequence_item(stream, edit_input.selector, false)
+            else {
+                return true;
+            };
+            edit.replace_sequence_item_source(sequence, index, edit_input.replacement)
+        }
+        EditMode::SequenceInsert => {
+            let Some((sequence, index)) =
+                select_block_sequence_insertion(stream, edit_input.selector)
+            else {
+                return true;
+            };
+            edit.insert_block_sequence_item_source(sequence, index, edit_input.replacement)
+        }
+        EditMode::SequenceDelete => {
+            let Some((sequence, index)) = select_sequence_item(stream, edit_input.selector, true)
+            else {
+                return true;
+            };
+            edit.delete_block_sequence_item_source(sequence, index)
+        }
+        _ => return false,
+    };
+
+    if let Err(error) = result {
+        assert_error_invariants_allowing_unspanned(edit_input.source, &error);
+        return true;
+    }
+
+    match edit.finish() {
+        Ok(output) => {
+            yaml::parse_lossless(&output).expect("structural edit output reparses losslessly");
+        }
+        Err(error) => {
+            assert!(!error.to_string().is_empty());
+        }
+    }
+    true
 }
 
 #[derive(Clone, Copy)]
@@ -71,6 +152,12 @@ enum EditMode {
     Source,
     Insert,
     Delete,
+    MappingValue,
+    MappingInsert,
+    MappingDelete,
+    SequenceItem,
+    SequenceInsert,
+    SequenceDelete,
 }
 
 #[derive(Clone, Copy)]
@@ -90,6 +177,18 @@ fn split_edit_input(input: &[u8]) -> Option<EditInput<'_>> {
     Some(EditInput {
         mode: if header.contains("mode=scalar") {
             EditMode::Scalar
+        } else if header.contains("mode=map-replace") {
+            EditMode::MappingValue
+        } else if header.contains("mode=map-insert") {
+            EditMode::MappingInsert
+        } else if header.contains("mode=map-delete") {
+            EditMode::MappingDelete
+        } else if header.contains("mode=seq-replace") {
+            EditMode::SequenceItem
+        } else if header.contains("mode=seq-insert") {
+            EditMode::SequenceInsert
+        } else if header.contains("mode=seq-delete") {
+            EditMode::SequenceDelete
         } else if header.contains("mode=source") {
             EditMode::Source
         } else if header.contains("mode=insert") {
@@ -157,7 +256,110 @@ fn select_target(stream: &yaml::LosslessStream, input: EditInput<'_>) -> Option<
             let span = stream.source_span(offset, offset).ok()?;
             Some(EditTarget { node: None, span })
         }
+        EditMode::MappingValue
+        | EditMode::MappingInsert
+        | EditMode::MappingDelete
+        | EditMode::SequenceItem
+        | EditMode::SequenceInsert
+        | EditMode::SequenceDelete => None,
     }
+}
+
+fn select_scalar_keyed_mapping(
+    stream: &LosslessStream,
+    selector: usize,
+    block_only: bool,
+) -> Option<(NodeId, String)> {
+    let candidates = stream
+        .nodes()
+        .iter()
+        .filter_map(|node| match node.kind() {
+            LosslessNodeKind::Mapping { style, entries }
+                if !block_only || *style == CollectionStyle::Block =>
+            {
+                Some((node.id(), entries))
+            }
+            _ => None,
+        })
+        .flat_map(|(mapping, entries)| {
+            entries.iter().filter_map(move |(key, _)| {
+                stream.node(*key).and_then(|node| match node.kind() {
+                    LosslessNodeKind::Scalar { value, .. } => Some((mapping, value.clone())),
+                    _ => None,
+                })
+            })
+        })
+        .collect::<Vec<_>>();
+    if candidates.is_empty() {
+        return None;
+    }
+    candidates.get(selector % candidates.len()).cloned()
+}
+
+fn select_block_mapping(stream: &LosslessStream, selector: usize) -> Option<NodeId> {
+    let candidates = stream
+        .nodes()
+        .iter()
+        .filter_map(|node| match node.kind() {
+            LosslessNodeKind::Mapping { style, entries }
+                if *style == CollectionStyle::Block && !entries.is_empty() =>
+            {
+                Some(node.id())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if candidates.is_empty() {
+        return None;
+    }
+    candidates.get(selector % candidates.len()).copied()
+}
+
+fn select_sequence_item(
+    stream: &LosslessStream,
+    selector: usize,
+    block_only: bool,
+) -> Option<(NodeId, usize)> {
+    let candidates = stream
+        .nodes()
+        .iter()
+        .filter_map(|node| match node.kind() {
+            LosslessNodeKind::Sequence { style, children }
+                if (!block_only || *style == CollectionStyle::Block) && !children.is_empty() =>
+            {
+                Some((node.id(), children.len()))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if candidates.is_empty() {
+        return None;
+    }
+    let (sequence, len) = candidates.get(selector % candidates.len()).copied()?;
+    Some((sequence, selector % len))
+}
+
+fn select_block_sequence_insertion(
+    stream: &LosslessStream,
+    selector: usize,
+) -> Option<(NodeId, usize)> {
+    let candidates = stream
+        .nodes()
+        .iter()
+        .filter_map(|node| match node.kind() {
+            LosslessNodeKind::Sequence { style, children }
+                if *style == CollectionStyle::Block && !children.is_empty() =>
+            {
+                Some((node.id(), children.len()))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if candidates.is_empty() {
+        return None;
+    }
+    let (sequence, len) = candidates.get(selector % candidates.len()).copied()?;
+    Some((sequence, selector % (len + 1)))
 }
 
 fn edited_source(source: &str, span: Span, replacement: &str) -> Option<String> {
@@ -180,7 +382,10 @@ fn assert_span_invariants_allowing_default(input: &[u8], span: Span) {
     if span == Span::default() {
         return;
     }
-    assert!(span.start <= span.end, "span starts after it ends: {span:?}");
+    assert!(
+        span.start <= span.end,
+        "span starts after it ends: {span:?}"
+    );
     assert!(
         span.end <= input.len(),
         "span exceeds input length {}: {span:?}",

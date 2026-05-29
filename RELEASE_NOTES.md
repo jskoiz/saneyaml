@@ -29,7 +29,11 @@ Notable completed release-candidate behavior:
   through `serde_yaml = { package = "yaml", ... }`; the expanded alias smoke
   separately covers root document-stream helpers, explicit YAML 1.1
   `LoadOptions`, caller-built merge expansion, mapping/index ergonomics,
-  lossless graph identity inspection, and diagnostic locations.
+  lossless graph identity inspection, and diagnostic locations. A separate
+  real-world package-alias smoke now copies the fixture registry into a clean
+  downstream crate and parses representative GitHub Actions, Docker Compose,
+  Kubernetes, Helm, OpenAPI, Wrangler, and Ansible documents through
+  `serde_yaml::...` imports.
 - Pinned external downstream replay and package-alias build trials now include
   Pingora, rust-i18n, cfn-guard, and Stackable operator-rs, with Stackable
   adding Kubernetes CRD/OpenAPI schema fixture coverage plus serializer and

@@ -105,6 +105,10 @@ The migration harness also contains a dedicated default-merge test showing the
 intentional split from `serde_yaml::Value`: parsed `yaml::Value` expands
 untagged `<<` immediately, while `serde_yaml::Value` keeps the literal merge key
 until `apply_merge()` is called.
+The packaged downstream smoke path also copies representative real-world
+fixtures into a clean crate that depends on this package as `serde_yaml`, so
+package resolution and runtime parsing are checked together for GitHub Actions,
+Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and Ansible inputs.
 
 `yaml::Value` is a spanless read-side Serde value, matching the replacement
 direction of `serde_yaml::Value`: sequences contain `Vec<Value>`, mappings use

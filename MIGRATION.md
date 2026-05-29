@@ -49,9 +49,12 @@ runs the same upstream-compatible `serde_yaml` API calls once against
 dependency name. The expanded smoke then covers this crate's extension surface,
 including root document-stream helpers, explicit YAML 1.1 `LoadOptions`,
 caller-built merge expansion, lossless graph identity inspection, writer paths,
-and diagnostic locations. These are package-resolution and runtime smoke tools,
-not blanket promises that every `serde_yaml` behavior or formatting byte
-matches.
+and diagnostic locations. A real-world package-alias smoke copies the checked-in
+GitHub Actions, Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and
+Ansible fixture registry into a clean downstream crate and parses representative
+fields through `serde_yaml::...` imports, including default Docker Compose merge
+expansion. These are package-resolution and runtime smoke tools, not blanket
+promises that every `serde_yaml` behavior or formatting byte matches.
 
 The low-friction path is to replace owned config reads and common
 `serde_yaml::Value` usage first. Keep compatibility-sensitive code covered by
@@ -155,9 +158,10 @@ from real `serde_yaml` users:
 build trials.
 Each packages this crate, consumes the unpacked package from a clean smoke
 project under the `serde_yaml` dependency name, runs strict upstream-compatible
-and expanded alias-surface assertions against that package, then checks a pinned
-downstream checkout with its `serde_yaml` dependency rewritten to that packaged
-copy. The Pingora trial
+expanded alias-surface assertions, and parses representative checked-in
+real-world config fixtures against that package, then checks a pinned downstream
+checkout with its `serde_yaml` dependency rewritten to that packaged copy. The
+Pingora trial
 checks `pingora-core` plus the `pingora-proxy` `modify_response` example that
 uses `serde_yaml` as a dev dependency; the rust-i18n trial covers support,
 macro, and extract crates; the cfn-guard trial checks the package that loads
@@ -170,6 +174,7 @@ Focused proof command:
 cargo test --test serde_yaml_swap_harness --test downstream_migration_harness
 cargo test --test external_downstream_migration
 cargo test --test libyaml_probe_manifest
+scripts/downstream-build-trials.sh smoke-only
 scripts/downstream-build-trials.sh pingora
 scripts/downstream-build-trials.sh rust-i18n
 scripts/downstream-build-trials.sh cfn-guard

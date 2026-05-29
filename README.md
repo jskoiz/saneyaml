@@ -58,7 +58,10 @@ The first milestone focuses on:
   smoke fixture that runs upstream-compatible `serde_yaml::...` API paths
   against both `serde_yaml 0.9.34` and this package, plus an expanded
   package-alias smoke for explicit `LoadOptions`, document-stream, merge,
-  mapping/index, lossless graph, and diagnostic-location paths.
+  mapping/index, lossless graph, and diagnostic-location paths, plus a
+  packaged real-world alias smoke that copies the fixture registry into a clean
+  downstream crate and parses GitHub Actions, Docker Compose, Kubernetes, Helm,
+  OpenAPI, Wrangler, and Ansible files through `serde_yaml::...` imports.
 - A downstream-shaped migration harness, compileable migration example,
   Ubuntu-only CI workflow with all-target fuzz-smoke wiring, non-mutating
   fuzz replay script, and real-world config benchmark command.
@@ -85,6 +88,7 @@ cargo test --test external_downstream_migration
 cargo test --test libyaml_probe_manifest
 cargo test --test yaml11_conformance
 cargo test --test lossless_roundtrip --test graph_identity
+scripts/downstream-build-trials.sh smoke-only
 scripts/downstream-build-trials.sh pingora
 scripts/downstream-build-trials.sh rust-i18n
 scripts/downstream-build-trials.sh cfn-guard

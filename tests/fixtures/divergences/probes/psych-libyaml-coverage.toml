@@ -4,25 +4,27 @@ comparison_manifest = "tests/fixtures/divergences/probes/psych-libyaml-compariso
 ruby = "2.6.10"
 psych = "3.1.0"
 libyaml = "0.2.1"
-probe_case_count = 39
+probe_case_count = 41
 behavior_family_count = 8
-tracked_gap_count = 6
+tracked_gap_count = 4
 coverage_policy = "Pinned Psych/libyaml cases are grouped by behavior family. Covered families are executable proof for the listed cases, not blanket YAML 1.1/libyaml compatibility."
 
 [[behavior_family]]
 id = "legacy-scalar-resolution"
-status = "partial"
-summary = "Legacy scalar construction, null-like strings, boolean-key hazards, and typed scalar key identity."
+status = "covered"
+summary = "Legacy scalar construction, null-like strings, boolean-key hazards, timestamp/binary object-model splits, oversized numeric spelling, and typed scalar key identity."
 cases = [
   "legacy-scalar-resolution",
+  "yaml11-scalar-denominator",
+  "yaml11-invalid-binary-payload",
   "rw-github-actions-on-key",
   "explicit-core-tags",
   "null-like-string-targets",
   "numeric-key-identity",
 ]
 rust_entrypoints = ["default-value", "yaml11-value"]
-adoption_risk = "Callers relying on broad YAML 1.1 implicit typing need opt-in LoadOptions and local corpus checks."
-next_expansion = "Add timestamp, binary, sexagesimal, radix, bool/null alias, and overflow variants from real configs."
+adoption_risk = "Callers relying on broad YAML 1.1 implicit typing need opt-in LoadOptions and should expect documented Rust-vs-Psych object-model splits for retained timestamps and binary payloads."
+next_expansion = "Add new scalar variants only when real migration corpora expose behavior outside the covered bool/null, radix, sexagesimal, overflow, timestamp, and binary denominator."
 
 [[behavior_family]]
 id = "merge-keys-and-recovery"
@@ -129,18 +131,6 @@ cases = [
 rust_entrypoints = ["default-value"]
 adoption_risk = "Config safety intentionally diverges from Psych last-wins duplicate-key construction."
 next_expansion = "Treat broader collection-key duplicate and tab placement variants as separate future policy expansions."
-
-[[tracked_gap]]
-id = "implicit-scalar-denominator"
-family = "legacy-scalar-resolution"
-reason = "The probe covers representative legacy scalar behavior, not the full YAML 1.1 implicit resolver matrix."
-next_probe_candidates = ["bool aliases", "null aliases", "radix integers", "sexagesimal floats", "overflow"]
-
-[[tracked_gap]]
-id = "timestamp-and-binary-object-model"
-family = "legacy-scalar-resolution"
-reason = "Psych constructs Ruby Date/Time and decoded binary values; retained Rust trees preserve tag/source metadata unless typed targets opt in."
-next_probe_candidates = ["timestamp zones", "invalid timestamp", "binary whitespace", "invalid base64"]
 
 [[tracked_gap]]
 id = "merge-recovery-permutation-matrix"

@@ -32,6 +32,38 @@ struct LegacyDocument {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+struct LegacyScalarDenominator {
+    bools: Vec<bool>,
+    nulls: LegacyNullAliases,
+    numbers: LegacyScalarNumbers,
+    timestamps: LegacyTimestampDenominator,
+    binary_spaced: Vec<u8>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct LegacyNullAliases {
+    empty: Option<String>,
+    tilde: Option<String>,
+    mixed: Option<String>,
+    upper: Option<String>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct LegacyScalarNumbers {
+    plus_octal: i64,
+    hex: i64,
+    binary: i64,
+    decimal_overflow: String,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct LegacyTimestampDenominator {
+    lower_z: serde_yaml::Timestamp,
+    leap_second: serde_yaml::Timestamp,
+    invalid_zone: String,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
 struct MergeRoot {
     job: MergeJob,
 }
@@ -120,6 +152,46 @@ fn main() {
             },
         ]
     );
+
+    let scalar_denominator: LegacyScalarDenominator =
+        serde_yaml::LoadOptions::yaml_version_directive()
+            .from_str(
+                "%YAML 1.1\n%TAG !yaml! tag:yaml.org,2002:\n---\n\
+bools: [y, YES, true, n, NO, false]\n\
+nulls: {empty: , tilde: ~, mixed: Null, upper: NULL}\n\
+numbers: {plus_octal: +0123, hex: 0x2A, binary: 0b1010, decimal_overflow: 340282366920938463463374607431768211456}\n\
+timestamps: {lower_z: 2026-05-24t12:34:56z, leap_second: 2026-05-24T23:59:60Z, invalid_zone: 2026-05-24T12:34:56+24}\n\
+binary_spaced: !yaml!binary \"SGVs bG8=\"\n",
+            )
+            .unwrap();
+    assert_eq!(
+        scalar_denominator.bools,
+        vec![true, true, true, false, false, false]
+    );
+    assert_eq!(scalar_denominator.nulls.empty, None);
+    assert_eq!(scalar_denominator.nulls.tilde, None);
+    assert_eq!(scalar_denominator.nulls.mixed, None);
+    assert_eq!(scalar_denominator.nulls.upper, None);
+    assert_eq!(scalar_denominator.numbers.plus_octal, 83);
+    assert_eq!(scalar_denominator.numbers.hex, 42);
+    assert_eq!(scalar_denominator.numbers.binary, 10);
+    assert_eq!(
+        scalar_denominator.numbers.decimal_overflow,
+        "340282366920938463463374607431768211456"
+    );
+    assert_eq!(
+        scalar_denominator.timestamps.lower_z,
+        serde_yaml::Timestamp::parse_yaml_1_1("2026-05-24t12:34:56z").unwrap()
+    );
+    assert_eq!(
+        scalar_denominator.timestamps.leap_second,
+        serde_yaml::Timestamp::parse_yaml_1_1("2026-05-24T23:59:60Z").unwrap()
+    );
+    assert_eq!(
+        scalar_denominator.timestamps.invalid_zone,
+        "2026-05-24T12:34:56+24"
+    );
+    assert_eq!(scalar_denominator.binary_spaced, b"Hello");
 
     let value: serde_yaml::Value =
         serde_yaml::from_str("defaults: &defaults\n  retries: 3\njob:\n  <<: *defaults\n")

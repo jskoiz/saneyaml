@@ -237,9 +237,8 @@ fn divergence_legacy_scalar_resolution_record_is_present() {
     assert!(record.contains("explicit YAML 1.1 scalar construction"));
     assert!(record.contains("exposed through the native yaml::Timestamp API"));
     assert!(
-        record.contains(
-            "explicit !!binary values are retained in trees and decoded for byte targets"
-        )
+        record.contains("explicit !!binary values with whitespace are retained in trees")
+            && record.contains("Malformed explicit !!binary payloads remain loadable")
     );
 }
 

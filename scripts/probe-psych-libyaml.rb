@@ -5,6 +5,7 @@ require "date"
 require "digest"
 require "json"
 require "psych"
+require "time"
 
 EXPECTED_RUBY = "2.6.10"
 EXPECTED_PSYCH = "3.1.0"
@@ -35,6 +36,16 @@ CASES = [
       sexagesimal: 1:20
       special_float: .inf
     YAML
+  },
+  {
+    id: "yaml11-scalar-denominator",
+    record: "tests/fixtures/divergences/records/legacy-scalar-resolution.toml",
+    yaml: fixture_yaml("tests/fixtures/yaml11-conformance/legacy-scalar-denominator.yaml")
+  },
+  {
+    id: "yaml11-invalid-binary-payload",
+    record: "tests/fixtures/divergences/records/legacy-scalar-resolution.toml",
+    yaml: fixture_yaml("tests/fixtures/yaml11-conformance/legacy-invalid-binary.yaml")
   },
   {
     id: "rw-github-actions-on-key",

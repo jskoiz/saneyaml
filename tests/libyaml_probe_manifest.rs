@@ -23,6 +23,8 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "EXPECTED_LIBYAML = \"0.2.1\"",
         "Psych.libyaml_version",
         "legacy-scalar-resolution",
+        "yaml11-scalar-denominator",
+        "yaml11-invalid-binary-payload",
         "merge-keys",
         "merge-nested-list-precedence",
         "merge-duplicate-local-key-policy",
@@ -59,7 +61,7 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_eq!(artifact["libyaml"], "0.2.1");
 
     let cases = artifact["cases"].as_array().expect("probe cases array");
-    assert_eq!(cases.len(), 39);
+    assert_eq!(cases.len(), 41);
 
     let expected_ids = BTreeSet::from([
         "adjacent-flow-mapping-scalars",
@@ -75,6 +77,8 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "explicit-core-tags",
         "explicit-merge-tags",
         "legacy-scalar-resolution",
+        "yaml11-invalid-binary-payload",
+        "yaml11-scalar-denominator",
         "legacy-merge-edge-recovery",
         "lossless-merge-graph",
         "lossless-recursive-graph",
@@ -136,6 +140,20 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_case_summary_contains(&artifact, "legacy-scalar-resolution", "TrueClass");
     assert_case_summary_contains(&artifact, "legacy-scalar-resolution", "Date");
     assert_case_summary_contains(&artifact, "legacy-scalar-resolution", "Infinity");
+    assert_case_summary_contains(&artifact, "yaml11-scalar-denominator", "NilClass");
+    assert_case_summary_contains(&artifact, "yaml11-scalar-denominator", "FalseClass");
+    assert_case_summary_contains(
+        &artifact,
+        "yaml11-scalar-denominator",
+        "340282366920938463463374607431768211456",
+    );
+    assert_case_summary_contains(
+        &artifact,
+        "yaml11-scalar-denominator",
+        "2026-05-24T12:34:56+05:00",
+    );
+    assert_case_summary_contains(&artifact, "yaml11-scalar-denominator", "Hello");
+    assert_case_summary_contains(&artifact, "yaml11-invalid-binary-payload", "Hello");
     assert_case_summary_contains(&artifact, "rw-github-actions-on-key", "TrueClass");
     assert_case_summary_contains(&artifact, "merge-keys", "app:v2");
     assert_merge_key_precedence(&artifact);
@@ -479,7 +497,7 @@ fn psych_libyaml_probe_coverage_ledger_groups_all_pinned_cases() {
         coverage["tracked_gap_count"].as_integer(),
         Some(gaps.len() as i64),
     );
-    assert_eq!(gaps.len(), 6);
+    assert_eq!(gaps.len(), 4);
     let mut gap_ids = BTreeSet::new();
     for gap in gaps {
         let id = toml_str(gap, "id");

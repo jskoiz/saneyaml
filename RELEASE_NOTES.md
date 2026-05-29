@@ -49,11 +49,13 @@ Notable completed release-candidate behavior:
   Kubernetes CRD/OpenAPI schema fixture coverage plus serializer and scalar
   serde build checks.
 - YAML 1.1 conformance fixtures now cover directive-driven legacy scalar
-  construction, null and float spellings, timestamp time-zone forms, explicit
-  binary, collection, and structural tags, invalid binary typed-target diagnostics,
-  flow-style scalar collections and mapping keys, merge-key expansion under
-  legacy schema selection, malformed collection-tag typed-read diagnostics, and
-  boolean, numeric, signed-zero, and alias-expanded duplicate-key diagnostics.
+  construction, bool/null aliases, null and float spellings, radix and
+  sexagesimal numerics, oversized numeric spellings, timestamp time-zone and
+  leap-second forms, explicit binary whitespace, collection and structural tags,
+  invalid binary typed-target diagnostics, flow-style scalar collections and
+  mapping keys, merge-key expansion under legacy schema selection, malformed
+  collection-tag typed-read diagnostics, and boolean, numeric, signed-zero, and
+  alias-expanded duplicate-key diagnostics.
 - `parse_lossless` / `LosslessStream` preserve comments, trivia, anchors,
   aliases, and stable graph ids for source-backed inspection, replay, and
   validated node/source-span edits, insertions, and deletions that preserve
@@ -93,8 +95,8 @@ Notable completed release-candidate behavior:
   per-case input digests, error locations where Psych
   exposes them, and first-class alias redefinition/recursive identity probes as
   deliberate compatibility decisions.
-- A Psych/libyaml coverage ledger now groups the 39 pinned probe cases into
-  eight behavior families and tracks six explicit next-probe gaps, keeping
+- A Psych/libyaml coverage ledger now groups the 41 pinned probe cases into
+  eight behavior families and tracks four explicit next-probe gaps, keeping
   YAML 1.1/libyaml scope auditable without claiming blanket compatibility.
 - `TaggedValue` now implements owned and borrowed Serde deserializer support
   for direct enum and `IgnoredAny` reads, matching the package-alias

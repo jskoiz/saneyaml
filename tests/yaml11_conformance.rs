@@ -44,6 +44,16 @@ struct LegacyMigrationPack {
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]
+struct LegacyScalarDenominator {
+    bools: Vec<bool>,
+    nulls: LegacyNullAliases,
+    numbers: LegacyScalarNumbers,
+    sexagesimal: LegacySexagesimal,
+    timestamps: LegacyTimestampDenominator,
+    binary_spaced: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 struct LegacyFlags {
     deploy: bool,
     dry_run: bool,
@@ -60,6 +70,42 @@ struct LegacyNumbers {
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 struct LegacyTimestamps {
     release: Timestamp,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+struct LegacyNullAliases {
+    empty: Option<String>,
+    tilde: Option<String>,
+    mixed: Option<String>,
+    upper: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+struct LegacyScalarNumbers {
+    plus_octal: i64,
+    underscored_octal: i64,
+    negative_octal: i64,
+    hex: i64,
+    binary: i64,
+    decimal_overflow: String,
+    hex_overflow: String,
+    invalid_octal: String,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+struct LegacySexagesimal {
+    integer: i64,
+    short_float: f64,
+    signed: i64,
+    invalid: String,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+struct LegacyTimestampDenominator {
+    lower_z: Timestamp,
+    plus_hour: Timestamp,
+    leap_second: Timestamp,
+    invalid_zone: String,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -136,7 +182,7 @@ const LEGACY_DUPLICATE_KEY_FIXTURES: &[LegacyDuplicateKeyFixture] = &[
 #[test]
 fn yaml11_conformance_manifest_is_complete() {
     let manifest = manifest();
-    assert_eq!(manifest.case.len(), 25);
+    assert_eq!(manifest.case.len(), 26);
     let manifest_paths = manifest
         .case
         .iter()
@@ -153,6 +199,7 @@ fn yaml11_conformance_manifest_is_complete() {
                 | "pairs"
                 | "bundle"
                 | "scalar-matrix"
+                | "scalar-denominator"
                 | "flow-scalar-matrix"
                 | "merge"
                 | "duplicate-key"
@@ -461,6 +508,105 @@ fn yaml11_legacy_migration_pack_covers_default_explicit_and_directive_modes() {
     assert_eq!(directive_value["payload"].as_str(), Some("SGVsbG8="));
     assert_eq!(
         directive_value["payload"]
+            .as_tagged()
+            .expect("binary tag retained")
+            .tag,
+        yaml::Tag::new("!<tag:yaml.org,2002:binary>")
+    );
+}
+
+#[test]
+fn yaml11_legacy_scalar_denominator_covers_public_entrypoints() {
+    let source = read_fixture("legacy-scalar-denominator.yaml");
+
+    let default: Value = yaml::from_str(&source).expect("default scalar denominator value");
+    assert_eq!(default["bools"][0].as_str(), Some("y"));
+    assert_eq!(default["bools"][5].as_bool(), Some(true));
+    assert_eq!(default["bools"][11].as_str(), Some("n"));
+    assert_eq!(default["bools"][16].as_bool(), Some(false));
+    assert!(default["nulls"]["empty"].is_null());
+    assert!(default["nulls"]["mixed"].is_null());
+    assert_eq!(default["numbers"]["plus_octal"].as_i64(), Some(123));
+    assert_eq!(default["numbers"]["underscored_octal"].as_i64(), Some(123));
+    assert_eq!(default["numbers"]["hex"].as_str(), Some("0x2A"));
+    assert_eq!(default["numbers"]["binary"].as_str(), Some("0b1010"));
+    assert_eq!(default["sexagesimal"]["integer"].as_str(), Some("12:34:56"));
+    assert_eq!(
+        default["timestamps"]["lower_z"].as_str(),
+        Some("2026-05-24t12:34:56z")
+    );
+    assert!(default["timestamps"]["lower_z"].as_timestamp().is_none());
+
+    let expected = LegacyScalarDenominator {
+        bools: vec![
+            true, true, true, true, true, true, true, true, true, true, true, false, false, false,
+            false, false, false, false, false, false, false, false,
+        ],
+        nulls: LegacyNullAliases {
+            empty: None,
+            tilde: None,
+            mixed: None,
+            upper: None,
+        },
+        numbers: LegacyScalarNumbers {
+            plus_octal: 83,
+            underscored_octal: 83,
+            negative_octal: -83,
+            hex: 42,
+            binary: 10,
+            decimal_overflow: "340282366920938463463374607431768211456".to_string(),
+            hex_overflow: "0x100000000000000000000000000000000".to_string(),
+            invalid_octal: "09".to_string(),
+        },
+        sexagesimal: LegacySexagesimal {
+            integer: 45_296,
+            short_float: 4_830.0,
+            signed: -2_400,
+            invalid: "1:60".to_string(),
+        },
+        timestamps: LegacyTimestampDenominator {
+            lower_z: Timestamp::parse_yaml_1_1("2026-05-24t12:34:56z").expect("lower z"),
+            plus_hour: Timestamp::parse_yaml_1_1("2026-05-24 12:34:56 +5").expect("plus hour"),
+            leap_second: Timestamp::parse_yaml_1_1("2026-05-24T23:59:60Z").expect("leap second"),
+            invalid_zone: "2026-05-24T12:34:56+24".to_string(),
+        },
+        binary_spaced: b"Hello".to_vec(),
+    };
+
+    let explicit: LegacyScalarDenominator = LoadOptions::yaml_1_1()
+        .from_str(&source)
+        .expect("explicit YAML 1.1 scalar denominator");
+    let directive: LegacyScalarDenominator = LoadOptions::yaml_version_directive()
+        .from_str(&source)
+        .expect("directive YAML 1.1 scalar denominator");
+    assert_eq!(explicit, expected);
+    assert_eq!(directive, expected);
+    assert_scalar_denominator_public_entrypoints(
+        LoadOptions::yaml_1_1(),
+        &source,
+        &expected,
+        "explicit",
+    );
+    assert_scalar_denominator_public_entrypoints(
+        LoadOptions::yaml_version_directive(),
+        &source,
+        &expected,
+        "directive",
+    );
+
+    let value: Value = LoadOptions::yaml_version_directive()
+        .from_str(&source)
+        .expect("directive scalar denominator value");
+    assert_eq!(
+        value["numbers"]["hex_overflow"].as_str(),
+        Some("0x100000000000000000000000000000000")
+    );
+    assert_eq!(
+        value["timestamps"]["leap_second"].as_timestamp(),
+        Some(expected.timestamps.leap_second)
+    );
+    assert_eq!(
+        value["binary_spaced"]
             .as_tagged()
             .expect("binary tag retained")
             .tag,
@@ -1272,6 +1418,77 @@ fn assert_legacy_pack_public_entrypoints(
             .minor,
         1
     );
+}
+
+fn assert_scalar_denominator_public_entrypoints(
+    options: LoadOptions,
+    source: &str,
+    expected: &LegacyScalarDenominator,
+    label: &str,
+) {
+    let from_slice: LegacyScalarDenominator = options
+        .from_slice(source.as_bytes())
+        .unwrap_or_else(|error| panic!("{label} scalar denominator from_slice: {error}"));
+    let from_reader: LegacyScalarDenominator = options
+        .from_reader(Cursor::new(source.as_bytes()))
+        .unwrap_or_else(|error| panic!("{label} scalar denominator from_reader: {error}"));
+    let parsed_bytes = options
+        .parse_bytes(source.as_bytes())
+        .unwrap_or_else(|error| panic!("{label} scalar denominator parse_bytes: {error}"));
+    let parsed_str = options
+        .parse_str(source)
+        .unwrap_or_else(|error| panic!("{label} scalar denominator parse_str: {error}"));
+    let document_values: Vec<LegacyScalarDenominator> = options
+        .from_documents_str(source)
+        .unwrap_or_else(|error| panic!("{label} scalar denominator from_documents_str: {error}"));
+    let document_values_slice: Vec<LegacyScalarDenominator> = options
+        .from_documents_slice(source.as_bytes())
+        .unwrap_or_else(|error| panic!("{label} scalar denominator from_documents_slice: {error}"));
+    let document_values_reader: Vec<LegacyScalarDenominator> = options
+        .from_documents_reader(Cursor::new(source.as_bytes()))
+        .unwrap_or_else(|error| {
+            panic!("{label} scalar denominator from_documents_reader: {error}")
+        });
+    let direct_slice =
+        LegacyScalarDenominator::deserialize(options.deserializer_from_slice(source.as_bytes()))
+            .unwrap_or_else(|error| {
+                panic!("{label} scalar denominator deserializer_from_slice: {error}")
+            });
+    let direct_reader = LegacyScalarDenominator::deserialize(
+        options.deserializer_from_reader(Cursor::new(source.as_bytes())),
+    )
+    .unwrap_or_else(|error| panic!("{label} scalar denominator deserializer_from_reader: {error}"));
+    let from_node: LegacyScalarDenominator = yaml::from_node(&parsed_str)
+        .unwrap_or_else(|error| panic!("{label} scalar denominator from_node: {error}"));
+    let from_value: LegacyScalarDenominator = yaml::from_value(Value::from(&parsed_str))
+        .unwrap_or_else(|error| panic!("{label} scalar denominator from_value: {error}"));
+    let lossless = yaml::parse_lossless(source)
+        .unwrap_or_else(|error| panic!("{label} scalar denominator parse_lossless: {error}"));
+
+    assert_eq!(&from_slice, expected, "{label} scalar from_slice");
+    assert_eq!(&from_reader, expected, "{label} scalar from_reader");
+    assert_eq!(&direct_slice, expected, "{label} scalar direct slice");
+    assert_eq!(&direct_reader, expected, "{label} scalar direct reader");
+    assert_eq!(&from_node, expected, "{label} scalar from_node");
+    assert_eq!(&from_value, expected, "{label} scalar from_value");
+    assert_eq!(
+        document_values,
+        vec![expected.clone()],
+        "{label} scalar docs"
+    );
+    assert_eq!(
+        document_values_slice,
+        vec![expected.clone()],
+        "{label} scalar docs slice"
+    );
+    assert_eq!(
+        document_values_reader,
+        vec![expected.clone()],
+        "{label} scalar docs reader"
+    );
+    assert!(Value::from(&parsed_bytes).equivalent(&Value::from(&parsed_str)));
+    assert_eq!(lossless.as_source(), source);
+    assert_eq!(lossless.to_string(), source);
 }
 
 fn assert_legacy_duplicate_key_error_entrypoints(

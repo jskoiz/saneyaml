@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !yaml! tag:yaml.org,2002:
+---
+bools: [y, Y, yes, Yes, YES, true, True, TRUE, on, On, ON, n, N, no, No, NO, false, False, FALSE, off, Off, OFF]
+nulls:
+  empty:
+  tilde: ~
+  mixed: Null
+  upper: NULL
+numbers:
+  plus_octal: +0123
+  underscored_octal: 01_23
+  negative_octal: -0123
+  hex: 0x2A
+  binary: 0b1010
+  decimal_overflow: 340282366920938463463374607431768211456
+  hex_overflow: 0x100000000000000000000000000000000
+  invalid_octal: 09
+sexagesimal:
+  integer: 12:34:56
+  short_float: 1:20.5
+  signed: -1:20
+  invalid: 1:60
+timestamps:
+  lower_z: 2026-05-24t12:34:56z
+  plus_hour: 2026-05-24 12:34:56 +5
+  leap_second: 2026-05-24T23:59:60Z
+  invalid_zone: 2026-05-24T12:34:56+24
+binary_spaced: !yaml!binary |
+  SGVs
+  bG8=

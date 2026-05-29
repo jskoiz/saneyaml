@@ -67,6 +67,393 @@
       "input_bytes": 80
     },
     {
+      "id": "yaml11-scalar-denominator",
+      "record": "tests/fixtures/divergences/records/legacy-scalar-resolution.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "bools"
+            },
+            "value": {
+              "class": "Array",
+              "items": [
+                {
+                  "class": "String",
+                  "value": "y"
+                },
+                {
+                  "class": "String",
+                  "value": "Y"
+                },
+                {
+                  "class": "TrueClass",
+                  "value": true
+                },
+                {
+                  "class": "TrueClass",
+                  "value": true
+                },
+                {
+                  "class": "TrueClass",
+                  "value": true
+                },
+                {
+                  "class": "TrueClass",
+                  "value": true
+                },
+                {
+                  "class": "TrueClass",
+                  "value": true
+                },
+                {
+                  "class": "TrueClass",
+                  "value": true
+                },
+                {
+                  "class": "TrueClass",
+                  "value": true
+                },
+                {
+                  "class": "TrueClass",
+                  "value": true
+                },
+                {
+                  "class": "TrueClass",
+                  "value": true
+                },
+                {
+                  "class": "String",
+                  "value": "n"
+                },
+                {
+                  "class": "String",
+                  "value": "N"
+                },
+                {
+                  "class": "FalseClass",
+                  "value": false
+                },
+                {
+                  "class": "FalseClass",
+                  "value": false
+                },
+                {
+                  "class": "FalseClass",
+                  "value": false
+                },
+                {
+                  "class": "FalseClass",
+                  "value": false
+                },
+                {
+                  "class": "FalseClass",
+                  "value": false
+                },
+                {
+                  "class": "FalseClass",
+                  "value": false
+                },
+                {
+                  "class": "FalseClass",
+                  "value": false
+                },
+                {
+                  "class": "FalseClass",
+                  "value": false
+                },
+                {
+                  "class": "FalseClass",
+                  "value": false
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "nulls"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "empty"
+                  },
+                  "value": {
+                    "class": "NilClass",
+                    "value": null
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "tilde"
+                  },
+                  "value": {
+                    "class": "NilClass",
+                    "value": null
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "mixed"
+                  },
+                  "value": {
+                    "class": "NilClass",
+                    "value": null
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "upper"
+                  },
+                  "value": {
+                    "class": "NilClass",
+                    "value": null
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "numbers"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "plus_octal"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "83"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "underscored_octal"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "83"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "negative_octal"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "-83"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "hex"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "42"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "binary"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "10"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "decimal_overflow"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "340282366920938463463374607431768211456"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "hex_overflow"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "340282366920938463463374607431768211456"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "invalid_octal"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "09"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "sexagesimal"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "integer"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "45296"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "short_float"
+                  },
+                  "value": {
+                    "class": "Float",
+                    "value": "4830.0"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "signed"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "-2400"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "invalid"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "1:60"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "timestamps"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "lower_z"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "2026-05-24t12:34:56z"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "plus_hour"
+                  },
+                  "value": {
+                    "class": "Time",
+                    "value": "2026-05-24T12:34:56+05:00"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "leap_second"
+                  },
+                  "value": {
+                    "class": "Time",
+                    "value": "2026-05-25T00:00:00Z"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "invalid_zone"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "2026-05-24T12:34:56+24"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "binary_spaced"
+            },
+            "value": {
+              "class": "String",
+              "value": "Hello"
+            }
+          }
+        ]
+      },
+      "input_sha256": "e87eddaf295a486c531a47e61d02add4b4b4e42a832d53cd0370ce5428e31adf",
+      "input_bytes": 740
+    },
+    {
+      "id": "yaml11-invalid-binary-payload",
+      "record": "tests/fixtures/divergences/records/legacy-scalar-resolution.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "payload"
+            },
+            "value": {
+              "class": "String",
+              "value": "Hello"
+            }
+          }
+        ]
+      },
+      "input_sha256": "639abd8080182b5697e4814c23102d5ad69b0dfd92bac43ea9c3478cc8e978ce",
+      "input_bytes": 41
+    },
+    {
       "id": "rw-github-actions-on-key",
       "record": "tests/fixtures/divergences/records/rw-github-actions-on-key.toml",
       "status": "ok",

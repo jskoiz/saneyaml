@@ -18,6 +18,28 @@ special_float: .inf
 rust_contains = ["Bool(true)", "timestamp", "Tagged", "Float(inf)"]
 
 [[case]]
+id = "yaml11-scalar-denominator"
+record = "tests/fixtures/divergences/records/legacy-scalar-resolution.toml"
+psych_status = "ok"
+rust_entrypoint = "yaml11-value"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "Explicit YAML 1.1 mode covers the scalar denominator, while Rust retained trees preserve standard YAML 1.1 y/Y booleans, lowercase-z timestamps, timestamp tag metadata, and oversized numeric spelling instead of mirroring Psych's Ruby object construction exactly."
+fixture = "tests/fixtures/yaml11-conformance/legacy-scalar-denominator.yaml"
+rust_contains = ["Bool(true)", "Bool(false)", "Integer(83)", "String(\"340282366920938463463374607431768211456\")", "timestamp", "binary_spaced"]
+
+[[case]]
+id = "yaml11-invalid-binary-payload"
+record = "tests/fixtures/divergences/records/legacy-scalar-resolution.toml"
+psych_status = "ok"
+rust_entrypoint = "yaml11-value"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "Psych/libyaml decodes the malformed explicit binary payload permissively, while this crate retains the tagged scalar in Value and rejects it only when a typed byte target is requested."
+fixture = "tests/fixtures/yaml11-conformance/legacy-invalid-binary.yaml"
+rust_contains = ["SGVsbG8*", "binary"]
+
+[[case]]
 id = "rw-github-actions-on-key"
 record = "tests/fixtures/divergences/records/rw-github-actions-on-key.toml"
 psych_status = "ok"

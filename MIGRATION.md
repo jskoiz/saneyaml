@@ -253,15 +253,18 @@ testing each adopter's own YAML corpus.
 
 ## Known Migration Limits
 
-- YAML 1.1 scalar construction is explicit and incomplete. `LoadOptions` can
-  resolve legacy booleans/nulls plus timestamp-shaped plain scalars,
-  leading-zero octal, hex, binary numeric, two/three-part sexagesimal int/float
-  forms, and underscored numeric forms that fit `yaml::Number`. Timestamps keep
-  `!!timestamp` tag/source metadata in `Value`/`Node` and expose
-  `yaml::Timestamp` through `as_timestamp()` and typed Serde reads. `!!binary`
-  payloads are retained as tagged strings in `Value`/`Node` while decoding for
-  typed byte targets such as `Vec<u8>`, `deserialize_bytes`, and
-  `deserialize_byte_buf`. Explicit `!!int` and `!!float` retained `Value`
+- YAML 1.1 scalar construction is explicit. `LoadOptions` can resolve legacy
+  boolean/null aliases plus timestamp-shaped plain scalars, signed and
+  underscored leading-zero octal, hex, binary numeric, two/three-part
+  sexagesimal int/float forms, and numeric forms that fit `yaml::Number`, while
+  oversized numeric spellings stay strings. Timestamps keep `!!timestamp`
+  tag/source metadata in `Value`/`Node` and expose `yaml::Timestamp` through
+  `as_timestamp()` and typed Serde reads. `!!binary` payloads, including
+  whitespace-separated payloads, are retained as tagged strings in `Value`/`Node`
+  while decoding for typed byte targets such as `Vec<u8>`,
+  `deserialize_bytes`, and `deserialize_byte_buf`; malformed payloads reject
+  typed byte targets rather than failing retained tree loading. Explicit
+  `!!int` and `!!float` retained `Value`
   entries keep their tag and source spelling, but valid YAML 1.1 numeric forms
   are visible through `Value` numeric helpers such as `as_i64()`, `as_u64()`,
   `as_f64()`, and `is_number()`. The supported explicit core tags may also be
@@ -278,8 +281,9 @@ testing each adopter's own YAML corpus.
   edges strict. `tests/yaml11_conformance.rs` includes
   directive-driven migration fixtures covering legacy boolean words, null
   spellings, float spellings, octal, hex, binary numeric, sexagesimal,
-  timestamp time-zone forms, flow-style scalar collections and mapping keys,
-  explicit binary, invalid binary typed-target diagnostics, collection and
+  oversized numeric spellings, timestamp time-zone and leap-second forms,
+  flow-style scalar collections and mapping keys, explicit binary whitespace,
+  invalid binary typed-target diagnostics, collection and
   structural tags, merge-key expansion, boolean and numeric key collisions,
   signed-zero key collisions, and alias-expanded duplicate-key diagnostics.
 - YAML 1.1 collection and structural tags are retained as tagged payloads in

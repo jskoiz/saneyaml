@@ -83,6 +83,13 @@ tag = "%YAML 1.1"
 expected = "accept"
 
 [[case]]
+id = "legacy-scalar-denominator"
+path = "legacy-scalar-denominator.yaml"
+kind = "scalar-denominator"
+tag = "%YAML 1.1"
+expected = "accept"
+
+[[case]]
 id = "legacy-merge-directive"
 path = "legacy-merge-directive.yaml"
 kind = "merge"

@@ -17,12 +17,14 @@ use yaml::{
 
 const PARSE_BYTES_REQUIRED_SEEDS: &[&str] = &[
     "yaml11-alias-key-collision",
+    "yaml11-scalar-denominator",
     "yaml11-signed-zero-key-collision",
 ];
 const SERDE_ENTRYPOINTS_REQUIRED_SEEDS: &[&str] = &[
     "yaml11-alias-key-collision",
     "yaml11-omap-non-singleton-entry",
     "yaml11-pairs-scalar-entry",
+    "yaml11-scalar-denominator",
     "yaml11-set-non-null-values",
     "yaml11-signed-zero-key-collision",
     "yaml11-value-duplicate-key",
@@ -55,6 +57,7 @@ const SCHEMA_MODES_REQUIRED_SEEDS: &[&str] = &[
     "yaml11-omap-non-singleton-entry",
     "yaml11-pairs-scalar-entry",
     "yaml11-scalar-edge-stream",
+    "yaml11-scalar-denominator",
     "yaml11-set-non-null-values",
     "yaml11-signed-zero-key-collision",
     "yaml11-value-duplicate-key",
@@ -325,9 +328,9 @@ fn fuzz_corpora_cover_release_targets_and_named_safety_seeds() {
         ("event_stream", (80, EVENT_STREAM_REQUIRED_SEEDS)),
         ("lossless_edit", (23, LOSSLESS_EDIT_REQUIRED_SEEDS)),
         ("lossless_graph", (16, LOSSLESS_GRAPH_REQUIRED_SEEDS)),
-        ("parse_bytes", (880, PARSE_BYTES_REQUIRED_SEEDS)),
-        ("schema_modes", (21, SCHEMA_MODES_REQUIRED_SEEDS)),
-        ("serde_entrypoints", (289, SERDE_ENTRYPOINTS_REQUIRED_SEEDS)),
+        ("parse_bytes", (881, PARSE_BYTES_REQUIRED_SEEDS)),
+        ("schema_modes", (22, SCHEMA_MODES_REQUIRED_SEEDS)),
+        ("serde_entrypoints", (290, SERDE_ENTRYPOINTS_REQUIRED_SEEDS)),
     ]);
     let expected_targets = expected.keys().copied().collect::<BTreeSet<_>>();
     assert_eq!(declared_fuzz_targets(), expected_targets);

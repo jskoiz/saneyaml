@@ -4,9 +4,9 @@ comparison_manifest = "tests/fixtures/divergences/probes/psych-libyaml-compariso
 ruby = "2.6.10"
 psych = "3.1.0"
 libyaml = "0.2.1"
-probe_case_count = 45
+probe_case_count = 46
 behavior_family_count = 8
-tracked_gap_count = 2
+tracked_gap_count = 1
 coverage_policy = "Pinned Psych/libyaml cases are grouped by behavior family. Covered families are executable proof for the listed cases, not blanket YAML 1.1/libyaml compatibility."
 
 [[behavior_family]]
@@ -70,11 +70,12 @@ next_expansion = "Add more document-reset, anchor-shadowing, and cross-document 
 
 [[behavior_family]]
 id = "yaml11-tags-and-structures"
-status = "partial"
-summary = "Explicit core, collection, and structural YAML 1.1 tags across short, canonical, and resolved spellings."
+status = "covered"
+summary = "Explicit core, collection, and structural YAML 1.1 tags across short, canonical, resolved, and custom-handle spellings, including typed-target, malformed-payload, and value-key duplicate diagnostics."
 cases = [
   "explicit-core-tags",
   "yaml11-collection-tags",
+  "yaml11-custom-handle-collection-tags",
   "yaml11-set-non-null-payload",
   "yaml11-omap-non-singleton-entry",
   "yaml11-pairs-scalar-entry",
@@ -83,9 +84,9 @@ cases = [
   "yaml11-value-resolved-handle",
   "yaml11-value-duplicate-key",
 ]
-rust_entrypoints = ["yaml11-value", "directive-value", "typed-set-strings", "typed-string-i64-pairs"]
+rust_entrypoints = ["yaml11-value", "directive-value", "typed-set-strings", "typed-string-i64-pairs", "typed-collection-bundle"]
 adoption_risk = "Typed reads expose YAML 1.1 shapes, while retained trees preserve tag metadata instead of Psych object classes."
-next_expansion = "Add broader explicit tag typed-target coverage and additional custom-handle variants from real corpora."
+next_expansion = "Add new tag variants only when real migration corpora expose shapes outside the covered scalar, collection, structural, malformed-payload, and custom-handle denominator."
 
 [[behavior_family]]
 id = "directives-and-documents"
@@ -141,9 +142,3 @@ id = "merge-recovery-permutation-matrix"
 family = "merge-keys-and-recovery"
 reason = "Merge recovery now covers representative nested precedence, duplicate local key policy, mixed invalid merge-list recovery, and cross-document alias reset cases, but not every anchor-shadowing or collection-key variant."
 next_probe_candidates = ["anchor shadowing inside merge lists", "collection-valued duplicate merge keys", "deep invalid payload recovery variants"]
-
-[[tracked_gap]]
-id = "collection-tag-malformed-payloads"
-family = "yaml11-tags-and-structures"
-reason = "Representative malformed set, omap, pairs, and value-key duplicate diagnostics are covered; broader explicit tag typed-target and real-corpus custom-handle variants remain open."
-next_probe_candidates = ["explicit tag typed-target variants", "real-corpus custom handles", "additional value mapping shapes"]

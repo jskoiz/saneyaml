@@ -24,7 +24,7 @@ The compatibility target is intentionally split:
   as matching Psych/libyaml or as an intentional Rust policy divergence, then
   `libyaml_probe_manifest` executes the matching Rust parser, value, directive,
   or lossless entrypoint. A separate `psych-libyaml-coverage.toml` ledger groups
-  the 45 pinned probe cases into eight behavior families and tracks the next
+  the 46 pinned probe cases into eight behavior families and tracks the next
   missing libyaml-era probes without claiming blanket compatibility. Default
   loading stays YAML 1.2-oriented; explicit YAML 1.1 construction covers the
   scalar forms listed here with
@@ -52,7 +52,7 @@ for intentional behavior splits that matter during migration.
 | Numeric, timestamp, and binary extensions | Decimal ints/floats plus underscores, YAML special floats, and decimal-looking leading-zero values such as `0123` are resolved by default; explicit YAML 1.1 construction also resolves leading-zero octal, hex, binary numeric, and two/three-part sexagesimal int/float forms that fit `Number`, retains timestamp-shaped plain scalars as `!!timestamp` tagged strings with `yaml::Timestamp` typed reads, and decodes explicit `!!binary` only for typed byte targets | YAML 1.1 has broad numeric/timestamp/binary typing, including sexagesimal and legacy radix forms in libyaml/Psych paths | YAML 1.2 core support varies by crate | Data-model dependent |
 | Directives | Numeric `%YAML` version directives and `%TAG` are accepted as syntax/event inputs; reserved unknown directives are ignored but still require an explicit document start; default loading does not switch scalar schema, while `LoadOptions::yaml_version_directive()` lets `%YAML 1.1` select legacy construction per document; directive metadata is exposed on `DocumentStart` events | Exposed and may affect version/schema handling | Exposed by parser layers | Usually not a Serde value |
 | Explicit core tags | Tree and `Value` loading preserve explicit `!!binary`, `!!str`, `!!bool`, `!!null`, `!!timestamp`, `!!int`, and `!!float` tags, including canonical `tag:yaml.org,2002:*` forms written verbatim or through `%TAG` handles; typed Serde reads coerce explicit `!!str`, `!!bool`, `!!null`, `!!int`, and `!!float` targets, including legacy boolean/null, radix, and sexagesimal spellings; retained `Value` numeric helpers parse explicit `!!int`/`!!float` spellings without erasing tag/source metadata; explicit `!!timestamp` is exposed as `yaml::Timestamp`, and explicit `!!binary` byte targets decode while preserving tags in retained values | YAML 1.1 typed binary/timestamp/string/bool/null/numeric support is common | Tag-aware behavior varies, including `BadValue` for some explicit core tags | Partial/lossy |
-| YAML 1.1 collection and structural tags | Tree and `Value` loading preserve explicit `!!set`, `!!omap`, `!!pairs`, `!!seq`, `!!map`, and `!!value` as tagged payloads, including canonical `tag:yaml.org,2002:*` spellings. Typed Serde reads expose `!!set` as set-like sequence targets from null-valued mapping keys, `!!omap` as pair sequences or map targets, `!!pairs` as pair sequences that preserve duplicates, `!!seq` as sequence targets, `!!map` as map/struct targets, and `!!value` as the scalar value. Malformed typed collection payloads are rejected with spans instead of following Psych's lossy recovery. | Psych/libyaml constructs `Psych::Set`, `Psych::Omap`, pair arrays, arrays, hashes, and `!!value =` as a string, and can recover malformed collection-tag payloads by retaining or reshaping them | Parser/event tag information is available, but loaded-tree and typed-Serde contracts differ | Tag metadata is not retained |
+| YAML 1.1 collection and structural tags | Tree and `Value` loading preserve explicit `!!set`, `!!omap`, `!!pairs`, `!!seq`, `!!map`, and `!!value` as tagged payloads, including canonical `tag:yaml.org,2002:*` spellings and custom `%TAG` handles that resolve to those core tags. Typed Serde reads expose `!!set` as set-like sequence targets from null-valued mapping keys, `!!omap` as pair sequences or map targets, `!!pairs` as pair sequences that preserve duplicates, `!!seq` as sequence targets, `!!map` as map/struct targets, and `!!value` as the scalar value. Malformed typed collection payloads are rejected with spans instead of following Psych's lossy recovery. | Psych/libyaml constructs `Psych::Set`, `Psych::Omap`, pair arrays, arrays, hashes, and `!!value =` as a string, and can recover malformed collection-tag payloads by retaining or reshaping them | Parser/event tag information is available, but loaded-tree and typed-Serde contracts differ | Tag metadata is not retained |
 
 ## Public API Compatibility Surface
 
@@ -306,12 +306,12 @@ document markers, document-start inline nodes, reserved-directive policy,
 repeated TAG rejection, tag-scope reset, multi-document version switching,
 undeclared tag-handle errors, YAML 1.3 rejection, document-start block-scalar
 rejection, bare-document-stream rejection, and directive-looking flow-content
-rejection. The Rust-vs-Psych policy manifest now gates all 45 pinned cases against this crate's
+rejection. The Rust-vs-Psych policy manifest now gates all 46 pinned cases against this crate's
 chosen default, YAML 1.1, directive-driven, event, or lossless entrypoint,
 checks the Psych input SHA-256 digests against the Rust comparison inputs, and
 requires intentional divergences to link back to migration-impact records. The
-Psych/libyaml coverage ledger keeps those 45 cases grouped into eight behavior
-families and two tracked gaps so the remaining YAML 1.1/libyaml work is
+Psych/libyaml coverage ledger keeps those 46 cases grouped into eight behavior
+families and one tracked gap so the remaining YAML 1.1/libyaml work is
 auditable rather than implicit.
 This crate keeps alias identity in the lossless graph surface, not semantic
 `Node` or `Value` trees. `graph_identity` now also compares

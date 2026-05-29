@@ -19,7 +19,8 @@ Notable completed release-candidate behavior:
   `!!seq`, `!!map`, and `!!value` retain tagged payloads in `Node`/`Value` and
   support typed Serde reads for set-like targets, ordered pair sequences,
   `!!omap` map targets, duplicate-preserving `!!pairs` pair sequences, sequence
-  targets, map/struct targets, and scalar `!!value` reads.
+  targets, map/struct targets, scalar `!!value` reads, and custom `%TAG`
+  handles that resolve to those YAML core tags.
 - The migration harness records YAML 1.1 scalar construction as an explicit
   call-site choice, including the default decimal treatment of `0123` versus
   YAML 1.1 octal interpretation under `LoadOptions`.
@@ -95,8 +96,8 @@ Notable completed release-candidate behavior:
   an explicit `LosslessStream` contract split, per-case input digests, error
   locations where Psych exposes them, and first-class alias
   redefinition/recursive identity probes as deliberate compatibility decisions.
-- A Psych/libyaml coverage ledger now groups the 45 pinned probe cases into
-  eight behavior families and tracks two explicit next-probe gaps, keeping
+- A Psych/libyaml coverage ledger now groups the 46 pinned probe cases into
+  eight behavior families and tracks one explicit next-probe gap, keeping
   YAML 1.1/libyaml scope auditable without claiming blanket compatibility.
 - `TaggedValue` now implements owned and borrowed Serde deserializer support
   for direct enum and `IgnoredAny` reads, matching the package-alias

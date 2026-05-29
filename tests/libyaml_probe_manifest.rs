@@ -1,6 +1,7 @@
+use serde::Deserialize;
 use serde_json::Value as Json;
 use sha2::{Digest, Sha256};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -33,6 +34,7 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "alias-graph-identity",
         "explicit-core-tags",
         "yaml11-collection-tags",
+        "yaml11-custom-handle-collection-tags",
         "yaml11-set-non-null-payload",
         "yaml11-omap-non-singleton-entry",
         "yaml11-pairs-scalar-entry",
@@ -65,7 +67,7 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_eq!(artifact["libyaml"], "0.2.1");
 
     let cases = artifact["cases"].as_array().expect("probe cases array");
-    assert_eq!(cases.len(), 45);
+    assert_eq!(cases.len(), 46);
 
     let expected_ids = BTreeSet::from([
         "adjacent-flow-mapping-scalars",
@@ -106,6 +108,7 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "yaml-version-directive-schema",
         "yaml11-alias-key-collision",
         "yaml11-collection-tags",
+        "yaml11-custom-handle-collection-tags",
         "yaml11-omap-non-singleton-entry",
         "yaml11-pairs-scalar-entry",
         "yaml11-signed-zero-key-collision",
@@ -191,6 +194,17 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_case_summary_contains(&artifact, "yaml11-collection-tags", "Psych::Set");
     assert_case_summary_contains(&artifact, "yaml11-collection-tags", "Psych::Omap");
     assert_case_summary_contains(&artifact, "yaml11-collection-tags", "repeat");
+    assert_case_summary_contains(
+        &artifact,
+        "yaml11-custom-handle-collection-tags",
+        "Psych::Set",
+    );
+    assert_case_summary_contains(
+        &artifact,
+        "yaml11-custom-handle-collection-tags",
+        "Psych::Omap",
+    );
+    assert_case_summary_contains(&artifact, "yaml11-custom-handle-collection-tags", "limit");
     assert_case_summary_contains(&artifact, "yaml11-set-non-null-payload", "Psych::Set");
     assert_case_summary_contains(&artifact, "yaml11-set-non-null-payload", "TrueClass");
     assert_case_summary_contains(&artifact, "yaml11-omap-non-singleton-entry", "Psych::Omap");
@@ -518,7 +532,7 @@ fn psych_libyaml_probe_coverage_ledger_groups_all_pinned_cases() {
         coverage["tracked_gap_count"].as_integer(),
         Some(gaps.len() as i64),
     );
-    assert_eq!(gaps.len(), 2);
+    assert_eq!(gaps.len(), 1);
     let mut gap_ids = BTreeSet::new();
     for gap in gaps {
         let id = toml_str(gap, "id");
@@ -552,6 +566,16 @@ struct RustProbe {
     output: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct ProbeCollectionBundle {
+    set: BTreeSet<String>,
+    omap: BTreeMap<String, i64>,
+    pairs: Vec<(String, i64)>,
+    seq: Vec<i64>,
+    map: BTreeMap<String, i64>,
+    value: String,
+}
+
 fn run_rust_probe_case(case: &Toml) -> RustProbe {
     let input = case_input(case);
     match toml_str(case, "rust_entrypoint") {
@@ -579,6 +603,9 @@ fn run_rust_probe_case(case: &Toml) -> RustProbe {
         "typed-string-i64-pairs" => rust_probe_from_result(
             yaml::from_str::<Vec<(String, i64)>>(&input).map(|value| format!("{value:#?}")),
         ),
+        "typed-collection-bundle" => rust_probe_from_result(
+            yaml::from_str::<ProbeCollectionBundle>(&input).map(format_probe_collection_bundle),
+        ),
         "events" => {
             rust_probe_from_result(yaml::parse_events(&input).map(|events| format!("{events:#?}")))
         }
@@ -587,6 +614,16 @@ fn run_rust_probe_case(case: &Toml) -> RustProbe {
         ),
         other => panic!("unknown Rust probe entrypoint {other}"),
     }
+}
+
+fn format_probe_collection_bundle(value: ProbeCollectionBundle) -> String {
+    assert!(value.set.contains("admin"));
+    assert_eq!(value.omap.get("first"), Some(&1));
+    assert_eq!(value.pairs.first(), Some(&("repeat".to_string(), 1)));
+    assert_eq!(value.seq, vec![1, 2]);
+    assert_eq!(value.map.get("limit"), Some(&10));
+    assert_eq!(value.value, "=");
+    format!("{value:#?}")
 }
 
 fn rust_probe_from_result(result: yaml::Result<String>) -> RustProbe {

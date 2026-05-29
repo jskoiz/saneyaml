@@ -1866,6 +1866,171 @@
       "input_bytes": 113
     },
     {
+      "id": "yaml11-custom-handle-collection-tags",
+      "record": "tests/fixtures/divergences/records/yaml11-collection-tags.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "set"
+            },
+            "value": {
+              "class": "Psych::Set",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "admin"
+                  },
+                  "value": {
+                    "class": "NilClass",
+                    "value": null
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "operator"
+                  },
+                  "value": {
+                    "class": "NilClass",
+                    "value": null
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "omap"
+            },
+            "value": {
+              "class": "Psych::Omap",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "first"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "1"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "second"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "2"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "pairs"
+            },
+            "value": {
+              "class": "Array",
+              "items": [
+                {
+                  "class": "Hash",
+                  "entries": [
+                    {
+                      "key": {
+                        "class": "String",
+                        "value": "repeat"
+                      },
+                      "value": {
+                        "class": "Integer",
+                        "value": "1"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "class": "Hash",
+                  "entries": [
+                    {
+                      "key": {
+                        "class": "String",
+                        "value": "repeat"
+                      },
+                      "value": {
+                        "class": "Integer",
+                        "value": "2"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "seq"
+            },
+            "value": {
+              "class": "Array",
+              "items": [
+                {
+                  "class": "Integer",
+                  "value": "1"
+                },
+                {
+                  "class": "Integer",
+                  "value": "2"
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "map"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "limit"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "10"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "value"
+            },
+            "value": {
+              "class": "String",
+              "value": "="
+            }
+          }
+        ]
+      },
+      "input_sha256": "f8bfcd21b6eb65b1a5edb5273992e18d5b18cd3af43bc56cae61f6644c5c410e",
+      "input_bytes": 218
+    },
+    {
       "id": "yaml11-set-non-null-payload",
       "record": "tests/fixtures/divergences/records/yaml11-collection-tags.toml",
       "status": "ok",

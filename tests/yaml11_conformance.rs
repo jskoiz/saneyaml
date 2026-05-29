@@ -32,6 +32,16 @@ struct ResolvedBundle {
     pairs: Vec<(String, i64)>,
 }
 
+#[derive(Debug, Deserialize, PartialEq)]
+struct CustomHandleBundle {
+    set: BTreeSet<String>,
+    omap: BTreeMap<String, i64>,
+    pairs: Vec<(String, i64)>,
+    seq: Vec<i64>,
+    map: BTreeMap<String, i64>,
+    value: String,
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 struct LegacyMigrationPack {
     flags: LegacyFlags,
@@ -182,7 +192,7 @@ const LEGACY_DUPLICATE_KEY_FIXTURES: &[LegacyDuplicateKeyFixture] = &[
 #[test]
 fn yaml11_conformance_manifest_is_complete() {
     let manifest = manifest();
-    assert_eq!(manifest.case.len(), 27);
+    assert_eq!(manifest.case.len(), 28);
     let manifest_paths = manifest
         .case
         .iter()
@@ -282,6 +292,42 @@ fn yaml11_collection_tags_deserialize_to_typed_rust_collections() {
                     bundle.pairs,
                     vec![("same".to_string(), 1), ("same".to_string(), 2)]
                 );
+            }
+            "custom-handle-tags" => {
+                let bundle: CustomHandleBundle =
+                    yaml::from_str(&source).expect("custom %TAG bundle");
+                assert_eq!(
+                    bundle.set,
+                    BTreeSet::from(["admin".to_string(), "operator".to_string()])
+                );
+                assert_eq!(
+                    bundle.omap,
+                    BTreeMap::from([("first".to_string(), 1), ("second".to_string(), 2)])
+                );
+                assert_eq!(
+                    bundle.pairs,
+                    vec![("repeat".to_string(), 1), ("repeat".to_string(), 2)]
+                );
+                assert_eq!(bundle.seq, vec![1, 2]);
+                assert_eq!(bundle.map, BTreeMap::from([("limit".to_string(), 10)]));
+                assert_eq!(bundle.value, "=");
+
+                let value: Value = yaml::from_str(&source).expect("custom %TAG retained value");
+                for (key, suffix, shape) in [
+                    ("set", "set", "mapping"),
+                    ("omap", "omap", "sequence"),
+                    ("pairs", "pairs", "sequence"),
+                    ("seq", "seq", "sequence"),
+                    ("map", "map", "mapping"),
+                    ("value", "value", "scalar"),
+                ] {
+                    assert_tagged_child_payload(
+                        &value,
+                        key,
+                        yaml::Tag::new(format!("!<tag:yaml.org,2002:{suffix}>")),
+                        shape,
+                    );
+                }
             }
             other => panic!("unhandled accepted YAML 1.1 collection case {other}"),
         }

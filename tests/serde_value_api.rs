@@ -3505,10 +3505,17 @@ fn serde_api_yaml11_collection_tags_have_typed_read_contract() {
         resolved_pairs: Vec<(String, i64)>,
         resolved_seq: Vec<String>,
         resolved_map: BTreeMap<String, i64>,
+        custom_set: BTreeSet<String>,
+        custom_omap: BTreeMap<String, i64>,
+        custom_pairs: Vec<(String, i64)>,
+        custom_seq: Vec<i64>,
+        custom_map: BTreeMap<String, i64>,
+        custom_value: String,
     }
 
     let input = "\
 %TAG !yaml! tag:yaml.org,2002:
+%TAG !y! tag:yaml.org,2002:
 ---
 set: !!set
   ? alpha
@@ -3529,6 +3536,12 @@ resolved_omap: !yaml!omap [{left: 1}, {right: 2}]
 resolved_pairs: !yaml!pairs [{same: 1}, {same: 2}]
 resolved_seq: !yaml!seq [left, right]
 resolved_map: !yaml!map {retries: 3}
+custom_set: !y!set {admin: null, operator: null}
+custom_omap: !y!omap [{first: 1}, {second: 2}]
+custom_pairs: !y!pairs [{repeat: 1}, {repeat: 2}]
+custom_seq: !y!seq [1, 2]
+custom_map: !y!map {limit: 10}
+custom_value: !y!value =
 ";
     let expected = CollectionTags {
         set: BTreeSet::from(["alpha".to_string(), "beta".to_string()]),
@@ -3544,6 +3557,12 @@ resolved_map: !yaml!map {retries: 3}
         resolved_pairs: vec![("same".to_string(), 1), ("same".to_string(), 2)],
         resolved_seq: vec!["left".to_string(), "right".to_string()],
         resolved_map: BTreeMap::from([("retries".to_string(), 3)]),
+        custom_set: BTreeSet::from(["admin".to_string(), "operator".to_string()]),
+        custom_omap: BTreeMap::from([("first".to_string(), 1), ("second".to_string(), 2)]),
+        custom_pairs: vec![("repeat".to_string(), 1), ("repeat".to_string(), 2)],
+        custom_seq: vec![1, 2],
+        custom_map: BTreeMap::from([("limit".to_string(), 10)]),
+        custom_value: "=".to_string(),
     };
 
     let typed: CollectionTags = yaml::from_str(input).expect("YAML 1.1 collection tags");
@@ -3632,6 +3651,48 @@ resolved_map: !yaml!map {retries: 3}
     assert_eq!(resolved_map.tag.handle, "!");
     assert_eq!(resolved_map.tag.suffix, "tag:yaml.org,2002:map");
     assert!(matches!(resolved_map.value, Value::Mapping(_)));
+
+    let custom_set = value["custom_set"]
+        .as_tagged()
+        .expect("custom set tag is retained");
+    assert_eq!(custom_set.tag.handle, "!");
+    assert_eq!(custom_set.tag.suffix, "tag:yaml.org,2002:set");
+    assert!(matches!(custom_set.value, Value::Mapping(_)));
+
+    let custom_omap = value["custom_omap"]
+        .as_tagged()
+        .expect("custom omap tag is retained");
+    assert_eq!(custom_omap.tag.handle, "!");
+    assert_eq!(custom_omap.tag.suffix, "tag:yaml.org,2002:omap");
+    assert!(matches!(custom_omap.value, Value::Sequence(_)));
+
+    let custom_pairs = value["custom_pairs"]
+        .as_tagged()
+        .expect("custom pairs tag is retained");
+    assert_eq!(custom_pairs.tag.handle, "!");
+    assert_eq!(custom_pairs.tag.suffix, "tag:yaml.org,2002:pairs");
+    assert!(matches!(custom_pairs.value, Value::Sequence(_)));
+
+    let custom_seq = value["custom_seq"]
+        .as_tagged()
+        .expect("custom seq tag is retained");
+    assert_eq!(custom_seq.tag.handle, "!");
+    assert_eq!(custom_seq.tag.suffix, "tag:yaml.org,2002:seq");
+    assert!(matches!(custom_seq.value, Value::Sequence(_)));
+
+    let custom_map = value["custom_map"]
+        .as_tagged()
+        .expect("custom map tag is retained");
+    assert_eq!(custom_map.tag.handle, "!");
+    assert_eq!(custom_map.tag.suffix, "tag:yaml.org,2002:map");
+    assert!(matches!(custom_map.value, Value::Mapping(_)));
+
+    let custom_value = value["custom_value"]
+        .as_tagged()
+        .expect("custom value tag is retained");
+    assert_eq!(custom_value.tag.handle, "!");
+    assert_eq!(custom_value.tag.suffix, "tag:yaml.org,2002:value");
+    assert_eq!(custom_value.value.as_str(), Some("="));
 }
 
 #[test]

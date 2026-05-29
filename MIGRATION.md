@@ -291,9 +291,10 @@ testing each adopter's own YAML corpus.
   reads understand `!!set` as set-like sequence targets from mapping keys,
   `!!omap` as ordered pair sequences or map targets, `!!pairs` as pair
   sequences that preserve duplicate keys, `!!seq` as sequence targets, `!!map`
-  as map/struct targets, and `!!value` as the scalar value. Non-null `!!set`
-  entry values and non-singleton `!!omap`/`!!pairs` entries are rejected for
-  those typed reads instead of being silently dropped or flattened.
+  as map/struct targets, and `!!value` as the scalar value, including custom
+  `%TAG` handles that resolve to those YAML core tags. Non-null `!!set` entry
+  values and non-singleton `!!omap`/`!!pairs` entries are rejected for those
+  typed reads instead of being silently dropped or flattened.
 - Untagged and explicit `!!merge` / canonical merge-tag keys are expanded by
   default in loaded trees, `from_value`, and direct owned/borrowed `Value`
   Serde reads. `Value::apply_merge()` remains available as an explicit

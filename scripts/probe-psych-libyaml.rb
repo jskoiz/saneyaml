@@ -237,6 +237,11 @@ CASES = [
     YAML
   },
   {
+    id: "yaml11-custom-handle-collection-tags",
+    record: "tests/fixtures/divergences/records/yaml11-collection-tags.toml",
+    yaml: fixture_yaml("tests/fixtures/yaml11-conformance/custom-handle-tags.yaml")
+  },
+  {
     id: "yaml11-set-non-null-payload",
     record: "tests/fixtures/divergences/records/yaml11-collection-tags.toml",
     yaml: fixture_yaml("tests/fixtures/yaml11-conformance/set-rejects-non-null-values.yaml")

@@ -312,6 +312,17 @@ pairs: !!pairs
 rust_contains = ["Tagged", "set", "omap", "pairs"]
 
 [[case]]
+id = "yaml11-custom-handle-collection-tags"
+record = "tests/fixtures/divergences/records/yaml11-collection-tags.toml"
+psych_status = "ok"
+rust_entrypoint = "typed-collection-bundle"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "Custom %TAG handles resolving to YAML 1.1 collection and structural tags drive typed Rust reads, while retained Value/Node trees keep resolved tag metadata instead of constructing Psych object classes."
+fixture = "tests/fixtures/yaml11-conformance/custom-handle-tags.yaml"
+rust_contains = ["admin", "operator", "first", "repeat", "limit"]
+
+[[case]]
 id = "yaml11-set-non-null-payload"
 record = "tests/fixtures/divergences/records/yaml11-collection-tags.toml"
 psych_status = "ok"

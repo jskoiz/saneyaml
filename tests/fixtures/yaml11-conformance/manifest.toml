@@ -34,6 +34,13 @@ tag = "%TAG !yaml! tag:yaml.org,2002:"
 expected = "accept"
 
 [[case]]
+id = "custom-handle-tags"
+path = "custom-handle-tags.yaml"
+kind = "bundle"
+tag = "%TAG !y! tag:yaml.org,2002:"
+expected = "accept"
+
+[[case]]
 id = "core-structural-tags"
 path = "core-structural-tags.yaml"
 kind = "core-structural-tags"

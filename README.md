@@ -22,7 +22,8 @@ The first milestone focuses on:
   tags are recognized in both short `!!int` and canonical
   `tag:yaml.org,2002:int` forms, including typed Serde reads for YAML 1.1
   `!!set`, `!!omap`, `!!pairs`, `!!seq`, `!!map`, and `!!value` tags while
-  retaining the tags in `Node`/`Value`; directive-driven fixtures cover
+  retaining the tags in `Node`/`Value`; custom `%TAG` handles that resolve to
+  those YAML core tags are covered too. Directive-driven fixtures cover
   flow-style scalar collections and keys, and default loading keeps the YAML
   1.2-oriented decimal treatment of leading-zero values unless YAML 1.1 mode is
   selected.

@@ -50,6 +50,9 @@ Notable completed release-candidate behavior:
   untouched bytes.
 - Real-world lossless replay is now manifest-gated for Ansible `!vault` /
   `!unsafe` tags and Kubernetes Helm-style streams and ConfigMap block scalars.
+- Real-world graph coverage now includes an adapted official Compose
+  Specification fragments example with multiple anchors, aliases, and a merge
+  list, plus a manifest audit that detects graph-sensitive fixtures.
 - Lossless source edits and graph identity now have fuzz-corpus replay covering
   scalar, flow mapping, flow sequence replacements, YAML 1.1 merge/comment
   streams, anchor redefinition, and recursive aliases. Anchor/alias target

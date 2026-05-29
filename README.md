@@ -37,9 +37,10 @@ The first milestone focuses on:
   lines as trivia, represents anchors/aliases with stable graph ids, compares
   those ids against `yaml-rust2` and `saphyr` parser anchor events, and can
   produce validated node and raw source-span edits, insertions, and deletions
-  while preserving untouched bytes. YAML 1.1 merge/comment graph fixtures and
-  real-world Docker Compose anchor cases plus Ansible/Kubernetes lossless
-  replay cases are manifest-gated on this surface.
+  while preserving untouched bytes. YAML 1.1 merge/comment graph fixtures,
+  real-world Docker Compose anchor cases including an adapted official
+  Compose-spec fragment, and Ansible/Kubernetes lossless replay cases are
+  manifest-gated on this surface.
 - Deterministic structural emission with `parse(emit(tree)) == tree` for
   emittable trees; duplicate-effective mapping keys, untagged literal merge
   keys, over-depth trees, and directly nested tags are rejected before output.

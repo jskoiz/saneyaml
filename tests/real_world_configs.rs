@@ -861,6 +861,33 @@ fn rw_parse_docker_compose__polymorphic_service_fields() {
     ));
 }
 
+#[test]
+fn rw_parse_docker_compose__adapted_compose_spec_fragments_expand_merge_list() {
+    let input =
+        include_str!("fixtures/real-world/docker-compose/adapted-compose-spec-fragments.yaml");
+    let value: yaml::Value =
+        yaml::from_str(input).expect("deserialize Compose spec fragments fixture");
+
+    assert_eq!(
+        value["x-environment"]["FOO"].as_str(),
+        Some("BAR"),
+        "extension anchor source is retained as ordinary data"
+    );
+    let environment = &value["services"]["frontend"]["environment"];
+    assert_eq!(environment["FOO"].as_str(), Some("BAR"));
+    assert_eq!(environment["ZOT"].as_str(), Some("QUIX"));
+    assert_eq!(environment["KEY"].as_str(), Some("VALUE"));
+    assert_eq!(environment["YET_ANOTHER"].as_str(), Some("VARIABLE"));
+
+    let stream = yaml::parse_lossless(input).expect("lossless graph for Compose spec fragments");
+    let aliases = stream
+        .aliases()
+        .iter()
+        .map(|alias| alias.name())
+        .collect::<Vec<_>>();
+    assert_eq!(aliases, ["default-environment", "keys"]);
+}
+
 #[derive(Debug, Deserialize)]
 struct Deployment {
     #[serde(rename = "apiVersion")]

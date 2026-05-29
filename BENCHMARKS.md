@@ -11,7 +11,7 @@ cargo run --release --example real_world_benchmark
 Environment:
 
 - Workspace: `/Users/jk/Desktop/yaml`
-- Fixture set: 26 files / 32 YAML documents / 19,450 bytes
+- Fixture set: 27 files / 33 YAML documents / 19,670 bytes
 - Iterations: controlled by `YAML_BENCH_ITERS`, default `200`
 
 Latest captured run: 2026-05-28 on the local `release` profile with
@@ -19,11 +19,11 @@ Latest captured run: 2026-05-28 on the local `release` profile with
 
 | parser/load path | iterations | bytes per iteration | docs per iteration | elapsed ms | ns/byte |
 |---|---:|---:|---:|---:|---:|
-| `yaml::parse_documents` | 200 | 19,450 | 32 | 103.361 | 26.57 |
-| `yaml::from_documents_str::<Value>` | 200 | 19,450 | 32 | 114.497 | 29.43 |
-| `serde_yaml::Value` stream | 200 | 19,450 | 32 | 105.411 | 27.10 |
-| `yaml_rust2::YamlLoader` | 200 | 19,450 | 32 | 87.613 | 22.52 |
-| `saphyr::Yaml::load_from_str` | 200 | 19,450 | 32 | 81.979 | 21.07 |
+| `yaml::parse_documents` | 200 | 19,670 | 33 | 102.556 | 26.07 |
+| `yaml::from_documents_str::<Value>` | 200 | 19,670 | 33 | 112.836 | 28.68 |
+| `serde_yaml::Value` stream | 200 | 19,670 | 33 | 105.522 | 26.82 |
+| `yaml_rust2::YamlLoader` | 200 | 19,670 | 33 | 87.585 | 22.26 |
+| `saphyr::Yaml::load_from_str` | 200 | 19,670 | 33 | 78.991 | 20.08 |
 
 Interpretation: this crate is in the same order of magnitude as the current
 Serde migration baseline for the selected config fixtures. `yaml-rust2` and

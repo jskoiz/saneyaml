@@ -98,6 +98,17 @@ expected_docs = 1
 gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance", "lossless-graph"]
 
 [[fixture]]
+path = "docker-compose/adapted-compose-spec-fragments.yaml"
+domain = "docker-compose"
+source_type = "adapted"
+source = "Adapted from Compose Specification fragments/extension examples in https://github.com/compose-spec/compose-spec/blob/main/spec.md"
+version = "compose-spec/compose-spec spec.md at main, fragments and extension examples"
+license = "Apache-2.0; Compose Specification is licensed under Apache-2.0."
+reduction = "Official Compose fragments reduced to an anchor, alias, and merge-list environment example."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "parser-properties", "shared-reference-acceptance", "lossless-graph"]
+
+[[fixture]]
 path = "kubernetes/deployment.yaml"
 domain = "kubernetes"
 source_type = "synthetic"

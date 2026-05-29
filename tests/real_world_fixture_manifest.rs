@@ -3,6 +3,7 @@ use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
+use yaml::Event;
 
 const FIXTURE_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/real-world");
 const SOURCE: &str = include_str!("fixtures/real-world/SOURCE.toml");
@@ -29,7 +30,7 @@ struct FixtureRecord {
 fn real_world_fixture_manifest_covers_files_counts_and_reference_gates() {
     let manifest: FixtureManifest =
         toml::from_str(SOURCE).expect("real-world fixture source manifest parses");
-    assert_eq!(manifest.fixture.len(), 26);
+    assert_eq!(manifest.fixture.len(), 27);
 
     let root = Path::new(FIXTURE_ROOT);
     let manifest_paths: BTreeSet<_> = manifest
@@ -42,6 +43,8 @@ fn real_world_fixture_manifest_covers_files_counts_and_reference_gates() {
 
     let mut domain_counts = BTreeMap::new();
     let mut source_type_counts = BTreeMap::new();
+    let mut graph_sensitive_paths = BTreeSet::new();
+    let mut lossless_graph_paths = BTreeSet::new();
     let mut total_docs = 0usize;
     for fixture in &manifest.fixture {
         assert_metadata_is_complete(fixture);
@@ -65,14 +68,20 @@ fn real_world_fixture_manifest_covers_files_counts_and_reference_gates() {
             .or_insert(0usize) += 1;
 
         assert_shared_reference_acceptance(fixture, &input);
+        if fixture.gates.iter().any(|gate| gate == "lossless-graph") {
+            lossless_graph_paths.insert(fixture.path.clone());
+        }
+        if fixture_is_graph_sensitive(&input) {
+            graph_sensitive_paths.insert(fixture.path.clone());
+        }
     }
 
-    assert_eq!(total_docs, 32);
+    assert_eq!(total_docs, 33);
     assert_eq!(
         domain_counts,
         BTreeMap::from([
             ("ansible", 3),
-            ("docker-compose", 5),
+            ("docker-compose", 6),
             ("github-actions", 4),
             ("helm", 3),
             ("kubernetes", 6),
@@ -107,6 +116,18 @@ fn real_world_fixture_manifest_covers_files_counts_and_reference_gates() {
             "real-world fixture registry must include non-synthetic provenance for {required}"
         );
     }
+    assert_eq!(
+        lossless_graph_paths, graph_sensitive_paths,
+        "graph-sensitive real-world fixtures must carry lossless-graph gates",
+    );
+    assert_eq!(
+        lossless_graph_paths,
+        BTreeSet::from([
+            "docker-compose/adapted-compose-spec-fragments.yaml".to_owned(),
+            "docker-compose/compose-anchors.yaml".to_owned(),
+            "docker-compose/compose-polymorphic.yaml".to_owned(),
+        ])
+    );
 }
 
 fn assert_metadata_is_complete(fixture: &FixtureRecord) {
@@ -157,7 +178,13 @@ fn assert_metadata_is_complete(fixture: &FixtureRecord) {
         "parser-properties",
         "shared-reference-acceptance",
     ] {
-        if required == "tree-parity" && fixture.path == "docker-compose/compose-anchors.yaml" {
+        if required == "tree-parity"
+            && matches!(
+                fixture.path.as_str(),
+                "docker-compose/compose-anchors.yaml"
+                    | "docker-compose/adapted-compose-spec-fragments.yaml"
+            )
+        {
             assert!(
                 fixture.reduction.contains("anchor") || fixture.reduction.contains("merge"),
                 "{} must explain why loaded-tree parity is intentionally excluded",
@@ -218,6 +245,37 @@ fn assert_shared_reference_acceptance(fixture: &FixtureRecord, input: &str) {
         "saphyr document count for {}",
         fixture.path
     );
+}
+
+fn fixture_is_graph_sensitive(input: &str) -> bool {
+    yaml::parse_events(input)
+        .expect("real-world fixture raw events parse")
+        .iter()
+        .any(|event| event_is_graph_sensitive(input, event))
+}
+
+fn event_is_graph_sensitive(input: &str, event: &Event) -> bool {
+    match event {
+        Event::Alias { .. } => true,
+        Event::SequenceStart { meta, .. } | Event::MappingStart { meta, .. } => {
+            meta.anchor.is_some()
+        }
+        Event::Scalar {
+            value, meta, span, ..
+        } => {
+            meta.anchor.is_some()
+                || (value == "<<"
+                    && input
+                        .get(span.start..span.end)
+                        .is_some_and(|source| source.starts_with("<<")))
+        }
+        Event::StreamStart
+        | Event::StreamEnd
+        | Event::DocumentStart { .. }
+        | Event::DocumentEnd { .. }
+        | Event::SequenceEnd { .. }
+        | Event::MappingEnd { .. } => false,
+    }
 }
 
 fn yaml_fixture_paths(root: &Path) -> BTreeSet<String> {

@@ -71,6 +71,13 @@ const FIXTURES: &[Fixture] = &[
         docs: 1,
     },
     Fixture {
+        path: "docker-compose/adapted-compose-spec-fragments.yaml",
+        input: include_str!(
+            "../tests/fixtures/real-world/docker-compose/adapted-compose-spec-fragments.yaml"
+        ),
+        docs: 1,
+    },
+    Fixture {
         path: "kubernetes/deployment.yaml",
         input: include_str!("../tests/fixtures/real-world/kubernetes/deployment.yaml"),
         docs: 1,

@@ -1,0 +1,11 @@
+x-environment: &default-environment
+  FOO: BAR
+  ZOT: QUIX
+x-keys: &keys
+  KEY: VALUE
+services:
+  frontend:
+    image: example/webapp
+    environment:
+      << : [*default-environment, *keys]
+      YET_ANOTHER: VARIABLE

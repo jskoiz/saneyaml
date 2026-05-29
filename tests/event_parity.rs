@@ -622,6 +622,13 @@ const CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "docker_compose_adapted_compose_spec_fragments",
+        input: include_str!(
+            "fixtures/real-world/docker-compose/adapted-compose-spec-fragments.yaml"
+        ),
+        docs: 1,
+    },
+    Case {
         name: "docker_compose_platform_resources",
         input: include_str!("fixtures/real-world/docker-compose/compose-platform-resources.yaml"),
         docs: 1,

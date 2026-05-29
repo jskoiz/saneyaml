@@ -301,6 +301,7 @@ fn real_world_lossless_graph_manifest_cases_match_reference_parser_events() {
     assert_eq!(
         paths,
         BTreeSet::from([
+            "docker-compose/adapted-compose-spec-fragments.yaml",
             "docker-compose/compose-anchors.yaml",
             "docker-compose/compose-polymorphic.yaml",
         ])

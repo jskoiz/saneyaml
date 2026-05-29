@@ -289,7 +289,9 @@ This crate keeps alias identity in the lossless graph surface, not semantic
 `yaml-rust2` and `saphyr` parser anchor events for anchor redefinition,
 recursive aliases, document anchor resets, merge aliases, YAML test-suite
 aliases, manifest-owned real-world Docker Compose anchors, and YAML 1.1
-merge/comment graph fixtures. `real_world_lossless` also gates byte-stable
+merge/comment graph fixtures. The real-world graph gate now includes an
+adapted official Compose Specification fragment that uses multiple anchors,
+aliases, and a merge list. `real_world_lossless` also gates byte-stable
 `LosslessStream` replay for Ansible tags, Kubernetes Helm-style explicit
 document boundaries/comments/empty documents, and ConfigMap literal block
 scalar data.
@@ -507,7 +509,8 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   aliases, merge-key syntax, and polymorphic service fields such as
   environment maps/lists, healthcheck command strings/lists, env files,
   profiles, depends_on condition maps, typed volume mounts, service platforms,
-  deploy resource limits/reservations, and a pinned upstream
+  deploy resource limits/reservations, an adapted official Compose Specification
+  fragments example with anchors, aliases, and a merge list, and a pinned upstream
   `docker/awesome-compose` nginx/flask/mysql snapshot with secrets, networks,
   build forms, and list/map depends_on shapes
 - Kubernetes multi-document manifests, including Helm-rendered streams with
@@ -522,7 +525,7 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
 - Ansible-style playbooks, including `!vault` and `!unsafe` tagged values and
   raw event coverage for tag/style metadata
 - the real-world fixture registry in `tests/fixtures/real-world/SOURCE.toml`,
-  currently 26 files and 32 YAML documents, with per-fixture domain, source
+  currently 27 files and 33 YAML documents, with per-fixture domain, source
   type, version surface, license/redaction note, reduction note, expected
   document count, and gate coverage; every registered domain must include
   non-synthetic upstream/adapted provenance, currently covering GitHub Actions,
@@ -537,6 +540,8 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
 - manifest-owned lossless replay checks for Ansible tagged values and
   Kubernetes fixtures with explicit document boundaries, empty documents,
   comments, and literal block-scalar data
+- content-aware manifest checks that require every real-world fixture with
+  anchors, aliases, or raw merge keys to carry a `lossless-graph` gate
 - pinned external downstream replay fixtures from direct `serde_yaml` users:
   Pingora typed server/proxy configs, rust-i18n locale maps, cfn-guard
   CloudFormation/rule-test YAML that exercises `serde_yaml::Value` plus

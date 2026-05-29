@@ -78,6 +78,46 @@ fn rw_events_docker_compose__anchors_aliases_and_literal_merge_keys_are_raw() {
 }
 
 #[test]
+fn rw_events_docker_compose__adapted_spec_fragments_keep_anchor_graph_raw() {
+    let input =
+        include_str!("fixtures/real-world/docker-compose/adapted-compose-spec-fragments.yaml");
+    let events = parse_events(input).expect("Compose spec fragment events");
+
+    let anchors = events
+        .iter()
+        .filter_map(|event| match event {
+            Event::MappingStart { meta, .. } => meta
+                .anchor
+                .as_ref()
+                .map(|anchor| (anchor.name.as_str(), anchor.span.line)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(anchors, [("default-environment", 1), ("keys", 4)]);
+
+    let aliases = events
+        .iter()
+        .filter_map(|event| match event {
+            Event::Alias { anchor } => Some((anchor.name.as_str(), anchor.span.line)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(aliases, [("default-environment", 10), ("keys", 10)]);
+
+    assert!(events.iter().any(|event| {
+        matches!(
+            event,
+            Event::Scalar {
+                value,
+                style: ScalarStyle::Plain,
+                span,
+                ..
+            } if value == "<<" && span.line == 10
+        )
+    }));
+}
+
+#[test]
 fn rw_events_ansible__vault_and_unsafe_tags_preserve_tags_and_styles() {
     let input = include_str!("fixtures/real-world/ansible/vault-and-unsafe-tags.yaml");
     let events = parse_events(input).expect("ansible events");

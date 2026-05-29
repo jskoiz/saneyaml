@@ -38,10 +38,11 @@ The first milestone focuses on:
   those ids against `yaml-rust2` and `saphyr` parser anchor events for
   manifest-owned selected YAML-suite anchor/alias cases, real-world Compose
   graph fixtures, and YAML 1.1 graph fixtures, and can produce validated node
-  and raw source-span edits, insertions, and deletions while preserving
-  untouched bytes. Real-world Docker Compose anchor cases including an adapted
-  official Compose-spec fragment, YAML 1.1 merge/comment graph fixtures, and
-  Ansible/Kubernetes lossless replay cases are manifest-gated on this surface.
+  and raw source-span edits, block mapping entry value/insert/delete edits, and
+  raw insertions/deletions while preserving untouched bytes. Real-world Docker
+  Compose anchor cases including an adapted official Compose-spec fragment,
+  YAML 1.1 merge/comment graph fixtures, and Ansible/Kubernetes lossless replay
+  cases are manifest-gated on this surface.
 - Deterministic structural emission with `parse(emit(tree)) == tree` for
   emittable trees; duplicate-effective mapping keys, untagged literal merge
   keys, over-depth trees, and directly nested tags are rejected before output.
@@ -82,7 +83,7 @@ Intentional first-milestone non-goals:
   recovery, YAML 1.1 lossless graph parser-event cross-checks, and an
   eight-family Psych/libyaml coverage ledger are covered, but broader
   libyaml-era behavior and schema/API completeness decisions still remain.
-- Full structural lossless editing beyond validated source-span editing,
+- Full arbitrary structural lossless editing beyond block mapping entry helpers,
   directive-preserving structural emission, and graph identity in the semantic
   `Node`/`Value` loaders.
 - Full upstream YAML test-suite coverage is not claimed yet; the pinned

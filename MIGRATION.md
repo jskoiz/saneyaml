@@ -310,7 +310,7 @@ testing each adopter's own YAML corpus.
 | Default merge expansion | Parsed `Node`/`Value`/Serde reads expand untagged and explicit merge-tag `<<` keys by default. Code that inspected merge syntax should switch to `parse_events` or `LosslessStream`; explicit `!!str <<` and custom-tagged `<<` keys remain literal. |
 | YAML 1.1 compatibility | Legacy scalar, collection, and merge-edge recovery behavior is available through explicit schema/tag paths. Default entrypoints stay YAML 1.2-oriented, so corpora that require YAML 1.1 typing or Psych-style repeated/invalid merge recovery need opt-in tests. |
 | Alias graph identity | Semantic `Node`/`Value` trees still clone acyclic aliases. Graph-sensitive callers should use `LosslessStream`; its anchor definitions and alias targets are checked against reference parser anchor events for redefinition, recursive, document-reset, merge, YAML 1.1 merge/comment graph fixtures, manifest-owned selected YAML-suite anchor/alias cases, and manifest-owned real-world Docker Compose anchor cases including an adapted official Compose Specification fragment. |
-| Lossless formatting | `LosslessStream` preserves source, comments, trivia, directives, anchors, aliases, tags, and scalar spelling for replay/inspection. `LosslessEdit` can replace retained node or raw source spans, insert source, delete source spans, and validate the final YAML while preserving untouched bytes. Manifest-owned real-world replay now gates Ansible tagged scalars plus Kubernetes streams and block scalar fixtures. |
+| Lossless formatting | `LosslessStream` preserves source, comments, trivia, directives, anchors, aliases, tags, and scalar spelling for replay/inspection. `LosslessEdit` can replace retained node or raw source spans, update scalar-keyed mapping values, insert or delete block mapping entries, insert source, delete source spans, and validate the final YAML while preserving untouched bytes. Manifest-owned real-world replay now gates Ansible tagged scalars plus Kubernetes streams and block scalar fixtures. |
 | Parser acceptance differences | Some YAML 1.2 inputs rejected by libyaml are accepted, and some malformed libyaml-tolerated inputs are rejected. Divergence records now carry per-case migration impact. |
 | Package readiness | The crate remains local-preview only until public name, license, version, and crates.io approval are selected by the user. |
 
@@ -327,7 +327,7 @@ testing each adopter's own YAML corpus.
   and artifact directories before a release candidate.
 - Finish broader YAML 1.1/libyaml compatibility decisions beyond the
   fixture-backed Psych/libyaml merge/tag/graph cross-checks and eight-family
-  Psych/libyaml coverage ledger, full structural lossless formatting/emission
-  beyond source-span editing, and the long-term graph API contract before
-  claiming full YAML compatibility.
+  Psych/libyaml coverage ledger, full arbitrary structural lossless
+  formatting/emission beyond block mapping entry helpers, and the long-term
+  graph API contract before claiming full YAML compatibility.
 - Choose the public package name and final license before publishing.

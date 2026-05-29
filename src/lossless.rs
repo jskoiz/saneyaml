@@ -214,6 +214,45 @@ impl LosslessStream {
         edit.delete_source_span(span)?;
         edit.finish()
     }
+
+    /// Replaces the value source for one scalar-keyed mapping entry.
+    ///
+    /// This is a convenience wrapper around
+    /// [`LosslessEdit::replace_mapping_value_source`].
+    pub fn replace_mapping_value_source(
+        &self,
+        mapping: NodeId,
+        key: &str,
+        replacement: impl Into<String>,
+    ) -> Result<String> {
+        let mut edit = self.edit();
+        edit.replace_mapping_value_source(mapping, key, replacement)?;
+        edit.finish()
+    }
+
+    /// Inserts one complete entry into a block mapping and returns edited YAML.
+    ///
+    /// This is a convenience wrapper around
+    /// [`LosslessEdit::insert_block_mapping_entry_source`].
+    pub fn insert_block_mapping_entry_source(
+        &self,
+        mapping: NodeId,
+        entry_source: impl Into<String>,
+    ) -> Result<String> {
+        let mut edit = self.edit();
+        edit.insert_block_mapping_entry_source(mapping, entry_source)?;
+        edit.finish()
+    }
+
+    /// Deletes one scalar-keyed block mapping entry and returns edited YAML.
+    ///
+    /// This is a convenience wrapper around
+    /// [`LosslessEdit::delete_block_mapping_entry_source`].
+    pub fn delete_block_mapping_entry_source(&self, mapping: NodeId, key: &str) -> Result<String> {
+        let mut edit = self.edit();
+        edit.delete_block_mapping_entry_source(mapping, key)?;
+        edit.finish()
+    }
 }
 
 impl fmt::Display for LosslessStream {
@@ -306,6 +345,110 @@ impl LosslessEdit<'_> {
         self.replace_source_span(span, "")
     }
 
+    /// Replaces the value source for one scalar-keyed mapping entry.
+    ///
+    /// The key is matched against the parser-resolved scalar key text. The
+    /// replacement is raw YAML source for the entry value; untouched source,
+    /// including the key spelling, comments, anchors, tags, and surrounding
+    /// formatting, is kept byte-for-byte.
+    pub fn replace_mapping_value_source(
+        &mut self,
+        mapping: NodeId,
+        key: &str,
+        replacement: impl Into<String>,
+    ) -> Result<&mut Self> {
+        let entry = self.unique_mapping_entry_by_key(mapping, key)?;
+        let value_span = self.checked_node_span(entry.value)?;
+        self.push_replacement(value_span, replacement)
+    }
+
+    /// Inserts one complete mapping entry into a block mapping.
+    ///
+    /// `entry_source` is unindented YAML source that must parse as exactly one
+    /// mapping entry, for example `labels:\n  role: web`. The inserted source is
+    /// indented to match the target block mapping's existing entries, and the
+    /// final stream is reparsed before [`Self::finish`] returns it.
+    pub fn insert_block_mapping_entry_source(
+        &mut self,
+        mapping: NodeId,
+        entry_source: impl Into<String>,
+    ) -> Result<&mut Self> {
+        let mapping = self.mapping_node(mapping)?;
+        let LosslessNodeKind::Mapping { style, entries } = mapping.kind() else {
+            unreachable!("mapping_node only returns mapping nodes");
+        };
+        if *style != CollectionStyle::Block {
+            return Err(Error::new(
+                "structural mapping entry insertion requires a block mapping",
+                Some(mapping.span()),
+            ));
+        }
+        let Some((first_key, _)) = entries.first() else {
+            return Err(Error::new(
+                "structural mapping entry insertion requires a non-empty block mapping",
+                Some(mapping.span()),
+            ));
+        };
+        let Some((_, last_value)) = entries.last() else {
+            unreachable!("entries.first checked non-empty mapping");
+        };
+        let first_key = self
+            .stream
+            .node(*first_key)
+            .ok_or_else(|| Error::new("lossless mapping key id is out of bounds", None))?;
+        let last_value = self
+            .stream
+            .node(*last_value)
+            .ok_or_else(|| Error::new("lossless mapping value id is out of bounds", None))?;
+        let entry_source = entry_source.into();
+        ensure_single_mapping_entry_fragment(&entry_source, mapping.span())?;
+        let indent = line_indent(
+            &self.stream.source,
+            line_start(&self.stream.source, first_key.span().start),
+        );
+        let offset = line_end_including_newline(&self.stream.source, last_value.span().end);
+        let mut insertion = indent_entry_source(&entry_source, indent);
+        if offset == self.stream.source.len() && !self.stream.source.ends_with('\n') {
+            insertion.insert(0, '\n');
+        }
+        self.insert_source(offset, insertion)
+    }
+
+    /// Deletes one scalar-keyed entry from a block mapping.
+    ///
+    /// The deleted span starts at the key's source line and ends after the
+    /// value's last source line, so inline comments and nested block values for
+    /// that entry are removed while unrelated surrounding bytes are preserved.
+    pub fn delete_block_mapping_entry_source(
+        &mut self,
+        mapping: NodeId,
+        key: &str,
+    ) -> Result<&mut Self> {
+        let mapping_node = self.mapping_node(mapping)?;
+        let LosslessNodeKind::Mapping { style, .. } = mapping_node.kind() else {
+            unreachable!("mapping_node only returns mapping nodes");
+        };
+        if *style != CollectionStyle::Block {
+            return Err(Error::new(
+                "structural mapping entry deletion requires a block mapping",
+                Some(mapping_node.span()),
+            ));
+        }
+        let entry = self.unique_mapping_entry_by_key(mapping, key)?;
+        let key_node = self
+            .stream
+            .node(entry.key)
+            .ok_or_else(|| Error::new("lossless mapping key id is out of bounds", None))?;
+        let value_node = self
+            .stream
+            .node(entry.value)
+            .ok_or_else(|| Error::new("lossless mapping value id is out of bounds", None))?;
+        let start = line_start(&self.stream.source, key_node.span().start);
+        let end = line_end_including_newline(&self.stream.source, value_node.span().end);
+        let span = self.stream.source_span(start, end)?;
+        self.delete_source_span(span)
+    }
+
     /// Returns validated edited YAML with untouched source bytes preserved.
     pub fn finish(mut self) -> Result<String> {
         self.replacements
@@ -374,6 +517,50 @@ impl LosslessEdit<'_> {
         Ok(span)
     }
 
+    fn mapping_node(&self, mapping: NodeId) -> Result<&LosslessNode> {
+        let node = self
+            .stream
+            .node(mapping)
+            .ok_or_else(|| Error::new("lossless mapping node id is out of bounds", None))?;
+        if !matches!(node.kind(), LosslessNodeKind::Mapping { .. }) {
+            return Err(Error::new(
+                "lossless structural edit target is not a mapping",
+                Some(node.span()),
+            ));
+        }
+        Ok(node)
+    }
+
+    fn unique_mapping_entry_by_key(&self, mapping: NodeId, key: &str) -> Result<MappingEntry> {
+        let mapping_node = self.mapping_node(mapping)?;
+        let LosslessNodeKind::Mapping { entries, .. } = mapping_node.kind() else {
+            unreachable!("mapping_node only returns mapping nodes");
+        };
+        let mut matches = entries.iter().filter_map(|(key_id, value_id)| {
+            let key_node = self.stream.node(*key_id)?;
+            match key_node.kind() {
+                LosslessNodeKind::Scalar { value, .. } if value == key => Some(MappingEntry {
+                    key: *key_id,
+                    value: *value_id,
+                }),
+                _ => None,
+            }
+        });
+        let Some(entry) = matches.next() else {
+            return Err(Error::new(
+                format!("lossless mapping entry {key:?} was not found"),
+                Some(mapping_node.span()),
+            ));
+        };
+        if matches.next().is_some() {
+            return Err(Error::new(
+                format!("lossless mapping entry {key:?} is ambiguous"),
+                Some(mapping_node.span()),
+            ));
+        }
+        Ok(entry)
+    }
+
     fn checked_source_span(&self, span: Span) -> Result<Span> {
         if span.start > span.end || span.end > self.stream.source.len() {
             return Err(Error::new(
@@ -438,6 +625,12 @@ struct LosslessReplacement {
     end: usize,
     span: Span,
     replacement: String,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct MappingEntry {
+    key: NodeId,
+    value: NodeId,
 }
 
 /// One YAML document in a [`LosslessStream`].
@@ -1074,4 +1267,81 @@ fn ensure_scalar_fragment(replacement: &str, span: Span) -> Result<()> {
         ));
     }
     Ok(())
+}
+
+fn ensure_single_mapping_entry_fragment(entry_source: &str, span: Span) -> Result<()> {
+    let parsed = parse_lossless(entry_source).map_err(|error| {
+        Error::new(
+            format!("mapping entry source is not valid YAML: {error}"),
+            Some(span),
+        )
+    })?;
+    if parsed.documents().len() != 1 {
+        return Err(Error::new(
+            "mapping entry source must parse as one YAML document",
+            Some(span),
+        ));
+    }
+    let root = parsed.documents()[0].root().ok_or_else(|| {
+        Error::new(
+            "mapping entry source must parse as one mapping entry",
+            Some(span),
+        )
+    })?;
+    let root = parsed
+        .node(root)
+        .ok_or_else(|| Error::new("mapping entry source root node is missing", Some(span)))?;
+    match root.kind() {
+        LosslessNodeKind::Mapping { entries, .. } if entries.len() == 1 => Ok(()),
+        _ => Err(Error::new(
+            "mapping entry source must parse as exactly one mapping entry",
+            Some(span),
+        )),
+    }
+}
+
+fn line_start(source: &str, offset: usize) -> usize {
+    source[..offset]
+        .rfind('\n')
+        .map(|position| position + 1)
+        .unwrap_or(0)
+}
+
+fn line_end_including_newline(source: &str, offset: usize) -> usize {
+    let offset = offset.min(source.len());
+    source[offset..]
+        .find('\n')
+        .map(|position| offset + position + 1)
+        .unwrap_or(source.len())
+}
+
+fn line_indent(source: &str, line_start: usize) -> &str {
+    let line = &source[line_start..line_end_including_newline(source, line_start)];
+    let indent_len = line
+        .bytes()
+        .take_while(|byte| matches!(*byte, b' ' | b'\t'))
+        .count();
+    &line[..indent_len]
+}
+
+fn indent_entry_source(entry_source: &str, indent: &str) -> String {
+    let normalized = if entry_source.ends_with('\n') {
+        entry_source.to_owned()
+    } else {
+        format!("{entry_source}\n")
+    };
+    let mut indented = String::with_capacity(normalized.len() + indent.len() * 2);
+    for line in normalized.split_inclusive('\n') {
+        let body = line.strip_suffix('\n').unwrap_or(line);
+        if body.is_empty() {
+            indented.push('\n');
+        } else {
+            indented.push_str(indent);
+            indented.push_str(body);
+            if line.ends_with('\n') {
+                indented.push('\n');
+            }
+        }
+    }
+    indented
 }

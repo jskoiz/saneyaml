@@ -296,6 +296,110 @@ services:
 }
 
 #[test]
+fn lossless_edit_structurally_updates_block_mapping_entries() {
+    let input = "\
+# service config
+service: &svc
+  image: nginx:latest # keep image comment
+  ports:
+    - \"8080:80\"
+copy: *svc
+";
+    let stream = parse_lossless(input).expect("lossless parse");
+    let service = block_mapping_with_key(&stream, "image");
+
+    let mut edit = stream.edit();
+    edit.replace_mapping_value_source(service.id(), "image", "nginx:1.27")
+        .expect("replace image value");
+    edit.insert_block_mapping_entry_source(
+        service.id(),
+        "\
+labels:
+  com.example.role: web",
+    )
+    .expect("insert labels entry");
+    edit.delete_block_mapping_entry_source(service.id(), "ports")
+        .expect("delete ports entry");
+    let output = edit.finish().expect("validated structural edit");
+
+    assert_eq!(
+        output,
+        "\
+# service config
+service: &svc
+  image: nginx:1.27 # keep image comment
+  labels:
+    com.example.role: web
+copy: *svc
+"
+    );
+    let edited = parse_lossless(&output).expect("edited source reparses");
+    assert_eq!(edited.comments().count(), 2);
+    assert_eq!(edited.aliases().len(), 1);
+    assert_eq!(
+        edited
+            .anchor(edited.aliases()[0].target())
+            .expect("alias target")
+            .name(),
+        "svc"
+    );
+}
+
+#[test]
+fn lossless_edit_rejects_invalid_structural_mapping_edits() {
+    let stream = parse_lossless("service:\n  image: nginx\n").expect("lossless parse");
+    let service = block_mapping_with_key(&stream, "image");
+
+    let missing = stream
+        .edit()
+        .replace_mapping_value_source(service.id(), "ports", "[]")
+        .expect_err("missing key");
+    assert!(missing.to_string().contains("was not found"));
+
+    let invalid_entry = stream
+        .edit()
+        .insert_block_mapping_entry_source(service.id(), "one: 1\ntwo: 2")
+        .expect_err("not one mapping entry");
+    assert!(
+        invalid_entry
+            .to_string()
+            .contains("exactly one mapping entry")
+    );
+
+    let flow = parse_lossless("service: {image: nginx}\n").expect("lossless parse");
+    let flow_mapping = flow
+        .nodes()
+        .iter()
+        .find(|node| {
+            matches!(
+                node.kind(),
+                LosslessNodeKind::Mapping {
+                    style: CollectionStyle::Flow,
+                    ..
+                }
+            )
+        })
+        .expect("flow mapping");
+    let error = flow
+        .edit()
+        .delete_block_mapping_entry_source(flow_mapping.id(), "image")
+        .expect_err("flow deletion rejected");
+    assert!(error.to_string().contains("requires a block mapping"));
+}
+
+#[test]
+fn lossless_edit_inserts_block_mapping_entry_after_final_line_without_trailing_newline() {
+    let stream = parse_lossless("service:\n  image: nginx").expect("lossless parse");
+    let service = block_mapping_with_key(&stream, "image");
+
+    let output = stream
+        .insert_block_mapping_entry_source(service.id(), "replicas: 2")
+        .expect("insert final entry");
+
+    assert_eq!(output, "service:\n  image: nginx\n  replicas: 2\n");
+}
+
+#[test]
 fn lossless_edit_rejects_non_scalar_scalar_replacement() {
     let stream = parse_lossless("name: api\n").expect("lossless parse");
     let scalar = stream
@@ -341,4 +445,25 @@ fn lossless_edit_rejects_overlapping_replacements() {
 
     let error = edit.finish().expect_err("overlap is rejected");
     assert!(error.to_string().contains("lossless replacements overlap"));
+}
+
+fn block_mapping_with_key<'a>(
+    stream: &'a yaml::LosslessStream,
+    key: &str,
+) -> &'a yaml::LosslessNode {
+    stream
+        .nodes()
+        .iter()
+        .find(|node| match node.kind() {
+            LosslessNodeKind::Mapping {
+                style: CollectionStyle::Block,
+                entries,
+            } => entries.iter().any(|(key_id, _)| {
+                stream
+                    .node(*key_id)
+                    .is_some_and(|key_node| matches!(key_node.kind(), LosslessNodeKind::Scalar { value, .. } if value == key))
+            }),
+            _ => false,
+        })
+        .expect("block mapping with key")
 }

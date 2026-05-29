@@ -82,6 +82,11 @@ struct CallerBuiltMergeJob {
     command: String,
 }
 
+#[derive(Debug, Deserialize, PartialEq)]
+struct CallerBuiltMergeActionRoot {
+    action: SingletonAction,
+}
+
 #[derive(Debug, Serialize)]
 struct SerializableConfig {
     name: String,
@@ -252,6 +257,24 @@ fn caller_built_merge_value() -> Value {
 
     let mut root = Mapping::new();
     root.insert(Value::from("job"), Value::Mapping(job));
+    Value::Mapping(root)
+}
+
+fn caller_built_enum_merge_value() -> Value {
+    let mut action_payload = Mapping::new();
+    action_payload.insert(Value::from("run"), Value::from("cargo test"));
+
+    let mut source = Mapping::new();
+    source.insert(Value::from("Shell"), Value::Mapping(action_payload));
+
+    let mut action = Mapping::new();
+    action.insert(Value::from("<<"), Value::Mapping(source));
+    Value::Mapping(action)
+}
+
+fn caller_built_nested_enum_merge_value() -> Value {
+    let mut root = Mapping::new();
+    root.insert(Value::from("action"), caller_built_enum_merge_value());
     Value::Mapping(root)
 }
 
@@ -4779,6 +4802,70 @@ fn serde_api_caller_built_value_deserializers_expand_merge_keys_by_default() {
             .keys()
             .any(|key| key.as_str() == Some("<<")),
         "borrowed/default reads must not mutate the caller-built value"
+    );
+}
+
+#[test]
+fn serde_api_caller_built_value_enum_deserializers_expand_merge_keys_by_default() {
+    let value = caller_built_enum_merge_value();
+    let expected = SingletonAction::Shell {
+        run: "cargo test".to_string(),
+    };
+
+    let from_value: SingletonAction =
+        yaml::from_value(value.clone()).expect("from_value expands enum merge");
+    let direct: SingletonAction =
+        SingletonAction::deserialize(value.clone()).expect("Value deserializer expands enum merge");
+    let into_deserializer: SingletonAction =
+        SingletonAction::deserialize(value.clone().into_deserializer())
+            .expect("IntoDeserializer expands enum merge");
+    let by_ref: SingletonAction =
+        SingletonAction::deserialize(&value).expect("&Value deserializer expands enum merge");
+
+    assert_eq!(from_value, expected);
+    assert_eq!(direct, expected);
+    assert_eq!(into_deserializer, expected);
+    assert_eq!(by_ref, expected);
+    assert!(
+        value
+            .as_mapping()
+            .expect("raw enum mapping")
+            .keys()
+            .any(|key| key.as_str() == Some("<<")),
+        "borrowed/default enum reads must not mutate the caller-built value"
+    );
+}
+
+#[test]
+fn serde_api_nested_caller_built_value_enum_merges_expand_by_default() {
+    let value = caller_built_nested_enum_merge_value();
+    let expected = CallerBuiltMergeActionRoot {
+        action: SingletonAction::Shell {
+            run: "cargo test".to_string(),
+        },
+    };
+
+    let from_value: CallerBuiltMergeActionRoot =
+        yaml::from_value(value.clone()).expect("from_value expands nested enum merge");
+    let direct: CallerBuiltMergeActionRoot = CallerBuiltMergeActionRoot::deserialize(value.clone())
+        .expect("Value deserializer expands nested enum merge");
+    let into_deserializer: CallerBuiltMergeActionRoot =
+        CallerBuiltMergeActionRoot::deserialize(value.clone().into_deserializer())
+            .expect("IntoDeserializer expands nested enum merge");
+    let by_ref: CallerBuiltMergeActionRoot = CallerBuiltMergeActionRoot::deserialize(&value)
+        .expect("&Value deserializer expands nested enum merge");
+
+    assert_eq!(from_value, expected);
+    assert_eq!(direct, expected);
+    assert_eq!(into_deserializer, expected);
+    assert_eq!(by_ref, expected);
+    assert!(
+        value["action"]
+            .as_mapping()
+            .expect("raw nested enum mapping")
+            .keys()
+            .any(|key| key.as_str() == Some("<<")),
+        "borrowed/default nested enum reads must not mutate the caller-built value"
     );
 }
 

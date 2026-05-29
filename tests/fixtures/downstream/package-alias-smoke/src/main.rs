@@ -186,6 +186,24 @@ fn main() {
     assert_eq!(decoded_merge_ref, decoded_merge);
     assert!(caller_built["job"]["<<"].is_mapping());
 
+    let mut action_payload = serde_yaml::Mapping::new();
+    action_payload.insert("run".into(), "cargo test".into());
+    let mut action_source = serde_yaml::Mapping::new();
+    action_source.insert("Shell".into(), serde_yaml::Value::Mapping(action_payload));
+    let caller_built_action = serde_yaml::Value::Mapping(
+        [("<<".into(), serde_yaml::Value::Mapping(action_source))]
+            .into_iter()
+            .collect(),
+    );
+    let decoded_action = Action::deserialize(&caller_built_action).unwrap();
+    assert_eq!(
+        decoded_action,
+        Action::Shell {
+            run: "cargo test".into()
+        }
+    );
+    assert!(caller_built_action["<<"].is_mapping());
+
     let mut explicit_merge = caller_built.clone();
     explicit_merge.apply_merge().unwrap();
     assert_eq!(explicit_merge["job"]["retries"].as_u64(), Some(3));

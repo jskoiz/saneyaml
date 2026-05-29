@@ -4403,13 +4403,24 @@ impl<'de> de::Deserializer<'de> for &'de Value {
         let _ = (name, variants);
         match self {
             Value::String(variant) => visitor.visit_enum(variant.as_str().into_deserializer()),
-            Value::Mapping(mapping) if mapping.len() == 1 => {
-                let entries = mapping.as_slice();
-                visitor.visit_enum(ValueRefEnumDeserializer {
-                    key: &entries[0].0,
-                    value: Some(&entries[0].1),
-                })
-            }
+            Value::Mapping(mapping) => match merged_value_ref_entries(mapping)? {
+                Some(entries) if entries.len() == 1 => {
+                    let (key, value) = entries[0];
+                    visitor.visit_enum(ValueRefEnumDeserializer {
+                        key,
+                        value: Some(value),
+                    })
+                }
+                Some(_) => Err(type_error_value("enum string or single-key mapping", self)),
+                None if mapping.len() == 1 => {
+                    let entries = mapping.as_slice();
+                    visitor.visit_enum(ValueRefEnumDeserializer {
+                        key: &entries[0].0,
+                        value: Some(&entries[0].1),
+                    })
+                }
+                None => Err(type_error_value("enum string or single-key mapping", self)),
+            },
             Value::Tagged(tagged) => visitor.visit_enum(ValueRefTaggedEnumDeserializer {
                 tag: &tagged.tag,
                 value: &tagged.value,

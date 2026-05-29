@@ -104,6 +104,51 @@ CASES = [
     YAML
   },
   {
+    id: "merge-nested-list-precedence",
+    record: "tests/fixtures/divergences/records/merge-keys.toml",
+    yaml: <<~YAML
+      base: &base {a: 1, shared: base}
+      mid: &mid {<<: *base, b: 2, shared: mid}
+      other: &other {shared: other, c: 3}
+      target:
+        <<: [*mid, *other]
+        shared: target
+    YAML
+  },
+  {
+    id: "merge-duplicate-local-key-policy",
+    record: "tests/fixtures/divergences/records/merge-keys.toml",
+    yaml: <<~YAML
+      base: &base {a: 1}
+      target:
+        <<: *base
+        a: local1
+        a: local2
+    YAML
+  },
+  {
+    id: "merge-cross-document-anchor-reset",
+    record: "tests/fixtures/divergences/records/merge-keys.toml",
+    mode: :stream,
+    yaml: <<~YAML
+      ---
+      base: &base {a: 1}
+      ---
+      merged:
+        <<: *base
+    YAML
+  },
+  {
+    id: "merge-mixed-invalid-list-payload",
+    record: "tests/fixtures/divergences/records/merge-keys.toml",
+    yaml: <<~YAML
+      base: &base {a: 1}
+      target:
+        <<: [*base, scalar]
+        keep: value
+    YAML
+  },
+  {
     id: "alias-graph-identity",
     record: "tests/fixtures/divergences/records/alias-graph-identity.toml",
     yaml: <<~YAML
@@ -423,6 +468,17 @@ def with_input_metadata(entry, result)
   )
 end
 
+def error_fields(error)
+  fields = {
+    error_class: error.class.name,
+    error: error.respond_to?(:problem) && error.problem ? error.problem : error.message.lines.first.to_s.strip
+  }
+  fields[:context] = error.context if error.respond_to?(:context) && error.context
+  fields[:line] = error.line if error.respond_to?(:line) && error.line
+  fields[:column] = error.column if error.respond_to?(:column) && error.column
+  fields
+end
+
 def probe_alias_graph_identity(entry)
   shared = Psych.load(entry[:yaml])
   shared_alias_identity = shared["a"].object_id == shared["b"].object_id
@@ -437,14 +493,12 @@ def probe_alias_graph_identity(entry)
       mutation_visible_in_b: shared["b"]["count"]
     }
   })
-rescue Psych::SyntaxError => error
+rescue Psych::Exception => error
   with_input_metadata(entry, {
     id: entry[:id],
     record: entry[:record],
     status: "error",
-    error_class: error.class.name,
-    error: error.problem || error.message.lines.first.to_s.strip
-  })
+  }.merge(error_fields(error)))
 end
 
 def probe_recursive_alias_identity(entry)
@@ -457,20 +511,19 @@ def probe_recursive_alias_identity(entry)
       recursive_identity: recursive["root"].object_id == recursive["root"][0].object_id
     }
   })
-rescue Psych::SyntaxError => error
+rescue Psych::Exception => error
   with_input_metadata(entry, {
     id: entry[:id],
     record: entry[:record],
     status: "error",
-    error_class: error.class.name,
-    error: error.problem || error.message.lines.first.to_s.strip
-  })
+  }.merge(error_fields(error)))
 end
 
 def probe_case(entry)
   return probe_alias_graph_identity(entry) if entry[:id] == "alias-graph-identity"
   return probe_recursive_alias_identity(entry) if entry[:id] == "alias-recursive-identity"
   return probe_events(entry) if entry[:mode] == :events
+  return probe_stream(entry) if entry[:mode] == :stream
 
   value = Psych.load(entry[:yaml])
   with_input_metadata(entry, {
@@ -479,14 +532,31 @@ def probe_case(entry)
     status: "ok",
     summary: summarize(value)
   })
-rescue Psych::SyntaxError => error
+rescue Psych::Exception => error
   with_input_metadata(entry, {
     id: entry[:id],
     record: entry[:record],
     status: "error",
-    error_class: error.class.name,
-    error: error.problem || error.message.lines.first.to_s.strip
+  }.merge(error_fields(error)))
+end
+
+def probe_stream(entry)
+  docs = Psych.load_stream(entry[:yaml]).to_a
+  with_input_metadata(entry, {
+    id: entry[:id],
+    record: entry[:record],
+    status: "ok",
+    summary: {
+      document_count: docs.length,
+      documents: docs.map { |doc| summarize(doc) }
+    }
   })
+rescue Psych::Exception => error
+  with_input_metadata(entry, {
+    id: entry[:id],
+    record: entry[:record],
+    status: "error",
+  }.merge(error_fields(error)))
 end
 
 def probe_events(entry)
@@ -501,14 +571,12 @@ def probe_events(entry)
       events: handler.events
     }
   })
-rescue Psych::SyntaxError => error
+rescue Psych::Exception => error
   with_input_metadata(entry, {
     id: entry[:id],
     record: entry[:record],
     status: "error",
-    error_class: error.class.name,
-    error: error.problem || error.message.lines.first.to_s.strip
-  })
+  }.merge(error_fields(error)))
 end
 
 payload = {

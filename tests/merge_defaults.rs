@@ -77,6 +77,30 @@ merged:
 }
 
 #[test]
+fn default_merge_expands_nested_sources_before_list_precedence() {
+    let input = "\
+base: &base {a: 1, shared: base}
+mid: &mid {<<: *base, b: 2, shared: mid}
+other: &other {shared: other, c: 3}
+target:
+  <<: [*mid, *other]
+  shared: target
+";
+
+    let value: Value = yaml::from_str(input).expect("nested merge sources expand by default");
+    assert!(value["mid"]["<<"].is_null());
+    assert_eq!(value["mid"]["a"].as_u64(), Some(1));
+    assert_eq!(value["mid"]["b"].as_u64(), Some(2));
+    assert_eq!(value["mid"]["shared"].as_str(), Some("mid"));
+
+    assert!(value["target"]["<<"].is_null());
+    assert_eq!(value["target"]["a"].as_u64(), Some(1));
+    assert_eq!(value["target"]["b"].as_u64(), Some(2));
+    assert_eq!(value["target"]["c"].as_u64(), Some(3));
+    assert_eq!(value["target"]["shared"].as_str(), Some("target"));
+}
+
+#[test]
 fn default_merge_expands_explicit_merge_tag_keys() {
     let input = "\
 base: &base {a: 1, b: 1}
@@ -127,6 +151,54 @@ fn default_merge_reports_spanful_invalid_payloads() {
         "{error}"
     );
     assert_eq!(error.line(), Some(2));
+    assert_eq!(error.column(), Some(7));
+}
+
+#[test]
+fn default_merge_reports_spanful_invalid_list_payloads() {
+    let error = yaml::parse_str("base: &base {a: 1}\ntarget:\n  <<: [*base, scalar]\n")
+        .expect_err("invalid merge-list payload");
+
+    assert!(
+        error
+            .to_string()
+            .contains("expected a mapping for merging, but found scalar"),
+        "{error}"
+    );
+    assert_eq!(error.line(), Some(3));
+    assert_eq!(error.column(), Some(15));
+}
+
+#[test]
+fn default_merge_rejects_duplicate_local_keys_inside_merged_mapping() {
+    let error =
+        yaml::parse_str("base: &base {a: 1}\ntarget:\n  <<: *base\n  a: local1\n  a: local2\n")
+            .expect_err("duplicate local key stays rejected");
+
+    assert!(
+        error.to_string().contains("duplicate mapping key `a`"),
+        "{error}"
+    );
+    assert_eq!(error.line(), Some(5));
+    assert_eq!(error.column(), Some(3));
+}
+
+#[test]
+fn merge_aliases_reset_across_documents() {
+    let input = "\
+---
+base: &base {a: 1}
+---
+merged:
+  <<: *base
+";
+    let error = yaml::parse_events(input).expect_err("cross-document merge alias is unknown");
+
+    assert!(
+        error.to_string().contains("unknown anchor `base`"),
+        "{error}"
+    );
+    assert_eq!(error.line(), Some(5));
     assert_eq!(error.column(), Some(7));
 }
 

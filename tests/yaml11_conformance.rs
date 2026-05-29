@@ -490,6 +490,59 @@ fn yaml11_legacy_merge_edge_fixture_recovers_like_psych() {
 }
 
 #[test]
+fn yaml11_merge_permutation_matrix_matches_psych_recovery() {
+    let nested = "\
+base: &base {a: 1, shared: base}
+mid: &mid {<<: *base, b: 2, shared: mid}
+other: &other {shared: other, c: 3}
+target:
+  <<: [*mid, *other]
+  shared: target
+";
+    let nested_value: Value = LoadOptions::yaml_1_1()
+        .from_str(nested)
+        .expect("YAML 1.1 nested merge list");
+    assert!(nested_value["mid"]["<<"].is_null());
+    assert_eq!(nested_value["mid"]["a"].as_u64(), Some(1));
+    assert_eq!(nested_value["mid"]["shared"].as_str(), Some("mid"));
+    assert!(nested_value["target"]["<<"].is_null());
+    assert_eq!(nested_value["target"]["a"].as_u64(), Some(1));
+    assert_eq!(nested_value["target"]["b"].as_u64(), Some(2));
+    assert_eq!(nested_value["target"]["c"].as_u64(), Some(3));
+    assert_eq!(nested_value["target"]["shared"].as_str(), Some("target"));
+
+    let mixed_invalid = "\
+base: &base {a: 1}
+target:
+  <<: [*base, scalar]
+  keep: value
+";
+    let mixed_value: Value = LoadOptions::yaml_1_1()
+        .from_str(mixed_invalid)
+        .expect("YAML 1.1 keeps mixed invalid merge list literal");
+    assert_eq!(mixed_value["target"]["<<"][0]["a"].as_u64(), Some(1));
+    assert_eq!(mixed_value["target"]["<<"][1].as_str(), Some("scalar"));
+    assert_eq!(mixed_value["target"]["keep"].as_str(), Some("value"));
+
+    let duplicate_local = "\
+base: &base {a: 1}
+target:
+  <<: *base
+  a: local1
+  a: local2
+";
+    let duplicate = LoadOptions::yaml_1_1()
+        .parse_str(duplicate_local)
+        .expect_err("duplicate local keys remain a safety error");
+    assert!(
+        duplicate.to_string().contains("duplicate mapping key `a`"),
+        "{duplicate}"
+    );
+    assert_eq!(duplicate.line(), Some(5));
+    assert_eq!(duplicate.column(), Some(3));
+}
+
+#[test]
 fn yaml11_lossless_graph_merge_fixtures_preserve_source_graph_and_semantic_policy() {
     for case in manifest()
         .case

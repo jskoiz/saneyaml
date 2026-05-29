@@ -4,7 +4,7 @@ comparison_manifest = "tests/fixtures/divergences/probes/psych-libyaml-compariso
 ruby = "2.6.10"
 psych = "3.1.0"
 libyaml = "0.2.1"
-probe_case_count = 28
+probe_case_count = 32
 behavior_family_count = 8
 tracked_gap_count = 7
 coverage_policy = "Pinned Psych/libyaml cases are grouped by behavior family. Covered families are executable proof for the listed cases, not blanket YAML 1.1/libyaml compatibility."
@@ -27,15 +27,19 @@ next_expansion = "Add timestamp, binary, sexagesimal, radix, bool/null alias, an
 [[behavior_family]]
 id = "merge-keys-and-recovery"
 status = "covered"
-summary = "Default merge expansion plus YAML 1.1/Psych recovery for repeated and non-mergeable merge edges."
+summary = "Default merge expansion plus YAML 1.1/Psych recovery for repeated, nested, and non-mergeable merge edges."
 cases = [
   "merge-keys",
+  "merge-nested-list-precedence",
+  "merge-duplicate-local-key-policy",
+  "merge-cross-document-anchor-reset",
+  "merge-mixed-invalid-list-payload",
   "legacy-merge-edge-recovery",
   "explicit-merge-tags",
 ]
-rust_entrypoints = ["yaml11-value", "directive-value"]
+rust_entrypoints = ["yaml11-value", "directive-value", "events"]
 adoption_risk = "Config migration depends on clear default merge expansion and explicit YAML 1.1 recovery semantics."
-next_expansion = "Broaden merge source ordering, nested merges, duplicate overrides, and invalid merge payload permutations."
+next_expansion = "Broaden anchor shadowing inside merge lists, collection-valued merge key collisions, and deeper invalid-payload recovery variants."
 
 [[behavior_family]]
 id = "alias-graph-identity"
@@ -134,8 +138,8 @@ next_probe_candidates = ["timestamp zones", "invalid timestamp", "binary whitesp
 [[tracked_gap]]
 id = "merge-recovery-permutation-matrix"
 family = "merge-keys-and-recovery"
-reason = "Merge recovery is covered for representative repeated and invalid payloads, but not all ordering and nesting permutations."
-next_probe_candidates = ["nested merge lists", "deep override order", "duplicate local keys", "merge aliases across documents"]
+reason = "Merge recovery now covers representative nested precedence, duplicate local key policy, mixed invalid merge-list recovery, and cross-document alias reset cases, but not every anchor-shadowing or collection-key variant."
+next_probe_candidates = ["anchor shadowing inside merge lists", "collection-valued duplicate merge keys", "deep invalid payload recovery variants"]
 
 [[tracked_gap]]
 id = "semantic-alias-object-identity"

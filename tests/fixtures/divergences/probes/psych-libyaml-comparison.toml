@@ -97,6 +97,74 @@ repeated_tagged_merge:
 rust_contains = ["app:v2", "app:first", "app:canonical", "second", "timeout"]
 
 [[case]]
+id = "merge-nested-list-precedence"
+record = "tests/fixtures/divergences/records/merge-keys.toml"
+psych_status = "ok"
+rust_entrypoint = "yaml11-value"
+rust_status = "ok"
+rust_policy = "matches-psych"
+reason = "YAML 1.1 mode expands nested merge sources before list merging, keeps earlier list mappings ahead of later duplicate merged keys, and lets explicit target keys override all merged keys."
+yaml = '''
+base: &base {a: 1, shared: base}
+mid: &mid {<<: *base, b: 2, shared: mid}
+other: &other {shared: other, c: 3}
+target:
+  <<: [*mid, *other]
+  shared: target
+'''
+rust_contains = ["target", "shared", "target", "a", "b", "c"]
+
+[[case]]
+id = "merge-duplicate-local-key-policy"
+record = "tests/fixtures/divergences/records/merge-keys.toml"
+psych_status = "ok"
+rust_entrypoint = "yaml11-value"
+rust_status = "error"
+rust_policy = "intentional-divergence"
+reason = "Psych accepts duplicate local keys inside merged mappings with last-wins construction, while this crate keeps duplicate local keys rejected with spans for config safety even in YAML 1.1 mode."
+yaml = '''
+base: &base {a: 1}
+target:
+  <<: *base
+  a: local1
+  a: local2
+'''
+rust_error_contains = "duplicate mapping key"
+
+[[case]]
+id = "merge-cross-document-anchor-reset"
+record = "tests/fixtures/divergences/records/merge-keys.toml"
+psych_status = "error"
+rust_entrypoint = "events"
+rust_status = "error"
+rust_policy = "matches-psych"
+reason = "Both libyaml/Psych and this crate reset anchors at document boundaries, so a merge alias in a later document cannot target an anchor from an earlier document."
+yaml = '''
+---
+base: &base {a: 1}
+---
+merged:
+  <<: *base
+'''
+rust_error_contains = "unknown anchor"
+
+[[case]]
+id = "merge-mixed-invalid-list-payload"
+record = "tests/fixtures/divergences/records/merge-keys.toml"
+psych_status = "ok"
+rust_entrypoint = "yaml11-value"
+rust_status = "ok"
+rust_policy = "matches-psych"
+reason = "YAML 1.1 mode follows Psych recovery for mixed valid and non-mergeable merge-list payloads by keeping the merge key literal instead of partially expanding it."
+yaml = '''
+base: &base {a: 1}
+target:
+  <<: [*base, scalar]
+  keep: value
+'''
+rust_contains = ["target", "<<", "scalar", "keep"]
+
+[[case]]
 id = "alias-graph-identity"
 record = "tests/fixtures/divergences/records/alias-graph-identity.toml"
 psych_status = "ok"

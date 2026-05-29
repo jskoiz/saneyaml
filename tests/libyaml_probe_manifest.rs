@@ -24,6 +24,10 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "Psych.libyaml_version",
         "legacy-scalar-resolution",
         "merge-keys",
+        "merge-nested-list-precedence",
+        "merge-duplicate-local-key-policy",
+        "merge-cross-document-anchor-reset",
+        "merge-mixed-invalid-list-payload",
         "alias-graph-identity",
         "explicit-core-tags",
         "yaml11-collection-tags",
@@ -48,7 +52,7 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_eq!(artifact["libyaml"], "0.2.1");
 
     let cases = artifact["cases"].as_array().expect("probe cases array");
-    assert_eq!(cases.len(), 28);
+    assert_eq!(cases.len(), 32);
 
     let expected_ids = BTreeSet::from([
         "adjacent-flow-mapping-scalars",
@@ -68,6 +72,10 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "lossless-merge-graph",
         "lossless-recursive-graph",
         "merge-keys",
+        "merge-cross-document-anchor-reset",
+        "merge-duplicate-local-key-policy",
+        "merge-mixed-invalid-list-payload",
+        "merge-nested-list-precedence",
         "multiline-quoted-flow-key",
         "null-like-string-targets",
         "numeric-key-identity",
@@ -117,6 +125,7 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_case_summary_contains(&artifact, "rw-github-actions-on-key", "TrueClass");
     assert_case_summary_contains(&artifact, "merge-keys", "app:v2");
     assert_merge_key_precedence(&artifact);
+    assert_merge_permutation_cases(&artifact);
     let alias_graph = case_by_id(&artifact, "alias-graph-identity");
     assert_eq!(alias_graph["summary"]["shared_alias_identity"], true);
     assert_eq!(alias_graph["summary"]["mutation_visible_in_b"], 2);
@@ -164,6 +173,8 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         assert_eq!(case["status"], "error", "{id}");
         assert_eq!(case["error_class"], "Psych::SyntaxError", "{id}");
     }
+    assert_error_location(&artifact, "adjacent-flow-mapping-scalars", 1, 7);
+    assert_error_location(&artifact, "directive-looking-flow-content", 2, 1);
 
     assert_case_summary_contains(&artifact, "raw-event-directives", "start_document");
     assert_case_summary_contains(
@@ -201,6 +212,15 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         &artifact,
         "directive-looking-flow-content",
         "expected ',' or '}'",
+    );
+    let cross_document = case_by_id(&artifact, "merge-cross-document-anchor-reset");
+    assert_eq!(cross_document["status"], "error");
+    assert_eq!(cross_document["error_class"], "Psych::BadAlias");
+    assert!(
+        cross_document["error"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("Unknown alias: base")
     );
 }
 
@@ -575,6 +595,13 @@ fn assert_error_contains(artifact: &Json, id: &str, expected: &str) {
     );
 }
 
+fn assert_error_location(artifact: &Json, id: &str, line: u64, column: u64) {
+    let case = case_by_id(artifact, id);
+    assert_eq!(case["status"], "error", "{id}");
+    assert_eq!(case["line"].as_u64(), Some(line), "{id} line");
+    assert_eq!(case["column"].as_u64(), Some(column), "{id} column");
+}
+
 fn case_by_id<'a>(artifact: &'a Json, id: &str) -> &'a Json {
     artifact["cases"]
         .as_array()
@@ -628,6 +655,27 @@ fn assert_merge_key_precedence(artifact: &Json) {
     assert_mapping_entry_value(summary, "repeated_tagged_merge", "retries", "3");
     assert_mapping_entry_value(summary, "repeated_tagged_merge", "timeout", "10");
     assert_mapping_entry_value(summary, "repeated_tagged_merge", "keep", "value");
+}
+
+fn assert_merge_permutation_cases(artifact: &Json) {
+    let nested = case_by_id(artifact, "merge-nested-list-precedence");
+    assert_eq!(nested["status"], "ok");
+    let nested_summary = &nested["summary"];
+    assert_mapping_entry_value(nested_summary, "mid", "a", "1");
+    assert_mapping_entry_value(nested_summary, "mid", "shared", "mid");
+    assert_mapping_entry_value(nested_summary, "target", "shared", "target");
+    assert_mapping_entry_value(nested_summary, "target", "a", "1");
+    assert_mapping_entry_value(nested_summary, "target", "b", "2");
+    assert_mapping_entry_value(nested_summary, "target", "c", "3");
+
+    let duplicate = case_by_id(artifact, "merge-duplicate-local-key-policy");
+    assert_eq!(duplicate["status"], "ok");
+    assert_mapping_entry_value(&duplicate["summary"], "target", "a", "local2");
+
+    let mixed = case_by_id(artifact, "merge-mixed-invalid-list-payload");
+    assert_eq!(mixed["status"], "ok");
+    assert_mapping_entry_sequence_item(&mixed["summary"], "target", "<<", 1, "scalar");
+    assert_mapping_entry_value(&mixed["summary"], "target", "keep", "value");
 }
 
 fn assert_yaml11_fixture_merge_recovery(artifact: &Json) {

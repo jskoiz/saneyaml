@@ -749,6 +749,319 @@
       "input_bytes": 934
     },
     {
+      "id": "merge-nested-list-precedence",
+      "record": "tests/fixtures/divergences/records/merge-keys.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "base"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "a"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "1"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "base"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "mid"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "a"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "1"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "mid"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "b"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "2"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "other"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "other"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "c"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "3"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "target"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "target"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "c"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "3"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "a"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "1"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "b"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "2"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "input_sha256": "a7ddfea187e306c7887b18ac950b7f649d209ffd68c16e586e690d873cc46097",
+      "input_bytes": 156
+    },
+    {
+      "id": "merge-duplicate-local-key-policy",
+      "record": "tests/fixtures/divergences/records/merge-keys.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "base"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "a"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "1"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "target"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "a"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "local2"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "input_sha256": "2e42f7e3671b2ba16b4aa5c6ba67403f562b1661cdee7e50cff94acde0cf1b3b",
+      "input_bytes": 63
+    },
+    {
+      "id": "merge-cross-document-anchor-reset",
+      "record": "tests/fixtures/divergences/records/merge-keys.toml",
+      "status": "error",
+      "error_class": "Psych::BadAlias",
+      "error": "Unknown alias: base",
+      "input_sha256": "98bfaa2fe157e7a3adb63cdd9bc61b68a04354a73ff40a482088aa3c6b8c9de6",
+      "input_bytes": 47
+    },
+    {
+      "id": "merge-mixed-invalid-list-payload",
+      "record": "tests/fixtures/divergences/records/merge-keys.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "base"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "a"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "1"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "target"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "<<"
+                  },
+                  "value": {
+                    "class": "Array",
+                    "items": [
+                      {
+                        "class": "Hash",
+                        "entries": [
+                          {
+                            "key": {
+                              "class": "String",
+                              "value": "a"
+                            },
+                            "value": {
+                              "class": "Integer",
+                              "value": "1"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "class": "String",
+                        "value": "scalar"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "keep"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "value"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "input_sha256": "9fec400a8d07847d0caf4b92c990ff0991ffac68ff7c88884688b94b4764700d",
+      "input_bytes": 63
+    },
+    {
       "id": "alias-graph-identity",
       "record": "tests/fixtures/divergences/records/alias-graph-identity.toml",
       "status": "ok",
@@ -2662,6 +2975,9 @@
       "status": "error",
       "error_class": "Psych::SyntaxError",
       "error": "found unexpected ':'",
+      "context": "while scanning a plain scalar",
+      "line": 1,
+      "column": 7,
       "input_sha256": "b1b5e4694f6a42016482cc624cfc8548dcb87fe766d134ec34bffcea6f561f6a",
       "input_bytes": 15
     },
@@ -2671,6 +2987,9 @@
       "status": "error",
       "error_class": "Psych::SyntaxError",
       "error": "did not find expected ',' or '}'",
+      "context": "while parsing a flow mapping",
+      "line": 1,
+      "column": 1,
       "input_sha256": "6e29beaa4ecdc68de4b9234dd9d890ab3af87c9feefccf871dde2b72972cadee",
       "input_bytes": 30
     },
@@ -2829,6 +3148,8 @@
       "status": "error",
       "error_class": "Psych::SyntaxError",
       "error": "found incompatible YAML document",
+      "line": 1,
+      "column": 1,
       "input_sha256": "74c73931ac99c3695d17adfbe0a4b927b0ab6e88a32ccbe65b0b0b59303388ab",
       "input_bytes": 65
     },
@@ -2838,6 +3159,9 @@
       "status": "error",
       "error_class": "Psych::SyntaxError",
       "error": "found undefined tag handle",
+      "context": "while parsing a node",
+      "line": 1,
+      "column": 1,
       "input_sha256": "74514bfa34835f29e1a593d21eafce58a7b6daef2d601a40427094258f1678a4",
       "input_bytes": 15
     },
@@ -2908,6 +3232,8 @@
       "status": "error",
       "error_class": "Psych::SyntaxError",
       "error": "found incompatible YAML document",
+      "line": 1,
+      "column": 1,
       "input_sha256": "d77e76c96528a965793e9246a10090465b34a08edd8f1d27d48dd7ff5c25a0e2",
       "input_bytes": 61
     },
@@ -2917,6 +3243,8 @@
       "status": "error",
       "error_class": "Psych::SyntaxError",
       "error": "did not find expected <document start>",
+      "line": 1,
+      "column": 1,
       "input_sha256": "ab86c48ade9d0fd106857b346cf128926065eaf41d330d3535c8a47d2737d839",
       "input_bytes": 74
     },
@@ -2926,6 +3254,9 @@
       "status": "error",
       "error_class": "Psych::SyntaxError",
       "error": "did not find expected ',' or '}'",
+      "context": "while parsing a flow mapping",
+      "line": 2,
+      "column": 1,
       "input_sha256": "c4b55882aaa360b7e3b338d9528c9513e53501e2dcd56180a843cc0e83cd2cf4",
       "input_bytes": 43
     }

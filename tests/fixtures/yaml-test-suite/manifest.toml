@@ -1327,3 +1327,20 @@ shared_reference_deferred = [
     "M7A3",
     "UT92",
 ]
+
+lossless_graph = [
+    "3GZX",
+    "U3XV",
+    "2SXE",
+    "PW8X",
+    "KSS4",
+    "XW4D",
+    "RZP5",
+    "SKE5",
+    "X38W",
+    "6BFJ",
+    "6M2F",
+    "BU8L",
+    "9KAX",
+    "FTA2",
+]

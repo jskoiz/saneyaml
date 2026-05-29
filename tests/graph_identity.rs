@@ -16,29 +16,23 @@ const YAML_SUITE_ROOT: &str = concat!(
 #[derive(Debug, Deserialize)]
 struct SuiteManifest {
     case: Vec<SuiteCase>,
+    parity: SuiteParity,
+}
+
+#[derive(Debug, Deserialize)]
+struct SuiteParity {
+    lossless_graph: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct SuiteCase {
     id: String,
     name: String,
-    expected: String,
-    features: Vec<String>,
 }
 
 impl SuiteCase {
     fn fixture_dir(&self) -> String {
         self.id.replace('/', "-")
-    }
-
-    fn has_graph_syntax(&self) -> bool {
-        self.features
-            .iter()
-            .any(|feature| matches!(feature.as_str(), "anchor" | "alias"))
-    }
-
-    fn raw_events_should_parse(&self) -> bool {
-        self.expected != "syntax-error"
     }
 }
 
@@ -390,21 +384,27 @@ fn real_world_lossless_graph_manifest_cases_match_reference_parser_events() {
 fn yaml_suite_anchor_alias_cases_match_reference_parser_events() {
     let manifest: SuiteManifest =
         toml::from_str(YAML_SUITE_MANIFEST).expect("YAML-suite manifest parses");
-    let cases = manifest
+    let cases_by_id = manifest
         .case
         .iter()
-        .filter(|case| case.raw_events_should_parse() && case.has_graph_syntax())
-        .collect::<Vec<_>>();
-    let ids = cases
+        .map(|case| (case.id.as_str(), case))
+        .collect::<BTreeMap<_, _>>();
+    let mut seen = BTreeSet::new();
+    let cases = manifest
+        .parity
+        .lossless_graph
         .iter()
-        .map(|case| case.id.as_str())
-        .collect::<BTreeSet<_>>();
+        .map(|id| {
+            assert!(seen.insert(id.as_str()), "duplicate lossless graph id {id}");
+            cases_by_id
+                .get(id.as_str())
+                .unwrap_or_else(|| panic!("lossless graph id {id} must exist in YAML-suite cases"))
+        })
+        .collect::<Vec<_>>();
     assert_eq!(
-        ids,
-        BTreeSet::from([
-            "2SXE", "3GZX", "6BFJ", "6M2F", "9KAX", "BU8L", "FTA2", "KSS4", "PW8X", "RZP5", "SKE5",
-            "U3XV", "X38W", "XW4D",
-        ])
+        cases.len(),
+        14,
+        "manifest-owned lossless graph parity case count drifted"
     );
 
     for case in cases {

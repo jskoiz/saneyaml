@@ -287,8 +287,8 @@ This crate keeps alias identity in the lossless graph surface, not semantic
 `Node` or `Value` trees. `graph_identity` now also compares
 `LosslessStream` anchor definitions and alias targets against normalized
 `yaml-rust2` and `saphyr` parser anchor events for anchor redefinition,
-recursive aliases, document anchor resets, merge aliases, all selected
-YAML-suite anchor/alias cases that are expected to parse as raw events,
+recursive aliases, document anchor resets, merge aliases, manifest-owned
+selected YAML-suite anchor/alias cases that are expected to parse as raw events,
 manifest-owned real-world Docker Compose anchors, and YAML 1.1 merge/comment
 graph fixtures. The real-world graph gate now includes an adapted official
 Compose Specification fragment that uses multiple anchors, aliases, and a merge
@@ -378,12 +378,13 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   fields: 87 normal accepts, 42 syntax/error rejects, and YAML-suite
   2JQS/X38W as intentional tree/Serde-only rejections while raw parser events
   remain available. The manifest also owns the selected-suite parity ledger:
-  `parity.event`, `parity.tree`, and `parity.shared_reference` must match the
-  Rust source gates exactly. Current selected-suite ledgers cover event parity
-  for all 87 accepted cases with no event-shape deferrals, loaded-tree
-  value-shape parity for 85 accepted cases with 2 documented tree-shape
-  deferrals, and shared-reference acceptance for 61 accepted cases with 26
-  documented `serde_yaml`/libyaml divergence deferrals
+  `parity.event`, `parity.tree`, `parity.shared_reference`, and
+  `parity.lossless_graph` make the selected proof surfaces auditable. Current
+  selected-suite ledgers cover event parity for all 87 accepted cases with no
+  event-shape deferrals, loaded-tree value-shape parity for 85 accepted cases
+  with 2 documented tree-shape deferrals, shared-reference acceptance for 61
+  accepted cases with 26 documented `serde_yaml`/libyaml divergence deferrals,
+  and lossless graph identity parity for 14 graph-sensitive raw-event cases
 - core scalars
 - explicit YAML 1.1 schema-mode scalars, including boolean aliases, retained
   timestamp tags, legacy radix and sexagesimal numeric forms, duplicate-key

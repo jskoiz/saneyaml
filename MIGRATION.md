@@ -103,7 +103,7 @@ Additional crate surfaces useful during migration:
 - `yaml::parse_lossless` and `yaml::LosslessStream` provide a separate
   source-backed graph surface for callers that need byte-stable replay,
   comments/trivia, scalar spelling, directives, alias-to-anchor identity checked
-  against `yaml-rust2` and `saphyr` parser anchor events for manifest-derived
+  against `yaml-rust2` and `saphyr` parser anchor events for manifest-owned
   selected YAML-suite anchor/alias cases and real-world graph fixtures, and
   validated node/source-span edits, insertions, and deletions that preserve
   untouched bytes.

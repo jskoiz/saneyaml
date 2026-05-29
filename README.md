@@ -36,7 +36,7 @@ The first milestone focuses on:
   keeps the original source for byte-stable replay, exposes comments and blank
   lines as trivia, represents anchors/aliases with stable graph ids, compares
   those ids against `yaml-rust2` and `saphyr` parser anchor events for
-  manifest-derived selected YAML-suite anchor/alias cases, real-world Compose
+  manifest-owned selected YAML-suite anchor/alias cases, real-world Compose
   graph fixtures, and YAML 1.1 graph fixtures, and can produce validated node
   and raw source-span edits, insertions, and deletions while preserving
   untouched bytes. Real-world Docker Compose anchor cases including an adapted

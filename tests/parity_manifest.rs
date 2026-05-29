@@ -225,6 +225,7 @@ struct SuiteParity {
     tree_deferred: Vec<String>,
     shared_reference: Vec<String>,
     shared_reference_deferred: Vec<String>,
+    lossless_graph: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -257,6 +258,16 @@ struct FixtureRecord {
 impl SuiteCase {
     fn fixture_dir(&self) -> String {
         self.id.replace('/', "-")
+    }
+
+    fn raw_events_should_parse(&self) -> bool {
+        self.expected != ExpectedOutcome::SyntaxError
+    }
+
+    fn has_graph_syntax(&self) -> bool {
+        self.features
+            .iter()
+            .any(|feature| matches!(feature.as_str(), "anchor" | "alias"))
     }
 }
 
@@ -334,6 +345,17 @@ fn yaml_suite_parity_sources_match_manifest_ledger() {
         &manifest.parity.shared_reference,
         &manifest.parity.shared_reference_deferred,
         &cases_by_id,
+    );
+
+    let graph_ids = cases_by_id
+        .values()
+        .filter(|case| case.raw_events_should_parse() && case.has_graph_syntax())
+        .map(|case| case.id.clone())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        string_set(&manifest.parity.lossless_graph),
+        graph_ids,
+        "lossless graph parity ledger must match graph-sensitive selected YAML-suite raw-event cases",
     );
 }
 

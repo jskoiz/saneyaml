@@ -14,7 +14,7 @@ package_current_crate() {
   mkdir -p "$tmp/package-target" "$tmp/unpacked"
   (
     cd "$repo_root"
-    cargo package --allow-dirty --target-dir "$tmp/package-target" >/dev/null
+    cargo package --locked --allow-dirty --target-dir "$tmp/package-target" >/dev/null
   )
 
   local crate_path

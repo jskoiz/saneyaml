@@ -27,6 +27,11 @@ struct RecursiveSingletonConfig {
     actions: Vec<Action>,
 }
 
+#[derive(Debug, Deserialize, PartialEq)]
+enum TaggedAction {
+    Thing(String),
+}
+
 fn main() {
     let input = "name: api\nports: [80, 443]\nenv:\n  RUST_LOG: info\noptional: null\n";
     let config: Config = serde_yaml::from_str(input).unwrap();
@@ -103,6 +108,50 @@ fn main() {
     let sequenced = serde_yaml::Value::Sequence(sequence);
     assert_eq!(sequenced[0].as_str(), Some("api"));
     assert_eq!(sequenced[1].as_str(), Some("worker"));
+
+    let signed = serde_yaml::Number::from(-7_i64);
+    let unsigned = serde_yaml::value::Number::from(7_u64);
+    let finite = serde_yaml::Number::from(1.25_f64);
+    let infinity = serde_yaml::Number::from(f64::INFINITY);
+    let nan = serde_yaml::Number::from(f64::NAN);
+    assert!(signed.is_i64());
+    assert_eq!(signed.as_i64(), Some(-7));
+    assert!(!signed.is_u64());
+    assert!(unsigned.is_u64());
+    assert_eq!(unsigned.as_u64(), Some(7));
+    assert_eq!(unsigned.as_f64(), Some(7.0));
+    assert!(finite.is_f64());
+    assert_eq!(finite.as_f64(), Some(1.25));
+    assert!(infinity.is_infinite());
+    assert!(!infinity.is_finite());
+    assert!(nan.is_nan());
+    assert_eq!(nan, serde_yaml::Number::from(f64::NAN));
+
+    let tag = serde_yaml::value::Tag::new("Thing");
+    assert_eq!(tag, "Thing");
+    assert_eq!(tag, "!Thing");
+    assert_eq!(tag, serde_yaml::value::Tag::new("!Thing"));
+    assert_eq!(tag.to_string(), "!Thing");
+
+    let tagged_values: BTreeMap<String, serde_yaml::value::TaggedValue> =
+        serde_yaml::from_str("scalar: !Thing x\nsequence: !Thing [first]\n").unwrap();
+    assert_eq!(tagged_values["scalar"].tag, "Thing");
+    assert_eq!(tagged_values["scalar"].value.as_str(), Some("x"));
+    assert_eq!(tagged_values["sequence"].tag, "!Thing");
+    assert_eq!(tagged_values["sequence"].value[0].as_str(), Some("first"));
+
+    let tagged = serde_yaml::value::TaggedValue {
+        tag: serde_yaml::value::Tag::new("Thing"),
+        value: serde_yaml::Value::String("x".to_owned()),
+    };
+    let tagged_yaml = serde_yaml::to_string(&tagged).unwrap();
+    assert!(tagged_yaml.contains("!Thing"));
+    let tagged_roundtrip: serde_yaml::value::TaggedValue =
+        serde_yaml::from_str(&tagged_yaml).unwrap();
+    assert_eq!(tagged_roundtrip.tag, "Thing");
+    assert_eq!(tagged_roundtrip.value.as_str(), Some("x"));
+    let tagged_enum: TaggedAction = serde_yaml::from_str("!Thing enum-value\n").unwrap();
+    assert_eq!(tagged_enum, TaggedAction::Thing("enum-value".to_owned()));
 
     let value_from_root = serde_yaml::to_value(&config).unwrap();
     let value_from_module = serde_yaml::value::to_value(&config).unwrap();

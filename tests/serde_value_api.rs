@@ -2571,6 +2571,219 @@ fn serde_api_mapping_matches_common_serde_yaml_read_helpers() {
 }
 
 #[test]
+fn serde_api_mapping_mutation_denominator_matches_serde_yaml() {
+    fn mapping_from_pairs() -> Mapping {
+        [
+            ("a", "alpha"),
+            ("b", "beta"),
+            ("c", "gamma"),
+            ("d", "delta"),
+            ("e", "epsilon"),
+        ]
+        .into_iter()
+        .map(|(key, value)| (Value::from(key), Value::from(value)))
+        .collect()
+    }
+
+    fn reference_mapping_from_pairs() -> serde_yaml::Mapping {
+        [
+            ("a", "alpha"),
+            ("b", "beta"),
+            ("c", "gamma"),
+            ("d", "delta"),
+            ("e", "epsilon"),
+        ]
+        .into_iter()
+        .map(|(key, value)| (serde_yaml::Value::from(key), serde_yaml::Value::from(value)))
+        .collect()
+    }
+
+    fn pairs(mapping: &Mapping) -> Vec<(String, String)> {
+        mapping
+            .iter()
+            .map(|(key, value)| {
+                (
+                    key.as_str().expect("string key").to_owned(),
+                    value.as_str().expect("string value").to_owned(),
+                )
+            })
+            .collect()
+    }
+
+    fn reference_pairs(mapping: &serde_yaml::Mapping) -> Vec<(String, String)> {
+        mapping
+            .iter()
+            .map(|(key, value)| {
+                (
+                    key.as_str().expect("reference string key").to_owned(),
+                    value.as_str().expect("reference string value").to_owned(),
+                )
+            })
+            .collect()
+    }
+
+    fn removed_value(value: Option<Value>) -> Option<String> {
+        value.and_then(|value| value.as_str().map(str::to_owned))
+    }
+
+    fn removed_reference_value(value: Option<serde_yaml::Value>) -> Option<String> {
+        value.and_then(|value| value.as_str().map(str::to_owned))
+    }
+
+    fn removed_entry(entry: Option<(Value, Value)>) -> Option<(String, String)> {
+        entry.map(|(key, value)| {
+            (
+                key.as_str().expect("removed string key").to_owned(),
+                value.as_str().expect("removed string value").to_owned(),
+            )
+        })
+    }
+
+    fn removed_reference_entry(
+        entry: Option<(serde_yaml::Value, serde_yaml::Value)>,
+    ) -> Option<(String, String)> {
+        entry.map(|(key, value)| {
+            (
+                key.as_str()
+                    .expect("removed reference string key")
+                    .to_owned(),
+                value
+                    .as_str()
+                    .expect("removed reference string value")
+                    .to_owned(),
+            )
+        })
+    }
+
+    let mut mapping = mapping_from_pairs();
+    let mut reference = reference_mapping_from_pairs();
+    assert_eq!(
+        removed_value(mapping.remove("b")),
+        removed_reference_value(reference.remove("b"))
+    );
+    assert_eq!(
+        removed_entry(mapping.remove_entry(Value::from("a"))),
+        removed_reference_entry(reference.remove_entry(serde_yaml::Value::from("a")))
+    );
+    assert_eq!(
+        removed_value(mapping.swap_remove(String::from("e"))),
+        removed_reference_value(reference.swap_remove(String::from("e")))
+    );
+    assert_eq!(
+        removed_entry(mapping.swap_remove_entry(Value::from("c"))),
+        removed_reference_entry(reference.swap_remove_entry(serde_yaml::Value::from("c")))
+    );
+    assert!(mapping.swap_remove("missing").is_none());
+    assert!(reference.swap_remove("missing").is_none());
+    assert_eq!(pairs(&mapping), reference_pairs(&reference));
+
+    let mut mapping = mapping_from_pairs();
+    let mut reference = reference_mapping_from_pairs();
+    assert_eq!(
+        removed_value(mapping.shift_remove("b")),
+        removed_reference_value(reference.shift_remove("b"))
+    );
+    assert_eq!(
+        removed_entry(mapping.shift_remove_entry(Value::from("d"))),
+        removed_reference_entry(reference.shift_remove_entry(serde_yaml::Value::from("d")))
+    );
+    assert!(mapping.shift_remove("missing").is_none());
+    assert!(reference.shift_remove("missing").is_none());
+    assert_eq!(pairs(&mapping), reference_pairs(&reference));
+
+    let mut mapping = mapping_from_pairs();
+    let mut reference = reference_mapping_from_pairs();
+    for (_, value) in mapping.iter_mut() {
+        if value.as_str() == Some("beta") {
+            *value = Value::from("BETA");
+        }
+    }
+    for (_, value) in reference.iter_mut() {
+        if value.as_str() == Some("beta") {
+            *value = serde_yaml::Value::from("BETA");
+        }
+    }
+    for value in mapping.values_mut() {
+        if value.as_str() == Some("delta") {
+            *value = Value::from("DELTA");
+        }
+    }
+    for value in reference.values_mut() {
+        if value.as_str() == Some("delta") {
+            *value = serde_yaml::Value::from("DELTA");
+        }
+    }
+    mapping.retain(|key, value| {
+        if key.as_str() == Some("c") {
+            *value = Value::from("GAMMA");
+        }
+        key.as_str() != Some("a")
+    });
+    reference.retain(|key, value| {
+        if key.as_str() == Some("c") {
+            *value = serde_yaml::Value::from("GAMMA");
+        }
+        key.as_str() != Some("a")
+    });
+    assert_eq!(pairs(&mapping), reference_pairs(&reference));
+
+    let keys = mapping_from_pairs()
+        .into_keys()
+        .map(|key| key.as_str().expect("string key").to_owned())
+        .collect::<Vec<_>>();
+    let reference_keys = reference_mapping_from_pairs()
+        .into_keys()
+        .map(|key| key.as_str().expect("reference string key").to_owned())
+        .collect::<Vec<_>>();
+    assert_eq!(keys, reference_keys);
+
+    let values = mapping_from_pairs()
+        .into_values()
+        .map(|value| value.as_str().expect("string value").to_owned())
+        .collect::<Vec<_>>();
+    let reference_values = reference_mapping_from_pairs()
+        .into_values()
+        .map(|value| value.as_str().expect("reference string value").to_owned())
+        .collect::<Vec<_>>();
+    assert_eq!(values, reference_values);
+
+    mapping.clear();
+    reference.clear();
+    assert_eq!(mapping.len(), reference.len());
+    assert_eq!(mapping.is_empty(), reference.is_empty());
+
+    let mut value = Value::Null;
+    let mut reference = serde_yaml::Value::Null;
+    value["services"]["api"]["image"] = Value::from("nginx");
+    reference["services"]["api"]["image"] = serde_yaml::Value::from("nginx");
+    value["services"]["api"]["ports"] =
+        Value::Sequence(vec![Value::from(80_u64), Value::from(443_u64)]);
+    reference["services"]["api"]["ports"] =
+        serde_yaml::from_str("[80, 443]").expect("reference sequence");
+    value["services"]["api"]["ports"][0] = Value::from(8080_u64);
+    reference["services"]["api"]["ports"][0] = serde_yaml::Value::from(8080_u64);
+    value["services"]["api"][0] = Value::from("numeric-key");
+    reference["services"]["api"][0] = serde_yaml::Value::from("numeric-key");
+
+    assert_eq!(
+        value["services"]["api"]["image"].as_str(),
+        reference["services"]["api"]["image"].as_str()
+    );
+    assert_eq!(
+        value["services"]["api"]["ports"][0].as_u64(),
+        reference["services"]["api"]["ports"][0].as_u64()
+    );
+    assert_eq!(
+        value["services"]["api"][0].as_str(),
+        reference["services"]["api"][0].as_str()
+    );
+    assert_eq!(
+        value["services"]["api"]["missing"].is_null(),
+        reference["services"]["api"]["missing"].is_null()
+    );
+}
+
+#[test]
 fn serde_api_mapping_iterators_match_public_serde_yaml_surface() {
     fn assert_value_index<T: ?Sized + yaml::Index>() {}
     fn assert_mapping_index<T: ?Sized + yaml::mapping::Index>() {}

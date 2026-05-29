@@ -72,6 +72,7 @@ fn main() {
     rust_i18n_locales_use_package_alias();
     cfn_guard_templates_use_package_alias();
     stackable_crds_use_package_alias();
+    mapping_api_denominator_uses_package_alias();
 }
 
 fn pingora_configs_use_package_alias() {
@@ -336,4 +337,126 @@ fn lookup_locale_path<'a>(
         LocaleValue::String(value) => Some(value),
         _ => None,
     }
+}
+
+fn mapping_api_denominator_uses_package_alias() {
+    let mut mapping = package_alias_mapping_from_pairs();
+    assert_eq!(
+        mapping
+            .remove("b")
+            .and_then(|value| value.as_str().map(str::to_owned)),
+        Some("beta".to_owned())
+    );
+    let removed = mapping.remove_entry("a").expect("remove a");
+    assert_eq!(removed.0.as_str(), Some("a"));
+    assert_eq!(removed.1.as_str(), Some("alpha"));
+    assert_eq!(
+        mapping
+            .swap_remove(String::from("e"))
+            .and_then(|value| value.as_str().map(str::to_owned)),
+        Some("epsilon".to_owned())
+    );
+    let removed = mapping
+        .swap_remove_entry(serde_yaml::Value::from("c"))
+        .expect("swap remove c");
+    assert_eq!(removed.0.as_str(), Some("c"));
+    assert_eq!(removed.1.as_str(), Some("gamma"));
+    assert!(mapping.remove("missing").is_none());
+    assert_eq!(
+        package_alias_mapping_pairs(&mapping),
+        package_alias_expected_pairs(&[("d", "delta")])
+    );
+
+    let mut retained = package_alias_mapping_from_pairs();
+    for (_, value) in retained.iter_mut() {
+        if value.as_str() == Some("beta") {
+            *value = serde_yaml::Value::from("BETA");
+        }
+    }
+    for value in retained.values_mut() {
+        if value.as_str() == Some("delta") {
+            *value = serde_yaml::Value::from("DELTA");
+        }
+    }
+    retained.retain(|key, value| {
+        if key.as_str() == Some("c") {
+            *value = serde_yaml::Value::from("GAMMA");
+        }
+        key.as_str() != Some("a")
+    });
+    assert_eq!(
+        package_alias_mapping_pairs(&retained),
+        package_alias_expected_pairs(&[
+            ("b", "BETA"),
+            ("c", "GAMMA"),
+            ("d", "DELTA"),
+            ("e", "epsilon"),
+        ])
+    );
+
+    let mut ordered = package_alias_mapping_from_pairs();
+    ordered.shift_remove("b").expect("shift remove b");
+    ordered
+        .shift_remove_entry(serde_yaml::Value::from("d"))
+        .expect("shift remove d");
+    assert_eq!(
+        package_alias_mapping_pairs(&ordered),
+        package_alias_expected_pairs(&[("a", "alpha"), ("c", "gamma"), ("e", "epsilon")])
+    );
+
+    let keys = package_alias_mapping_from_pairs()
+        .into_keys()
+        .map(|key| key.as_str().expect("string key").to_owned())
+        .collect::<Vec<_>>();
+    assert_eq!(keys, ["a", "b", "c", "d", "e"]);
+    let values = package_alias_mapping_from_pairs()
+        .into_values()
+        .map(|value| value.as_str().expect("string value").to_owned())
+        .collect::<Vec<_>>();
+    assert_eq!(values, ["alpha", "beta", "gamma", "delta", "epsilon"]);
+
+    retained.clear();
+    assert!(retained.is_empty());
+
+    let mut value = serde_yaml::Value::Null;
+    value["services"]["api"]["image"] = serde_yaml::Value::from("nginx");
+    value["services"]["api"]["ports"] = serde_yaml::from_str("[80, 443]").unwrap();
+    value["services"]["api"]["ports"][0] = serde_yaml::Value::from(8080_u64);
+    value["services"]["api"][0] = serde_yaml::Value::from("numeric-key");
+    assert_eq!(value["services"]["api"]["image"].as_str(), Some("nginx"));
+    assert_eq!(value["services"]["api"]["ports"][0].as_u64(), Some(8080));
+    assert_eq!(value["services"]["api"][0].as_str(), Some("numeric-key"));
+    assert!(value["services"]["api"]["missing"].is_null());
+}
+
+fn package_alias_mapping_from_pairs() -> serde_yaml::Mapping {
+    [
+        ("a", "alpha"),
+        ("b", "beta"),
+        ("c", "gamma"),
+        ("d", "delta"),
+        ("e", "epsilon"),
+    ]
+    .into_iter()
+    .map(|(key, value)| (serde_yaml::Value::from(key), serde_yaml::Value::from(value)))
+    .collect()
+}
+
+fn package_alias_mapping_pairs(mapping: &serde_yaml::Mapping) -> Vec<(String, String)> {
+    mapping
+        .iter()
+        .map(|(key, value)| {
+            (
+                key.as_str().expect("string key").to_owned(),
+                value.as_str().expect("string value").to_owned(),
+            )
+        })
+        .collect()
+}
+
+fn package_alias_expected_pairs(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
+    pairs
+        .iter()
+        .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
+        .collect()
 }

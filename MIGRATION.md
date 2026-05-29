@@ -101,9 +101,10 @@ Additional crate surfaces useful during migration:
   document only when the document declares `%YAML 1.1`. Default entrypoints
   remain YAML 1.2-oriented.
 - `yaml::LoadOptions` enforces a 64 MiB input byte ceiling by default across
-  string, slice, reader, document-stream, and direct deserializer paths. Use
-  `max_input_bytes()` to tune the ceiling for a call site, or
-  `without_input_limit()` only when a caller has already bounded the source.
+  string, slice, reader, document-stream, and direct deserializer paths.
+  `yaml::parse_lossless_bytes` applies the same default ceiling before UTF-8
+  validation. Use `max_input_bytes()` to tune the ceiling for a loader call site,
+  or `without_input_limit()` only when a caller has already bounded the source.
 - `yaml::from_node` preserves parser spans while deserializing from a loaded tree.
 - `yaml::from_documents_str`, `from_documents_slice`, and
   `from_documents_reader` return typed vectors for YAML streams.

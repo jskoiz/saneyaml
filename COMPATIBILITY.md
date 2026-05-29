@@ -213,9 +213,10 @@ behavior for BOM-prefixed config files while keeping spans anchored to the
 original byte buffer.
 All parser, loaded-tree, document-stream, reader-backed, and direct
 deserializer entrypoints enforce `LoadOptions` input-size policy before parsing.
-Default options cap YAML input at 64 MiB, `max_input_bytes()` can tighten or
-raise that ceiling, and `without_input_limit()` is an explicit opt-out for
-callers that have already bounded their input source.
+`parse_lossless_bytes` applies the same 64 MiB default ceiling before UTF-8
+validation. Default options cap YAML input at 64 MiB, `max_input_bytes()` can
+tighten or raise that ceiling, and `without_input_limit()` is an explicit
+opt-out for callers that have already bounded their input source.
 Direct input entrypoints borrow only scalars whose value can be represented as
 a slice of the original input; transformed scalars such as escaped quoted
 strings and block scalars still require owned `String`/`Cow` targets.

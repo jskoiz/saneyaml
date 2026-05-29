@@ -8,7 +8,7 @@
 
 use crate::{
     CollectionStyle, Error, Event, EventAnchor, EventDocumentDirectives, EventMeta, EventTag,
-    Result, ScalarStyle, Span,
+    LoadOptions, Result, ScalarStyle, Span,
     error::utf8_error_span,
     parse::{comment_start, parse_events},
 };
@@ -22,6 +22,7 @@ pub fn parse_lossless(input: &str) -> Result<LosslessStream> {
 
 /// Parses UTF-8 YAML bytes into a source-backed lossless graph view.
 pub fn parse_lossless_bytes(input: &[u8]) -> Result<LosslessStream> {
+    LoadOptions::new().check_input_len(input.len())?;
     match std::str::from_utf8(input) {
         Ok(input) => parse_lossless(input),
         Err(err) => Err(Error::new(

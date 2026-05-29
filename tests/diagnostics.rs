@@ -1,6 +1,9 @@
 use serde::Deserialize;
 use std::io::{self, Cursor, Read};
-use yaml::{LoadOptions, Node, NodeValue, Value, parse_bytes, parse_str};
+use yaml::{
+    DEFAULT_MAX_INPUT_BYTES, LoadOptions, Node, NodeValue, Value, parse_bytes,
+    parse_lossless_bytes, parse_str,
+};
 
 const ALIAS_EXPANSION_BOMB: &str = "\
 a: &a [lol, lol, lol, lol, lol, lol, lol, lol]
@@ -148,6 +151,23 @@ fn load_options_input_limit_rejects_oversized_inputs_before_parsing() {
         assert!(!display.contains("line 0"));
         assert!(!display.contains("column 0"));
     }
+}
+
+#[test]
+fn lossless_bytes_rejects_default_input_limit_before_utf8_validation() {
+    let mut input = vec![b'a'; DEFAULT_MAX_INPUT_BYTES + 1];
+    *input.last_mut().expect("non-empty input") = 0xFF;
+
+    let error = parse_lossless_bytes(&input).expect_err("lossless input limit");
+    let display = error.to_string();
+    assert!(
+        display.contains(&format!(
+            "YAML input exceeds configured limit of {DEFAULT_MAX_INPUT_BYTES} bytes"
+        )),
+        "{display}"
+    );
+    assert!(!display.contains("valid UTF-8"), "{display}");
+    assert_eq!(error.location(), None);
 }
 
 #[test]

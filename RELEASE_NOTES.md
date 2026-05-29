@@ -70,9 +70,9 @@ Notable completed release-candidate behavior:
   streams, anchor redefinition, and recursive aliases. Anchor/alias target
   identity is also checked against `yaml-rust2` and `saphyr` parser anchor
   events for redefinition, recursive, document-reset, merge, manifest-derived
-  selected YAML-suite anchor/alias cases, and manifest-owned Docker Compose
-  anchor cases. YAML 1.1 merge/comment graph seeds are promoted into
-  deterministic conformance fixtures.
+  selected YAML-suite anchor/alias cases, manifest-owned Docker Compose anchor
+  cases, and validated source edits after reparsing. YAML 1.1 merge/comment
+  graph seeds are promoted into deterministic conformance fixtures.
 - Serde and schema-mode fuzz corpora now require YAML 1.1 malformed `!!set`,
   `!!omap`, and `!!pairs` seeds plus resolved and duplicate `!!value` key
   seeds, so recent compatibility diagnostics replay through the fuzz/property
@@ -91,12 +91,12 @@ Notable completed release-candidate behavior:
   merge/tag/graph cross-checks, resolved `!!value` handle and duplicate-key
   policy checks, nested merge precedence, duplicate local-key
   policy, cross-document merge alias reset, mixed invalid merge-list recovery,
-  signed-zero and alias-expanded key-collision policy, alias object identity,
-  per-case input digests, error locations where Psych
-  exposes them, and first-class alias redefinition/recursive identity probes as
-  deliberate compatibility decisions.
+  signed-zero and alias-expanded key-collision policy, alias object identity as
+  an explicit `LosslessStream` contract split, per-case input digests, error
+  locations where Psych exposes them, and first-class alias
+  redefinition/recursive identity probes as deliberate compatibility decisions.
 - A Psych/libyaml coverage ledger now groups the 45 pinned probe cases into
-  eight behavior families and tracks three explicit next-probe gaps, keeping
+  eight behavior families and tracks two explicit next-probe gaps, keeping
   YAML 1.1/libyaml scope auditable without claiming blanket compatibility.
 - `TaggedValue` now implements owned and borrowed Serde deserializer support
   for direct enum and `IgnoredAny` reads, matching the package-alias
@@ -119,5 +119,6 @@ Notable completed release-candidate behavior:
 Known release-candidate gaps remain tracked in `BASELINE.md`,
 `COMPATIBILITY.md`, and `MIGRATION.md`: complete YAML 1.1 ecosystem parity,
 full arbitrary structural lossless formatting beyond targeted block/flow
-mapping entry and sequence item helpers, semantic `Node`/`Value` graph
-identity, final package metadata, and external publication.
+mapping entry and sequence item helpers, final package metadata, and external
+publication. Semantic `Node`/`Value` loaders remain value-oriented by design;
+alias graph identity is the `LosslessStream` contract.

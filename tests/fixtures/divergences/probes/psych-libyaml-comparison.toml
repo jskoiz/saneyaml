@@ -193,7 +193,7 @@ psych_status = "ok"
 rust_entrypoint = "lossless"
 rust_status = "ok"
 rust_policy = "intentional-divergence"
-reason = "Psych preserves alias object identity in constructed Ruby objects; this crate preserves alias graph identity only on LosslessStream, not semantic Node/Value."
+reason = "Psych preserves alias object identity in constructed Ruby objects; this crate's final contract preserves alias graph identity on LosslessStream, not semantic Node/Value."
 yaml = '''
 base: &base
   count: 1

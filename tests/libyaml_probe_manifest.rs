@@ -518,7 +518,7 @@ fn psych_libyaml_probe_coverage_ledger_groups_all_pinned_cases() {
         coverage["tracked_gap_count"].as_integer(),
         Some(gaps.len() as i64),
     );
-    assert_eq!(gaps.len(), 3);
+    assert_eq!(gaps.len(), 2);
     let mut gap_ids = BTreeSet::new();
     for gap in gaps {
         let id = toml_str(gap, "id");

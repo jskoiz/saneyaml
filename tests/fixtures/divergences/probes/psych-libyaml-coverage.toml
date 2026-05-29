@@ -6,7 +6,7 @@ psych = "3.1.0"
 libyaml = "0.2.1"
 probe_case_count = 45
 behavior_family_count = 8
-tracked_gap_count = 3
+tracked_gap_count = 2
 coverage_policy = "Pinned Psych/libyaml cases are grouped by behavior family. Covered families are executable proof for the listed cases, not blanket YAML 1.1/libyaml compatibility."
 
 [[behavior_family]]
@@ -45,16 +45,16 @@ next_expansion = "Broaden anchor shadowing inside merge lists, collection-valued
 
 [[behavior_family]]
 id = "alias-graph-identity"
-status = "partial"
-summary = "Psych object identity compared with this crate's lossless graph identity surface."
+status = "covered"
+summary = "Psych object identity is covered as an explicit contract split: semantic Node/Value loaders stay value-oriented, while LosslessStream preserves alias graph identity."
 cases = [
   "alias-graph-identity",
   "alias-redefinition-identity",
   "alias-recursive-identity",
 ]
 rust_entrypoints = ["lossless"]
-adoption_risk = "Semantic Node/Value loaders still clone aliases; graph-sensitive migration must use LosslessStream."
-next_expansion = "Add semantic graph API decisions or keep graph identity explicitly scoped to LosslessStream."
+adoption_risk = "Callers relying on shared alias mutation or recursive object identity must migrate those flows to LosslessStream rather than semantic Node/Value."
+next_expansion = "Add cases only when real migrations need additional graph-sensitive source-edit or document-boundary shapes beyond the covered LosslessStream contract."
 
 [[behavior_family]]
 id = "parser-event-graph"
@@ -141,12 +141,6 @@ id = "merge-recovery-permutation-matrix"
 family = "merge-keys-and-recovery"
 reason = "Merge recovery now covers representative nested precedence, duplicate local key policy, mixed invalid merge-list recovery, and cross-document alias reset cases, but not every anchor-shadowing or collection-key variant."
 next_probe_candidates = ["anchor shadowing inside merge lists", "collection-valued duplicate merge keys", "deep invalid payload recovery variants"]
-
-[[tracked_gap]]
-id = "semantic-alias-object-identity"
-family = "alias-graph-identity"
-reason = "Graph identity is available through LosslessStream, not semantic Node/Value object identity."
-next_probe_candidates = ["graph-aware semantic API decision", "documented non-goal", "lossless graph editing"]
 
 [[tracked_gap]]
 id = "collection-tag-malformed-payloads"

@@ -281,6 +281,26 @@ second: *base
 }
 
 #[test]
+fn recursive_alias_identity_is_lossless_only_not_semantic_value_identity() {
+    let input = "root: &root [*root]\n";
+
+    let error = yaml::from_str::<Value>(input).expect_err("semantic recursive alias rejected");
+    assert!(error.to_string().contains("recursive alias"));
+
+    let stream = parse_lossless(input).expect("lossless parse");
+    let alias = stream.aliases().first().expect("recursive alias");
+    let anchor = stream.anchor(alias.target()).expect("recursive target");
+
+    assert_eq!(alias.name(), "root");
+    assert_eq!(anchor.name(), "root");
+    assert!(matches!(
+        stream.node(anchor.node()).expect("anchor node").kind(),
+        LosslessNodeKind::Sequence { children, .. }
+            if children.contains(&alias.node())
+    ));
+}
+
+#[test]
 fn lossless_graph_anchor_targets_match_reference_parser_events() {
     let cases = [
         (
@@ -327,6 +347,57 @@ fn lossless_graph_anchor_targets_match_reference_parser_events() {
             "saphyr graph identity parity for {name}"
         );
     }
+}
+
+#[test]
+fn edited_lossless_graph_still_matches_reference_parser_events() {
+    let input = include_str!("fixtures/real-world/docker-compose/compose-anchors.yaml");
+    let stream = parse_lossless(input).expect("lossless parse");
+    let image_start = input.find("nginx:latest").expect("web image value");
+    let image_end = image_start + "nginx:latest".len();
+    let labels_insert = input.find("    ports:\n").expect("ports entry");
+    let command_start = input.find("    command:").expect("worker command");
+    let command_end = command_start + input[command_start..].find('\n').expect("command line") + 1;
+
+    let mut edit = stream.edit();
+    edit.replace_source_span(
+        stream
+            .source_span(image_start, image_end)
+            .expect("image source span"),
+        "nginx:1.27",
+    )
+    .expect("replace image source");
+    edit.insert_source(labels_insert, "    labels:\n      com.example.role: web\n")
+        .expect("insert labels");
+    edit.delete_source_span(
+        stream
+            .source_span(command_start, command_end)
+            .expect("command source span"),
+    )
+    .expect("delete command");
+    let output = edit.finish().expect("validated edited YAML");
+
+    let edited = parse_lossless(&output).expect("edited output reparses");
+    assert_eq!(edited.as_source(), output);
+    assert_eq!(edited.aliases().len(), 2);
+    assert!(
+        edited
+            .nodes()
+            .iter()
+            .any(|node| edited.source_fragment(node.span()) == Some("<<"))
+    );
+
+    let ours = normalize_lossless_graph(&output).expect("edited lossless graph");
+    assert_eq!(
+        ours,
+        normalize_yaml_rust2_graph(&output).expect("edited yaml-rust2 graph"),
+        "yaml-rust2 graph identity parity after source edits"
+    );
+    assert_eq!(
+        ours,
+        normalize_saphyr_graph(&output).expect("edited saphyr graph"),
+        "saphyr graph identity parity after source edits"
+    );
 }
 
 #[test]

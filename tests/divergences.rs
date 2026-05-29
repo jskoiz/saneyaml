@@ -312,6 +312,8 @@ fn divergence_alias_graph_identity_record_is_present() {
     assert!(record.contains("shared Ruby object identity"));
     assert!(record.contains("LosslessStream"));
     assert!(record.contains("semantic loaders value-oriented"));
+    assert!(record.contains("final contract"));
+    assert!(record.contains("post-edit graph parity"));
     assert!(record.contains("graph-aware layer"));
 
     let stream = parse_lossless("base: &base\n  count: 1\na: *base\nb: *base\n")

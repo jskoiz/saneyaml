@@ -1,7 +1,52 @@
 #![allow(dead_code)]
 
 use serde::Deserialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
+use std::path::{Path, PathBuf};
+
+const REAL_WORLD_SOURCE: &str = include_str!("../fixtures/real-world/SOURCE.toml");
+const REAL_WORLD_FIXTURE_PATHS: &[&str] = &[
+    "github-actions/minimal-ci.yaml",
+    "github-actions/matrix-ci.yaml",
+    "github-actions/starter-node-ci.yml",
+    "github-actions/polymorphic-workflow.yaml",
+    "docker-compose/compose.yaml",
+    "docker-compose/awesome-nginx-flask-mysql.yaml",
+    "docker-compose/compose-anchors.yaml",
+    "docker-compose/compose-platform-resources.yaml",
+    "docker-compose/compose-polymorphic.yaml",
+    "docker-compose/adapted-compose-spec-fragments.yaml",
+    "kubernetes/deployment.yaml",
+    "kubernetes/multi-doc.yaml",
+    "kubernetes/custom-resource-definition.yaml",
+    "kubernetes/helm-rendered-stream.yaml",
+    "kubernetes/configmap-block-scalars.yaml",
+    "kubernetes/upstream-guestbook-frontend-deployment.yaml",
+    "helm/values.yaml",
+    "helm/Chart.yaml",
+    "helm/upstream-hello-world-Chart.yaml",
+    "openapi/petstore-fragment.yaml",
+    "openapi/operations-and-polymorphism.yaml",
+    "openapi/upstream-petstore.yaml",
+    "cloudflare/wrangler.yaml",
+    "cloudflare/adapted-durable-objects-wrangler.yaml",
+    "ansible/playbook.yaml",
+    "ansible/upstream-lamp-simple-site.yml",
+    "ansible/vault-and-unsafe-tags.yaml",
+];
+
+#[derive(Debug, Deserialize)]
+struct FixtureManifest {
+    fixture: Vec<FixtureRecord>,
+}
+
+#[derive(Debug, Deserialize)]
+struct FixtureRecord {
+    path: String,
+    domain: String,
+    expected_docs: usize,
+}
 
 #[derive(Debug, Deserialize)]
 struct Workflow {
@@ -136,6 +181,7 @@ struct Play {
 }
 
 fn main() {
+    manifest_fixtures_parse_through_package_alias();
     github_actions_matrix_uses_package_alias();
     docker_compose_merge_anchor_expands_through_package_alias();
     kubernetes_stream_uses_package_alias_deserializer();
@@ -143,6 +189,61 @@ fn main() {
     openapi_value_reads_through_package_alias();
     wrangler_reads_through_package_alias();
     ansible_playbook_reads_through_package_alias();
+}
+
+fn manifest_fixtures_parse_through_package_alias() {
+    let manifest: FixtureManifest =
+        toml::from_str(REAL_WORLD_SOURCE).expect("real-world SOURCE.toml parses");
+    let manifest_paths = manifest
+        .fixture
+        .iter()
+        .map(|fixture| fixture.path.as_str())
+        .collect::<BTreeSet<_>>();
+    let expected_paths = REAL_WORLD_FIXTURE_PATHS
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    assert_eq!(manifest_paths, expected_paths);
+    assert_eq!(manifest.fixture.len(), 27);
+
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/real-world");
+    let mut domains = BTreeSet::new();
+    let mut total_docs = 0usize;
+    for fixture in &manifest.fixture {
+        domains.insert(fixture.domain.as_str());
+        let docs = parse_fixture_documents(&root, fixture);
+        assert_eq!(
+            docs.len(),
+            fixture.expected_docs,
+            "document count drifted for {}",
+            fixture.path
+        );
+        total_docs += docs.len();
+    }
+
+    assert_eq!(total_docs, 33);
+    assert_eq!(
+        domains,
+        BTreeSet::from([
+            "ansible",
+            "docker-compose",
+            "github-actions",
+            "helm",
+            "kubernetes",
+            "openapi",
+            "wrangler",
+        ])
+    );
+}
+
+fn parse_fixture_documents(root: &Path, fixture: &FixtureRecord) -> Vec<serde_yaml::Value> {
+    let path: PathBuf = root.join(&fixture.path);
+    let input = fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("read real-world fixture {}: {error}", fixture.path));
+    serde_yaml::Deserializer::from_str(&input)
+        .map(serde_yaml::Value::deserialize)
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap_or_else(|error| panic!("parse real-world fixture {}: {error}", fixture.path))
 }
 
 fn github_actions_matrix_uses_package_alias() {

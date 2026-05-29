@@ -52,9 +52,10 @@ caller-built default merge deserialization plus explicit in-place merge
 expansion, lossless graph identity inspection, writer paths, and diagnostic
 locations. A real-world package-alias smoke copies the checked-in
 GitHub Actions, Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and
-Ansible fixture registry into a clean downstream crate and parses representative
-fields through `serde_yaml::...` imports, including default Docker Compose merge
-expansion. An external downstream package-alias smoke separately copies the
+Ansible fixture registry into a clean downstream crate, parses every registered
+fixture through `serde_yaml::Deserializer`, and keeps representative deep field
+assertions through `serde_yaml::...` imports, including default Docker Compose
+merge expansion. An external downstream package-alias smoke separately copies the
 checked-in Pingora, rust-i18n, cfn-guard, and Stackable fixture reductions into
 a clean downstream crate and exercises typed reads, structural emits, tagged
 CloudFormation `Value` access, locale trees, and Kubernetes CRD/OpenAPI shapes
@@ -202,7 +203,7 @@ cargo clippy --all-targets -- -D warnings
 ## Performance Evidence
 
 `examples/real_world_benchmark.rs` benchmarks parse/load cost over the same
-26-file / 32-document real-world registry without timing file I/O:
+27-file / 33-document real-world registry without timing file I/O:
 
 ```sh
 cargo run --release --example real_world_benchmark

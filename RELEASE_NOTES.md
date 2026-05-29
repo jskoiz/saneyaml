@@ -34,9 +34,10 @@ Notable completed release-candidate behavior:
   in-place merge expansion, mapping/index ergonomics, lossless graph identity
   inspection, and diagnostic locations. A separate
   real-world package-alias smoke now copies the fixture registry into a clean
-  downstream crate and parses representative GitHub Actions, Docker Compose,
-  Kubernetes, Helm, OpenAPI, Wrangler, and Ansible documents through
-  `serde_yaml::...` imports.
+  downstream crate, parses every registered fixture through
+  `serde_yaml::Deserializer`, and keeps representative deep field assertions for
+  GitHub Actions, Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and
+  Ansible documents through `serde_yaml::...` imports.
 - Pinned external downstream replay and package-alias build trials now include
   Pingora, rust-i18n, cfn-guard, and Stackable operator-rs. The package smoke
   now also replays checked-in reductions from those downstreams through the

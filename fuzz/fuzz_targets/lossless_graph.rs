@@ -5,13 +5,13 @@ use yaml::{AnchorId, LoadOptions, LosslessNodeKind, LosslessStream, LosslessTriv
 
 fuzz_target!(|input: &[u8]| {
     let result = yaml::parse_lossless_bytes(input);
-    if let Ok(input_str) = std::str::from_utf8(input) {
-        if yaml::parse_events(input_str).is_ok() {
-            assert!(
-                result.is_ok(),
-                "parse_lossless rejected YAML accepted by parse_events: {result:?}"
-            );
-        }
+    if let Ok(input_str) = std::str::from_utf8(input)
+        && yaml::parse_events(input_str).is_ok()
+    {
+        assert!(
+            result.is_ok(),
+            "parse_lossless rejected YAML accepted by parse_events: {result:?}"
+        );
     }
     match result {
         Ok(stream) => assert_stream_invariants(input, &stream),

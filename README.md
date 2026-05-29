@@ -104,6 +104,7 @@ cargo test --test baseline_audit
 RUSTDOCFLAGS='-D missing_docs' cargo doc --no-deps
 cargo test
 cargo clippy --all-targets -- -D warnings
+cargo clippy --manifest-path fuzz/Cargo.toml --all-targets -- -D warnings
 cargo run --release --example real_world_benchmark
 scripts/fuzz-smoke-nonmutating.sh
 ```

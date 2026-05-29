@@ -20,6 +20,8 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "alias-graph-identity",
         "explicit-core-tags",
         "yaml11-collection-tags",
+        "raw-event-directives",
+        "raw-event-document-markers",
     ] {
         assert!(
             PROBE_SCRIPT.contains(term),
@@ -34,11 +36,15 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_eq!(artifact["libyaml"], "0.2.1");
 
     let cases = artifact["cases"].as_array().expect("probe cases array");
-    assert_eq!(cases.len(), 12);
+    assert_eq!(cases.len(), 20);
 
     let expected_ids = BTreeSet::from([
         "adjacent-flow-mapping-scalars",
         "alias-graph-identity",
+        "bare-document-streams",
+        "directive-looking-flow-content",
+        "document-start-block-scalars",
+        "document-start-inline-node",
         "duplicate-scalar-keys",
         "explicit-core-tags",
         "legacy-scalar-resolution",
@@ -46,8 +52,12 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "multiline-quoted-flow-key",
         "null-like-string-targets",
         "numeric-key-identity",
+        "raw-event-directives",
+        "raw-event-document-markers",
         "rw-github-actions-on-key",
         "tab-token-separation",
+        "tag-directive-scope-and-undeclared-handles",
+        "yaml-version-directive-schema",
         "yaml11-collection-tags",
     ]);
     let actual_ids = cases
@@ -98,6 +108,44 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         assert_eq!(case["status"], "error", "{id}");
         assert_eq!(case["error_class"], "Psych::SyntaxError", "{id}");
     }
+
+    assert_case_summary_contains(&artifact, "raw-event-directives", "start_document");
+    assert_case_summary_contains(
+        &artifact,
+        "raw-event-directives",
+        "tag:example.com,2026:Thing",
+    );
+    assert_case_summary_contains(&artifact, "raw-event-directives", "root");
+    assert_event_count(&artifact, "raw-event-document-markers", 11);
+    assert_case_summary_contains(&artifact, "raw-event-document-markers", "end_document");
+    assert_case_summary_contains(&artifact, "document-start-inline-node", "!Thing");
+    assert_case_summary_contains(&artifact, "document-start-inline-node", "root");
+
+    assert_error_contains(
+        &artifact,
+        "yaml-version-directive-schema",
+        "incompatible YAML document",
+    );
+    assert_error_contains(
+        &artifact,
+        "tag-directive-scope-and-undeclared-handles",
+        "undefined tag handle",
+    );
+    assert_error_contains(
+        &artifact,
+        "document-start-block-scalars",
+        "incompatible YAML document",
+    );
+    assert_error_contains(
+        &artifact,
+        "bare-document-streams",
+        "expected <document start>",
+    );
+    assert_error_contains(
+        &artifact,
+        "directive-looking-flow-content",
+        "expected ',' or '}'",
+    );
 }
 
 #[test]
@@ -122,6 +170,28 @@ fn assert_case_summary_contains(artifact: &Json, id: &str, expected: &str) {
     assert!(
         case.to_string().contains(expected),
         "{id} summary must contain {expected}"
+    );
+}
+
+fn assert_event_count(artifact: &Json, id: &str, expected: usize) {
+    let case = case_by_id(artifact, id);
+    assert_eq!(
+        case["summary"]["event_count"].as_u64(),
+        Some(expected as u64),
+        "{id} event count"
+    );
+}
+
+fn assert_error_contains(artifact: &Json, id: &str, expected: &str) {
+    let case = case_by_id(artifact, id);
+    assert_eq!(case["status"], "error", "{id}");
+    assert_eq!(case["error_class"], "Psych::SyntaxError", "{id}");
+    assert!(
+        case["error"]
+            .as_str()
+            .unwrap_or_default()
+            .contains(expected),
+        "{id} error must contain {expected}"
     );
 }
 

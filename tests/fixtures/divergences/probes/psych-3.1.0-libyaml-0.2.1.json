@@ -1150,6 +1150,245 @@
       "status": "error",
       "error_class": "Psych::SyntaxError",
       "error": "did not find expected ',' or '}'"
+    },
+    {
+      "id": "raw-event-directives",
+      "record": "tests/fixtures/divergences/records/raw-event-directives.toml",
+      "status": "ok",
+      "summary": {
+        "event_count": 8,
+        "events": [
+          {
+            "encoding": 1,
+            "event": "start_stream"
+          },
+          {
+            "version": [
+              1,
+              1
+            ],
+            "tag_directives": [
+              [
+                "!e!",
+                "tag:example.com,2026:"
+              ]
+            ],
+            "implicit": false,
+            "event": "start_document"
+          },
+          {
+            "anchor": "root",
+            "tag": "tag:example.com,2026:Thing",
+            "implicit": false,
+            "style": 2,
+            "event": "start_mapping"
+          },
+          {
+            "value": "a",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "value": "1",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "event": "end_mapping"
+          },
+          {
+            "implicit": true,
+            "event": "end_document"
+          },
+          {
+            "event": "end_stream"
+          }
+        ]
+      }
+    },
+    {
+      "id": "raw-event-document-markers",
+      "record": "tests/fixtures/divergences/records/raw-event-document-markers.toml",
+      "status": "ok",
+      "summary": {
+        "event_count": 11,
+        "events": [
+          {
+            "encoding": 1,
+            "event": "start_stream"
+          },
+          {
+            "version": [
+
+            ],
+            "tag_directives": [
+
+            ],
+            "implicit": false,
+            "event": "start_document"
+          },
+          {
+            "anchor": null,
+            "tag": null,
+            "implicit": true,
+            "style": 1,
+            "event": "start_mapping"
+          },
+          {
+            "value": "alpha",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "value": "1",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "event": "end_mapping"
+          },
+          {
+            "implicit": false,
+            "event": "end_document"
+          },
+          {
+            "version": [
+
+            ],
+            "tag_directives": [
+
+            ],
+            "implicit": false,
+            "event": "start_document"
+          },
+          {
+            "value": "beta",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "implicit": true,
+            "event": "end_document"
+          },
+          {
+            "event": "end_stream"
+          }
+        ]
+      }
+    },
+    {
+      "id": "yaml-version-directive-schema",
+      "record": "tests/fixtures/divergences/records/yaml-version-directive-schema.toml",
+      "status": "error",
+      "error_class": "Psych::SyntaxError",
+      "error": "found incompatible YAML document"
+    },
+    {
+      "id": "tag-directive-scope-and-undeclared-handles",
+      "record": "tests/fixtures/divergences/records/tag-directive-scope-and-undeclared-handles.toml",
+      "status": "error",
+      "error_class": "Psych::SyntaxError",
+      "error": "found undefined tag handle"
+    },
+    {
+      "id": "document-start-inline-node",
+      "record": "tests/fixtures/divergences/records/document-start-inline-node.toml",
+      "status": "ok",
+      "summary": {
+        "event_count": 8,
+        "events": [
+          {
+            "encoding": 1,
+            "event": "start_stream"
+          },
+          {
+            "version": [
+
+            ],
+            "tag_directives": [
+
+            ],
+            "implicit": false,
+            "event": "start_document"
+          },
+          {
+            "anchor": "root",
+            "tag": "!Thing",
+            "implicit": false,
+            "style": 2,
+            "event": "start_mapping"
+          },
+          {
+            "value": "a",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "value": "1",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "event": "end_mapping"
+          },
+          {
+            "implicit": true,
+            "event": "end_document"
+          },
+          {
+            "event": "end_stream"
+          }
+        ]
+      }
+    },
+    {
+      "id": "document-start-block-scalars",
+      "record": "tests/fixtures/divergences/records/document-start-block-scalars.toml",
+      "status": "error",
+      "error_class": "Psych::SyntaxError",
+      "error": "found incompatible YAML document"
+    },
+    {
+      "id": "bare-document-streams",
+      "record": "tests/fixtures/divergences/records/bare-document-streams.toml",
+      "status": "error",
+      "error_class": "Psych::SyntaxError",
+      "error": "did not find expected <document start>"
+    },
+    {
+      "id": "directive-looking-flow-content",
+      "record": "tests/fixtures/divergences/records/directive-looking-flow-content.toml",
+      "status": "error",
+      "error_class": "Psych::SyntaxError",
+      "error": "did not find expected ',' or '}'"
     }
   ]
 }

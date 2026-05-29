@@ -15,10 +15,13 @@ The compatibility target is intentionally split:
 - Parser reference target: YAML 1.2 tree/event acceptance comparable to
   `yaml-rust2` and `saphyr` for supported syntax.
 - Ecosystem divergence target: libyaml/YAML 1.1-era behavior is documented and
-  version-pinned with a Ruby Psych 3.1.0/libyaml 0.2.1 probe artifact. Default
-  loading stays YAML 1.2-oriented; explicit YAML 1.1 construction covers the
-  scalar forms listed here with `yaml::Timestamp` typed reads while keeping byte
-  payloads tagged unless the caller asks for a typed byte target.
+  version-pinned with a Ruby Psych 3.1.0/libyaml 0.2.1 probe artifact. The
+  artifact covers constructed values plus parser-event/directive behavior for
+  document markers, `%YAML`/`%TAG`, document-start root nodes, undeclared tag
+  handles, and selected libyaml-era rejections. Default loading stays YAML
+  1.2-oriented; explicit YAML 1.1 construction covers the scalar forms listed
+  here with `yaml::Timestamp` typed reads while keeping byte payloads tagged
+  unless the caller asks for a typed byte target.
 
 Every divergence record in `tests/fixtures/divergences/records/` carries a
 `migration_impact` field, and `tests/divergence_manifest.rs` fails new records
@@ -263,8 +266,12 @@ decisions, and graph identity are not exposed there. `LosslessStream` keeps the
 source buffer and links aliases to stable anchor ids for graph-sensitive
 callers. The pinned Psych/libyaml probe records that libyaml-backed Ruby objects
 share alias identity, reflect alias-visible mutation, and preserve recursive
-object identity; this crate keeps that behavior in the lossless graph surface,
-not semantic `Node` or `Value` trees. `graph_identity` now also compares
+object identity. The same probe now pins libyaml-era parser-event behavior for
+YAML/TAG directives, document markers, document-start inline nodes, undeclared
+tag-handle errors, YAML 1.3 rejection, document-start block-scalar rejection,
+bare-document-stream rejection, and directive-looking flow-content rejection.
+This crate keeps alias identity in the lossless graph surface, not semantic
+`Node` or `Value` trees. `graph_identity` now also compares
 `LosslessStream` anchor definitions and alias targets against normalized
 `yaml-rust2` and `saphyr` parser anchor events for anchor redefinition,
 recursive aliases, document anchor resets, merge aliases, YAML test-suite

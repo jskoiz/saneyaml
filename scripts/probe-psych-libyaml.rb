@@ -8,6 +8,11 @@ require "psych"
 EXPECTED_RUBY = "2.6.10"
 EXPECTED_PSYCH = "3.1.0"
 EXPECTED_LIBYAML = "0.2.1"
+ROOT = File.expand_path("..", __dir__)
+
+def fixture_yaml(path)
+  File.read(File.join(ROOT, path))
+end
 
 actual_libyaml = Psych.libyaml_version.join(".")
 unless RUBY_VERSION == EXPECTED_RUBY &&
@@ -187,8 +192,127 @@ CASES = [
         second": value
       }
     YAML
+  },
+  {
+    id: "raw-event-directives",
+    record: "tests/fixtures/divergences/records/raw-event-directives.toml",
+    mode: :events,
+    yaml: <<~YAML
+      %YAML 1.1
+      %TAG !e! tag:example.com,2026:
+      --- !e!Thing &root {a: 1}
+    YAML
+  },
+  {
+    id: "raw-event-document-markers",
+    record: "tests/fixtures/divergences/records/raw-event-document-markers.toml",
+    mode: :events,
+    yaml: <<~YAML
+      ---
+      alpha: 1
+      ...
+      --- beta
+    YAML
+  },
+  {
+    id: "yaml-version-directive-schema",
+    record: "tests/fixtures/divergences/records/yaml-version-directive-schema.toml",
+    mode: :events,
+    yaml: fixture_yaml("tests/fixtures/yaml-test-suite/data/BEC7/in.yaml")
+  },
+  {
+    id: "tag-directive-scope-and-undeclared-handles",
+    record: "tests/fixtures/divergences/records/tag-directive-scope-and-undeclared-handles.toml",
+    mode: :events,
+    yaml: "!h!Thing value\n"
+  },
+  {
+    id: "document-start-inline-node",
+    record: "tests/fixtures/divergences/records/document-start-inline-node.toml",
+    mode: :events,
+    yaml: "--- &root !Thing {a: 1}\n"
+  },
+  {
+    id: "document-start-block-scalars",
+    record: "tests/fixtures/divergences/records/document-start-block-scalars.toml",
+    mode: :events,
+    yaml: fixture_yaml("tests/fixtures/yaml-test-suite/data/W4TN/in.yaml")
+  },
+  {
+    id: "bare-document-streams",
+    record: "tests/fixtures/divergences/records/bare-document-streams.toml",
+    mode: :events,
+    yaml: fixture_yaml("tests/fixtures/yaml-test-suite/data/M7A3/in.yaml")
+  },
+  {
+    id: "directive-looking-flow-content",
+    record: "tests/fixtures/divergences/records/directive-looking-flow-content.toml",
+    mode: :events,
+    yaml: fixture_yaml("tests/fixtures/yaml-test-suite/data/UT92/in.yaml")
   }
 ].freeze
+
+class EventSummary < Psych::Handler
+  attr_reader :events
+
+  def initialize
+    @events = []
+  end
+
+  def start_stream(encoding)
+    push("start_stream", encoding: encoding)
+  end
+
+  def end_stream
+    push("end_stream")
+  end
+
+  def start_document(version, tag_directives, implicit)
+    push("start_document", version: version, tag_directives: tag_directives, implicit: implicit)
+  end
+
+  def end_document(implicit)
+    push("end_document", implicit: implicit)
+  end
+
+  def scalar(value, anchor, tag, plain, quoted, style)
+    push(
+      "scalar",
+      value: value,
+      anchor: anchor,
+      tag: tag,
+      plain_implicit: plain,
+      quoted_implicit: quoted,
+      style: style
+    )
+  end
+
+  def start_sequence(anchor, tag, implicit, style)
+    push("start_sequence", anchor: anchor, tag: tag, implicit: implicit, style: style)
+  end
+
+  def end_sequence
+    push("end_sequence")
+  end
+
+  def start_mapping(anchor, tag, implicit, style)
+    push("start_mapping", anchor: anchor, tag: tag, implicit: implicit, style: style)
+  end
+
+  def end_mapping
+    push("end_mapping")
+  end
+
+  def alias(anchor)
+    push("alias", anchor: anchor)
+  end
+
+  private
+
+  def push(event, **fields)
+    @events << fields.merge(event: event)
+  end
+end
 
 def scalar_summary(value)
   summary = { class: value.class.name }
@@ -268,6 +392,7 @@ end
 
 def probe_case(entry)
   return probe_alias_graph_identity(entry) if entry[:id] == "alias-graph-identity"
+  return probe_events(entry) if entry[:mode] == :events
 
   value = Psych.load(entry[:yaml])
   {
@@ -275,6 +400,28 @@ def probe_case(entry)
     record: entry[:record],
     status: "ok",
     summary: summarize(value)
+  }
+rescue Psych::SyntaxError => error
+  {
+    id: entry[:id],
+    record: entry[:record],
+    status: "error",
+    error_class: error.class.name,
+    error: error.problem || error.message.lines.first.to_s.strip
+  }
+end
+
+def probe_events(entry)
+  handler = EventSummary.new
+  Psych::Parser.new(handler).parse(entry[:yaml])
+  {
+    id: entry[:id],
+    record: entry[:record],
+    status: "ok",
+    summary: {
+      event_count: handler.events.length,
+      events: handler.events
+    }
   }
 rescue Psych::SyntaxError => error
   {

@@ -1,0 +1,12 @@
+%TAG !yaml! tag:yaml.org,2002:
+---
+# explicit merge-tag keys should stay inspectable in lossless graph mode
+base: &base
+  image: app:v1
+  replicas: 2
+target:
+  !yaml!merge <<: *base
+  image: app:target
+literal:
+  !!str <<: value
+  !Thing <<: custom

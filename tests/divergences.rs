@@ -90,6 +90,26 @@ fn divergence_merge_key_record_documents_default_and_opt_in_policy() {
     assert!(record.contains("explicit !!merge"));
     assert!(record.contains("custom-tagged << keys remain literal"));
     assert!(record.contains("explicit target keys override"));
+    assert!(record.contains("non-mergeable scalar/list merge payloads literal"));
+    assert!(record.contains("repeated << keys as cumulative merge entries"));
+    assert!(record.contains("strict diagnostics for invalid merge payloads"));
+}
+
+#[test]
+fn divergence_merge_key_edges_keep_strict_diagnostics() {
+    let invalid = parse_str("target:\n  <<: scalar\n").expect_err("invalid scalar merge payload");
+    assert!(
+        invalid
+            .to_string()
+            .contains("expected a mapping or list of mappings for merging, but found scalar"),
+        "{invalid}"
+    );
+
+    let repeated = parse_str(
+        "first: &first {shared: first}\nsecond: &second {shared: second}\ntarget:\n  <<: *first\n  <<: *second\n",
+    )
+    .expect_err("repeated merge keys stay duplicate keys");
+    assert!(repeated.to_string().contains("duplicate mapping key `<<`"));
 }
 
 #[test]

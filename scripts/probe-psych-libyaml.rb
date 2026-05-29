@@ -75,6 +75,26 @@ CASES = [
       custom_service:
         !Thing <<: literal
         image: app:custom
+      scalar_merge:
+        <<: scalar
+        keep: value
+      quoted_scalar_merge:
+        '<<': literal
+        keep: value
+      tagged_scalar_merge:
+        !!merge <<: literal
+        keep: value
+      sequence_scalar_merge:
+        <<: [scalar]
+        keep: value
+      repeated_merge:
+        <<: *first
+        <<: *second
+        keep: value
+      repeated_tagged_merge:
+        !!merge <<: *first
+        !<tag:yaml.org,2002:merge> <<: *second
+        keep: value
     YAML
   },
   {

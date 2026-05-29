@@ -83,7 +83,7 @@ struct LegacyService {
 #[test]
 fn yaml11_conformance_manifest_is_complete() {
     let manifest = manifest();
-    assert_eq!(manifest.case.len(), 13);
+    assert_eq!(manifest.case.len(), 15);
     let manifest_paths = manifest
         .case
         .iter()
@@ -110,6 +110,7 @@ fn yaml11_conformance_manifest_is_complete() {
             case.tag == "!!set"
                 || case.tag == "!!omap"
                 || case.tag == "!!pairs"
+                || case.tag == "!!merge"
                 || case.tag == "%YAML 1.1"
                 || case.tag.starts_with("tag:yaml.org,2002:")
                 || case.tag.starts_with("%TAG ")
@@ -309,6 +310,81 @@ fn yaml11_legacy_merge_fixture_expands_after_directive_schema_resolution() {
             },
         }
     );
+}
+
+#[test]
+fn yaml11_explicit_merge_tag_fixture_expands_and_keeps_literal_tags() {
+    let source = read_fixture("explicit-merge-tags.yaml");
+    let value: Value = yaml::from_str(&source).expect("explicit merge-tag fixture");
+
+    for (service, image) in [
+        ("tagged_service", "app:tagged"),
+        ("canonical_service", "app:canonical"),
+        ("resolved_service", "app:resolved"),
+    ] {
+        assert!(
+            value[service]["<<"].is_null(),
+            "{service} merge key removed"
+        );
+        assert_eq!(value[service]["image"].as_str(), Some(image));
+        assert_eq!(value[service]["replicas"].as_u64(), Some(2));
+    }
+
+    assert!(value["resolved_list_service"]["<<"].is_null());
+    assert_eq!(
+        value["resolved_list_service"]["shared"].as_str(),
+        Some("first")
+    );
+    assert_eq!(value["resolved_list_service"]["retries"].as_u64(), Some(3));
+    assert_eq!(
+        value["resolved_list_service"]["timeout"].as_str(),
+        Some("explicit")
+    );
+
+    assert_tagged_key(
+        &value["string_service"],
+        yaml::Tag::new("!!str"),
+        "<<",
+        "literal",
+    );
+    assert_eq!(
+        value["string_service"]["image"].as_str(),
+        Some("app:string")
+    );
+    assert_tagged_key(
+        &value["custom_service"],
+        yaml::Tag::new("Thing"),
+        "<<",
+        "literal",
+    );
+    assert_eq!(
+        value["custom_service"]["image"].as_str(),
+        Some("app:custom")
+    );
+
+    let yaml11: Value = LoadOptions::yaml_1_1()
+        .from_str(&source)
+        .expect("explicit merge tags under YAML 1.1 schema");
+    assert!(yaml11.equivalent(&value));
+}
+
+#[test]
+fn yaml11_explicit_merge_tag_bad_payload_fixture_reports_scalar_span() {
+    let source = read_fixture("explicit-merge-tag-bad-payload.yaml");
+    let error = yaml::parse_str(&source).expect_err("invalid explicit merge-tag payload");
+    assert!(
+        error
+            .to_string()
+            .contains("expected a mapping or list of mappings for merging, but found scalar"),
+        "{error}"
+    );
+    assert_eq!(error.line(), Some(3));
+    assert_eq!(error.column(), Some(15));
+
+    let value_error =
+        yaml::from_str::<Value>(&source).expect_err("Value read rejects invalid merge payload");
+    assert_eq!(value_error.line(), Some(3));
+    assert_eq!(value_error.column(), Some(15));
 }
 
 #[test]
@@ -537,6 +613,19 @@ fn assert_tagged_payload(source: &str, handle: &str, suffix: &str, shape: &str) 
         (Value::Mapping(_), "mapping") | (Value::Sequence(_), "sequence") => {}
         (other, _) => panic!("unexpected tagged payload shape {other:?}"),
     }
+}
+
+fn assert_tagged_key(mapping: &Value, tag: yaml::Tag, key: &str, expected: &str) {
+    let mapping = mapping.as_mapping().expect("tagged-key mapping");
+    assert!(
+        mapping.iter().any(
+            |(candidate, value)| matches!(candidate, Value::Tagged(tagged)
+            if tagged.tag == tag
+                && tagged.value.as_str() == Some(key)
+                && value.as_str() == Some(expected))
+        ),
+        "expected tagged key {tag:?} {key:?}: {expected:?}"
+    );
 }
 
 fn assert_legacy_pack_public_entrypoints(

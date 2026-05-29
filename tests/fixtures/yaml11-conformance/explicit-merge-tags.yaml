@@ -1,0 +1,29 @@
+%TAG !yaml! tag:yaml.org,2002:
+---
+base: &base
+  image: app:v1
+  replicas: 2
+first: &first
+  shared: first
+  retries: 3
+second: &second
+  shared: second
+  timeout: 10
+tagged_service:
+  !!merge <<: *base
+  image: app:tagged
+canonical_service:
+  !<tag:yaml.org,2002:merge> <<: *base
+  image: app:canonical
+resolved_service:
+  !yaml!merge <<: *base
+  image: app:resolved
+resolved_list_service:
+  !yaml!merge <<: [*first, *second]
+  timeout: explicit
+string_service:
+  !!str <<: literal
+  image: app:string
+custom_service:
+  !Thing <<: literal
+  image: app:custom

@@ -160,6 +160,24 @@ fn assert_merge_key_precedence(artifact: &Json) {
     assert_mapping_entry_value(summary, "string_service", "image", "app:string");
     assert_mapping_entry_value(summary, "custom_service", "<<", "literal");
     assert_mapping_entry_value(summary, "custom_service", "image", "app:custom");
+
+    assert_mapping_entry_value(summary, "scalar_merge", "<<", "scalar");
+    assert_mapping_entry_value(summary, "scalar_merge", "keep", "value");
+    assert_mapping_entry_value(summary, "quoted_scalar_merge", "<<", "literal");
+    assert_mapping_entry_value(summary, "quoted_scalar_merge", "keep", "value");
+    assert_mapping_entry_value(summary, "tagged_scalar_merge", "<<", "literal");
+    assert_mapping_entry_value(summary, "tagged_scalar_merge", "keep", "value");
+    assert_mapping_entry_sequence_item(summary, "sequence_scalar_merge", "<<", 0, "scalar");
+    assert_mapping_entry_value(summary, "sequence_scalar_merge", "keep", "value");
+
+    assert_mapping_entry_value(summary, "repeated_merge", "shared", "second");
+    assert_mapping_entry_value(summary, "repeated_merge", "retries", "3");
+    assert_mapping_entry_value(summary, "repeated_merge", "timeout", "10");
+    assert_mapping_entry_value(summary, "repeated_merge", "keep", "value");
+    assert_mapping_entry_value(summary, "repeated_tagged_merge", "shared", "second");
+    assert_mapping_entry_value(summary, "repeated_tagged_merge", "retries", "3");
+    assert_mapping_entry_value(summary, "repeated_tagged_merge", "timeout", "10");
+    assert_mapping_entry_value(summary, "repeated_tagged_merge", "keep", "value");
 }
 
 fn assert_mapping_entry_value(summary: &Json, mapping_key: &str, entry_key: &str, expected: &str) {
@@ -169,6 +187,22 @@ fn assert_mapping_entry_value(summary: &Json, mapping_key: &str, entry_key: &str
         value["value"].as_str(),
         Some(expected),
         "{mapping_key}.{entry_key}"
+    );
+}
+
+fn assert_mapping_entry_sequence_item(
+    summary: &Json,
+    mapping_key: &str,
+    entry_key: &str,
+    index: usize,
+    expected: &str,
+) {
+    let mapping = entry_value(summary, mapping_key);
+    let value = entry_value(mapping, entry_key);
+    assert_eq!(
+        value["items"][index]["value"].as_str(),
+        Some(expected),
+        "{mapping_key}.{entry_key}[{index}]"
     );
 }
 

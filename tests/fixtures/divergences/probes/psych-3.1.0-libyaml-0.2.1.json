@@ -487,6 +487,257 @@
                 }
               ]
             }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "scalar_merge"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "<<"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "scalar"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "keep"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "value"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "quoted_scalar_merge"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "<<"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "literal"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "keep"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "value"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "tagged_scalar_merge"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "<<"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "literal"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "keep"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "value"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "sequence_scalar_merge"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "<<"
+                  },
+                  "value": {
+                    "class": "Array",
+                    "items": [
+                      {
+                        "class": "String",
+                        "value": "scalar"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "keep"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "value"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "repeated_merge"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "second"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "image"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "app:second"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "retries"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "3"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "timeout"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "10"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "keep"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "value"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "repeated_tagged_merge"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "second"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "image"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "app:second"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "retries"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "3"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "timeout"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "10"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "keep"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "value"
+                  }
+                }
+              ]
+            }
           }
         ]
       }

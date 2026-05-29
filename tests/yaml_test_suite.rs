@@ -153,8 +153,8 @@ fn yts_manifest_selected_cases_have_fixture_inputs_and_unique_ids() {
         }
     }
 
-    assert_eq!(manifest.case.len(), 131);
-    assert_eq!(accepted, 87);
+    assert_eq!(manifest.case.len(), 137);
+    assert_eq!(accepted, 93);
     assert_eq!(error_cases, 42);
     assert_eq!(tree_only_rejections, 2);
 }
@@ -250,7 +250,7 @@ fn yts_manifest_acceptance_policy_matches_parser_event_and_serde_entrypoints() {
         accepted += 1;
     }
 
-    assert_eq!(accepted, 87);
+    assert_eq!(accepted, 93);
     assert_eq!(syntax_rejections, 42);
     assert_eq!(tree_only_rejections, 2);
 }
@@ -1837,6 +1837,36 @@ fn yts_parse_double_quoted_tabs_and_same_indent_continuations() {
             "3RLN-002",
             include_str!("fixtures/yaml-test-suite/data/3RLN-002/in.yaml"),
             "3 leading tab",
+        ),
+        (
+            "DE56/00",
+            include_str!("fixtures/yaml-test-suite/data/DE56-00/in.yaml"),
+            "1 trailing\t tab",
+        ),
+        (
+            "DE56/01",
+            include_str!("fixtures/yaml-test-suite/data/DE56-01/in.yaml"),
+            "2 trailing\t tab",
+        ),
+        (
+            "DE56/02",
+            include_str!("fixtures/yaml-test-suite/data/DE56-02/in.yaml"),
+            "3 trailing\t tab",
+        ),
+        (
+            "DE56/03",
+            include_str!("fixtures/yaml-test-suite/data/DE56-03/in.yaml"),
+            "4 trailing\t tab",
+        ),
+        (
+            "DE56/04",
+            include_str!("fixtures/yaml-test-suite/data/DE56-04/in.yaml"),
+            "5 trailing tab",
+        ),
+        (
+            "DE56/05",
+            include_str!("fixtures/yaml-test-suite/data/DE56-05/in.yaml"),
+            "6 trailing tab",
         ),
         (
             "KH5V-001",

@@ -405,21 +405,21 @@ The compatibility harness checks shared acceptance across this crate,
 `serde_yaml`, `yaml-rust2`, and `saphyr`, plus dedicated Rust-reference
 parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
 
-- the pinned selected YAML test-suite manifest, currently 131 fixtures with
+- the pinned selected YAML test-suite manifest, currently 137 fixtures with
   explicit per-case `expected`, `source`, and parser/tree/Serde `policy`
-  fields: 87 normal accepts, 42 syntax/error rejects, and YAML-suite
+  fields: 93 normal accepts, 42 syntax/error rejects, and YAML-suite
   2JQS/X38W as intentional tree/Serde-only rejections while raw parser events
   remain available. The manifest also owns the selected-suite parity ledger:
   `parity.event`, `parity.tree`, `parity.shared_reference`, and
   `parity.lossless_graph` make the selected proof surfaces auditable. Current
-  selected-suite ledgers cover event parity for all 87 accepted cases with no
-  event-shape deferrals, loaded-tree value-shape parity for 85 accepted cases
-  with 2 documented tree-shape deferrals, shared-reference acceptance for 61
+  selected-suite ledgers cover event parity for all 93 accepted cases with no
+  event-shape deferrals, loaded-tree value-shape parity for 91 accepted cases
+  with 2 documented tree-shape deferrals, shared-reference acceptance for 67
   accepted cases with 26 documented `serde_yaml`/libyaml divergence deferrals,
   and lossless graph identity parity for 14 graph-sensitive raw-event cases.
   `tests/fixtures/yaml-test-suite/coverage.toml` also pins the full upstream
-  denominator at 402 cases from the same upstream commit, with 131 selected
-  cases and 271 not-imported cases partitioned explicitly by
+  denominator at 402 cases from the same upstream commit, with 137 selected
+  cases and 265 not-imported cases partitioned explicitly by
   `yaml_suite_coverage`
 - core scalars
 - explicit YAML 1.1 schema-mode scalars, including boolean aliases, retained

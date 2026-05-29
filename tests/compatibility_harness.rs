@@ -340,6 +340,36 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "yts_de56_00_double_quoted_trailing_tab",
+        input: include_str!("fixtures/yaml-test-suite/data/DE56-00/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_de56_01_double_quoted_trailing_tab_spaces",
+        input: include_str!("fixtures/yaml-test-suite/data/DE56-01/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_de56_02_double_quoted_escaped_line_end_tab",
+        input: include_str!("fixtures/yaml-test-suite/data/DE56-02/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_de56_03_double_quoted_escaped_line_end_tab_spaces",
+        input: include_str!("fixtures/yaml-test-suite/data/DE56-03/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_de56_04_double_quoted_literal_trailing_tab",
+        input: include_str!("fixtures/yaml-test-suite/data/DE56-04/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_de56_05_double_quoted_literal_trailing_tab_spaces",
+        input: include_str!("fixtures/yaml-test-suite/data/DE56-05/in.yaml"),
+        docs: 1,
+    },
+    Case {
         name: "yts_dk95_02_space_tab_double_quoted_continuation",
         input: include_str!("fixtures/yaml-test-suite/data/DK95-02/in.yaml"),
         docs: 1,
@@ -2155,6 +2185,36 @@ fn compatibility_double_quoted_tabs_and_continuations_match_references() {
             "3RLN-002",
             include_str!("fixtures/yaml-test-suite/data/3RLN-002/in.yaml"),
             "3 leading tab",
+        ),
+        (
+            "DE56/00",
+            include_str!("fixtures/yaml-test-suite/data/DE56-00/in.yaml"),
+            "1 trailing\t tab",
+        ),
+        (
+            "DE56/01",
+            include_str!("fixtures/yaml-test-suite/data/DE56-01/in.yaml"),
+            "2 trailing\t tab",
+        ),
+        (
+            "DE56/02",
+            include_str!("fixtures/yaml-test-suite/data/DE56-02/in.yaml"),
+            "3 trailing\t tab",
+        ),
+        (
+            "DE56/03",
+            include_str!("fixtures/yaml-test-suite/data/DE56-03/in.yaml"),
+            "4 trailing\t tab",
+        ),
+        (
+            "DE56/04",
+            include_str!("fixtures/yaml-test-suite/data/DE56-04/in.yaml"),
+            "5 trailing tab",
+        ),
+        (
+            "DE56/05",
+            include_str!("fixtures/yaml-test-suite/data/DE56-05/in.yaml"),
+            "6 trailing tab",
         ),
         (
             "KH5V-001",

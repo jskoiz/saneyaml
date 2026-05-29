@@ -216,6 +216,31 @@ impl Line {
             &self.raw[indent..]
         }
     }
+
+    fn raw_content_from(&self, local_start: usize) -> &str {
+        let start = self.content_start + local_start;
+        if start >= self.raw.len() {
+            ""
+        } else {
+            &self.raw[start..]
+        }
+    }
+}
+
+fn quoted_line_text(line: &Line, local_start: usize, trimmed_text: &str, quote: char) -> String {
+    let mut text = trimmed_text.to_string();
+    if quote != '"' || trailing_backslash_count(&text) % 2 == 0 {
+        return text;
+    }
+
+    let raw_text = line.raw_content_from(local_start);
+    let Some(stripped) = raw_text.strip_prefix(trimmed_text) else {
+        return text;
+    };
+    if let Some(ch @ (' ' | '\t')) = stripped.chars().next() {
+        text.push(ch);
+    }
+    text
 }
 
 fn tab_indentation_error(line: &Line) -> Error {
@@ -2398,7 +2423,7 @@ impl Parser {
         quote: char,
         allow_parent_indent_continuation: bool,
     ) -> Result<Node> {
-        let mut text = first_text.to_string();
+        let mut text = quoted_line_text(first_line, first_start, first_text, quote);
         let mut end = first_line.start + first_line.indent + first_start + first_text.len();
         let require_indented_continuation =
             !allow_parent_indent_continuation && first_line.indent + first_start > parent_indent;
@@ -2426,11 +2451,14 @@ impl Parser {
                     self.pos += 1;
                     let line_text_start = text.len() + 1;
                     text.push('\n');
-                    text.push_str(&line.content);
+                    let line_text = quoted_line_text(&line, 0, &line.content, quote);
+                    text.push_str(&line_text);
                     end = quoted_scalar_accepted_end(&text, quote)
                         .filter(|close_end| *close_end >= line_text_start)
-                        .map(|close_end| line.start + line.indent + close_end - line_text_start)
-                        .unwrap_or_else(|| line.start + line.indent + line.content.len());
+                        .map(|close_end| {
+                            line.start + line.content_start + close_end - line_text_start
+                        })
+                        .unwrap_or_else(|| line.start + line.content_start + line_text.len());
                 }
                 LineKind::Content
                 | LineKind::Directive

@@ -94,7 +94,7 @@ Intentional first-milestone non-goals:
   Semantic `Node`/`Value` loaders intentionally stay value-oriented; use
   `LosslessStream` for alias graph identity.
 - Full upstream YAML test-suite coverage is not claimed yet; the pinned
-  coverage ledger records 402 upstream cases, 131 selected cases, and 271
+  coverage ledger records 402 upstream cases, 137 selected cases, and 265
   not-imported cases as explicit coverage debt.
 - Kubernetes schema validation or automated ecosystem migration tooling.
 

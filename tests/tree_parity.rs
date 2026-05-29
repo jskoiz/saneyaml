@@ -247,6 +247,30 @@ const VALUE_SHAPE_CASES: &[TreeCase] = &[
         input: include_str!("fixtures/yaml-test-suite/data/3RLN-002/in.yaml"),
     },
     TreeCase {
+        name: "yts_de56_00_double_quoted_trailing_tab",
+        input: include_str!("fixtures/yaml-test-suite/data/DE56-00/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_de56_01_double_quoted_trailing_tab_spaces",
+        input: include_str!("fixtures/yaml-test-suite/data/DE56-01/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_de56_02_double_quoted_escaped_line_end_tab",
+        input: include_str!("fixtures/yaml-test-suite/data/DE56-02/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_de56_03_double_quoted_escaped_line_end_tab_spaces",
+        input: include_str!("fixtures/yaml-test-suite/data/DE56-03/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_de56_04_double_quoted_literal_trailing_tab",
+        input: include_str!("fixtures/yaml-test-suite/data/DE56-04/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_de56_05_double_quoted_literal_trailing_tab_spaces",
+        input: include_str!("fixtures/yaml-test-suite/data/DE56-05/in.yaml"),
+    },
+    TreeCase {
         name: "yts_dk95_00_space_tab_mapping_value",
         input: include_str!("fixtures/yaml-test-suite/data/DK95-00/in.yaml"),
     },

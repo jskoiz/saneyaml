@@ -2,8 +2,8 @@ schema = "yaml-test-suite-coverage-v1"
 upstream = "https://github.com/yaml/yaml-test-suite"
 upstream_commit = "6ad3d2c62885d82fc349026c136ef560838fdf3d"
 upstream_case_count = 402
-selected_case_count = 131
-not_imported_case_count = 271
+selected_case_count = 137
+not_imported_case_count = 265
 id_format = "Upstream slash IDs for directories containing in.yaml at the pinned data branch commit."
 selection_policy = "The selected manifest is a hand-curated YAML 1.2 core/config milestone subset; not-imported cases remain explicit coverage debt."
 
@@ -453,6 +453,12 @@ selected_cases = [
   "YJV2",
   "3RLN/01",
   "3RLN/02",
+  "DE56/00",
+  "DE56/01",
+  "DE56/02",
+  "DE56/03",
+  "DE56/04",
+  "DE56/05",
   "KH5V/01",
   "6WPF",
   "KSS4",
@@ -661,12 +667,6 @@ not_imported_cases = [
   "D9TU",
   "DBG4",
   "DC7X",
-  "DE56/00",
-  "DE56/01",
-  "DE56/02",
-  "DE56/03",
-  "DE56/04",
-  "DE56/05",
   "DFF7",
   "DMG6",
   "DWX9",

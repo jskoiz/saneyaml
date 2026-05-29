@@ -319,6 +319,54 @@ policy = "raw-events-tree-serde-accept"
 features = ["double-quoted", "scalar", "tab", "fold"]
 
 [[case]]
+id = "DE56/00"
+name = "escaped trailing tab folds in double-quoted scalar"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["double-quoted", "scalar", "tab", "fold"]
+
+[[case]]
+id = "DE56/01"
+name = "escaped trailing tab with spaces folds in double-quoted scalar"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["double-quoted", "scalar", "tab", "fold"]
+
+[[case]]
+id = "DE56/02"
+name = "escaped line-end tab folds in double-quoted scalar"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["double-quoted", "scalar", "tab", "fold"]
+
+[[case]]
+id = "DE56/03"
+name = "escaped line-end tab with spaces folds in double-quoted scalar"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["double-quoted", "scalar", "tab", "fold"]
+
+[[case]]
+id = "DE56/04"
+name = "literal trailing tab folds in double-quoted scalar"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["double-quoted", "scalar", "tab", "fold"]
+
+[[case]]
+id = "DE56/05"
+name = "literal trailing tab with spaces folds in double-quoted scalar"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["double-quoted", "scalar", "tab", "fold"]
+
+[[case]]
 id = "KH5V-001"
 name = "escaped inline tab in double-quoted scalar"
 expected = "accept"
@@ -1112,6 +1160,12 @@ event = [
     "Y79Y/010",
     "3RLN-001",
     "3RLN-002",
+    "DE56/00",
+    "DE56/01",
+    "DE56/02",
+    "DE56/03",
+    "DE56/04",
+    "DE56/05",
     "DK95/00",
     "DK95/02",
     "DK95/03",
@@ -1195,6 +1249,12 @@ tree = [
     "Y79Y/010",
     "3RLN-001",
     "3RLN-002",
+    "DE56/00",
+    "DE56/01",
+    "DE56/02",
+    "DE56/03",
+    "DE56/04",
+    "DE56/05",
     "DK95/00",
     "DK95/02",
     "DK95/03",
@@ -1283,6 +1343,12 @@ shared_reference = [
     "Y79Y/002",
     "3RLN-001",
     "3RLN-002",
+    "DE56/00",
+    "DE56/01",
+    "DE56/02",
+    "DE56/03",
+    "DE56/04",
+    "DE56/05",
     "DK95/02",
     "DK95/05",
     "DK95/07",

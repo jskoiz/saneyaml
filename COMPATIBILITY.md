@@ -576,9 +576,10 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and Ansible fixture set
   used by event parity; Docker Compose merge-anchor fixtures compare reference
   loader trees after applying this crate's default merge-expansion policy
-- manifest-owned lossless replay checks for Ansible tagged values and
-  Kubernetes fixtures with explicit document boundaries, empty documents,
-  comments, and literal block-scalar data
+- manifest-owned lossless replay checks for GitHub Actions comments,
+  flow-style trigger/matrix lists, and expression strings; Ansible tagged
+  values; and Kubernetes fixtures with explicit document boundaries, empty
+  documents, comments, and literal block-scalar data
 - content-aware manifest checks that require every real-world fixture with
   anchors, aliases, or raw merge keys to carry a `lossless-graph` gate
 - pinned external downstream replay fixtures from direct `serde_yaml` users:

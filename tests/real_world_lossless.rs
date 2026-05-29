@@ -2,7 +2,7 @@ use serde::Deserialize;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
-use yaml::{LosslessNodeKind, ScalarStyle, parse_lossless};
+use yaml::{CollectionStyle, LosslessNodeKind, ScalarStyle, parse_lossless};
 
 const FIXTURE_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/real-world");
 const SOURCE: &str = include_str!("fixtures/real-world/SOURCE.toml");
@@ -27,6 +27,7 @@ fn real_world_lossless_replay_gate_is_manifest_owned() {
         lossless_paths,
         BTreeSet::from([
             "ansible/vault-and-unsafe-tags.yaml",
+            "github-actions/starter-node-ci.yml",
             "kubernetes/configmap-block-scalars.yaml",
             "kubernetes/helm-rendered-stream.yaml",
         ])
@@ -67,6 +68,49 @@ fn real_world_lossless_replay_gate_is_manifest_owned() {
             fixture.path
         );
     }
+}
+
+#[test]
+fn lossless_replay_preserves_github_actions_comments_and_expressions() {
+    let input = include_str!("fixtures/real-world/github-actions/starter-node-ci.yml");
+    let stream = parse_lossless(input).expect("lossless parse GitHub Actions starter workflow");
+
+    let comments = stream
+        .comments()
+        .map(|comment| comment.text())
+        .collect::<Vec<_>>();
+    assert!(comments.iter().any(|comment| {
+        comment.contains("clean installation of node dependencies")
+            && comment.contains("cache/restore them")
+    }));
+    assert!(
+        comments
+            .iter()
+            .any(|comment| comment.contains("automating-builds-and-tests"))
+    );
+    assert!(
+        comments
+            .iter()
+            .any(|comment| comment.contains("supported Node.js release schedule"))
+    );
+
+    let plain_values = scalar_values(&stream, ScalarStyle::Plain);
+    assert!(plain_values.contains(&"${{ matrix.node-version }}"));
+    assert!(plain_values.contains(&"$default-branch"));
+
+    let flow_sequence_sources = stream
+        .nodes()
+        .iter()
+        .filter_map(|node| match node.kind() {
+            LosslessNodeKind::Sequence {
+                style: CollectionStyle::Flow,
+                ..
+            } => stream.source_fragment(node.span()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(flow_sequence_sources.contains(&"[ $default-branch ]"));
+    assert!(flow_sequence_sources.contains(&"[18.x, 20.x, 22.x]"));
 }
 
 #[test]
@@ -200,14 +244,17 @@ fn lossless_replay_paths(manifest: &FixtureManifest) -> BTreeSet<&str> {
 }
 
 fn literal_scalar_values(stream: &yaml::LosslessStream) -> Vec<&str> {
+    scalar_values(stream, ScalarStyle::Literal)
+}
+
+fn scalar_values(stream: &yaml::LosslessStream, expected_style: ScalarStyle) -> Vec<&str> {
     stream
         .nodes()
         .iter()
         .filter_map(|node| match node.kind() {
-            LosslessNodeKind::Scalar {
-                value,
-                style: ScalarStyle::Literal,
-            } => Some(value.as_str()),
+            LosslessNodeKind::Scalar { value, style } if *style == expected_style => {
+                Some(value.as_str())
+            }
             _ => None,
         })
         .collect()

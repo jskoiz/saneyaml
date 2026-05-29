@@ -47,6 +47,8 @@ Notable completed release-candidate behavior:
   Docker Compose anchor cases.
 - Emitter round-trip fuzz coverage now exercises `to_string`, `to_writer`, and
   streaming `Serializer` output against parsed-tree and `Value` replay.
+- The Ubuntu CI workflow now installs nightly plus `cargo-fuzz` and runs a
+  one-pass all-target non-mutating fuzz smoke over copied corpora.
 - Direct Serde `IgnoredAny` entrypoints now validate malformed YAML and
   single-document boundaries before skipping a document.
 - Divergence records now require caller-facing `migration_impact` text, so

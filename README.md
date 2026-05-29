@@ -59,8 +59,8 @@ The first milestone focuses on:
   plus explicit `LoadOptions`, document-stream, merge, mapping/index, lossless
   graph, and diagnostic-location paths against this package.
 - A downstream-shaped migration harness, compileable migration example,
-  Ubuntu-only CI workflow, non-mutating all-target fuzz smoke script, and
-  real-world config benchmark command.
+  Ubuntu-only CI workflow with all-target fuzz-smoke wiring, non-mutating
+  fuzz replay script, and real-world config benchmark command.
 - Clear diagnostics with line/column spans.
 - Property tests under `cargo test` plus optional `cargo-fuzz` targets.
 
@@ -99,5 +99,7 @@ scripts/fuzz-smoke-nonmutating.sh
 manifest, registry, migration report, corpus, and command evidence. `cargo
 fuzz` is optional for ordinary development; the script copies corpora to a
 temporary directory before running all eight targets so it does not grow tracked
-corpus files. Parser safety properties are also exercised by
+corpus files. CI runs that script with one requested pass per target to verify
+the wiring; sustained fuzzing remains a separate release-readiness activity.
+Parser safety properties are also exercised by
 `tests/parser_properties.rs`, which runs with plain `cargo test`.

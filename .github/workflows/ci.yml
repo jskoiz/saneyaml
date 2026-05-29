@@ -53,3 +53,9 @@ jobs:
 
       - name: Run clippy
         run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Run fuzz target smoke
+        run: |
+          rustup toolchain install nightly --profile minimal
+          cargo install cargo-fuzz --locked
+          YAML_FUZZ_RUNS=1 scripts/fuzz-smoke-nonmutating.sh

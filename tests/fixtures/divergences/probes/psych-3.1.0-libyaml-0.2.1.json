@@ -1199,6 +1199,1263 @@
       }
     },
     {
+      "id": "core-structural-tags",
+      "record": "tests/fixtures/divergences/records/yaml11-core-structural-tags.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "short_seq"
+            },
+            "value": {
+              "class": "Array",
+              "items": [
+                {
+                  "class": "Integer",
+                  "value": "1"
+                },
+                {
+                  "class": "Integer",
+                  "value": "2"
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "canonical_seq"
+            },
+            "value": {
+              "class": "Array",
+              "items": [
+                {
+                  "class": "String",
+                  "value": "a"
+                },
+                {
+                  "class": "String",
+                  "value": "b"
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "resolved_seq"
+            },
+            "value": {
+              "class": "Array",
+              "items": [
+                {
+                  "class": "String",
+                  "value": "left"
+                },
+                {
+                  "class": "String",
+                  "value": "right"
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "short_map"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "a"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "1"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "b"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "2"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "canonical_map"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "c"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "3"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "resolved_map"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "d"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "4"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "value_key"
+            },
+            "value": {
+              "class": "String",
+              "value": "="
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "value_mapping"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "="
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "value"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "legacy-merge-edge-recovery",
+      "record": "tests/fixtures/divergences/records/merge-keys.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "first"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "first"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "image"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "app:first"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "retries"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "3"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "second"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "second"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "image"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "app:second"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "timeout"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "10"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "repeated_merge"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "second"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "image"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "app:second"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "retries"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "3"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "timeout"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "10"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "keep"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "value"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "repeated_tagged_merge"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "second"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "image"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "app:second"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "retries"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "3"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "timeout"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "10"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "keep"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "value"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "override_merge"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "explicit"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "image"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "app:second"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "retries"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "3"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "timeout"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "10"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "keep"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "value"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "scalar_merge"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "<<"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "scalar"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "keep"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "value"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "tagged_scalar_merge"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "<<"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "literal"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "keep"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "value"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "sequence_scalar_merge"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "<<"
+                  },
+                  "value": {
+                    "class": "Array",
+                    "items": [
+                      {
+                        "class": "String",
+                        "value": "scalar"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "keep"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "value"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "literal_and_merge"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "<<"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "literal"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "first"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "image"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "explicit"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "retries"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "3"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "explicit-merge-tags",
+      "record": "tests/fixtures/divergences/records/merge-keys.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "base"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "image"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "app:v1"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "replicas"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "2"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "first"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "first"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "retries"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "3"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "second"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "second"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "timeout"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "10"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "tagged_service"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "image"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "app:tagged"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "replicas"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "2"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "canonical_service"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "image"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "app:canonical"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "replicas"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "2"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "resolved_service"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "image"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "app:resolved"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "replicas"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "2"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "resolved_list_service"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "first"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "timeout"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "explicit"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "retries"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "3"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "string_service"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "<<"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "literal"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "image"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "app:string"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "custom_service"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "<<"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "literal"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "image"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "app:custom"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "lossless-merge-graph",
+      "record": "tests/fixtures/divergences/records/alias-graph-identity.toml",
+      "status": "ok",
+      "summary": {
+        "event_count": 34,
+        "events": [
+          {
+            "encoding": 1,
+            "event": "start_stream"
+          },
+          {
+            "version": [
+              1,
+              1
+            ],
+            "tag_directives": [
+
+            ],
+            "implicit": false,
+            "event": "start_document"
+          },
+          {
+            "anchor": null,
+            "tag": null,
+            "implicit": true,
+            "style": 1,
+            "event": "start_mapping"
+          },
+          {
+            "value": "base",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "anchor": "base",
+            "tag": null,
+            "implicit": true,
+            "style": 1,
+            "event": "start_mapping"
+          },
+          {
+            "value": "flag",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "value": "ON",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "value": "count",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "value": "0123",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "event": "end_mapping"
+          },
+          {
+            "value": "override",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "anchor": "override",
+            "tag": null,
+            "implicit": true,
+            "style": 1,
+            "event": "start_mapping"
+          },
+          {
+            "value": "<<",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "anchor": "base",
+            "event": "alias"
+          },
+          {
+            "value": "flag",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "value": "OFF",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "event": "end_mapping"
+          },
+          {
+            "value": "services",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "anchor": null,
+            "tag": null,
+            "implicit": true,
+            "style": 1,
+            "event": "start_sequence"
+          },
+          {
+            "anchor": null,
+            "tag": null,
+            "implicit": true,
+            "style": 1,
+            "event": "start_mapping"
+          },
+          {
+            "value": "<<",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "anchor": null,
+            "tag": null,
+            "implicit": true,
+            "style": 2,
+            "event": "start_sequence"
+          },
+          {
+            "anchor": "base",
+            "event": "alias"
+          },
+          {
+            "anchor": "override",
+            "event": "alias"
+          },
+          {
+            "event": "end_sequence"
+          },
+          {
+            "value": "name",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "value": "api",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "event": "end_mapping"
+          },
+          {
+            "event": "end_sequence"
+          },
+          {
+            "value": "ref",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "anchor": "base",
+            "event": "alias"
+          },
+          {
+            "event": "end_mapping"
+          },
+          {
+            "implicit": true,
+            "event": "end_document"
+          },
+          {
+            "event": "end_stream"
+          }
+        ]
+      }
+    },
+    {
+      "id": "lossless-recursive-graph",
+      "record": "tests/fixtures/divergences/records/alias-graph-identity.toml",
+      "status": "ok",
+      "summary": {
+        "event_count": 18,
+        "events": [
+          {
+            "encoding": 1,
+            "event": "start_stream"
+          },
+          {
+            "version": [
+              1,
+              1
+            ],
+            "tag_directives": [
+
+            ],
+            "implicit": false,
+            "event": "start_document"
+          },
+          {
+            "anchor": null,
+            "tag": null,
+            "implicit": true,
+            "style": 1,
+            "event": "start_mapping"
+          },
+          {
+            "value": "root",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "anchor": "root",
+            "tag": null,
+            "implicit": true,
+            "style": 1,
+            "event": "start_mapping"
+          },
+          {
+            "value": "name",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "value": "root",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "value": "self",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "anchor": "root",
+            "event": "alias"
+          },
+          {
+            "value": "<<",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "anchor": null,
+            "tag": null,
+            "implicit": true,
+            "style": 2,
+            "event": "start_mapping"
+          },
+          {
+            "value": "enabled",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "value": "ON",
+            "anchor": null,
+            "tag": null,
+            "plain_implicit": true,
+            "quoted_implicit": false,
+            "style": 1,
+            "event": "scalar"
+          },
+          {
+            "event": "end_mapping"
+          },
+          {
+            "event": "end_mapping"
+          },
+          {
+            "event": "end_mapping"
+          },
+          {
+            "implicit": true,
+            "event": "end_document"
+          },
+          {
+            "event": "end_stream"
+          }
+        ]
+      }
+    },
+    {
       "id": "null-like-string-targets",
       "record": "tests/fixtures/divergences/records/null-like-string-targets.toml",
       "status": "ok",

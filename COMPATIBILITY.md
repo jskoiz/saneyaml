@@ -279,20 +279,22 @@ decisions, and graph identity are not exposed there. `LosslessStream` keeps the
 source buffer and links aliases to stable anchor ids for graph-sensitive
 callers. The pinned Psych/libyaml probe records that libyaml-backed Ruby objects
 share alias identity, reflect alias-visible mutation, and preserve recursive
-object identity. The same probe now pins libyaml-era parser-event behavior for
-YAML/TAG directives, document markers, document-start inline nodes, undeclared
-tag-handle errors, YAML 1.3 rejection, document-start block-scalar rejection,
-bare-document-stream rejection, and directive-looking flow-content rejection.
+object identity. The same probe now pins fixture-backed YAML 1.1 structural
+tag, merge recovery, explicit merge-tag, and lossless graph parser-event
+cross-checks, plus libyaml-era parser-event behavior for YAML/TAG directives,
+document markers, document-start inline nodes, undeclared tag-handle errors,
+YAML 1.3 rejection, document-start block-scalar rejection, bare-document-stream
+rejection, and directive-looking flow-content rejection.
 This crate keeps alias identity in the lossless graph surface, not semantic
 `Node` or `Value` trees. `graph_identity` now also compares
 `LosslessStream` anchor definitions and alias targets against normalized
 `yaml-rust2` and `saphyr` parser anchor events for anchor redefinition,
-recursive aliases, document anchor resets, merge aliases, manifest-owned
-selected YAML-suite anchor/alias cases that are expected to parse as raw events,
-manifest-owned real-world Docker Compose anchors, and YAML 1.1 merge/comment
-graph fixtures. The real-world graph gate now includes an adapted official
-Compose Specification fragment that uses multiple anchors, aliases, and a merge
-list. `real_world_lossless` also gates byte-stable
+recursive aliases, document anchor resets, merge aliases, YAML 1.1
+merge/comment graph fixtures, manifest-owned selected YAML-suite anchor/alias
+cases that are expected to parse as raw events, and manifest-owned real-world
+Docker Compose anchors. The real-world graph gate now includes an adapted
+official Compose Specification fragment that uses multiple anchors, aliases,
+and a merge list. `real_world_lossless` also gates byte-stable
 `LosslessStream` replay for Ansible tags, Kubernetes Helm-style explicit
 document boundaries/comments/empty documents, and ConfigMap literal block
 scalar data.

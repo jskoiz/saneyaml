@@ -21,6 +21,10 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "explicit-core-tags",
         "yaml11-collection-tags",
         "yaml11-core-structural-tags",
+        "legacy-merge-edge-recovery",
+        "explicit-merge-tags",
+        "lossless-merge-graph",
+        "lossless-recursive-graph",
         "raw-event-directives",
         "raw-event-document-markers",
     ] {
@@ -37,18 +41,23 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_eq!(artifact["libyaml"], "0.2.1");
 
     let cases = artifact["cases"].as_array().expect("probe cases array");
-    assert_eq!(cases.len(), 21);
+    assert_eq!(cases.len(), 26);
 
     let expected_ids = BTreeSet::from([
         "adjacent-flow-mapping-scalars",
         "alias-graph-identity",
         "bare-document-streams",
+        "core-structural-tags",
         "directive-looking-flow-content",
         "document-start-block-scalars",
         "document-start-inline-node",
         "duplicate-scalar-keys",
         "explicit-core-tags",
+        "explicit-merge-tags",
         "legacy-scalar-resolution",
+        "legacy-merge-edge-recovery",
+        "lossless-merge-graph",
+        "lossless-recursive-graph",
         "merge-keys",
         "multiline-quoted-flow-key",
         "null-like-string-targets",
@@ -106,6 +115,18 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_case_summary_contains(&artifact, "yaml11-core-structural-tags", "Hash");
     assert_case_summary_contains(&artifact, "yaml11-core-structural-tags", "value_mapping");
     assert_case_summary_contains(&artifact, "yaml11-core-structural-tags", "\"=\"");
+    assert_case_summary_contains(&artifact, "core-structural-tags", "Array");
+    assert_case_summary_contains(&artifact, "core-structural-tags", "Hash");
+    assert_case_summary_contains(&artifact, "core-structural-tags", "value_mapping");
+    assert_yaml11_fixture_merge_recovery(&artifact);
+    assert_yaml11_fixture_explicit_merge_tags(&artifact);
+    assert_case_summary_contains(&artifact, "lossless-merge-graph", "start_mapping");
+    assert_case_summary_contains(&artifact, "lossless-merge-graph", "base");
+    assert_case_summary_contains(&artifact, "lossless-merge-graph", "override");
+    assert_case_summary_contains(&artifact, "lossless-merge-graph", "alias");
+    assert_case_summary_contains(&artifact, "lossless-recursive-graph", "start_mapping");
+    assert_case_summary_contains(&artifact, "lossless-recursive-graph", "root");
+    assert_case_summary_contains(&artifact, "lossless-recursive-graph", "alias");
     assert_case_summary_contains(&artifact, "null-like-string-targets", "NilClass");
     assert_case_summary_contains(&artifact, "numeric-key-identity", "Float");
 
@@ -254,6 +275,40 @@ fn assert_merge_key_precedence(artifact: &Json) {
     assert_mapping_entry_value(summary, "repeated_tagged_merge", "retries", "3");
     assert_mapping_entry_value(summary, "repeated_tagged_merge", "timeout", "10");
     assert_mapping_entry_value(summary, "repeated_tagged_merge", "keep", "value");
+}
+
+fn assert_yaml11_fixture_merge_recovery(artifact: &Json) {
+    let case = case_by_id(artifact, "legacy-merge-edge-recovery");
+    assert_eq!(case["status"], "ok");
+    let summary = &case["summary"];
+
+    assert_mapping_entry_value(summary, "repeated_merge", "shared", "second");
+    assert_mapping_entry_value(summary, "repeated_merge", "retries", "3");
+    assert_mapping_entry_value(summary, "repeated_merge", "timeout", "10");
+    assert_mapping_entry_value(summary, "override_merge", "shared", "explicit");
+    assert_mapping_entry_value(summary, "scalar_merge", "<<", "scalar");
+    assert_mapping_entry_value(summary, "tagged_scalar_merge", "<<", "literal");
+    assert_mapping_entry_sequence_item(summary, "sequence_scalar_merge", "<<", 0, "scalar");
+    assert_mapping_entry_value(summary, "literal_and_merge", "<<", "literal");
+    assert_mapping_entry_value(summary, "literal_and_merge", "image", "explicit");
+}
+
+fn assert_yaml11_fixture_explicit_merge_tags(artifact: &Json) {
+    let case = case_by_id(artifact, "explicit-merge-tags");
+    assert_eq!(case["status"], "ok");
+    let summary = &case["summary"];
+
+    assert_mapping_entry_value(summary, "tagged_service", "image", "app:tagged");
+    assert_mapping_entry_value(summary, "tagged_service", "replicas", "2");
+    assert_mapping_entry_value(summary, "canonical_service", "image", "app:canonical");
+    assert_mapping_entry_value(summary, "canonical_service", "replicas", "2");
+    assert_mapping_entry_value(summary, "resolved_service", "image", "app:resolved");
+    assert_mapping_entry_value(summary, "resolved_service", "replicas", "2");
+    assert_mapping_entry_value(summary, "resolved_list_service", "shared", "first");
+    assert_mapping_entry_value(summary, "resolved_list_service", "timeout", "explicit");
+    assert_mapping_entry_value(summary, "resolved_list_service", "retries", "3");
+    assert_mapping_entry_value(summary, "string_service", "<<", "literal");
+    assert_mapping_entry_value(summary, "custom_service", "<<", "literal");
 }
 
 fn assert_mapping_entry_value(summary: &Json, mapping_key: &str, entry_key: &str, expected: &str) {

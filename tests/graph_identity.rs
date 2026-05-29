@@ -297,6 +297,14 @@ fn lossless_graph_anchor_targets_match_reference_parser_events() {
             "base: &base {a: 1}\nmerged:\n  <<: *base\n  b: 2\n",
         ),
         (
+            "yaml11_lossless_merge_graph",
+            include_str!("fixtures/yaml11-conformance/lossless-merge-graph.yaml"),
+        ),
+        (
+            "yaml11_lossless_recursive_graph",
+            include_str!("fixtures/yaml11-conformance/lossless-recursive-graph.yaml"),
+        ),
+        (
             "yaml_test_suite_6m2f",
             include_str!("fixtures/yaml-test-suite/data/6M2F/in.yaml"),
         ),

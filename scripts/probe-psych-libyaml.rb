@@ -174,6 +174,33 @@ CASES = [
     YAML
   },
   {
+    id: "core-structural-tags",
+    record: "tests/fixtures/divergences/records/yaml11-core-structural-tags.toml",
+    yaml: fixture_yaml("tests/fixtures/yaml11-conformance/core-structural-tags.yaml")
+  },
+  {
+    id: "legacy-merge-edge-recovery",
+    record: "tests/fixtures/divergences/records/merge-keys.toml",
+    yaml: fixture_yaml("tests/fixtures/yaml11-conformance/legacy-merge-edge-recovery.yaml")
+  },
+  {
+    id: "explicit-merge-tags",
+    record: "tests/fixtures/divergences/records/merge-keys.toml",
+    yaml: fixture_yaml("tests/fixtures/yaml11-conformance/explicit-merge-tags.yaml")
+  },
+  {
+    id: "lossless-merge-graph",
+    record: "tests/fixtures/divergences/records/alias-graph-identity.toml",
+    mode: :events,
+    yaml: fixture_yaml("tests/fixtures/yaml11-conformance/lossless-merge-graph.yaml")
+  },
+  {
+    id: "lossless-recursive-graph",
+    record: "tests/fixtures/divergences/records/alias-graph-identity.toml",
+    mode: :events,
+    yaml: fixture_yaml("tests/fixtures/yaml11-conformance/lossless-recursive-graph.yaml")
+  },
+  {
     id: "null-like-string-targets",
     record: "tests/fixtures/divergences/records/null-like-string-targets.toml",
     yaml: <<~YAML

@@ -75,8 +75,9 @@ Notable completed release-candidate behavior:
   compatibility decisions are tied to adoption risk instead of only parser
   policy. The pinned Psych/libyaml probe records merge-list precedence,
   explicit merge-tag expansion, explicit merge overrides, repeated merge-key
-  recovery, non-mergeable merge payload recovery, and alias object identity as
-  deliberate compatibility decisions.
+  recovery, non-mergeable merge payload recovery, fixture-backed YAML 1.1
+  merge/tag/graph cross-checks, and alias object identity as deliberate
+  compatibility decisions.
 
 Known release-candidate gaps remain tracked in `BASELINE.md`,
 `COMPATIBILITY.md`, and `MIGRATION.md`: complete YAML 1.1 ecosystem parity,

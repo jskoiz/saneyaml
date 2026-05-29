@@ -1,0 +1,7 @@
+mode=insert index=4
+---
+name: first
+---
+name: second
+=== yaml replacement ===
+# inserted by lossless edit

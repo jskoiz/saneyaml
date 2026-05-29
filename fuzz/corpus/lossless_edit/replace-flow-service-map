@@ -1,0 +1,7 @@
+mode=node index=3
+services:
+  - &web {name: web, image: nginx:latest}
+  - <<: *web
+    name: worker
+=== yaml replacement ===
+{name: api, image: nginx:latest, ports: ["8080:80"]}

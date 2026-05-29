@@ -31,9 +31,9 @@ Notable completed release-candidate behavior:
   `serde_yaml::...` paths against both `serde_yaml 0.9.34` and this package
   through `serde_yaml = { package = "yaml", ... }`; the expanded alias smoke
   separately covers root document-stream helpers, explicit YAML 1.1
-  `LoadOptions`, caller-built default merge deserialization plus explicit
-  in-place merge expansion, mapping/index ergonomics, lossless graph identity
-  inspection, and diagnostic locations. A separate
+  `LoadOptions`, bounded large-reader behavior, caller-built default merge
+  deserialization plus explicit in-place merge expansion, mapping/index
+  ergonomics, lossless graph identity inspection, and diagnostic locations. A separate
   real-world package-alias smoke now copies the fixture registry into a clean
   downstream crate, parses every registered fixture through
   `serde_yaml::Deserializer`, and keeps representative deep field assertions for

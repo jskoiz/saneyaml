@@ -48,9 +48,9 @@ runs the same upstream-compatible `serde_yaml` API calls once against
 `serde_yaml 0.9.34` and once against this package under the `serde_yaml`
 dependency name. The expanded smoke then covers this crate's extension surface,
 including root document-stream helpers, explicit YAML 1.1 `LoadOptions`,
-caller-built default merge deserialization plus explicit in-place merge
-expansion, lossless graph identity inspection, writer paths, and diagnostic
-locations. A real-world package-alias smoke copies the checked-in
+bounded large-reader behavior with `max_input_bytes()`, caller-built default
+merge deserialization plus explicit in-place merge expansion, lossless graph
+identity inspection, writer paths, and diagnostic locations. A real-world package-alias smoke copies the checked-in
 GitHub Actions, Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and
 Ansible fixture registry into a clean downstream crate, parses every registered
 fixture through `serde_yaml::Deserializer`, and keeps representative deep field

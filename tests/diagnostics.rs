@@ -1,5 +1,7 @@
 use serde::Deserialize;
+use std::cell::Cell;
 use std::io::{self, Cursor, Read};
+use std::rc::Rc;
 use yaml::{
     DEFAULT_MAX_INPUT_BYTES, LoadOptions, Node, NodeValue, Value, parse_bytes,
     parse_lossless_bytes, parse_str,
@@ -20,6 +22,31 @@ struct FailingReader;
 impl Read for FailingReader {
     fn read(&mut self, _buf: &mut [u8]) -> io::Result<usize> {
         Err(io::Error::other("read exploded"))
+    }
+}
+
+struct InfiniteReader {
+    bytes_read: Rc<Cell<usize>>,
+}
+
+impl InfiniteReader {
+    fn new() -> (Self, Rc<Cell<usize>>) {
+        let bytes_read = Rc::new(Cell::new(0));
+        (
+            Self {
+                bytes_read: Rc::clone(&bytes_read),
+            },
+            bytes_read,
+        )
+    }
+}
+
+impl Read for InfiniteReader {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        buf.fill(b'a');
+        self.bytes_read
+            .set(self.bytes_read.get().saturating_add(buf.len()));
+        Ok(buf.len())
     }
 }
 
@@ -168,6 +195,43 @@ fn lossless_bytes_rejects_default_input_limit_before_utf8_validation() {
     );
     assert!(!display.contains("valid UTF-8"), "{display}");
     assert_eq!(error.location(), None);
+}
+
+#[test]
+fn reader_input_limit_stops_non_eof_readers_after_configured_bound() {
+    let options = LoadOptions::new().max_input_bytes(4);
+
+    let (reader, bytes_read) = InfiniteReader::new();
+    let error = options
+        .from_reader::<_, Value>(reader)
+        .expect_err("from_reader input limit");
+    assert_reader_limit_error(error, bytes_read);
+
+    let (reader, bytes_read) = InfiniteReader::new();
+    let error = options
+        .from_documents_reader::<Value, _>(reader)
+        .expect_err("from_documents_reader input limit");
+    assert_reader_limit_error(error, bytes_read);
+
+    let (reader, bytes_read) = InfiniteReader::new();
+    let error = Value::deserialize(
+        options
+            .deserializer_from_reader(reader)
+            .next()
+            .expect("document"),
+    )
+    .expect_err("deserializer_from_reader input limit");
+    assert_reader_limit_error(error, bytes_read);
+}
+
+fn assert_reader_limit_error(error: yaml::Error, bytes_read: Rc<Cell<usize>>) {
+    let display = error.to_string();
+    assert!(
+        display.contains("YAML input exceeds configured limit of 4 bytes"),
+        "{display}"
+    );
+    assert_eq!(error.location(), None);
+    assert_eq!(bytes_read.get(), 5);
 }
 
 #[test]

@@ -7,6 +7,11 @@ struct Config {
     ports: Vec<u16>,
 }
 
+#[derive(Debug, Deserialize, PartialEq)]
+struct LargePayload {
+    payload: String,
+}
+
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 enum Action {
     Unit,
@@ -85,6 +90,7 @@ fn main() {
     let from_reader: Config =
         serde_yaml::from_reader(Cursor::new(b"name: reader\nports: [9000]\n")).unwrap();
     assert_eq!(from_reader.ports, [9000]);
+    bounded_reader_smoke_uses_package_alias();
 
     let direct_from_str =
         Config::deserialize(serde_yaml::Deserializer::from_str("name: direct\nports: [7000]\n"))
@@ -151,6 +157,16 @@ fn main() {
                 octal: 12,
             },
         ]
+    );
+    let legacy_reader: LegacyDocument = serde_yaml::LoadOptions::yaml_version_directive()
+        .from_reader(Cursor::new(b"%YAML 1.1\n---\nflag: ON\noctal: 012\n"))
+        .unwrap();
+    assert_eq!(
+        legacy_reader,
+        LegacyDocument {
+            flag: true,
+            octal: 10,
+        }
     );
 
     let directive_boundary: Vec<serde_yaml::Value> =
@@ -392,4 +408,73 @@ binary_spaced: !yaml!binary \"SGVs bG8=\"\n",
     assert_eq!(location.line(), 1);
     assert_eq!(location.column(), 8);
     assert_eq!(location.index(), 7);
+}
+
+fn bounded_reader_smoke_uses_package_alias() {
+    let input = large_payload_yaml(serde_yaml::DEFAULT_MAX_INPUT_BYTES + 1);
+    assert_eq!(input.len(), serde_yaml::DEFAULT_MAX_INPUT_BYTES + 1);
+
+    assert_default_reader_limit(serde_yaml::from_reader::<_, LargePayload>(Cursor::new(
+        &input,
+    )));
+    assert_default_reader_limit(
+        serde_yaml::from_documents_reader::<LargePayload, _>(Cursor::new(&input)).map(|_| {
+            LargePayload {
+                payload: String::new(),
+            }
+        }),
+    );
+    assert_default_reader_limit(
+        LargePayload::deserialize(
+            serde_yaml::Deserializer::from_reader(Cursor::new(&input))
+                .next()
+                .expect("reader limit document"),
+        ),
+    );
+
+    let options = serde_yaml::LoadOptions::new().max_input_bytes(input.len());
+    let decoded: LargePayload = options.from_reader(Cursor::new(&input)).unwrap();
+    assert_eq!(decoded.payload.len(), large_payload_len(input.len()));
+
+    let docs: Vec<LargePayload> = options.from_documents_reader(Cursor::new(&input)).unwrap();
+    assert_eq!(docs.len(), 1);
+    assert_eq!(docs[0].payload.len(), large_payload_len(input.len()));
+
+    let streamed = LargePayload::deserialize(
+        options
+            .deserializer_from_reader(Cursor::new(&input))
+            .next()
+            .expect("large reader document"),
+    )
+    .unwrap();
+    assert_eq!(streamed.payload.len(), large_payload_len(input.len()));
+}
+
+fn large_payload_yaml(target_len: usize) -> Vec<u8> {
+    let prefix = b"payload: ";
+    let suffix = b"\n";
+    assert!(target_len > prefix.len() + suffix.len());
+    let payload_len = target_len - prefix.len() - suffix.len();
+    let mut input = Vec::with_capacity(target_len);
+    input.extend_from_slice(prefix);
+    input.resize(prefix.len() + payload_len, b'a');
+    input.extend_from_slice(suffix);
+    input
+}
+
+fn large_payload_len(input_len: usize) -> usize {
+    input_len - b"payload: ".len() - b"\n".len()
+}
+
+fn assert_default_reader_limit(result: Result<LargePayload, serde_yaml::Error>) {
+    let error = result.expect_err("default reader input limit");
+    let display = error.to_string();
+    assert!(
+        display.contains(&format!(
+            "YAML input exceeds configured limit of {} bytes",
+            serde_yaml::DEFAULT_MAX_INPUT_BYTES
+        )),
+        "{display}"
+    );
+    assert_eq!(error.location(), None);
 }

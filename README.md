@@ -77,8 +77,8 @@ The first milestone focuses on:
   smoke fixture that runs upstream-compatible `serde_yaml::...` API paths
   against both `serde_yaml 0.9.34` and this package, including exact
   `with::singleton_map` helper shape behavior, plus an expanded package-alias
-  smoke for explicit `LoadOptions`, document-stream, merge, mapping/index,
-  lossless graph, and diagnostic-location paths, plus a
+  smoke for explicit `LoadOptions`, bounded large-reader behavior,
+  document-stream, merge, mapping/index, lossless graph, and diagnostic-location paths, plus a
   packaged real-world alias smoke that copies the fixture registry into a clean
   downstream crate and parses GitHub Actions, Docker Compose, Kubernetes, Helm,
   OpenAPI, Wrangler, and Ansible files through `serde_yaml::...` imports, plus

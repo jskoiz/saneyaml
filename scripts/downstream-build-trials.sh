@@ -42,6 +42,23 @@ run_packaged_smoke() {
   cargo run --manifest-path "$smoke/Cargo.toml" --quiet
 }
 
+run_strict_package_alias_smoke() {
+  local fixture="$repo_root/tests/fixtures/downstream/package-alias-smoke-strict"
+
+  local upstream="$tmp/serde-yaml-strict-upstream-smoke"
+  cp -R "$fixture" "$upstream"
+  cp "$upstream/Cargo.toml.upstream" "$upstream/Cargo.toml"
+  cargo run --manifest-path "$upstream/Cargo.toml" --quiet
+
+  local alias="$tmp/serde-yaml-strict-alias-smoke"
+  cp -R "$fixture" "$alias"
+  cp "$alias/Cargo.toml.template" "$alias/Cargo.toml"
+  YAML_PACKAGE_DIR="$package_dir" perl -0pi -e \
+    's#__YAML_PACKAGE_DIR__#$ENV{YAML_PACKAGE_DIR}#g' \
+    "$alias/Cargo.toml"
+  cargo run --manifest-path "$alias/Cargo.toml" --quiet
+}
+
 patch_serde_yaml_dependency() {
   local manifest="$1"
   YAML_PACKAGE_DIR="$package_dir" perl -0pi -e \
@@ -96,6 +113,7 @@ run_stackable_operator_trial() {
 
 package_current_crate
 run_packaged_smoke
+run_strict_package_alias_smoke
 
 case "$trial" in
   pingora)

@@ -54,10 +54,11 @@ The first milestone focuses on:
   `serde_yaml`, including Kubernetes CRD/OpenAPI schema documents.
 - Packaged downstream smoke, Pingora, rust-i18n, cfn-guard, and Stackable
   operator-rs build trials that consume this crate under the `serde_yaml`
-  dependency name from clean temporary checkouts, including a checked-in
-  package-alias smoke fixture that executes covered `serde_yaml::...` API paths
-  plus explicit `LoadOptions`, document-stream, merge, mapping/index, lossless
-  graph, and diagnostic-location paths against this package.
+  dependency name from clean temporary checkouts, including a strict checked-in
+  smoke fixture that runs upstream-compatible `serde_yaml::...` API paths
+  against both `serde_yaml 0.9.34` and this package, plus an expanded
+  package-alias smoke for explicit `LoadOptions`, document-stream, merge,
+  mapping/index, lossless graph, and diagnostic-location paths.
 - A downstream-shaped migration harness, compileable migration example,
   Ubuntu-only CI workflow with all-target fuzz-smoke wiring, non-mutating
   fuzz replay script, and real-world config benchmark command.

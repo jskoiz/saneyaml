@@ -21,11 +21,12 @@ Notable completed release-candidate behavior:
 - The migration harness records YAML 1.1 scalar construction as an explicit
   call-site choice, including the default decimal treatment of `0123` versus
   YAML 1.1 octal interpretation under `LoadOptions`.
-- A checked-in package-alias smoke fixture executes covered `serde_yaml::...`
-  paths against this package through `serde_yaml = { package = "yaml", ... }`,
-  including root document-stream helpers, explicit YAML 1.1 `LoadOptions`,
-  caller-built merge expansion, mapping/index ergonomics, lossless graph
-  identity inspection, and diagnostic locations.
+- A checked-in strict package-alias smoke fixture executes upstream-compatible
+  `serde_yaml::...` paths against both `serde_yaml 0.9.34` and this package
+  through `serde_yaml = { package = "yaml", ... }`; the expanded alias smoke
+  separately covers root document-stream helpers, explicit YAML 1.1
+  `LoadOptions`, caller-built merge expansion, mapping/index ergonomics,
+  lossless graph identity inspection, and diagnostic locations.
 - Pinned external downstream replay and package-alias build trials now include
   Pingora, rust-i18n, cfn-guard, and Stackable operator-rs, with Stackable
   adding Kubernetes CRD/OpenAPI schema fixture coverage plus serializer and

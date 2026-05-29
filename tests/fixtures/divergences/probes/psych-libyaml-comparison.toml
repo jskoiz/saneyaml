@@ -1,0 +1,429 @@
+schema = "psych-libyaml-rust-comparison-v1"
+
+[[case]]
+id = "legacy-scalar-resolution"
+record = "tests/fixtures/divergences/records/legacy-scalar-resolution.toml"
+psych_status = "ok"
+rust_entrypoint = "yaml11-value"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "YAML 1.1 mode resolves legacy scalars, while retained Rust values keep timestamp metadata instead of constructing Ruby Date objects."
+yaml = '''
+on: yes
+timestamp: 2026-05-24
+octal: 0123
+sexagesimal: 1:20
+special_float: .inf
+'''
+rust_contains = ["Bool(true)", "timestamp", "Tagged", "Float(inf)"]
+
+[[case]]
+id = "rw-github-actions-on-key"
+record = "tests/fixtures/divergences/records/rw-github-actions-on-key.toml"
+psych_status = "ok"
+rust_entrypoint = "yaml11-value"
+rust_status = "ok"
+rust_policy = "matches-psych"
+reason = "Explicit YAML 1.1 mode exposes the same boolean-key hazard that makes GitHub Actions `on` unsafe in libyaml-era loaders."
+yaml = '''
+on:
+  push:
+    branches: [main]
+'''
+rust_contains = ["Bool(true)", "push", "branches"]
+
+[[case]]
+id = "merge-keys"
+record = "tests/fixtures/divergences/records/merge-keys.toml"
+psych_status = "ok"
+rust_entrypoint = "yaml11-value"
+rust_status = "ok"
+rust_policy = "matches-psych"
+reason = "YAML 1.1 mode follows Psych/libyaml merge-edge recovery while default loading remains stricter."
+yaml = '''
+base: &base
+  image: app:v1
+  replicas: 2
+service:
+  <<: *base
+  image: app:v2
+first: &first
+  shared: first
+  image: app:first
+  retries: 3
+second: &second
+  shared: second
+  image: app:second
+  timeout: 10
+list_service:
+  <<: [*first, *second]
+explicit_service:
+  <<: [*first, *second]
+  shared: explicit
+  timeout: explicit
+tagged_service:
+  !!merge <<: *base
+  image: app:tagged
+canonical_service:
+  !<tag:yaml.org,2002:merge> <<: *base
+  image: app:canonical
+string_service:
+  !!str <<: literal
+  image: app:string
+custom_service:
+  !Thing <<: literal
+  image: app:custom
+scalar_merge:
+  <<: scalar
+  keep: value
+quoted_scalar_merge:
+  '<<': literal
+  keep: value
+tagged_scalar_merge:
+  !!merge <<: literal
+  keep: value
+sequence_scalar_merge:
+  <<: [scalar]
+  keep: value
+repeated_merge:
+  <<: *first
+  <<: *second
+  keep: value
+repeated_tagged_merge:
+  !!merge <<: *first
+  !<tag:yaml.org,2002:merge> <<: *second
+  keep: value
+'''
+rust_contains = ["app:v2", "app:first", "app:canonical", "second", "timeout"]
+
+[[case]]
+id = "alias-graph-identity"
+record = "tests/fixtures/divergences/records/alias-graph-identity.toml"
+psych_status = "ok"
+rust_entrypoint = "lossless"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "Psych preserves alias object identity in constructed Ruby objects; this crate preserves alias graph identity only on LosslessStream, not semantic Node/Value."
+yaml = '''
+base: &base
+  count: 1
+a: *base
+b: *base
+'''
+rust_contains = ["LosslessStream", "anchors", "aliases"]
+
+[[case]]
+id = "duplicate-scalar-keys"
+record = "tests/fixtures/divergences/records/duplicate-scalar-keys.toml"
+psych_status = "ok"
+rust_entrypoint = "default-value"
+rust_status = "error"
+rust_policy = "intentional-divergence"
+reason = "Psych keeps the later duplicate key; this crate rejects duplicate keys with spans for config safety."
+yaml = '''
+name: first
+name: second
+'''
+rust_error_contains = "duplicate mapping key"
+
+[[case]]
+id = "explicit-core-tags"
+record = "tests/fixtures/divergences/records/explicit-core-tags.toml"
+psych_status = "ok"
+rust_entrypoint = "yaml11-value"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "Typed reads support explicit core tags, but retained Value/Node trees preserve tag metadata instead of erasing it into Ruby scalar classes."
+yaml = '''
+binary: !!binary SGVsbG8=
+int: !!int 0x7B
+octal: !!int 0123
+sexagesimal: !!int 1:20
+int_tag_float: !!int 1:20.5
+timestamp: !!timestamp 2026-05-24
+float: !!float .inf
+sexagesimal_float: !!float 1:20:30.5
+string_null: !!str null
+string_bool: !!str true
+bool_on: !!bool ON
+bool_false: !!bool false
+null_value: !!null null
+'''
+rust_contains = ["Tagged", "binary", "bool_on", "suffix: \"bool\""]
+
+[[case]]
+id = "yaml11-collection-tags"
+record = "tests/fixtures/divergences/records/yaml11-collection-tags.toml"
+psych_status = "ok"
+rust_entrypoint = "yaml11-value"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "Typed Serde reads expose YAML 1.1 collections, while retained Value/Node trees preserve tags instead of constructing Psych::Set or Psych::Omap objects."
+yaml = '''
+set: !!set
+  ? alpha
+  ? beta
+omap: !!omap
+  - first: 1
+  - second: 2
+pairs: !!pairs
+  - repeat: 1
+  - repeat: 2
+'''
+rust_contains = ["Tagged", "set", "omap", "pairs"]
+
+[[case]]
+id = "yaml11-core-structural-tags"
+record = "tests/fixtures/divergences/records/yaml11-core-structural-tags.toml"
+psych_status = "ok"
+rust_entrypoint = "directive-value"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "The crate accepts and exposes YAML 1.1 structural tags, while retained Value/Node trees keep the tag metadata visible."
+yaml = '''
+%YAML 1.1
+%TAG !yaml! tag:yaml.org,2002:
+---
+short_seq: !!seq [1, 2]
+canonical_seq: !<tag:yaml.org,2002:seq> [a, b]
+resolved_seq: !yaml!seq [left, right]
+short_map: !!map {a: 1, b: 2}
+canonical_map: !<tag:yaml.org,2002:map> {c: 3}
+resolved_map: !yaml!map {d: 4}
+value_key: !!value =
+value_mapping:
+  ? !!value =
+  : value
+'''
+rust_contains = ["Tagged", "short_seq", "resolved_map", "value_mapping"]
+
+[[case]]
+id = "core-structural-tags"
+record = "tests/fixtures/divergences/records/yaml11-core-structural-tags.toml"
+psych_status = "ok"
+rust_entrypoint = "directive-value"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "Fixture-backed structural tags are accepted, but retained trees deliberately keep tag metadata visible."
+fixture = "tests/fixtures/yaml11-conformance/core-structural-tags.yaml"
+rust_contains = ["Tagged", "short_seq", "resolved_map", "value_mapping"]
+
+[[case]]
+id = "legacy-merge-edge-recovery"
+record = "tests/fixtures/divergences/records/merge-keys.toml"
+psych_status = "ok"
+rust_entrypoint = "directive-value"
+rust_status = "ok"
+rust_policy = "matches-psych"
+reason = "Directive-driven YAML 1.1 mode recovers repeated and non-mergeable merge edges like Psych/libyaml."
+fixture = "tests/fixtures/yaml11-conformance/legacy-merge-edge-recovery.yaml"
+rust_contains = ["repeated_merge", "second", "scalar_merge", "literal_and_merge"]
+
+[[case]]
+id = "explicit-merge-tags"
+record = "tests/fixtures/divergences/records/merge-keys.toml"
+psych_status = "ok"
+rust_entrypoint = "directive-value"
+rust_status = "ok"
+rust_policy = "matches-psych"
+reason = "Explicit short, canonical, and resolved merge tags expand in the same policy direction as Psych/libyaml."
+fixture = "tests/fixtures/yaml11-conformance/explicit-merge-tags.yaml"
+rust_contains = ["tagged_service", "canonical_service", "resolved_service", "app:resolved"]
+
+[[case]]
+id = "lossless-merge-graph"
+record = "tests/fixtures/divergences/records/alias-graph-identity.toml"
+mode = "events"
+psych_status = "ok"
+rust_entrypoint = "events"
+rust_status = "ok"
+rust_policy = "matches-psych"
+reason = "Both event surfaces expose the merge graph syntax without forcing semantic alias expansion."
+fixture = "tests/fixtures/yaml11-conformance/lossless-merge-graph.yaml"
+rust_contains = ["DocumentStart", "MappingStart", "Alias"]
+
+[[case]]
+id = "lossless-recursive-graph"
+record = "tests/fixtures/divergences/records/alias-graph-identity.toml"
+mode = "events"
+psych_status = "ok"
+rust_entrypoint = "events"
+rust_status = "ok"
+rust_policy = "matches-psych"
+reason = "Both parser-event surfaces expose recursive aliases as alias events."
+fixture = "tests/fixtures/yaml11-conformance/lossless-recursive-graph.yaml"
+rust_contains = ["DocumentStart", "MappingStart", "Alias"]
+
+[[case]]
+id = "null-like-string-targets"
+record = "tests/fixtures/divergences/records/null-like-string-targets.toml"
+psych_status = "ok"
+rust_entrypoint = "default-value"
+rust_status = "ok"
+rust_policy = "matches-psych"
+reason = "Default retained values match null-like scalar treatment for empty, tilde, and null words while preserving quoted strings."
+yaml = '''
+empty:
+tilde: ~
+null_word: null
+quoted: "null"
+'''
+rust_contains = ["Null", "quoted", "String(\"null\")"]
+
+[[case]]
+id = "numeric-key-identity"
+record = "tests/fixtures/divergences/records/numeric-key-identity.toml"
+psych_status = "ok"
+rust_entrypoint = "default-value"
+rust_status = "ok"
+rust_policy = "matches-psych"
+reason = "The case is accepted while preserving distinct typed scalar key domains."
+yaml = '''
+1: integer
+1.0: float
+"1": string
+'''
+rust_contains = ["Integer(1)", "Float(1.0)", "String(\"1\")"]
+
+[[case]]
+id = "tab-token-separation"
+record = "tests/fixtures/divergences/records/tab-token-separation.toml"
+psych_status = "ok"
+rust_entrypoint = "default-value"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "The crate accepts YAML 1.2 tab separation in this reduced case while keeping invalid tab placements rejected elsewhere."
+yaml = "key:\tvalue\n"
+rust_contains = ["key", "value"]
+
+[[case]]
+id = "adjacent-flow-mapping-scalars"
+record = "tests/fixtures/divergences/records/adjacent-flow-mapping-scalars.toml"
+psych_status = "error"
+rust_entrypoint = "default-value"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "The crate accepts valid YAML 1.2 adjacent flow mapping scalars that libyaml rejects."
+yaml = "{foo: bar:baz}\n"
+rust_contains = ["foo", "bar:baz"]
+
+[[case]]
+id = "multiline-quoted-flow-key"
+record = "tests/fixtures/divergences/records/multiline-quoted-flow-key.toml"
+psych_status = "error"
+rust_entrypoint = "default-value"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "The crate accepts the selected YAML 1.2 multiline quoted flow key that libyaml rejects."
+yaml = '''
+{
+  "first
+  second": value
+}
+'''
+rust_contains = ["first second", "value"]
+
+[[case]]
+id = "raw-event-directives"
+record = "tests/fixtures/divergences/records/raw-event-directives.toml"
+mode = "events"
+psych_status = "ok"
+rust_entrypoint = "events"
+rust_status = "ok"
+rust_policy = "matches-psych"
+reason = "Both event surfaces expose version and tag directive metadata for the explicit document."
+yaml = '''
+%YAML 1.1
+%TAG !e! tag:example.com,2026:
+--- !e!Thing &root {a: 1}
+'''
+rust_contains = ["DocumentStart", "yaml_version", "tag:example.com,2026:Thing"]
+
+[[case]]
+id = "raw-event-document-markers"
+record = "tests/fixtures/divergences/records/raw-event-document-markers.toml"
+mode = "events"
+psych_status = "ok"
+rust_entrypoint = "events"
+rust_status = "ok"
+rust_policy = "matches-psych"
+reason = "Both event surfaces expose explicit document boundary events."
+yaml = '''
+---
+alpha: 1
+...
+--- beta
+'''
+rust_contains = ["DocumentStart", "DocumentEnd", "explicit: true"]
+
+[[case]]
+id = "yaml-version-directive-schema"
+record = "tests/fixtures/divergences/records/yaml-version-directive-schema.toml"
+mode = "events"
+psych_status = "error"
+rust_entrypoint = "events"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "The crate accepts numeric YAML directives as syntax metadata, including newer versions that libyaml rejects."
+fixture = "tests/fixtures/yaml-test-suite/data/BEC7/in.yaml"
+rust_contains = ["DocumentStart", "yaml_version"]
+
+[[case]]
+id = "tag-directive-scope-and-undeclared-handles"
+record = "tests/fixtures/divergences/records/tag-directive-scope-and-undeclared-handles.toml"
+mode = "events"
+psych_status = "error"
+rust_entrypoint = "events"
+rust_status = "error"
+rust_policy = "matches-psych"
+reason = "Undeclared named tag handles are rejected."
+yaml = "!h!Thing value\n"
+rust_error_contains = "undeclared TAG directive handle"
+
+[[case]]
+id = "document-start-inline-node"
+record = "tests/fixtures/divergences/records/document-start-inline-node.toml"
+mode = "events"
+psych_status = "ok"
+rust_entrypoint = "events"
+rust_status = "ok"
+rust_policy = "matches-psych"
+reason = "Both event surfaces accept root node properties after an explicit document start."
+yaml = "--- &root !Thing {a: 1}\n"
+rust_contains = ["DocumentStart", "root", "Thing"]
+
+[[case]]
+id = "document-start-block-scalars"
+record = "tests/fixtures/divergences/records/document-start-block-scalars.toml"
+mode = "events"
+psych_status = "error"
+rust_entrypoint = "events"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "The crate follows YAML 1.2/Rust parser references for document-start block scalar forms that libyaml rejects."
+fixture = "tests/fixtures/yaml-test-suite/data/W4TN/in.yaml"
+rust_contains = ["DocumentStart", "Scalar"]
+
+[[case]]
+id = "bare-document-streams"
+record = "tests/fixtures/divergences/records/bare-document-streams.toml"
+mode = "events"
+psych_status = "error"
+rust_entrypoint = "events"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "The crate follows YAML 1.2/Rust parser references for bare document streams after explicit document end markers."
+fixture = "tests/fixtures/yaml-test-suite/data/M7A3/in.yaml"
+rust_contains = ["DocumentStart", "DocumentEnd"]
+
+[[case]]
+id = "directive-looking-flow-content"
+record = "tests/fixtures/divergences/records/directive-looking-flow-content.toml"
+mode = "events"
+psych_status = "error"
+rust_entrypoint = "events"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "The crate treats percent-prefixed lines inside open flow content as YAML 1.2 content rather than libyaml directive-sensitive syntax."
+fixture = "tests/fixtures/yaml-test-suite/data/UT92/in.yaml"
+rust_contains = ["DocumentStart", "Scalar"]

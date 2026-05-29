@@ -1,11 +1,15 @@
 use serde_json::Value as Json;
 use std::collections::BTreeSet;
+use std::fs;
 use std::path::Path;
 use std::process::Command;
+use toml::Value as Toml;
 
 const PROBE_SCRIPT: &str = include_str!("../scripts/probe-psych-libyaml.rb");
 const PROBE_ARTIFACT: &str =
     include_str!("fixtures/divergences/probes/psych-3.1.0-libyaml-0.2.1.json");
+const PROBE_COMPARISON: &str =
+    include_str!("fixtures/divergences/probes/psych-libyaml-comparison.toml");
 const ROOT: &str = env!("CARGO_MANIFEST_DIR");
 
 #[test]
@@ -192,12 +196,188 @@ fn psych_libyaml_probe_reproduces_artifact_when_pinned_runtime_is_available() {
     assert_eq!(regenerated, checked);
 }
 
+#[test]
+fn psych_libyaml_probe_cases_have_rust_policy_gate() {
+    let artifact: Json = serde_json::from_str(PROBE_ARTIFACT).expect("probe artifact JSON");
+    let manifest: Toml = toml::from_str(PROBE_COMPARISON).expect("comparison manifest TOML");
+    assert_eq!(
+        manifest["schema"].as_str(),
+        Some("psych-libyaml-rust-comparison-v1")
+    );
+
+    let artifact_cases = artifact["cases"].as_array().expect("artifact cases");
+    let manifest_cases = manifest["case"].as_array().expect("manifest cases");
+    assert_eq!(manifest_cases.len(), artifact_cases.len());
+
+    let artifact_ids = artifact_cases
+        .iter()
+        .map(|case| case["id"].as_str().expect("artifact id"))
+        .collect::<BTreeSet<_>>();
+    let manifest_ids = manifest_cases
+        .iter()
+        .map(|case| case["id"].as_str().expect("manifest id"))
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        manifest_ids, artifact_ids,
+        "every pinned Psych/libyaml probe case must have a Rust comparison policy"
+    );
+
+    for case in manifest_cases {
+        let id = toml_str(case, "id");
+        let record = toml_str(case, "record");
+        let psych_case = case_by_id(&artifact, id);
+        assert_eq!(
+            Some(toml_str(case, "psych_status")),
+            psych_case["status"].as_str(),
+            "{id} psych status must stay pinned to the artifact"
+        );
+        assert!(
+            Path::new(ROOT).join(record).is_file(),
+            "{id} must link to an existing divergence record"
+        );
+
+        let rust_policy = toml_str(case, "rust_policy");
+        assert!(
+            matches!(rust_policy, "matches-psych" | "intentional-divergence"),
+            "{id} must choose a final Rust-vs-Psych policy"
+        );
+        assert!(
+            !toml_str(case, "reason").is_empty(),
+            "{id} must describe why that policy is final"
+        );
+
+        let rust_probe = run_rust_probe_case(case);
+        let expected_rust_status = toml_str(case, "rust_status");
+        assert_eq!(rust_probe.status, expected_rust_status, "{id} Rust status");
+
+        if rust_policy == "matches-psych" {
+            assert_eq!(
+                expected_rust_status,
+                toml_str(case, "psych_status"),
+                "{id} cannot be marked matches-psych with different success/error status"
+            );
+        } else {
+            let record_text =
+                fs::read_to_string(Path::new(ROOT).join(record)).expect("divergence record");
+            assert!(
+                record_text.contains("decision"),
+                "{id} intentional divergence must have a decision field"
+            );
+            assert!(
+                record_text.contains("migration_impact"),
+                "{id} intentional divergence must explain migration impact"
+            );
+        }
+
+        for fragment in toml_str_array(case, "rust_contains") {
+            let compact_output = compact_whitespace(&rust_probe.output);
+            let compact_fragment = compact_whitespace(fragment);
+            assert!(
+                rust_probe.output.contains(fragment) || compact_output.contains(&compact_fragment),
+                "{id} Rust output must contain {fragment}; output was {}",
+                rust_probe.output
+            );
+        }
+
+        if let Some(fragment) = toml_optional_str(case, "rust_error_contains") {
+            assert!(
+                rust_probe.output.contains(fragment),
+                "{id} Rust error must contain {fragment}; output was {}",
+                rust_probe.output
+            );
+        }
+    }
+}
+
 fn assert_case_summary_contains(artifact: &Json, id: &str, expected: &str) {
     let case = case_by_id(artifact, id);
     assert!(
         case.to_string().contains(expected),
         "{id} summary must contain {expected}"
     );
+}
+
+struct RustProbe {
+    status: &'static str,
+    output: String,
+}
+
+fn run_rust_probe_case(case: &Toml) -> RustProbe {
+    let input = case_input(case);
+    match toml_str(case, "rust_entrypoint") {
+        "default-value" => rust_probe_from_result(
+            yaml::from_str::<yaml::Value>(&input).map(|value| format!("{value:#?}")),
+        ),
+        "yaml11-value" => rust_probe_from_result(
+            yaml::LoadOptions::yaml_1_1()
+                .from_str::<yaml::Value>(&input)
+                .map(|value| format!("{value:#?}")),
+        ),
+        "directive-value" => rust_probe_from_result(
+            yaml::LoadOptions::yaml_version_directive()
+                .from_str::<yaml::Value>(&input)
+                .map(|value| format!("{value:#?}")),
+        ),
+        "events" => {
+            rust_probe_from_result(yaml::parse_events(&input).map(|events| format!("{events:#?}")))
+        }
+        "lossless" => rust_probe_from_result(
+            yaml::parse_lossless(&input).map(|stream| format!("{stream:#?}")),
+        ),
+        other => panic!("unknown Rust probe entrypoint {other}"),
+    }
+}
+
+fn rust_probe_from_result(result: yaml::Result<String>) -> RustProbe {
+    match result {
+        Ok(output) => RustProbe {
+            status: "ok",
+            output,
+        },
+        Err(error) => RustProbe {
+            status: "error",
+            output: error.to_string(),
+        },
+    }
+}
+
+fn case_input(case: &Toml) -> String {
+    if let Some(yaml) = toml_optional_str(case, "yaml") {
+        return yaml.to_owned();
+    }
+    if let Some(fixture) = toml_optional_str(case, "fixture") {
+        return fs::read_to_string(Path::new(ROOT).join(fixture))
+            .unwrap_or_else(|error| panic!("{fixture}: {error}"));
+    }
+    panic!("{} must define yaml or fixture", toml_str(case, "id"));
+}
+
+fn toml_str<'a>(value: &'a Toml, key: &str) -> &'a str {
+    toml_optional_str(value, key).unwrap_or_else(|| panic!("missing TOML string key {key}"))
+}
+
+fn toml_optional_str<'a>(value: &'a Toml, key: &str) -> Option<&'a str> {
+    value.get(key).and_then(Toml::as_str)
+}
+
+fn toml_str_array<'a>(value: &'a Toml, key: &str) -> Vec<&'a str> {
+    value
+        .get(key)
+        .and_then(Toml::as_array)
+        .into_iter()
+        .flatten()
+        .map(|item| {
+            item.as_str()
+                .unwrap_or_else(|| panic!("{key} entries must be strings"))
+        })
+        .collect()
+}
+
+fn compact_whitespace(value: &str) -> String {
+    value
+        .chars()
+        .filter(|ch| !ch.is_whitespace() && *ch != ',')
+        .collect()
 }
 
 fn assert_event_count(artifact: &Json, id: &str, expected: usize) {

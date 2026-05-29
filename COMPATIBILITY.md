@@ -18,10 +18,14 @@ The compatibility target is intentionally split:
   version-pinned with a Ruby Psych 3.1.0/libyaml 0.2.1 probe artifact. The
   artifact covers constructed values plus parser-event/directive behavior for
   document markers, `%YAML`/`%TAG`, document-start root nodes, undeclared tag
-  handles, and selected libyaml-era rejections. Default loading stays YAML
-  1.2-oriented; explicit YAML 1.1 construction covers the scalar forms listed
-  here with `yaml::Timestamp` typed reads while keeping byte payloads tagged
-  unless the caller asks for a typed byte target.
+  handles, and selected libyaml-era rejections. A companion
+  `psych-libyaml-comparison.toml` manifest classifies every pinned probe case
+  as matching Psych/libyaml or as an intentional Rust policy divergence, then
+  `libyaml_probe_manifest` executes the matching Rust parser, value, directive,
+  or lossless entrypoint. Default loading stays YAML 1.2-oriented; explicit
+  YAML 1.1 construction covers the scalar forms listed here with
+  `yaml::Timestamp` typed reads while keeping byte payloads tagged unless the
+  caller asks for a typed byte target.
 
 Every divergence record in `tests/fixtures/divergences/records/` carries a
 `migration_impact` field, and `tests/divergence_manifest.rs` fails new records
@@ -284,7 +288,10 @@ tag, merge recovery, explicit merge-tag, and lossless graph parser-event
 cross-checks, plus libyaml-era parser-event behavior for YAML/TAG directives,
 document markers, document-start inline nodes, undeclared tag-handle errors,
 YAML 1.3 rejection, document-start block-scalar rejection, bare-document-stream
-rejection, and directive-looking flow-content rejection.
+rejection, and directive-looking flow-content rejection. The
+Rust-vs-Psych policy manifest now gates all 26 pinned cases against this crate's
+chosen default, YAML 1.1, directive-driven, event, or lossless entrypoint and
+requires intentional divergences to link back to migration-impact records.
 This crate keeps alias identity in the lossless graph surface, not semantic
 `Node` or `Value` trees. `graph_identity` now also compares
 `LosslessStream` anchor definitions and alias targets against normalized

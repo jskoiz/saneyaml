@@ -832,6 +832,80 @@ target:
     );
     assert_eq!(duplicate.line(), Some(5));
     assert_eq!(duplicate.column(), Some(3));
+
+    let anchor_shadowing = "\
+first: &defaults {shared: first, a: 1}
+shadow_target:
+  <<: [*defaults, &defaults {shared: second, b: 2}]
+  own: value
+after_shadow:
+  <<: *defaults
+";
+    let shadowed_value: Value = LoadOptions::yaml_1_1()
+        .from_str(anchor_shadowing)
+        .expect("YAML 1.1 merge list anchor shadowing");
+    assert!(shadowed_value["shadow_target"]["<<"].is_null());
+    assert_eq!(
+        shadowed_value["shadow_target"]["shared"].as_str(),
+        Some("first")
+    );
+    assert_eq!(shadowed_value["shadow_target"]["a"].as_u64(), Some(1));
+    assert_eq!(shadowed_value["shadow_target"]["b"].as_u64(), Some(2));
+    assert_eq!(
+        shadowed_value["shadow_target"]["own"].as_str(),
+        Some("value")
+    );
+    assert!(shadowed_value["after_shadow"]["<<"].is_null());
+    assert_eq!(
+        shadowed_value["after_shadow"]["shared"].as_str(),
+        Some("second")
+    );
+    assert_eq!(shadowed_value["after_shadow"]["b"].as_u64(), Some(2));
+
+    let duplicate_collection_merge = "\
+first: &first {shared: first, a: 1}
+second: &second {shared: second, b: 2}
+third: &third {shared: third, c: 3}
+target:
+  <<: [*first, *second]
+  <<: [*third]
+  own: value
+";
+    let duplicate_collection_value: Value = LoadOptions::yaml_1_1()
+        .from_str(duplicate_collection_merge)
+        .expect("YAML 1.1 repeated collection merge keys");
+    assert!(duplicate_collection_value["target"]["<<"].is_null());
+    assert_eq!(
+        duplicate_collection_value["target"]["shared"].as_str(),
+        Some("third")
+    );
+    assert_eq!(duplicate_collection_value["target"]["a"].as_u64(), Some(1));
+    assert_eq!(duplicate_collection_value["target"]["b"].as_u64(), Some(2));
+    assert_eq!(duplicate_collection_value["target"]["c"].as_u64(), Some(3));
+    assert_eq!(
+        duplicate_collection_value["target"]["own"].as_str(),
+        Some("value")
+    );
+
+    let deep_invalid = "\
+base: &base
+  <<: scalar
+  keep: nested
+target:
+  <<: *base
+  own: value
+";
+    let deep_invalid_value: Value = LoadOptions::yaml_1_1()
+        .from_str(deep_invalid)
+        .expect("YAML 1.1 nested invalid merge payload recovery");
+    assert_eq!(deep_invalid_value["base"]["<<"].as_str(), Some("scalar"));
+    assert_eq!(deep_invalid_value["base"]["keep"].as_str(), Some("nested"));
+    assert_eq!(deep_invalid_value["target"]["<<"].as_str(), Some("scalar"));
+    assert_eq!(
+        deep_invalid_value["target"]["keep"].as_str(),
+        Some("nested")
+    );
+    assert_eq!(deep_invalid_value["target"]["own"].as_str(), Some("value"));
 }
 
 #[test]

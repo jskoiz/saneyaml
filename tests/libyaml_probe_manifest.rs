@@ -31,6 +31,9 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "merge-duplicate-local-key-policy",
         "merge-cross-document-anchor-reset",
         "merge-mixed-invalid-list-payload",
+        "merge-anchor-shadowing-list",
+        "merge-duplicate-collection-key-policy",
+        "merge-deep-invalid-payload-recovery",
         "alias-graph-identity",
         "explicit-core-tags",
         "yaml11-collection-tags",
@@ -67,7 +70,7 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_eq!(artifact["libyaml"], "0.2.1");
 
     let cases = artifact["cases"].as_array().expect("probe cases array");
-    assert_eq!(cases.len(), 46);
+    assert_eq!(cases.len(), 49);
 
     let expected_ids = BTreeSet::from([
         "adjacent-flow-mapping-scalars",
@@ -91,6 +94,9 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "lossless-recursive-graph",
         "merge-keys",
         "merge-cross-document-anchor-reset",
+        "merge-anchor-shadowing-list",
+        "merge-deep-invalid-payload-recovery",
+        "merge-duplicate-collection-key-policy",
         "merge-duplicate-local-key-policy",
         "merge-mixed-invalid-list-payload",
         "merge-nested-list-precedence",
@@ -525,14 +531,16 @@ fn psych_libyaml_probe_coverage_ledger_groups_all_pinned_cases() {
         "every pinned Psych/libyaml probe case must belong to a behavior family",
     );
 
-    let gaps = coverage["tracked_gap"]
-        .as_array()
-        .expect("coverage tracked gaps");
+    let empty_gaps: Vec<Toml> = Vec::new();
+    let gaps = coverage
+        .get("tracked_gap")
+        .and_then(Toml::as_array)
+        .unwrap_or(&empty_gaps);
     assert_eq!(
         coverage["tracked_gap_count"].as_integer(),
         Some(gaps.len() as i64),
     );
-    assert_eq!(gaps.len(), 1);
+    assert_eq!(gaps.len(), 0);
     let mut gap_ids = BTreeSet::new();
     for gap in gaps {
         let id = toml_str(gap, "id");
@@ -788,6 +796,34 @@ fn assert_merge_permutation_cases(artifact: &Json) {
     assert_eq!(mixed["status"], "ok");
     assert_mapping_entry_sequence_item(&mixed["summary"], "target", "<<", 1, "scalar");
     assert_mapping_entry_value(&mixed["summary"], "target", "keep", "value");
+
+    let shadowing = case_by_id(artifact, "merge-anchor-shadowing-list");
+    assert_eq!(shadowing["status"], "ok");
+    let shadowing_summary = &shadowing["summary"];
+    assert_mapping_entry_value(shadowing_summary, "shadow_target", "shared", "first");
+    assert_mapping_entry_value(shadowing_summary, "shadow_target", "a", "1");
+    assert_mapping_entry_value(shadowing_summary, "shadow_target", "b", "2");
+    assert_mapping_entry_value(shadowing_summary, "shadow_target", "own", "value");
+    assert_mapping_entry_value(shadowing_summary, "after_shadow", "shared", "second");
+    assert_mapping_entry_value(shadowing_summary, "after_shadow", "b", "2");
+
+    let duplicate_collection = case_by_id(artifact, "merge-duplicate-collection-key-policy");
+    assert_eq!(duplicate_collection["status"], "ok");
+    let duplicate_summary = &duplicate_collection["summary"];
+    assert_mapping_entry_value(duplicate_summary, "target", "shared", "third");
+    assert_mapping_entry_value(duplicate_summary, "target", "a", "1");
+    assert_mapping_entry_value(duplicate_summary, "target", "b", "2");
+    assert_mapping_entry_value(duplicate_summary, "target", "c", "3");
+    assert_mapping_entry_value(duplicate_summary, "target", "own", "value");
+
+    let deep_invalid = case_by_id(artifact, "merge-deep-invalid-payload-recovery");
+    assert_eq!(deep_invalid["status"], "ok");
+    let deep_summary = &deep_invalid["summary"];
+    assert_mapping_entry_value(deep_summary, "base", "<<", "scalar");
+    assert_mapping_entry_value(deep_summary, "base", "keep", "nested");
+    assert_mapping_entry_value(deep_summary, "target", "<<", "scalar");
+    assert_mapping_entry_value(deep_summary, "target", "keep", "nested");
+    assert_mapping_entry_value(deep_summary, "target", "own", "value");
 }
 
 fn assert_yaml11_fixture_merge_recovery(artifact: &Json) {

@@ -4,9 +4,9 @@ comparison_manifest = "tests/fixtures/divergences/probes/psych-libyaml-compariso
 ruby = "2.6.10"
 psych = "3.1.0"
 libyaml = "0.2.1"
-probe_case_count = 46
+probe_case_count = 49
 behavior_family_count = 8
-tracked_gap_count = 1
+tracked_gap_count = 0
 coverage_policy = "Pinned Psych/libyaml cases are grouped by behavior family. Covered families are executable proof for the listed cases, not blanket YAML 1.1/libyaml compatibility."
 
 [[behavior_family]]
@@ -36,12 +36,15 @@ cases = [
   "merge-duplicate-local-key-policy",
   "merge-cross-document-anchor-reset",
   "merge-mixed-invalid-list-payload",
+  "merge-anchor-shadowing-list",
+  "merge-duplicate-collection-key-policy",
+  "merge-deep-invalid-payload-recovery",
   "legacy-merge-edge-recovery",
   "explicit-merge-tags",
 ]
 rust_entrypoints = ["yaml11-value", "directive-value", "events"]
 adoption_risk = "Config migration depends on clear default merge expansion and explicit YAML 1.1 recovery semantics."
-next_expansion = "Broaden anchor shadowing inside merge lists, collection-valued merge key collisions, and deeper invalid-payload recovery variants."
+next_expansion = "Add new merge recovery variants only when real migration corpora expose behavior outside the covered precedence, duplicate merge-key, invalid payload, anchor shadowing, and document-boundary denominator."
 
 [[behavior_family]]
 id = "alias-graph-identity"
@@ -136,9 +139,3 @@ cases = [
 rust_entrypoints = ["default-value"]
 adoption_risk = "Config safety intentionally diverges from Psych last-wins duplicate-key construction."
 next_expansion = "Treat broader collection-key duplicate and tab placement variants as separate future policy expansions."
-
-[[tracked_gap]]
-id = "merge-recovery-permutation-matrix"
-family = "merge-keys-and-recovery"
-reason = "Merge recovery now covers representative nested precedence, duplicate local key policy, mixed invalid merge-list recovery, and cross-document alias reset cases, but not every anchor-shadowing or collection-key variant."
-next_probe_candidates = ["anchor shadowing inside merge lists", "collection-valued duplicate merge keys", "deep invalid payload recovery variants"]

@@ -160,6 +160,43 @@ CASES = [
     YAML
   },
   {
+    id: "merge-anchor-shadowing-list",
+    record: "tests/fixtures/divergences/records/merge-keys.toml",
+    yaml: <<~YAML
+      first: &defaults {shared: first, a: 1}
+      shadow_target:
+        <<: [*defaults, &defaults {shared: second, b: 2}]
+        own: value
+      after_shadow:
+        <<: *defaults
+    YAML
+  },
+  {
+    id: "merge-duplicate-collection-key-policy",
+    record: "tests/fixtures/divergences/records/merge-keys.toml",
+    yaml: <<~YAML
+      first: &first {shared: first, a: 1}
+      second: &second {shared: second, b: 2}
+      third: &third {shared: third, c: 3}
+      target:
+        <<: [*first, *second]
+        <<: [*third]
+        own: value
+    YAML
+  },
+  {
+    id: "merge-deep-invalid-payload-recovery",
+    record: "tests/fixtures/divergences/records/merge-keys.toml",
+    yaml: <<~YAML
+      base: &base
+        <<: scalar
+        keep: nested
+      target:
+        <<: *base
+        own: value
+    YAML
+  },
+  {
     id: "alias-graph-identity",
     record: "tests/fixtures/divergences/records/alias-graph-identity.toml",
     yaml: <<~YAML

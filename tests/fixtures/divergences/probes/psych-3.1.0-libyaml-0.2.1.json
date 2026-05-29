@@ -1449,6 +1449,381 @@
       "input_bytes": 63
     },
     {
+      "id": "merge-anchor-shadowing-list",
+      "record": "tests/fixtures/divergences/records/merge-keys.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "first"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "first"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "a"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "1"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "shadow_target"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "first"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "b"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "2"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "a"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "1"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "own"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "value"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "after_shadow"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "second"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "b"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "2"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "input_sha256": "081b99ada14570451406dd62ba0bed8e2f0aed7232c7004a9cecbc22b399f852",
+      "input_bytes": 149
+    },
+    {
+      "id": "merge-duplicate-collection-key-policy",
+      "record": "tests/fixtures/divergences/records/merge-keys.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "first"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "first"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "a"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "1"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "second"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "second"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "b"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "2"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "third"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "third"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "c"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "3"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "target"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "third"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "b"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "2"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "a"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "1"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "c"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "3"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "own"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "value"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "input_sha256": "6afb9a892076be50785fcd98629a991e4804fd28d6b191d9b059f5cd39abe325",
+      "input_bytes": 171
+    },
+    {
+      "id": "merge-deep-invalid-payload-recovery",
+      "record": "tests/fixtures/divergences/records/merge-keys.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "base"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "<<"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "scalar"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "keep"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "nested"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "target"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "<<"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "scalar"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "keep"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "nested"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "own"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "value"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "input_sha256": "dd36f1edc0bfa3524a12e8d4f78c58517baeb2c066a252694164ba549eb1565f",
+      "input_bytes": 73
+    },
+    {
       "id": "alias-graph-identity",
       "record": "tests/fixtures/divergences/records/alias-graph-identity.toml",
       "status": "ok",

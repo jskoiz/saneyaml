@@ -187,6 +187,61 @@ target:
 rust_contains = ["target", "<<", "scalar", "keep"]
 
 [[case]]
+id = "merge-anchor-shadowing-list"
+record = "tests/fixtures/divergences/records/merge-keys.toml"
+psych_status = "ok"
+rust_entrypoint = "yaml11-value"
+rust_status = "ok"
+rust_policy = "matches-psych"
+reason = "YAML 1.1 mode follows Psych when a merge-list item redefines an anchor: the list merge keeps earlier duplicate merged keys ahead of later list items, while later aliases resolve to the shadowed anchor."
+yaml = '''
+first: &defaults {shared: first, a: 1}
+shadow_target:
+  <<: [*defaults, &defaults {shared: second, b: 2}]
+  own: value
+after_shadow:
+  <<: *defaults
+'''
+rust_contains = ["shadow_target", "shared", "first", "b", "own", "after_shadow", "second"]
+
+[[case]]
+id = "merge-duplicate-collection-key-policy"
+record = "tests/fixtures/divergences/records/merge-keys.toml"
+psych_status = "ok"
+rust_entrypoint = "yaml11-value"
+rust_status = "ok"
+rust_policy = "matches-psych"
+reason = "YAML 1.1 mode follows Psych for repeated collection-valued merge keys: later merge-key groups replace duplicate merged keys while preserving non-duplicate merged entries."
+yaml = '''
+first: &first {shared: first, a: 1}
+second: &second {shared: second, b: 2}
+third: &third {shared: third, c: 3}
+target:
+  <<: [*first, *second]
+  <<: [*third]
+  own: value
+'''
+rust_contains = ["target", "shared", "third", "a", "b", "c", "own"]
+
+[[case]]
+id = "merge-deep-invalid-payload-recovery"
+record = "tests/fixtures/divergences/records/merge-keys.toml"
+psych_status = "ok"
+rust_entrypoint = "yaml11-value"
+rust_status = "ok"
+rust_policy = "matches-psych"
+reason = "YAML 1.1 mode follows Psych when a merged source contains a non-mergeable merge key by keeping that nested merge key literal while still merging the source mapping."
+yaml = '''
+base: &base
+  <<: scalar
+  keep: nested
+target:
+  <<: *base
+  own: value
+'''
+rust_contains = ["base", "<<", "scalar", "keep", "nested", "target", "own"]
+
+[[case]]
 id = "alias-graph-identity"
 record = "tests/fixtures/divergences/records/alias-graph-identity.toml"
 psych_status = "ok"

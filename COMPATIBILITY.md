@@ -24,8 +24,8 @@ The compatibility target is intentionally split:
   as matching Psych/libyaml or as an intentional Rust policy divergence, then
   `libyaml_probe_manifest` executes the matching Rust parser, value, directive,
   or lossless entrypoint. A separate `psych-libyaml-coverage.toml` ledger groups
-  the 46 pinned probe cases into eight behavior families and tracks the next
-  missing libyaml-era probes without claiming blanket compatibility. Default
+  the 49 pinned probe cases into eight behavior families with no open tracked
+  next-probe gaps, without claiming blanket compatibility. Default
   loading stays YAML 1.2-oriented; explicit YAML 1.1 construction covers the
   scalar forms listed here with
   `yaml::Timestamp` typed reads while keeping byte payloads tagged unless the
@@ -306,13 +306,13 @@ document markers, document-start inline nodes, reserved-directive policy,
 repeated TAG rejection, tag-scope reset, multi-document version switching,
 undeclared tag-handle errors, YAML 1.3 rejection, document-start block-scalar
 rejection, bare-document-stream rejection, and directive-looking flow-content
-rejection. The Rust-vs-Psych policy manifest now gates all 46 pinned cases against this crate's
+rejection. The Rust-vs-Psych policy manifest now gates all 49 pinned cases against this crate's
 chosen default, YAML 1.1, directive-driven, event, or lossless entrypoint,
 checks the Psych input SHA-256 digests against the Rust comparison inputs, and
 requires intentional divergences to link back to migration-impact records. The
-Psych/libyaml coverage ledger keeps those 46 cases grouped into eight behavior
-families and one tracked gap so the remaining YAML 1.1/libyaml work is
-auditable rather than implicit.
+Psych/libyaml coverage ledger keeps those 49 cases grouped into eight behavior
+families with no open tracked next-probe gaps, so remaining YAML 1.1/libyaml
+scope decisions stay auditable rather than implicit.
 This crate keeps alias identity in the lossless graph surface, not semantic
 `Node` or `Value` trees. `graph_identity` now also compares
 `LosslessStream` anchor definitions and alias targets against normalized

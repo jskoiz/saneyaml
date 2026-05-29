@@ -342,10 +342,10 @@ testing each adopter's own YAML corpus.
   curated seed corpus. `scripts/fuzz-release-sweep.sh` is the release-audit path
   for recording per-target corpus counts, run counts, elapsed time, statuses,
   and artifact directories before a release candidate.
-- Finish broader YAML 1.1/libyaml compatibility decisions beyond the
+- Keep broader YAML 1.1/libyaml compatibility decisions explicit beyond the
   fixture-backed Psych/libyaml merge/tag/graph cross-checks and eight-family
   Psych/libyaml coverage ledger, now including directive stream-boundary
-  behavior; full arbitrary structural lossless formatting/emission beyond
+  behavior and no tracked next-probe gaps; full arbitrary structural lossless formatting/emission beyond
   targeted block/flow mapping entry and sequence item helpers; and the
   long-term graph API contract before claiming full YAML compatibility.
 - Choose the public package name and final license before publishing.

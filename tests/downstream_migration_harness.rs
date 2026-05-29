@@ -156,6 +156,31 @@ fn downstream_kubernetes_stream_matches_serde_yaml() {
     assert_eq!(parsed[1].metadata.name.as_str(), "yaml-demo");
 }
 
+#[test]
+fn downstream_kubernetes_crd_schema_matches_serde_yaml() {
+    let input = include_str!("fixtures/real-world/kubernetes/custom-resource-definition.yaml");
+    let parsed: Vec<serde_json::Value> =
+        yaml::from_documents_str(input).expect("yaml k8s crd stream");
+    let reference = serde_yaml::Deserializer::from_str(input)
+        .map(serde_json::Value::deserialize)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("serde_yaml k8s crd stream");
+
+    assert_eq!(parsed, reference);
+    assert_eq!(parsed[0]["kind"].as_str(), Some("CustomResourceDefinition"));
+    assert_eq!(
+        parsed[0]["spec"]["versions"][0]["schema"]["openAPIV3Schema"]["properties"]["spec"]
+            ["properties"]["rules"]["items"]["properties"]["enabled"]["default"]
+            .as_bool(),
+        Some(true)
+    );
+    assert_eq!(parsed[1]["kind"].as_str(), Some("Widget"));
+    assert_eq!(
+        parsed[1]["spec"]["rules"][1]["enabled"].as_bool(),
+        Some(false)
+    );
+}
+
 #[derive(Debug, Deserialize, PartialEq)]
 struct HelmChart {
     #[serde(rename = "apiVersion")]
@@ -176,6 +201,121 @@ fn downstream_helm_chart_metadata_matches_serde_yaml() {
 
     assert_eq!(chart.name.as_str(), "hello-world");
     assert_eq!(chart.app_version.as_str(), "1.16.0");
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct HelmValues {
+    #[serde(rename = "replicaCount")]
+    replica_count: u32,
+    image: HelmImage,
+    service: HelmService,
+    resources: HelmResources,
+    env: Vec<NameValue>,
+    config: String,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct HelmImage {
+    repository: String,
+    tag: String,
+    #[serde(rename = "pullPolicy")]
+    pull_policy: String,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct HelmService {
+    #[serde(rename = "type")]
+    kind: String,
+    port: u16,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct HelmResources {
+    requests: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct NameValue {
+    name: String,
+    value: String,
+}
+
+#[test]
+fn downstream_helm_values_match_serde_yaml() {
+    let input = include_str!("fixtures/real-world/helm/values.yaml");
+    let values: HelmValues = assert_yaml_matches_serde(input);
+
+    assert_eq!(values.replica_count, 2);
+    assert_eq!(values.image.repository.as_str(), "ghcr.io/example/app");
+    assert_eq!(values.image.pull_policy.as_str(), "IfNotPresent");
+    assert_eq!(values.service.port, 8080);
+    assert_eq!(values.resources.requests["cpu"].as_str(), "100m");
+    assert_eq!(values.env[1].name.as_str(), "FEATURE_FLAG");
+    assert!(values.config.contains("feature.enabled=true"));
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct HelmChartWithDependencies {
+    #[serde(rename = "apiVersion")]
+    api_version: String,
+    name: String,
+    #[serde(rename = "appVersion")]
+    app_version: String,
+    #[serde(rename = "kubeVersion")]
+    kube_version: String,
+    annotations: BTreeMap<String, String>,
+    dependencies: Vec<HelmDependency>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct HelmDependency {
+    name: String,
+    version: String,
+    repository: String,
+    condition: Option<String>,
+    alias: Option<String>,
+    #[serde(rename = "import-values")]
+    import_values: Option<Vec<HelmImportValue>>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(untagged)]
+enum HelmImportValue {
+    Scalar(String),
+    ChildParent { child: String, parent: String },
+}
+
+#[test]
+fn downstream_helm_chart_dependencies_match_serde_yaml() {
+    let input = include_str!("fixtures/real-world/helm/Chart.yaml");
+    let chart: HelmChartWithDependencies = assert_yaml_matches_serde(input);
+
+    assert_eq!(chart.api_version.as_str(), "v2");
+    assert_eq!(chart.name.as_str(), "yaml-demo");
+    assert_eq!(chart.app_version.as_str(), "2026.5.24");
+    assert_eq!(chart.kube_version.as_str(), ">=1.28.0-0");
+    assert_eq!(
+        chart.annotations["artifacthub.io/containsSecurityUpdates"].as_str(),
+        "false"
+    );
+    assert_eq!(chart.dependencies[0].name.as_str(), "postgresql");
+    assert_eq!(chart.dependencies[0].version.as_str(), "15.5.0");
+    assert_eq!(chart.dependencies[0].alias.as_deref(), Some("app-db"));
+    match chart.dependencies[1]
+        .import_values
+        .as_deref()
+        .expect("redis import-values")
+    {
+        [
+            HelmImportValue::Scalar(defaults),
+            HelmImportValue::ChildParent { child, parent },
+        ] => {
+            assert_eq!(defaults.as_str(), "defaults");
+            assert_eq!(child.as_str(), "exports");
+            assert_eq!(parent.as_str(), "redis");
+        }
+        actual => panic!("unexpected import-values: {actual:?}"),
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -226,6 +366,31 @@ fn downstream_openapi_operation_map_matches_serde_yaml() {
             .expect("post operation")
             .tags,
         vec!["pets".to_owned()]
+    );
+}
+
+#[test]
+fn downstream_openapi_polymorphism_matches_serde_yaml() {
+    let input = include_str!("fixtures/real-world/openapi/operations-and-polymorphism.yaml");
+    let parsed: serde_json::Value = yaml::from_str(input).expect("yaml openapi");
+    let reference: serde_json::Value = serde_yaml::from_str(input).expect("serde_yaml openapi");
+
+    assert_eq!(parsed, reference);
+    assert_eq!(
+        parsed["paths"]["/orders/{orderId}"]["parameters"][0]["required"].as_bool(),
+        Some(true)
+    );
+    assert_eq!(
+        parsed["paths"]["/orders/{orderId}"]["get"]["operationId"].as_str(),
+        Some("getOrder")
+    );
+    assert_eq!(
+        parsed["components"]["schemas"]["Order"]["properties"]["status"]["enum"][2].as_str(),
+        Some("refunded")
+    );
+    assert_eq!(
+        parsed["components"]["schemas"]["LineItem"]["properties"]["quantity"]["default"].as_i64(),
+        Some(1)
     );
 }
 
@@ -292,4 +457,45 @@ fn downstream_ansible_playbook_sequence_matches_serde_yaml() {
     assert_eq!(parsed, reference);
     assert_eq!(parsed.len(), 3);
     assert_eq!(parsed[2].roles, vec!["db".to_owned()]);
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct TaggedAnsiblePlay {
+    name: String,
+    hosts: String,
+    vars: BTreeMap<String, String>,
+    tasks: Vec<TaggedAnsibleTask>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct TaggedAnsibleTask {
+    name: String,
+    #[serde(rename = "ansible.builtin.copy")]
+    copy: TaggedAnsibleCopy,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct TaggedAnsibleCopy {
+    dest: String,
+    content: String,
+}
+
+#[test]
+fn downstream_ansible_tagged_scalars_match_serde_yaml() {
+    let input = include_str!("fixtures/real-world/ansible/vault-and-unsafe-tags.yaml");
+    let plays: Vec<TaggedAnsiblePlay> = assert_yaml_matches_serde(input);
+
+    assert_eq!(plays[0].name.as_str(), "Deploy app with tagged secrets");
+    assert!(plays[0].vars["db_password"].contains("$ANSIBLE_VAULT"));
+    assert_eq!(
+        plays[0].vars["raw_template"].as_str(),
+        "{{ literal_must_not_render }}"
+    );
+    assert_eq!(plays[0].tasks[0].copy.dest.as_str(), "/etc/yaml-demo/.env");
+    assert!(
+        plays[0].tasks[0]
+            .copy
+            .content
+            .contains("TEMPLATE={{ raw_template }}")
+    );
 }

@@ -149,6 +149,81 @@ struct Chart {
 }
 
 #[derive(Debug, Deserialize)]
+struct HelmValues {
+    #[serde(rename = "replicaCount")]
+    replica_count: u32,
+    image: HelmImage,
+    service: HelmService,
+    resources: HelmResources,
+    env: Vec<NameValue>,
+    config: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct HelmImage {
+    repository: String,
+    tag: String,
+    #[serde(rename = "pullPolicy")]
+    pull_policy: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct HelmService {
+    #[serde(rename = "type")]
+    kind: String,
+    port: u16,
+}
+
+#[derive(Debug, Deserialize)]
+struct HelmResources {
+    requests: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct NameValue {
+    name: String,
+    value: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct HelmChartWithDependencies {
+    #[serde(rename = "apiVersion")]
+    api_version: String,
+    name: String,
+    #[serde(rename = "appVersion")]
+    app_version: String,
+    #[serde(rename = "kubeVersion")]
+    kube_version: String,
+    annotations: BTreeMap<String, String>,
+    maintainers: Vec<HelmMaintainer>,
+    dependencies: Vec<HelmDependency>,
+}
+
+#[derive(Debug, Deserialize)]
+struct HelmMaintainer {
+    name: String,
+    email: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct HelmDependency {
+    name: String,
+    version: String,
+    repository: String,
+    condition: Option<String>,
+    alias: Option<String>,
+    #[serde(rename = "import-values")]
+    import_values: Option<Vec<HelmImportValue>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum HelmImportValue {
+    Scalar(String),
+    ChildParent { child: String, parent: String },
+}
+
+#[derive(Debug, Deserialize)]
 struct Wrangler {
     name: String,
     main: String,
@@ -173,6 +248,34 @@ struct D1Database {
 }
 
 #[derive(Debug, Deserialize)]
+struct DurableWrangler {
+    name: String,
+    main: String,
+    durable_objects: DurableObjects,
+    migrations: Vec<WranglerMigration>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DurableObjects {
+    bindings: Vec<DurableObjectBinding>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DurableObjectBinding {
+    name: String,
+    class_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct WranglerMigration {
+    tag: String,
+    #[serde(default)]
+    new_classes: Vec<String>,
+    #[serde(default)]
+    new_sqlite_classes: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
 struct Play {
     name: String,
     hosts: String,
@@ -180,15 +283,42 @@ struct Play {
     roles: Vec<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct TaggedPlay {
+    name: String,
+    hosts: String,
+    vars: BTreeMap<String, String>,
+    tasks: Vec<TaggedTask>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TaggedTask {
+    name: String,
+    #[serde(rename = "ansible.builtin.copy")]
+    copy: CopyTask,
+}
+
+#[derive(Debug, Deserialize)]
+struct CopyTask {
+    dest: String,
+    content: String,
+}
+
 fn main() {
     manifest_fixtures_parse_through_package_alias();
     github_actions_matrix_uses_package_alias();
     docker_compose_merge_anchor_expands_through_package_alias();
     kubernetes_stream_uses_package_alias_deserializer();
+    kubernetes_crd_schema_reads_through_package_alias();
+    helm_values_read_through_package_alias();
     helm_chart_reads_through_package_alias();
+    helm_chart_dependencies_read_through_package_alias();
     openapi_value_reads_through_package_alias();
+    openapi_polymorphism_reads_through_package_alias();
     wrangler_reads_through_package_alias();
+    wrangler_durable_objects_read_through_package_alias();
     ansible_playbook_reads_through_package_alias();
+    ansible_vault_and_unsafe_tags_read_through_package_alias();
 }
 
 fn manifest_fixtures_parse_through_package_alias() {
@@ -299,6 +429,40 @@ fn kubernetes_stream_uses_package_alias_deserializer() {
     assert_eq!(docs[1].metadata.name, "yaml-demo");
 }
 
+fn kubernetes_crd_schema_reads_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/kubernetes/custom-resource-definition.yaml");
+    let docs = serde_yaml::Deserializer::from_str(input)
+        .map(serde_yaml::Value::deserialize)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("kubernetes crd stream parses");
+    assert_eq!(docs.len(), 2);
+    assert_eq!(docs[0]["kind"].as_str(), Some("CustomResourceDefinition"));
+    assert_eq!(
+        docs[0]["spec"]["versions"][0]["schema"]["openAPIV3Schema"]["properties"]["spec"]
+            ["properties"]["rules"]["items"]["properties"]["enabled"]["default"]
+            .as_bool(),
+        Some(true)
+    );
+    assert_eq!(docs[1]["kind"].as_str(), Some("Widget"));
+    assert_eq!(docs[1]["spec"]["replicas"].as_u64(), Some(2));
+    assert_eq!(docs[1]["spec"]["rules"][1]["enabled"].as_bool(), Some(false));
+}
+
+fn helm_values_read_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/helm/values.yaml");
+    let values: HelmValues = serde_yaml::from_str(input).expect("helm values parse");
+    assert_eq!(values.replica_count, 2);
+    assert_eq!(values.image.repository, "ghcr.io/example/app");
+    assert_eq!(values.image.tag, "1.2.3");
+    assert_eq!(values.image.pull_policy, "IfNotPresent");
+    assert_eq!(values.service.kind, "ClusterIP");
+    assert_eq!(values.service.port, 8080);
+    assert_eq!(values.resources.requests["memory"], "128Mi");
+    assert_eq!(values.env[1].name, "FEATURE_FLAG");
+    assert_eq!(values.env[1].value, "true");
+    assert!(values.config.contains("feature.enabled=true"));
+}
+
 fn helm_chart_reads_through_package_alias() {
     let input = include_str!("../fixtures/real-world/helm/upstream-hello-world-Chart.yaml");
     let chart: Chart = serde_yaml::from_str(input).expect("chart parses");
@@ -307,6 +471,47 @@ fn helm_chart_reads_through_package_alias() {
     assert_eq!(chart.r#type, "application");
     assert_eq!(chart.version, "0.1.0");
     assert_eq!(chart.app_version, "1.16.0");
+}
+
+fn helm_chart_dependencies_read_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/helm/Chart.yaml");
+    let chart: HelmChartWithDependencies = serde_yaml::from_str(input).expect("chart parses");
+    assert_eq!(chart.api_version, "v2");
+    assert_eq!(chart.name, "yaml-demo");
+    assert_eq!(chart.app_version, "2026.5.24");
+    assert_eq!(chart.kube_version, ">=1.28.0-0");
+    assert_eq!(
+        chart.annotations["artifacthub.io/containsSecurityUpdates"],
+        "false"
+    );
+    assert_eq!(chart.maintainers[0].name, "Platform Team");
+    assert_eq!(chart.maintainers[0].email, "platform@example.com");
+    assert_eq!(chart.dependencies[0].name, "postgresql");
+    assert_eq!(chart.dependencies[0].version, "15.5.0");
+    assert_eq!(
+        chart.dependencies[0].repository,
+        "oci://registry-1.docker.io/bitnamicharts"
+    );
+    assert_eq!(
+        chart.dependencies[0].condition.as_deref(),
+        Some("postgresql.enabled")
+    );
+    assert_eq!(chart.dependencies[0].alias.as_deref(), Some("app-db"));
+    match chart.dependencies[1]
+        .import_values
+        .as_deref()
+        .expect("redis import-values")
+    {
+        [
+            HelmImportValue::Scalar(defaults),
+            HelmImportValue::ChildParent { child, parent },
+        ] => {
+            assert_eq!(defaults, "defaults");
+            assert_eq!(child, "exports");
+            assert_eq!(parent, "redis");
+        }
+        actual => panic!("unexpected import-values: {actual:?}"),
+    }
 }
 
 fn openapi_value_reads_through_package_alias() {
@@ -327,6 +532,29 @@ fn openapi_value_reads_through_package_alias() {
     );
 }
 
+fn openapi_polymorphism_reads_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/openapi/operations-and-polymorphism.yaml");
+    let value: serde_yaml::Value = serde_yaml::from_str(input).expect("openapi parses");
+    assert_eq!(value["openapi"].as_str(), Some("3.1.0"));
+    assert_eq!(
+        value["paths"]["/orders/{orderId}"]["parameters"][0]["required"].as_bool(),
+        Some(true)
+    );
+    assert_eq!(
+        value["paths"]["/orders/{orderId}"]["get"]["operationId"].as_str(),
+        Some("getOrder")
+    );
+    assert_eq!(
+        value["components"]["schemas"]["Order"]["properties"]["status"]["enum"][2].as_str(),
+        Some("refunded")
+    );
+    assert_eq!(
+        value["components"]["schemas"]["LineItem"]["properties"]["quantity"]["default"].as_u64(),
+        Some(1)
+    );
+    assert_eq!(value["x-tagGroups"][0]["tags"][0].as_str(), Some("orders"));
+}
+
 fn wrangler_reads_through_package_alias() {
     let input = include_str!("../fixtures/real-world/cloudflare/wrangler.yaml");
     let wrangler: Wrangler = serde_yaml::from_str(input).expect("wrangler parses");
@@ -338,6 +566,25 @@ fn wrangler_reads_through_package_alias() {
     assert_eq!(wrangler.d1_databases[0].binding, "DB");
 }
 
+fn wrangler_durable_objects_read_through_package_alias() {
+    let input =
+        include_str!("../fixtures/real-world/cloudflare/adapted-durable-objects-wrangler.yaml");
+    let wrangler: DurableWrangler = serde_yaml::from_str(input).expect("wrangler parses");
+    assert_eq!(wrangler.name, "durable-objects");
+    assert_eq!(wrangler.main, "src/index.ts");
+    assert_eq!(wrangler.durable_objects.bindings[0].name, "COUNTER");
+    assert_eq!(
+        wrangler.durable_objects.bindings[1].class_name,
+        "SQLiteDurableObject"
+    );
+    assert_eq!(wrangler.migrations[0].tag, "v1");
+    assert_eq!(wrangler.migrations[0].new_classes, ["Counter"]);
+    assert_eq!(
+        wrangler.migrations[0].new_sqlite_classes,
+        ["SQLiteDurableObject"]
+    );
+}
+
 fn ansible_playbook_reads_through_package_alias() {
     let input = include_str!("../fixtures/real-world/ansible/upstream-lamp-simple-site.yml");
     let plays: Vec<Play> = serde_yaml::from_str(input).expect("ansible playbook parses");
@@ -345,4 +592,45 @@ fn ansible_playbook_reads_through_package_alias() {
     assert_eq!(plays[0].hosts, "all");
     assert_eq!(plays[1].roles, ["web"]);
     assert_eq!(plays[2].name, "deploy MySQL and configure the databases");
+}
+
+fn ansible_vault_and_unsafe_tags_read_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/ansible/vault-and-unsafe-tags.yaml");
+    let value: serde_yaml::Value = serde_yaml::from_str(input).expect("ansible value parses");
+    let vault = value[0]["vars"]["db_password"]
+        .as_tagged()
+        .expect("vault tag");
+    assert_eq!(vault.tag, serde_yaml::Tag::new("vault"));
+    assert!(
+        vault
+            .value
+            .as_str()
+            .expect("vault scalar")
+            .contains("$ANSIBLE_VAULT;1.1;AES256")
+    );
+    let unsafe_template = value[0]["vars"]["raw_template"]
+        .as_tagged()
+        .expect("unsafe tag");
+    assert_eq!(unsafe_template.tag, serde_yaml::Tag::new("unsafe"));
+    assert_eq!(
+        unsafe_template.value.as_str(),
+        Some("{{ literal_must_not_render }}")
+    );
+
+    let plays: Vec<TaggedPlay> = serde_yaml::from_str(input).expect("ansible play parses");
+    assert_eq!(plays[0].name, "Deploy app with tagged secrets");
+    assert_eq!(plays[0].hosts, "all");
+    assert!(plays[0].vars["db_password"].contains("$ANSIBLE_VAULT"));
+    assert_eq!(
+        plays[0].vars["raw_template"],
+        "{{ literal_must_not_render }}"
+    );
+    assert_eq!(plays[0].tasks[0].name, "Write env");
+    assert_eq!(plays[0].tasks[0].copy.dest, "/etc/yaml-demo/.env");
+    assert!(
+        plays[0].tasks[0]
+            .copy
+            .content
+            .contains("TEMPLATE={{ raw_template }}")
+    );
 }

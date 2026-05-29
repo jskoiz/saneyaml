@@ -55,7 +55,10 @@ GitHub Actions, Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and
 Ansible fixture registry into a clean downstream crate, parses every registered
 fixture through `serde_yaml::Deserializer`, and keeps representative deep field
 assertions through `serde_yaml::...` imports, including default Docker Compose
-merge expansion. An external downstream package-alias smoke separately copies the
+merge expansion plus Kubernetes CRD/OpenAPI schema bodies, Helm values and
+dependency metadata, OpenAPI polymorphism, Wrangler durable object migrations,
+and Ansible `!vault` / `!unsafe` tags. An external downstream package-alias
+smoke separately copies the
 checked-in Pingora, rust-i18n, cfn-guard, and Stackable fixture reductions into
 a clean downstream crate and exercises typed reads, structural emits, tagged
 CloudFormation `Value` access, locale trees, and Kubernetes CRD/OpenAPI shapes
@@ -133,7 +136,9 @@ currently covers:
   and direct owned/borrowed `Value` Serde reads expand `<<`, while
   `serde_yaml::Value` keeps the literal key until `apply_merge()`
 - real-world GitHub Actions, Docker Compose, Kubernetes, Helm, OpenAPI,
-  Wrangler, and Ansible fixture fields compared against `serde_yaml`
+  Wrangler, and Ansible fixture fields compared against `serde_yaml`, including
+  CRD schemas, Helm values/dependencies, OpenAPI polymorphism, Wrangler durable
+  object migrations, and Ansible vault/unsafe tags
 
 `tests/divergence_manifest.rs` also gates the divergence registry. Every record
 under `tests/fixtures/divergences/records/` must include `migration_impact`

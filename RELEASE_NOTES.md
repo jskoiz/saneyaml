@@ -52,7 +52,8 @@ Notable completed release-candidate behavior:
   streams, anchor redefinition, and recursive aliases. Anchor/alias target
   identity is also checked against `yaml-rust2` and `saphyr` parser anchor
   events for redefinition, recursive, document-reset, merge, YAML-suite, and
-  Docker Compose anchor cases.
+  manifest-owned Docker Compose anchor cases. YAML 1.1 merge/comment graph
+  seeds are promoted into deterministic conformance fixtures.
 - Emitter round-trip fuzz coverage now exercises `to_string`, `to_writer`, and
   streaming `Serializer` output against parsed-tree and `Value` replay.
 - The Ubuntu CI workflow now installs nightly plus `cargo-fuzz` and runs a

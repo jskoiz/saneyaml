@@ -1,6 +1,23 @@
-use std::collections::BTreeMap;
+use serde::Deserialize;
+use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
+use std::path::Path;
 use yaml::{AnchorId, LosslessNodeKind, NodeId, Value, parse_lossless};
 use yaml_rust2::parser::MarkedEventReceiver;
+
+const REAL_WORLD_SOURCE: &str = include_str!("fixtures/real-world/SOURCE.toml");
+const REAL_WORLD_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/real-world");
+
+#[derive(Debug, Deserialize)]
+struct RealWorldManifest {
+    fixture: Vec<RealWorldFixture>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RealWorldFixture {
+    path: String,
+    gates: Vec<String>,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum GraphOp {
@@ -264,6 +281,64 @@ fn lossless_graph_anchor_targets_match_reference_parser_events() {
             ours,
             normalize_saphyr_graph(input).expect("saphyr graph"),
             "saphyr graph identity parity for {name}"
+        );
+    }
+}
+
+#[test]
+fn real_world_lossless_graph_manifest_cases_match_reference_parser_events() {
+    let manifest: RealWorldManifest =
+        toml::from_str(REAL_WORLD_SOURCE).expect("real-world manifest parses");
+    let cases = manifest
+        .fixture
+        .iter()
+        .filter(|fixture| fixture.gates.iter().any(|gate| gate == "lossless-graph"))
+        .collect::<Vec<_>>();
+    let paths = cases
+        .iter()
+        .map(|fixture| fixture.path.as_str())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        paths,
+        BTreeSet::from([
+            "docker-compose/compose-anchors.yaml",
+            "docker-compose/compose-polymorphic.yaml",
+        ])
+    );
+
+    for fixture in cases {
+        let input = fs::read_to_string(Path::new(REAL_WORLD_ROOT).join(&fixture.path))
+            .unwrap_or_else(|error| panic!("read real-world fixture {}: {error}", fixture.path));
+        let stream = parse_lossless(&input)
+            .unwrap_or_else(|error| panic!("{} lossless parse: {error}", fixture.path));
+        assert_eq!(
+            stream.as_source(),
+            input,
+            "{} source retained",
+            fixture.path
+        );
+        assert_eq!(stream.to_string(), input, "{} display replay", fixture.path);
+        assert!(
+            !stream.aliases().is_empty(),
+            "{} must exercise aliases",
+            fixture.path
+        );
+
+        let ours = normalize_lossless_graph(&input)
+            .unwrap_or_else(|error| panic!("{} lossless graph: {error}", fixture.path));
+        assert_eq!(
+            ours,
+            normalize_yaml_rust2_graph(&input)
+                .unwrap_or_else(|error| panic!("{} yaml-rust2 graph: {error}", fixture.path)),
+            "yaml-rust2 graph identity parity for {}",
+            fixture.path
+        );
+        assert_eq!(
+            ours,
+            normalize_saphyr_graph(&input)
+                .unwrap_or_else(|error| panic!("{} saphyr graph: {error}", fixture.path)),
+            "saphyr graph identity parity for {}",
+            fixture.path
         );
     }
 }

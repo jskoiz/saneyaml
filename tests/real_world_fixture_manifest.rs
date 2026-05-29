@@ -134,6 +134,21 @@ fn assert_metadata_is_complete(fixture: &FixtureRecord) {
     }
 
     let gates: BTreeSet<_> = fixture.gates.iter().map(String::as_str).collect();
+    for gate in &gates {
+        assert!(
+            matches!(
+                *gate,
+                "typed-config"
+                    | "event-parity"
+                    | "tree-parity"
+                    | "parser-properties"
+                    | "shared-reference-acceptance"
+                    | "lossless-graph"
+            ),
+            "{} records unsupported gate {gate}",
+            fixture.path
+        );
+    }
     for required in [
         "typed-config",
         "event-parity",
@@ -152,6 +167,15 @@ fn assert_metadata_is_complete(fixture: &FixtureRecord) {
         assert!(
             gates.contains(required),
             "{} must record {required} gate coverage",
+            fixture.path
+        );
+    }
+    if gates.contains("lossless-graph") {
+        assert!(
+            fixture.reduction.contains("anchor")
+                || fixture.reduction.contains("alias")
+                || fixture.reduction.contains("merge"),
+            "{} must explain the graph-sensitive fixture shape",
             fixture.path
         );
     }

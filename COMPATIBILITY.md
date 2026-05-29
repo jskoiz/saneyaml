@@ -286,7 +286,8 @@ This crate keeps alias identity in the lossless graph surface, not semantic
 `LosslessStream` anchor definitions and alias targets against normalized
 `yaml-rust2` and `saphyr` parser anchor events for anchor redefinition,
 recursive aliases, document anchor resets, merge aliases, YAML test-suite
-aliases, and Docker Compose anchors.
+aliases, manifest-owned real-world Docker Compose anchors, and YAML 1.1
+merge/comment graph fixtures.
 
 Event policy:
 

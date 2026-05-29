@@ -73,7 +73,7 @@ version = "Compose Specification, 2026-05 fixture surface"
 license = "Local test fixture; no copied production data."
 reduction = "Anchor and merge-key fixture reduced to extension defaults and service overrides."
 expected_docs = 1
-gates = ["typed-config", "event-parity", "parser-properties", "shared-reference-acceptance"]
+gates = ["typed-config", "event-parity", "parser-properties", "shared-reference-acceptance", "lossless-graph"]
 
 [[fixture]]
 path = "docker-compose/compose-platform-resources.yaml"
@@ -93,9 +93,9 @@ source_type = "synthetic"
 source = "Locally synthesized from Compose polymorphic service-field conventions."
 version = "Compose Specification, 2026-05 fixture surface"
 license = "Local test fixture; no copied production data."
-reduction = "Environment, healthcheck, env_file, profiles, depends_on, and mount shapes."
+reduction = "Environment, healthcheck anchor/alias, env_file, profiles, depends_on, and mount shapes."
 expected_docs = 1
-gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance"]
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance", "lossless-graph"]
 
 [[fixture]]
 path = "kubernetes/deployment.yaml"

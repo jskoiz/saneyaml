@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use yaml::{LoadOptions, Timestamp, Value};
+use yaml::{LoadOptions, LosslessNodeKind, Timestamp, Value};
 
 const MANIFEST: &str = include_str!("fixtures/yaml11-conformance/manifest.toml");
 const FIXTURE_ROOT: &str = concat!(
@@ -83,7 +83,7 @@ struct LegacyService {
 #[test]
 fn yaml11_conformance_manifest_is_complete() {
     let manifest = manifest();
-    assert_eq!(manifest.case.len(), 17);
+    assert_eq!(manifest.case.len(), 19);
     let manifest_paths = manifest
         .case
         .iter()
@@ -105,6 +105,7 @@ fn yaml11_conformance_manifest_is_complete() {
                 | "duplicate-key"
                 | "multi-doc"
                 | "binary"
+                | "lossless-graph-merge"
         ));
         assert!(matches!(case.expected.as_str(), "accept" | "error"));
         assert!(
@@ -396,6 +397,112 @@ fn yaml11_legacy_merge_edge_fixture_recovers_like_psych() {
         .parse_str(&source)
         .expect("directive-driven YAML 1.1 merge tree");
     assert!(Value::from(&parsed).equivalent(&directive));
+}
+
+#[test]
+fn yaml11_lossless_graph_merge_fixtures_preserve_source_graph_and_semantic_policy() {
+    for case in manifest()
+        .case
+        .into_iter()
+        .filter(|case| case.kind == "lossless-graph-merge")
+    {
+        let source = read_fixture(&case.path);
+        yaml::parse_events(&source)
+            .unwrap_or_else(|error| panic!("{} raw events parse: {error}", case.id));
+
+        let lossless = yaml::parse_lossless(&source)
+            .unwrap_or_else(|error| panic!("{} lossless parse: {error}", case.id));
+        assert_eq!(lossless.as_source(), source, "{} source retained", case.id);
+        assert_eq!(
+            lossless.to_string(),
+            source,
+            "{} display is byte-stable",
+            case.id
+        );
+        assert_eq!(
+            lossless.documents()[0]
+                .directives()
+                .yaml_version
+                .as_ref()
+                .expect("YAML 1.1 directive retained")
+                .minor,
+            1,
+            "{} YAML directive retained",
+            case.id
+        );
+        assert!(
+            lossless.comments().count() >= 1,
+            "{} comments retained",
+            case.id
+        );
+        assert!(
+            lossless
+                .nodes()
+                .iter()
+                .any(|node| lossless.source_fragment(node.span()) == Some("<<")),
+            "{} raw merge key retained in lossless graph",
+            case.id
+        );
+        assert!(
+            !lossless.aliases().is_empty(),
+            "{} must exercise alias graph identity",
+            case.id
+        );
+        for alias in lossless.aliases() {
+            let target = lossless.anchor(alias.target()).expect("alias target");
+            assert_eq!(alias.name(), target.name(), "{} alias name", case.id);
+            assert!(matches!(
+                lossless.node(alias.node()).expect("alias node").kind(),
+                LosslessNodeKind::Alias {
+                    target: alias_target,
+                    ..
+                } if *alias_target == target.id()
+            ));
+        }
+
+        match case.id.as_str() {
+            "lossless-merge-graph" => {
+                assert_eq!(lossless.anchors().len(), 2);
+                assert_eq!(lossless.aliases().len(), 4);
+
+                let default: Value =
+                    yaml::from_str(&source).expect("default lossless merge graph fixture");
+                assert_eq!(default["base"]["flag"].as_str(), Some("ON"));
+                assert_eq!(default["base"]["count"].as_i64(), Some(123));
+
+                let directive: Value = LoadOptions::yaml_version_directive()
+                    .from_str(&source)
+                    .expect("directive-driven lossless merge graph fixture");
+                assert_eq!(directive["base"]["flag"].as_bool(), Some(true));
+                assert_eq!(directive["base"]["count"].as_i64(), Some(83));
+                assert!(directive["override"]["<<"].is_null());
+                assert_eq!(directive["override"]["flag"].as_bool(), Some(false));
+                assert_eq!(directive["override"]["count"].as_i64(), Some(83));
+                assert!(directive["services"][0]["<<"].is_null());
+                assert_eq!(directive["services"][0]["flag"].as_bool(), Some(true));
+                assert_eq!(directive["services"][0]["count"].as_i64(), Some(83));
+                assert_eq!(directive["services"][0]["name"].as_str(), Some("api"));
+                assert_eq!(directive["ref"]["flag"].as_bool(), Some(true));
+            }
+            "lossless-recursive-graph" => {
+                assert_eq!(lossless.anchors().len(), 1);
+                assert_eq!(lossless.aliases().len(), 1);
+                let alias = &lossless.aliases()[0];
+                let root = lossless.anchor(alias.target()).expect("root anchor");
+                assert_eq!(root.name(), "root");
+                assert_eq!(alias.name(), "root");
+                assert!(
+                    matches!(
+                        lossless.node(root.node()).expect("root node").kind(),
+                        LosslessNodeKind::Mapping { entries, .. }
+                            if entries.iter().any(|(_, value)| *value == alias.node())
+                    ),
+                    "recursive alias remains inside root mapping"
+                );
+            }
+            other => panic!("unhandled lossless graph YAML 1.1 case {other}"),
+        }
+    }
 }
 
 #[test]

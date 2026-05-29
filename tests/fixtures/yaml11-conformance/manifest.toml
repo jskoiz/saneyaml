@@ -116,3 +116,17 @@ path = "legacy-numeric-key-collision.yaml"
 kind = "duplicate-key"
 tag = "%YAML 1.1"
 expected = "error"
+
+[[case]]
+id = "lossless-merge-graph"
+path = "lossless-merge-graph.yaml"
+kind = "lossless-graph-merge"
+tag = "%YAML 1.1"
+expected = "accept"
+
+[[case]]
+id = "lossless-recursive-graph"
+path = "lossless-recursive-graph.yaml"
+kind = "lossless-graph-merge"
+tag = "%YAML 1.1"
+expected = "accept"

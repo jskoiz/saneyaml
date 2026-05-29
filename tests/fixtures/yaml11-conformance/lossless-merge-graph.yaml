@@ -1,0 +1,13 @@
+%YAML 1.1
+---
+# legacy merge defaults with comments and aliases
+base: &base
+  flag: ON # legacy boolean under YAML 1.1 construction
+  count: 0123
+override: &override
+  <<: *base
+  flag: OFF
+services:
+  - <<: [*base, *override]
+    name: api
+ref: *base

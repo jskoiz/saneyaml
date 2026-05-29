@@ -485,11 +485,7 @@ fn yts_parse_ukk6_00__colon_only_compact_sequence_mapping() {
 fn yts_parse_ukk6_02__bare_explicit_non_specific_tag() {
     let input = include_str!("fixtures/yaml-test-suite/data/UKK6-02/in.yaml");
     let doc = parse_str(input).expect("parse bare non-specific tag");
-    let Value::Tagged(tagged) = doc.value else {
-        panic!("expected tagged root node");
-    };
-    assert_eq!(tagged.tag, yaml::Tag::new("!"));
-    assert!(matches!(tagged.value.value, Value::Null));
+    assert_eq!(doc.as_str(), Some(""));
 
     let events = parse_events(input).expect("parse bare tag events");
     assert!(events.iter().any(|event| {
@@ -936,6 +932,14 @@ fn yts_events_mzx3__preserve_scalar_styles() {
 #[test]
 fn yts_events_s4jq__preserve_explicit_non_specific_tag() {
     let input = include_str!("fixtures/yaml-test-suite/data/S4JQ/in.yaml");
+    let doc = parse_str(input).expect("parse explicit non-specific tag");
+    let Value::Sequence(items) = &doc.value else {
+        panic!("expected sequence");
+    };
+    assert_eq!(items[0].as_str(), Some("12"));
+    assert!(matches!(items[1].value, Value::Number(Number::Integer(12))));
+    assert_eq!(items[2].as_str(), Some("12"));
+
     let events = parse_events(input).expect("events");
     let scalars = events
         .iter()

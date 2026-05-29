@@ -3247,6 +3247,9 @@ fn tagged_node(tag: Tag, tag_span: Span, mut node: Node) -> Node {
         tag_span.line,
         tag_span.column,
     );
+    if tag.is_non_specific() {
+        return non_specific_tagged_node(span, node);
+    }
     if core_scalar_tag_preserves_source(&tag)
         && let Some(source) = node.scalar_source().map(|source| source.raw().to_string())
     {
@@ -3260,6 +3263,20 @@ fn tagged_node(tag: Tag, tag_span: Span, mut node: Node) -> Node {
         })),
         span,
     )
+}
+
+fn non_specific_tagged_node(span: Span, mut node: Node) -> Node {
+    node.span = span;
+    match &node.value {
+        Value::Sequence(_) | Value::Mapping(_) | Value::String(_) | Value::Tagged(_) => node,
+        Value::Null | Value::Bool(_) | Value::Number(_) => {
+            let source = node
+                .scalar_source()
+                .map(|source| source.raw().to_string())
+                .unwrap_or_default();
+            Node::new(Value::String(source.clone()), span).with_scalar_source(source)
+        }
+    }
 }
 
 fn core_scalar_tag_preserves_source(tag: &Tag) -> bool {

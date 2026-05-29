@@ -175,6 +175,10 @@ const VALUE_SHAPE_CASES: &[TreeCase] = &[
         input: include_str!("fixtures/yaml-test-suite/data/UKK6-00/in.yaml"),
     },
     TreeCase {
+        name: "yts_ukk6_02_bare_explicit_non_specific_tag",
+        input: include_str!("fixtures/yaml-test-suite/data/UKK6-02/in.yaml"),
+    },
+    TreeCase {
         name: "yts_2ebw_allowed_plain_key_characters",
         input: include_str!("fixtures/yaml-test-suite/data/2EBW/in.yaml"),
     },
@@ -646,6 +650,9 @@ fn normalize_saphyr_node(node: &saphyr::Yaml<'_>, tags: TagPolicy) -> NormTree {
                 .collect(),
         ),
         saphyr::Yaml::Tagged(tag, value) => match tags {
+            TagPolicy::Strip if normalize_tag(&tag.to_string()) == "!" => {
+                normalize_saphyr_non_specific_tagged_node(value)
+            }
             TagPolicy::Preserve => NormTree::Tagged(
                 normalize_tag(&tag.to_string()),
                 Box::new(normalize_saphyr_node(value, tags)),
@@ -654,6 +661,24 @@ fn normalize_saphyr_node(node: &saphyr::Yaml<'_>, tags: TagPolicy) -> NormTree {
         },
         saphyr::Yaml::Alias(id) => NormTree::Alias(*id),
         saphyr::Yaml::BadValue => NormTree::BadValue,
+    }
+}
+
+fn normalize_saphyr_non_specific_tagged_node(node: &saphyr::Yaml<'_>) -> NormTree {
+    match node {
+        saphyr::Yaml::Value(value) => normalize_saphyr_non_specific_scalar(value),
+        saphyr::Yaml::Representation(value, _, _) => NormTree::String(value.to_string()),
+        _ => normalize_saphyr_node(node, TagPolicy::Strip),
+    }
+}
+
+fn normalize_saphyr_non_specific_scalar(scalar: &saphyr::Scalar<'_>) -> NormTree {
+    match scalar {
+        saphyr::Scalar::Null => NormTree::String(String::new()),
+        saphyr::Scalar::Boolean(value) => NormTree::String(value.to_string()),
+        saphyr::Scalar::Integer(value) => NormTree::String(value.to_string()),
+        saphyr::Scalar::FloatingPoint(value) => NormTree::String(normalize_float(value.0)),
+        saphyr::Scalar::String(value) => NormTree::String(value.to_string()),
     }
 }
 

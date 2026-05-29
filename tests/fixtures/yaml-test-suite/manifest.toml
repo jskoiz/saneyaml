@@ -1106,6 +1106,7 @@ tree = [
     "CFD4",
     "M2N8/00",
     "UKK6/00",
+    "UKK6/02",
     "2EBW",
     "FBC9",
     "XLQ9",
@@ -1152,7 +1153,6 @@ tree = [
 ]
 
 tree_deferred = [
-    "UKK6/02",
     "PW8X",
     "S4JQ",
 ]

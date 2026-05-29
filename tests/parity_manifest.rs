@@ -41,11 +41,6 @@ const RUST_REFERENCE_DIVERGENCE_CASES: &[&str] = &[
 const EVENT_DEFERRED_DIVERGENCES: &[DeferredDivergenceCase] = &[];
 const TREE_DEFERRED_DIVERGENCES: &[DeferredDivergenceCase] = &[
     DeferredDivergenceCase {
-        id: "UKK6/02",
-        record_case: "explicit-non-specific-tag-shape",
-        record_source: EXPLICIT_NON_SPECIFIC_TAG_SHAPE_RECORD,
-    },
-    DeferredDivergenceCase {
         id: "PW8X",
         record_case: "empty-scalar-anchors",
         record_source: EMPTY_SCALAR_ANCHORS_RECORD,
@@ -174,12 +169,6 @@ const SHARED_REFERENCE_DIVERGENCES: &[DeferredDivergenceCase] = &[
     },
 ];
 const TREE_SHAPE_DIVERGENCE_CASES: &[TreeShapeDivergenceCase] = &[
-    TreeShapeDivergenceCase {
-        id: "UKK6/02",
-        record_case: "explicit-non-specific-tag-shape",
-        record_source: EXPLICIT_NON_SPECIFIC_TAG_SHAPE_RECORD,
-        compatibility_terms: &["UKK6/02", "explicit non-specific tag"],
-    },
     TreeShapeDivergenceCase {
         id: "PW8X",
         record_case: "empty-scalar-anchors",

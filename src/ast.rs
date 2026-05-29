@@ -596,6 +596,10 @@ impl Tag {
             false
         }
     }
+
+    pub(crate) fn is_non_specific(&self) -> bool {
+        self.handle == "!" && self.suffix.is_empty()
+    }
 }
 
 impl fmt::Display for Tag {

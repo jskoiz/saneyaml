@@ -208,7 +208,9 @@ serialization by constructing numeric values for `i64`/`u64`-range inputs and
 strings for out-of-range `i128`/`u128` inputs, and match `serde_yaml`'s
 singleton `collect_str` tag-map shape for `TaggedValue`; empty public tag
 constructors and empty Serde variant tags are rejected like `serde_yaml`, while
-parser-backed explicit non-specific `!` tags remain preserved. Value-backed byte
+parser events and lossless streams retain explicit non-specific `!` tag
+spelling and semantic loaded trees treat those scalar tags as string-forcing.
+Value-backed byte
 serialization follows `serde_yaml::value::Serializer` by producing a numeric
 sequence, while document writers reject `serialize_bytes` inputs like
 `serde_yaml` during the normal value serialization pass, so custom
@@ -361,7 +363,7 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   `parity.event`, `parity.tree`, and `parity.shared_reference` must match the
   Rust source gates exactly. Current selected-suite ledgers cover event parity
   for all 80 accepted cases with no event-shape deferrals, loaded-tree
-  value-shape parity for 77 accepted cases with 3 documented tree-shape
+  value-shape parity for 78 accepted cases with 2 documented tree-shape
   deferrals, and shared-reference acceptance for 57 accepted cases with 23
   documented `serde_yaml`/libyaml divergence deferrals
 - core scalars
@@ -452,10 +454,13 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   including YAML-suite S3PD, CFD4, M2N8-00, and UKK6-00, while retaining
   duplicate-null-key rejection and parser-event parity for compact explicit
   mapping null values
-- explicit non-specific tag cases: YAML-suite UKK6/02 and S4JQ are accepted in
-  event/shared-reference gates where the references agree, but remain
-  documented tree-shape divergences because loaders disagree on the empty/tagged
-  value shape
+- explicit non-specific tag cases: YAML-suite UKK6/02 is accepted in
+  event/shared-reference and loaded-tree parity, with a bare `!` loading as an
+  empty string while event/lossless surfaces retain the tag spelling.
+  YAML-suite S4JQ is accepted in event/shared-reference gates and loads
+  `! 12` as the string `12`; it remains a documented tree-shape divergence
+  because saphyr resolves that scalar as an integer after dropping the explicit
+  non-specific tag
 - selected upstream YAML-suite error fixtures, including SR86 anchor-plus-alias
   node properties, CML9/T833 missing comma failures, 6JTT unclosed flow
   sequence, CTN5 extra comma rejection in flow collections, YJV2 dash-only

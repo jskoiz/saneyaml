@@ -1014,7 +1014,7 @@ fn serde_api_tagged_value_serializes_like_serde_yaml_singleton_tag_map() {
 }
 
 #[test]
-fn serde_api_non_specific_tagged_value_round_trips_even_though_lone_bang_keys_are_mappings() {
+fn serde_api_non_specific_tagged_value_emits_and_reparses_with_string_semantics() {
     let tagged = TaggedValue {
         tag: Tag::new("!"),
         value: Value::Null,
@@ -1027,9 +1027,7 @@ fn serde_api_non_specific_tagged_value_round_trips_even_though_lone_bang_keys_ar
 
     let emitted = yaml::to_string(&tagged).expect("emit non-specific tag");
     let reparsed: Value = yaml::from_str(&emitted).expect("reparse non-specific tag");
-    let reparsed = reparsed.as_tagged().expect("reparsed non-specific tag");
-    assert_eq!(reparsed.tag, Tag::new("!"));
-    assert!(reparsed.value.is_null());
+    assert_eq!(reparsed.as_str(), Some("null"));
 }
 
 fn assert_empty_variant_rejected_like_serde_yaml<T>(value: T)

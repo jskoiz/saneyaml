@@ -21,6 +21,9 @@ Notable completed release-candidate behavior:
 - The migration harness records YAML 1.1 scalar construction as an explicit
   call-site choice, including the default decimal treatment of `0123` versus
   YAML 1.1 octal interpretation under `LoadOptions`.
+- YAML 1.1 loading now recovers Psych/libyaml merge edges for repeated real
+  merge keys and non-mergeable merge payloads while default YAML 1.2-oriented
+  loading keeps those cases strict.
 - A checked-in strict package-alias smoke fixture executes upstream-compatible
   `serde_yaml::...` paths against both `serde_yaml 0.9.34` and this package
   through `serde_yaml = { package = "yaml", ... }`; the expanded alias smoke
@@ -55,8 +58,9 @@ Notable completed release-candidate behavior:
 - Divergence records now require caller-facing `migration_impact` text, so
   compatibility decisions are tied to adoption risk instead of only parser
   policy. The pinned Psych/libyaml probe records merge-list precedence,
-  explicit merge-tag expansion, explicit merge overrides, and alias object
-  identity as deliberate compatibility decisions.
+  explicit merge-tag expansion, explicit merge overrides, repeated merge-key
+  recovery, non-mergeable merge payload recovery, and alias object identity as
+  deliberate compatibility decisions.
 
 Known release-candidate gaps remain tracked in `BASELINE.md`,
 `COMPATIBILITY.md`, and `MIGRATION.md`: complete YAML 1.1 ecosystem parity,

@@ -42,17 +42,6 @@ impl DuplicateKey {
     }
 }
 
-pub(crate) fn check_duplicate_for_mode(
-    recording_events: bool,
-    seen: &mut HashMap<DuplicateKey, Span>,
-    key: &Node,
-) -> Result<()> {
-    if recording_events {
-        return Ok(());
-    }
-    check_duplicate(seen, key)
-}
-
 pub(crate) fn check_duplicate(seen: &mut HashMap<DuplicateKey, Span>, key: &Node) -> Result<()> {
     check_duplicate_at_depth(seen, key, 1)
 }

@@ -83,7 +83,7 @@ struct LegacyService {
 #[test]
 fn yaml11_conformance_manifest_is_complete() {
     let manifest = manifest();
-    assert_eq!(manifest.case.len(), 16);
+    assert_eq!(manifest.case.len(), 17);
     let manifest_paths = manifest
         .case
         .iter()
@@ -370,6 +370,35 @@ fn yaml11_explicit_merge_tag_fixture_expands_and_keeps_literal_tags() {
 }
 
 #[test]
+fn yaml11_legacy_merge_edge_fixture_recovers_like_psych() {
+    let source = read_fixture("legacy-merge-edge-recovery.yaml");
+
+    let default_error = yaml::parse_str(&source)
+        .expect_err("default YAML 1.2 construction rejects repeated merge keys");
+    assert!(
+        default_error
+            .to_string()
+            .contains("duplicate mapping key `<<`"),
+        "{default_error}"
+    );
+
+    let directive: Value = LoadOptions::yaml_version_directive()
+        .from_str(&source)
+        .expect("directive-driven YAML 1.1 merge recovery");
+    assert_yaml11_merge_edge_value(&directive);
+
+    let explicit: Value = LoadOptions::yaml_1_1()
+        .from_str(&source)
+        .expect("explicit YAML 1.1 merge recovery");
+    assert!(explicit.equivalent(&directive));
+
+    let parsed = LoadOptions::yaml_version_directive()
+        .parse_str(&source)
+        .expect("directive-driven YAML 1.1 merge tree");
+    assert!(Value::from(&parsed).equivalent(&directive));
+}
+
+#[test]
 fn yaml11_explicit_merge_tag_bad_payload_fixture_reports_scalar_span() {
     let source = read_fixture("explicit-merge-tag-bad-payload.yaml");
     let error = yaml::parse_str(&source).expect_err("invalid explicit merge-tag payload");
@@ -386,6 +415,16 @@ fn yaml11_explicit_merge_tag_bad_payload_fixture_reports_scalar_span() {
         yaml::from_str::<Value>(&source).expect_err("Value read rejects invalid merge payload");
     assert_eq!(value_error.line(), Some(3));
     assert_eq!(value_error.column(), Some(15));
+
+    let yaml11: Value = LoadOptions::yaml_1_1()
+        .from_str(&source)
+        .expect("YAML 1.1 keeps invalid merge payload literal");
+    assert_tagged_key(
+        &yaml11["service"],
+        yaml::Tag::new("!!merge"),
+        "<<",
+        "scalar",
+    );
 }
 
 #[test]
@@ -690,6 +729,52 @@ fn assert_tagged_key(mapping: &Value, tag: yaml::Tag, key: &str, expected: &str)
         ),
         "expected tagged key {tag:?} {key:?}: {expected:?}"
     );
+}
+
+fn assert_yaml11_merge_edge_value(value: &Value) {
+    for target in ["repeated_merge", "repeated_tagged_merge"] {
+        assert!(value[target]["<<"].is_null(), "{target} merge key removed");
+        assert_eq!(value[target]["shared"].as_str(), Some("second"));
+        assert_eq!(value[target]["image"].as_str(), Some("app:second"));
+        assert_eq!(value[target]["retries"].as_u64(), Some(3));
+        assert_eq!(value[target]["timeout"].as_u64(), Some(10));
+        assert_eq!(value[target]["keep"].as_str(), Some("value"));
+    }
+
+    assert!(value["override_merge"]["<<"].is_null());
+    assert_eq!(value["override_merge"]["shared"].as_str(), Some("explicit"));
+    assert_eq!(
+        value["override_merge"]["image"].as_str(),
+        Some("app:second")
+    );
+    assert_eq!(value["override_merge"]["retries"].as_u64(), Some(3));
+    assert_eq!(value["override_merge"]["timeout"].as_u64(), Some(10));
+
+    assert_eq!(value["scalar_merge"]["<<"].as_str(), Some("scalar"));
+    assert_eq!(value["scalar_merge"]["keep"].as_str(), Some("value"));
+
+    assert_tagged_key(
+        &value["tagged_scalar_merge"],
+        yaml::Tag::new("!!merge"),
+        "<<",
+        "literal",
+    );
+    assert_eq!(
+        value["sequence_scalar_merge"]["<<"][0].as_str(),
+        Some("scalar")
+    );
+
+    assert_tagged_key(
+        &value["literal_and_merge"],
+        yaml::Tag::new("!!str"),
+        "<<",
+        "literal",
+    );
+    assert_eq!(
+        value["literal_and_merge"]["image"].as_str(),
+        Some("explicit")
+    );
+    assert_eq!(value["literal_and_merge"]["shared"].as_str(), Some("first"));
 }
 
 fn assert_legacy_pack_public_entrypoints(

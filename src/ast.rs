@@ -9,6 +9,12 @@ use std::mem;
 use std::ops::{Index as StdIndex, IndexMut as StdIndexMut};
 use std::str::FromStr;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum MergePolicy {
+    Strict,
+    Yaml11Compatible,
+}
+
 /// Spanful YAML document tree node produced by the parser.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Node {
@@ -72,8 +78,11 @@ impl Node {
         self.value.into()
     }
 
-    pub(crate) fn apply_merge_keys(&mut self) -> crate::Result<()> {
-        apply_merge_keys_in_node(self)
+    pub(crate) fn apply_merge_keys_with_policy(
+        &mut self,
+        policy: MergePolicy,
+    ) -> crate::Result<()> {
+        apply_merge_keys_in_node(self, policy)
     }
 }
 
@@ -2540,12 +2549,12 @@ fn merge_error(message: &'static str) -> Error {
     Error::new(message, Span::default())
 }
 
-fn apply_merge_keys_in_node(root: &mut Node) -> crate::Result<()> {
+fn apply_merge_keys_in_node(root: &mut Node, policy: MergePolicy) -> crate::Result<()> {
     let mut values = vec![root];
     while let Some(node) = values.pop() {
         match &mut node.value {
             NodeValue::Mapping(entries) => {
-                apply_merge_entries(entries)?;
+                apply_merge_entries(entries, policy)?;
                 values.extend(entries.iter_mut().map(|(_, value)| value));
             }
             NodeValue::Sequence(items) => values.extend(items),
@@ -2556,9 +2565,16 @@ fn apply_merge_keys_in_node(root: &mut Node) -> crate::Result<()> {
     Ok(())
 }
 
-fn apply_merge_entries(entries: &mut Vec<(Node, Node)>) -> crate::Result<()> {
+fn apply_merge_entries(entries: &mut Vec<(Node, Node)>, policy: MergePolicy) -> crate::Result<()> {
+    match policy {
+        MergePolicy::Strict => apply_strict_merge_entries(entries),
+        MergePolicy::Yaml11Compatible => apply_yaml11_merge_entries(entries),
+    }
+}
+
+fn apply_strict_merge_entries(entries: &mut Vec<(Node, Node)>) -> crate::Result<()> {
     if let Some(merge) = shift_remove_merge_node(entries) {
-        merge_node_mapping(entries, merge)?;
+        merge_node_mapping(entries, merge, MergePolicy::Strict)?;
     }
     Ok(())
 }
@@ -2580,11 +2596,15 @@ fn node_is_merge_key(key: &Node) -> bool {
     }
 }
 
-fn merge_node_mapping(entries: &mut Vec<(Node, Node)>, merge: Node) -> crate::Result<()> {
+fn merge_node_mapping(
+    entries: &mut Vec<(Node, Node)>,
+    merge: Node,
+    policy: MergePolicy,
+) -> crate::Result<()> {
     let span = merge.span;
     match merge.value {
         NodeValue::Mapping(mut merge_entries) => {
-            apply_merge_entries(&mut merge_entries)?;
+            apply_merge_entries(&mut merge_entries, policy)?;
             insert_missing_node_entries(entries, merge_entries)
         }
         NodeValue::Sequence(sequence) => {
@@ -2592,7 +2612,7 @@ fn merge_node_mapping(entries: &mut Vec<(Node, Node)>, merge: Node) -> crate::Re
                 let span = value.span;
                 match value.value {
                     NodeValue::Mapping(mut merge_entries) => {
-                        apply_merge_entries(&mut merge_entries)?;
+                        apply_merge_entries(&mut merge_entries, policy)?;
                         insert_missing_node_entries(entries, merge_entries)?
                     }
                     NodeValue::Sequence(_) => {
@@ -2622,6 +2642,72 @@ fn merge_node_mapping(entries: &mut Vec<(Node, Node)>, merge: Node) -> crate::Re
     }
 }
 
+fn apply_yaml11_merge_entries(entries: &mut Vec<(Node, Node)>) -> crate::Result<()> {
+    let original = mem::take(entries);
+    let mut explicit_entries = Vec::with_capacity(original.len());
+    let mut merged_entries = Vec::new();
+
+    for (key, value) in original {
+        if node_is_merge_key(&key) {
+            match yaml11_merge_entries(value)? {
+                Yaml11MergeEntries::Merge(merge_entries) => {
+                    upsert_node_entries(&mut merged_entries, merge_entries)?;
+                }
+                Yaml11MergeEntries::Literal(value) => explicit_entries.push((key, value)),
+            }
+        } else {
+            explicit_entries.push((key, value));
+        }
+    }
+
+    *entries = explicit_entries;
+    insert_missing_node_entries(entries, merged_entries)
+}
+
+enum Yaml11MergeEntries {
+    Merge(Vec<(Node, Node)>),
+    Literal(Node),
+}
+
+fn yaml11_merge_entries(mut merge: Node) -> crate::Result<Yaml11MergeEntries> {
+    match &mut merge.value {
+        NodeValue::Mapping(merge_entries) => {
+            apply_yaml11_merge_entries(merge_entries)?;
+        }
+        NodeValue::Sequence(sequence) => {
+            if !sequence
+                .iter()
+                .all(|node| matches!(node.value, NodeValue::Mapping(_)))
+            {
+                return Ok(Yaml11MergeEntries::Literal(merge));
+            }
+        }
+        NodeValue::Tagged(_)
+        | NodeValue::Null
+        | NodeValue::Bool(_)
+        | NodeValue::Number(_)
+        | NodeValue::String(_) => {
+            return Ok(Yaml11MergeEntries::Literal(merge));
+        }
+    }
+
+    match merge.value {
+        NodeValue::Mapping(merge_entries) => Ok(Yaml11MergeEntries::Merge(merge_entries)),
+        NodeValue::Sequence(sequence) => {
+            let mut merged_entries = Vec::new();
+            for value in sequence {
+                let NodeValue::Mapping(mut merge_entries) = value.value else {
+                    unreachable!("sequence merge entries were prevalidated");
+                };
+                apply_yaml11_merge_entries(&mut merge_entries)?;
+                insert_missing_node_entries(&mut merged_entries, merge_entries)?;
+            }
+            Ok(Yaml11MergeEntries::Merge(merged_entries))
+        }
+        _ => unreachable!("non-mergeable values returned above"),
+    }
+}
+
 fn insert_missing_node_entries(
     entries: &mut Vec<(Node, Node)>,
     merge_entries: Vec<(Node, Node)>,
@@ -2634,13 +2720,31 @@ fn insert_missing_node_entries(
     Ok(())
 }
 
-fn node_mapping_contains_key(entries: &[(Node, Node)], key: &Node) -> crate::Result<bool> {
-    for (existing, _) in entries {
-        if same_key_identity(existing, key)? {
-            return Ok(true);
+fn upsert_node_entries(
+    entries: &mut Vec<(Node, Node)>,
+    merge_entries: Vec<(Node, Node)>,
+) -> crate::Result<()> {
+    for (key, value) in merge_entries {
+        if let Some(index) = node_mapping_key_position(entries, &key)? {
+            entries[index] = (key, value);
+        } else {
+            entries.push((key, value));
         }
     }
-    Ok(false)
+    Ok(())
+}
+
+fn node_mapping_contains_key(entries: &[(Node, Node)], key: &Node) -> crate::Result<bool> {
+    node_mapping_key_position(entries, key).map(|position| position.is_some())
+}
+
+fn node_mapping_key_position(entries: &[(Node, Node)], key: &Node) -> crate::Result<Option<usize>> {
+    for (index, (existing, _)) in entries.iter().enumerate() {
+        if same_key_identity(existing, key)? {
+            return Ok(Some(index));
+        }
+    }
+    Ok(None)
 }
 
 fn merge_node_error(message: &'static str, span: Span) -> Error {

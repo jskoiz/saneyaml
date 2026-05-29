@@ -67,9 +67,10 @@ The first milestone focuses on:
 
 Intentional first-milestone non-goals:
 
-- Full YAML 1.1 compatibility: collection tags and explicit scalar tags are
-  covered with directive-driven scalar edge fixtures, but broader libyaml-era
-  behavior and schema/API completeness decisions still remain.
+- Full YAML 1.1 compatibility: collection tags, explicit scalar tags,
+  directive-driven scalar edges, and Psych-style merge-edge recovery are
+  covered, but broader libyaml-era behavior and schema/API completeness
+  decisions still remain.
 - Full structural lossless editing beyond validated source-span editing,
   directive-preserving structural emission, and graph identity in the semantic
   `Node`/`Value` loaders.

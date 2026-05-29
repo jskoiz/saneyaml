@@ -93,10 +93,11 @@ fn divergence_merge_key_record_documents_default_and_opt_in_policy() {
     assert!(record.contains("non-mergeable scalar/list merge payloads literal"));
     assert!(record.contains("repeated << keys as cumulative merge entries"));
     assert!(record.contains("strict diagnostics for invalid merge payloads"));
+    assert!(record.contains("YAML 1.1 load options adopt Psych-compatible"));
 }
 
 #[test]
-fn divergence_merge_key_edges_keep_strict_diagnostics() {
+fn divergence_merge_key_edges_keep_default_strict_and_yaml11_compatible() {
     let invalid = parse_str("target:\n  <<: scalar\n").expect_err("invalid scalar merge payload");
     assert!(
         invalid
@@ -110,6 +111,18 @@ fn divergence_merge_key_edges_keep_strict_diagnostics() {
     )
     .expect_err("repeated merge keys stay duplicate keys");
     assert!(repeated.to_string().contains("duplicate mapping key `<<`"));
+
+    let recovered = LoadOptions::yaml_1_1()
+        .parse_str(
+            "first: &first {shared: first, retries: 3}\nsecond: &second {shared: second, timeout: 10}\ntarget:\n  <<: *first\n  <<: *second\n  keep: value\nscalar_merge:\n  <<: scalar\n  keep: value\n",
+        )
+        .expect("YAML 1.1 mode recovers merge edges");
+    let recovered = yaml::Value::from(recovered);
+    assert_eq!(recovered["target"]["shared"].as_str(), Some("second"));
+    assert_eq!(recovered["target"]["retries"].as_u64(), Some(3));
+    assert_eq!(recovered["target"]["timeout"].as_u64(), Some(10));
+    assert_eq!(recovered["target"]["keep"].as_str(), Some("value"));
+    assert_eq!(recovered["scalar_merge"]["<<"].as_str(), Some("scalar"));
 }
 
 #[test]

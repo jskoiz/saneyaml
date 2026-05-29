@@ -62,6 +62,13 @@ tag = "%YAML 1.1"
 expected = "accept"
 
 [[case]]
+id = "legacy-merge-edge-recovery"
+path = "legacy-merge-edge-recovery.yaml"
+kind = "merge"
+tag = "%YAML 1.1"
+expected = "accept"
+
+[[case]]
 id = "explicit-merge-tags"
 path = "explicit-merge-tags.yaml"
 kind = "merge"

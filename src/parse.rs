@@ -2,8 +2,9 @@
 
 use crate::{
     Error, Node, NodeValue as Value, Number, Result, Span, Tag, TaggedNode, Timestamp,
+    ast::MergePolicy,
     error::utf8_error_span,
-    key_identity::{DuplicateKey, check_duplicate_for_mode},
+    key_identity::{DuplicateKey, check_duplicate},
     schema::{LoadOptions, Schema},
     yaml11,
 };
@@ -262,10 +263,9 @@ pub fn parse_documents(input: &str) -> Result<Vec<Node>> {
 }
 
 pub(crate) fn parse_documents_with_options(input: &str, options: LoadOptions) -> Result<Vec<Node>> {
-    let mut parser = Parser::new_with_options(input, options)?;
-    let mut documents = parser.parse_documents()?;
-    apply_default_merge_keys(&mut documents)?;
-    Ok(documents)
+    parse_document_results_with_options(input, options)
+        .into_iter()
+        .collect()
 }
 
 pub(crate) fn parse_document_results_with_options(
@@ -273,25 +273,30 @@ pub(crate) fn parse_document_results_with_options(
     options: LoadOptions,
 ) -> Vec<Result<Node>> {
     match Parser::new_with_options(input, options) {
-        Ok(mut parser) => parser
-            .parse_document_results()
-            .into_iter()
-            .map(|result| {
-                result.and_then(|mut node| {
-                    node.apply_merge_keys()?;
-                    Ok(node)
-                })
-            })
-            .collect(),
+        Ok(mut parser) => {
+            let results = parser.parse_document_results();
+            let schemas = mem::take(&mut parser.document_schemas);
+            apply_merge_keys_to_document_results(results, schemas)
+        }
         Err(error) => vec![Err(error)],
     }
 }
 
-fn apply_default_merge_keys(documents: &mut [Node]) -> Result<()> {
-    for document in documents {
-        document.apply_merge_keys()?;
-    }
-    Ok(())
+fn apply_merge_keys_to_document_results(
+    results: Vec<Result<Node>>,
+    schemas: Vec<Schema>,
+) -> Vec<Result<Node>> {
+    let mut schemas = schemas.into_iter();
+    results
+        .into_iter()
+        .map(|result| {
+            result.and_then(|mut node| {
+                let schema = schemas.next().unwrap_or(Schema::Yaml12);
+                node.apply_merge_keys_with_policy(merge_policy_for_schema(schema))?;
+                Ok(node)
+            })
+        })
+        .collect()
 }
 
 /// Parses a YAML stream and returns raw structural events.
@@ -314,6 +319,7 @@ struct Parser {
     pending_tag_handles: HashMap<String, String>,
     pending_document_directives: EventDocumentDirectives,
     pending_directives: bool,
+    document_schemas: Vec<Schema>,
 }
 
 #[derive(Default)]
@@ -495,6 +501,7 @@ impl Parser {
             pending_tag_handles: HashMap::new(),
             pending_document_directives: EventDocumentDirectives::default(),
             pending_directives: false,
+            document_schemas: Vec::new(),
         })
     }
 
@@ -610,6 +617,14 @@ impl Parser {
         self.events.is_some()
     }
 
+    fn check_duplicate_key(
+        &self,
+        seen: &mut HashMap<DuplicateKey, Span>,
+        key: &Node,
+    ) -> Result<()> {
+        check_duplicate_for_schema(self.recording_events(), self.active_schema, seen, key)
+    }
+
     fn parse_documents(&mut self) -> Result<Vec<Node>> {
         self.parse_document_results()
             .into_iter()
@@ -657,7 +672,7 @@ impl Parser {
                         self.emit_document_start(explicit, directives, span);
                         self.emit_null_scalar(span);
                         self.emit_document_end(false, span);
-                        docs.push(Ok(Node::null(span)));
+                        docs.push(Ok(self.finish_parsed_document(Node::null(span))));
                     }
                     if let Some(span) = open_document.take() {
                         self.emit_document_end(false, span);
@@ -688,7 +703,7 @@ impl Parser {
                             docs.push(Err(error));
                             return docs;
                         }
-                        docs.push(Ok(doc));
+                        docs.push(Ok(self.finish_parsed_document(doc)));
                     } else {
                         pending_start = Some((marker_span, true, directives));
                     }
@@ -706,7 +721,7 @@ impl Parser {
                         self.emit_document_start(explicit, directives, span);
                         self.emit_null_scalar(span);
                         self.emit_document_end(true, line.span());
-                        docs.push(Ok(Node::null(span)));
+                        docs.push(Ok(self.finish_parsed_document(Node::null(span))));
                     }
                     if open_document.take().is_some() {
                         self.emit_document_end(true, line.span());
@@ -746,7 +761,7 @@ impl Parser {
                         docs.push(Err(error));
                         return docs;
                     }
-                    docs.push(Ok(doc));
+                    docs.push(Ok(self.finish_parsed_document(doc)));
                 }
             }
         }
@@ -762,12 +777,17 @@ impl Parser {
             self.emit_document_start(explicit, directives, span);
             self.emit_null_scalar(span);
             self.emit_document_end(false, span);
-            docs.push(Ok(Node::null(span)));
+            docs.push(Ok(self.finish_parsed_document(Node::null(span))));
         }
         if let Some(span) = open_document {
             self.emit_document_end(false, span);
         }
         docs
+    }
+
+    fn finish_parsed_document(&mut self, doc: Node) -> Node {
+        self.document_schemas.push(self.active_schema);
+        doc
     }
 
     fn parse_directive(&mut self, line: &Line) -> Result<()> {
@@ -1137,7 +1157,7 @@ impl Parser {
                 if let Some((key, span)) = pending_key.take() {
                     self.emit_null_scalar(span);
                     let value = Node::null(span);
-                    check_duplicate_for_mode(self.recording_events(), &mut seen, &key)?;
+                    self.check_duplicate_key(&mut seen, &key)?;
                     entries.push((key, value));
                 }
                 let key =
@@ -1157,18 +1177,18 @@ impl Parser {
                 if let Some((key, span)) = pending_key.take() {
                     self.emit_null_scalar(span);
                     let value = Node::null(span);
-                    check_duplicate_for_mode(self.recording_events(), &mut seen, &key)?;
+                    self.check_duplicate_key(&mut seen, &key)?;
                     entries.push((key, value));
                 }
                 self.parse_mapping_pair(&line, 0, &line.content, indent, depth + 1)?
             };
-            check_duplicate_for_mode(self.recording_events(), &mut seen, &key)?;
+            self.check_duplicate_key(&mut seen, &key)?;
             entries.push((key, value));
         }
         if let Some((key, span)) = pending_key.take() {
             self.emit_null_scalar(span);
             let value = Node::null(span);
-            check_duplicate_for_mode(self.recording_events(), &mut seen, &key)?;
+            self.check_duplicate_key(&mut seen, &key)?;
             entries.push((key, value));
         }
 
@@ -1198,7 +1218,7 @@ impl Parser {
         let mut seen = HashMap::<DuplicateKey, Span>::new();
         let (key, value) =
             self.parse_mapping_pair(line, rest_start, rest, item_indent, depth + 1)?;
-        check_duplicate_for_mode(self.recording_events(), &mut seen, &key)?;
+        self.check_duplicate_key(&mut seen, &key)?;
         entries.push((key, value));
 
         loop {
@@ -1216,7 +1236,7 @@ impl Parser {
             self.pos += 1;
             let (key, value) =
                 self.parse_mapping_pair(&next, 0, &next.content, item_indent, depth + 1)?;
-            check_duplicate_for_mode(self.recording_events(), &mut seen, &key)?;
+            self.check_duplicate_key(&mut seen, &key)?;
             entries.push((key, value));
         }
 
@@ -1531,7 +1551,7 @@ impl Parser {
         let mut seen = HashMap::<DuplicateKey, Span>::new();
         let (key, value) =
             self.parse_mapping_pair(line, local_start, text, pair_indent, depth + 1)?;
-        check_duplicate_for_mode(self.recording_events(), &mut seen, &key)?;
+        self.check_duplicate_key(&mut seen, &key)?;
         let span = Span::new(
             key.span.start,
             value.span.end,
@@ -2745,6 +2765,35 @@ fn schema_for_directives(schema: Schema, directives: &EventDocumentDirectives) -
     }
 }
 
+fn merge_policy_for_schema(schema: Schema) -> MergePolicy {
+    match schema {
+        Schema::Yaml11 => MergePolicy::Yaml11Compatible,
+        Schema::Yaml12 | Schema::YamlVersionDirective => MergePolicy::Strict,
+    }
+}
+
+fn check_duplicate_for_schema(
+    recording_events: bool,
+    schema: Schema,
+    seen: &mut HashMap<DuplicateKey, Span>,
+    key: &Node,
+) -> Result<()> {
+    if recording_events || (schema == Schema::Yaml11 && node_is_merge_key(key)) {
+        return Ok(());
+    }
+    check_duplicate(seen, key)
+}
+
+fn node_is_merge_key(key: &Node) -> bool {
+    match &key.value {
+        Value::String(value) => value == "<<",
+        Value::Tagged(tagged) if tagged.tag.is_yaml_core("merge") => {
+            tagged.value.as_str() == Some("<<")
+        }
+        _ => false,
+    }
+}
+
 fn valid_tag_handle(handle: &str) -> bool {
     handle == "!" || handle == "!!" || (handle.starts_with('!') && handle.ends_with('!'))
 }
@@ -3882,6 +3931,14 @@ impl<'a> FlowParser<'a> {
         self.events.is_some()
     }
 
+    fn check_duplicate_key(
+        &self,
+        seen: &mut HashMap<DuplicateKey, Span>,
+        key: &Node,
+    ) -> Result<()> {
+        check_duplicate_for_schema(self.recording_events(), self.schema, seen, key)
+    }
+
     fn resolve_tag(&self, tag: Tag, span: Span) -> Result<Tag> {
         resolve_tag(self.active_tag_handles, tag, span)
     }
@@ -4068,7 +4125,7 @@ impl<'a> FlowParser<'a> {
                 ));
             }
             let (key, value) = self.with_depth(|parser| parser.parse_flow_mapping_entry())?;
-            check_duplicate_for_mode(self.recording_events(), &mut seen, &key)?;
+            self.check_duplicate_key(&mut seen, &key)?;
             entries.push((key, value));
             self.skip_ws();
             if self.consume(',') {

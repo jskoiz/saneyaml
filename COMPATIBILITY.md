@@ -121,10 +121,15 @@ merge-list duplicate precedence, explicit merge-tag expansion, later
 non-conflicting keys, and explicit target overrides. `Value::apply_merge()` remains
 available for caller-built values with `serde_yaml::Value::apply_merge()`-style
 semantics and is idempotent for values parsed by this crate.
-The current strict tree construction deliberately diverges from Psych/libyaml on
-merge-edge recovery: scalar merge payloads, list items that are not mappings, and
-repeated `<<` keys are errors with diagnostics instead of being retained as
-literal keys or applied as cumulative repeated merges.
+Default YAML 1.2-oriented tree construction remains strict on merge-edge
+recovery: scalar merge payloads, list items that are not mappings, and repeated
+`<<` keys are errors with diagnostics. YAML 1.1 loading through
+`LoadOptions::yaml_1_1()` or `%YAML 1.1` with
+`LoadOptions::yaml_version_directive()` now follows the Psych/libyaml recovery
+shape for those edges: non-mergeable merge payloads stay literal, and repeated
+real merge keys are cumulative merges where later repeated merge keys override
+duplicate merged entries while explicit target keys still override all merged
+keys.
 Default scalar construction remains YAML 1.2-oriented even when a stream has
 `%YAML 1.1`. Callers that need legacy YAML 1.1 scalar behavior can opt in with
 `yaml::LoadOptions::yaml_1_1()` or `yaml::LoadOptions::new().schema(Schema::Yaml11)`.

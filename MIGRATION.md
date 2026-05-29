@@ -250,7 +250,10 @@ testing each adopter's own YAML corpus.
   construction mode and absent, `%YAML 1.2`, or newer numeric directives keep
   YAML 1.2-oriented construction. Default loading still treats decimal-looking
   leading-zero scalars such as `0123` as decimal integers; YAML 1.1 opt-in
-  treats the same spelling as octal. `tests/yaml11_conformance.rs` includes
+  treats the same spelling as octal. YAML 1.1 opt-in also follows
+  Psych/libyaml merge-edge recovery for repeated real merge keys and
+  non-mergeable merge payloads; default YAML 1.2-oriented loading keeps those
+  edges strict. `tests/yaml11_conformance.rs` includes
   directive-driven migration fixtures covering legacy boolean words, null
   spellings, float spellings, octal, hex, binary numeric, sexagesimal,
   timestamp time-zone forms, flow-style scalar collections and mapping keys,
@@ -292,7 +295,7 @@ testing each adopter's own YAML corpus.
 | Area | Migration impact |
 |---|---|
 | Default merge expansion | Parsed `Node`/`Value`/Serde reads expand untagged and explicit merge-tag `<<` keys by default. Code that inspected merge syntax should switch to `parse_events` or `LosslessStream`; explicit `!!str <<` and custom-tagged `<<` keys remain literal. |
-| YAML 1.1 compatibility | Legacy scalar and collection behavior is available through explicit schema/tag paths. Default entrypoints stay YAML 1.2-oriented, so corpora that require YAML 1.1 typing need opt-in tests. |
+| YAML 1.1 compatibility | Legacy scalar, collection, and merge-edge recovery behavior is available through explicit schema/tag paths. Default entrypoints stay YAML 1.2-oriented, so corpora that require YAML 1.1 typing or Psych-style repeated/invalid merge recovery need opt-in tests. |
 | Alias graph identity | Semantic `Node`/`Value` trees still clone acyclic aliases. Graph-sensitive callers should use `LosslessStream`; its anchor definitions and alias targets are checked against reference parser anchor events for redefinition, recursive, document-reset, merge, YAML-suite, and Docker Compose anchor cases. |
 | Lossless formatting | `LosslessStream` preserves source, comments, trivia, directives, anchors, aliases, tags, and scalar spelling for replay/inspection. `LosslessEdit` can replace retained node or raw source spans, insert source, delete source spans, and validate the final YAML while preserving untouched bytes. |
 | Parser acceptance differences | Some YAML 1.2 inputs rejected by libyaml are accepted, and some malformed libyaml-tolerated inputs are rejected. Divergence records now carry per-case migration impact. |

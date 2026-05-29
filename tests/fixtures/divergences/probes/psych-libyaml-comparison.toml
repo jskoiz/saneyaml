@@ -551,6 +551,64 @@ alpha: 1
 rust_contains = ["DocumentStart", "DocumentEnd", "explicit: true"]
 
 [[case]]
+id = "directive-stream-boundary"
+record = "tests/fixtures/divergences/records/yaml-version-directive-schema.toml"
+mode = "stream"
+psych_status = "ok"
+rust_entrypoint = "directive-stream"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "Psych/libyaml keeps YAML 1.1 construction for the stream, while this crate's directive-driven mode applies YAML 1.1 only to documents that declare %YAML 1.1 and resets tag handles at each document boundary."
+fixture = "tests/fixtures/yaml11-conformance/directive-boundary-stream.yaml"
+rust_contains = ["Bool(true)", "String(\"ON\")", "Bool(false)", "tag:yaml.org,2002:str"]
+
+[[case]]
+id = "reserved-directive"
+record = "tests/fixtures/divergences/records/raw-event-directives.toml"
+mode = "events"
+psych_status = "error"
+rust_entrypoint = "events"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "The crate follows yaml-rust2/saphyr by ignoring reserved directives before an explicit document start, while Psych/libyaml rejects them."
+fixture = "tests/fixtures/yaml-test-suite/data/6LVF/in.yaml"
+rust_contains = ["DocumentStart", "foo"]
+
+[[case]]
+id = "repeated-tag-directive"
+record = "tests/fixtures/divergences/records/raw-event-directives.toml"
+mode = "events"
+psych_status = "error"
+rust_entrypoint = "events"
+rust_status = "error"
+rust_policy = "matches-psych"
+reason = "Both libyaml/Psych and this crate reject duplicate TAG directives for the same handle before a document start."
+yaml = '''
+%TAG !e! tag:example.com,2026:
+%TAG !e! tag:example.org,2026:
+---
+value
+'''
+rust_error_contains = "duplicate TAG directive handle"
+
+[[case]]
+id = "tag-directive-scope-reset"
+record = "tests/fixtures/divergences/records/tag-directive-scope-and-undeclared-handles.toml"
+mode = "events"
+psych_status = "error"
+rust_entrypoint = "events"
+rust_status = "error"
+rust_policy = "matches-psych"
+reason = "Both libyaml/Psych and this crate reset TAG handles at document boundaries, so a later document must redeclare a named handle before using it."
+yaml = '''
+%TAG !e! tag:example.com,2026:
+--- !e!Thing first
+...
+--- !e!Thing second
+'''
+rust_error_contains = "undeclared TAG directive handle"
+
+[[case]]
 id = "yaml-version-directive-schema"
 record = "tests/fixtures/divergences/records/yaml-version-directive-schema.toml"
 mode = "events"

@@ -132,6 +132,13 @@ tag = "%YAML 1.1"
 expected = "accept"
 
 [[case]]
+id = "directive-boundary-stream"
+path = "directive-boundary-stream.yaml"
+kind = "directive-boundary"
+tag = "%YAML 1.1"
+expected = "accept"
+
+[[case]]
 id = "legacy-flow-scalar-directive"
 path = "legacy-flow-scalar-directive.yaml"
 kind = "flow-scalar-matrix"

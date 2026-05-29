@@ -4,9 +4,9 @@ comparison_manifest = "tests/fixtures/divergences/probes/psych-libyaml-compariso
 ruby = "2.6.10"
 psych = "3.1.0"
 libyaml = "0.2.1"
-probe_case_count = 41
+probe_case_count = 45
 behavior_family_count = 8
-tracked_gap_count = 4
+tracked_gap_count = 3
 coverage_policy = "Pinned Psych/libyaml cases are grouped by behavior family. Covered families are executable proof for the listed cases, not blanket YAML 1.1/libyaml compatibility."
 
 [[behavior_family]]
@@ -89,18 +89,22 @@ next_expansion = "Add broader explicit tag typed-target coverage and additional 
 
 [[behavior_family]]
 id = "directives-and-documents"
-status = "partial"
-summary = "YAML/TAG directives, document markers, undeclared handles, and document-start inline node properties."
+status = "covered"
+summary = "YAML/TAG directives, document markers, reserved-directive policy, repeated TAG rejection, tag handle scope reset, multi-document version switching, undeclared handles, and document-start inline node properties."
 cases = [
   "raw-event-directives",
   "raw-event-document-markers",
+  "directive-stream-boundary",
+  "reserved-directive",
+  "repeated-tag-directive",
+  "tag-directive-scope-reset",
   "yaml-version-directive-schema",
   "tag-directive-scope-and-undeclared-handles",
   "document-start-inline-node",
 ]
-rust_entrypoints = ["events"]
-adoption_risk = "Directive metadata is event-visible, but full libyaml directive acceptance/rejection parity is not claimed."
-next_expansion = "Add reserved directives, repeated directives, tag scope resets, and multi-document version switching."
+rust_entrypoints = ["events", "directive-stream"]
+adoption_risk = "Directive metadata is event-visible, and directive-driven construction deliberately resets schema and tag handles per document instead of treating a stream as globally YAML 1.1."
+next_expansion = "Add new directive cases only when migration corpora expose behavior outside the covered reserved-directive, repeated TAG, tag-scope reset, document-marker, and version-switching denominator."
 
 [[behavior_family]]
 id = "libyaml-rejection-splits"
@@ -149,9 +153,3 @@ id = "collection-tag-malformed-payloads"
 family = "yaml11-tags-and-structures"
 reason = "Representative malformed set, omap, pairs, and value-key duplicate diagnostics are covered; broader explicit tag typed-target and real-corpus custom-handle variants remain open."
 next_probe_candidates = ["explicit tag typed-target variants", "real-corpus custom handles", "additional value mapping shapes"]
-
-[[tracked_gap]]
-id = "directive-stream-boundary-matrix"
-family = "directives-and-documents"
-reason = "Directive and document-marker event behavior is covered for representative streams, not the full libyaml acceptance matrix."
-next_probe_candidates = ["reserved directives", "repeated TAG directives", "tag handle scope reset", "multi-document version switching"]

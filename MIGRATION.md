@@ -343,8 +343,8 @@ testing each adopter's own YAML corpus.
   and artifact directories before a release candidate.
 - Finish broader YAML 1.1/libyaml compatibility decisions beyond the
   fixture-backed Psych/libyaml merge/tag/graph cross-checks and eight-family
-  Psych/libyaml coverage ledger, full arbitrary structural lossless
-  formatting/emission beyond targeted block/flow mapping entry and sequence
-  item helpers, and the long-term graph API contract before claiming full YAML
-  compatibility.
+  Psych/libyaml coverage ledger, now including directive stream-boundary
+  behavior; full arbitrary structural lossless formatting/emission beyond
+  targeted block/flow mapping entry and sequence item helpers; and the
+  long-term graph API contract before claiming full YAML compatibility.
 - Choose the public package name and final license before publishing.

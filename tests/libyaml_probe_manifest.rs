@@ -47,6 +47,10 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "lossless-recursive-graph",
         "raw-event-directives",
         "raw-event-document-markers",
+        "directive-stream-boundary",
+        "reserved-directive",
+        "repeated-tag-directive",
+        "tag-directive-scope-reset",
     ] {
         assert!(
             PROBE_SCRIPT.contains(term),
@@ -61,7 +65,7 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_eq!(artifact["libyaml"], "0.2.1");
 
     let cases = artifact["cases"].as_array().expect("probe cases array");
-    assert_eq!(cases.len(), 41);
+    assert_eq!(cases.len(), 45);
 
     let expected_ids = BTreeSet::from([
         "adjacent-flow-mapping-scalars",
@@ -71,6 +75,7 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "bare-document-streams",
         "core-structural-tags",
         "directive-looking-flow-content",
+        "directive-stream-boundary",
         "document-start-block-scalars",
         "document-start-inline-node",
         "duplicate-scalar-keys",
@@ -92,9 +97,12 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "numeric-key-identity",
         "raw-event-directives",
         "raw-event-document-markers",
+        "repeated-tag-directive",
+        "reserved-directive",
         "rw-github-actions-on-key",
         "tab-token-separation",
         "tag-directive-scope-and-undeclared-handles",
+        "tag-directive-scope-reset",
         "yaml-version-directive-schema",
         "yaml11-alias-key-collision",
         "yaml11-collection-tags",
@@ -228,6 +236,19 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_case_summary_contains(&artifact, "raw-event-directives", "root");
     assert_event_count(&artifact, "raw-event-document-markers", 11);
     assert_case_summary_contains(&artifact, "raw-event-document-markers", "end_document");
+    assert_case_summary_contains(&artifact, "directive-stream-boundary", "document_count");
+    assert_case_summary_contains(&artifact, "directive-stream-boundary", "TrueClass");
+    assert_case_summary_contains(&artifact, "reserved-directive", "unknown directive name");
+    assert_error_contains(
+        &artifact,
+        "repeated-tag-directive",
+        "duplicate %TAG directive",
+    );
+    assert_error_contains(
+        &artifact,
+        "tag-directive-scope-reset",
+        "undefined tag handle",
+    );
     assert_case_summary_contains(&artifact, "document-start-inline-node", "!Thing");
     assert_case_summary_contains(&artifact, "document-start-inline-node", "root");
 
@@ -497,7 +518,7 @@ fn psych_libyaml_probe_coverage_ledger_groups_all_pinned_cases() {
         coverage["tracked_gap_count"].as_integer(),
         Some(gaps.len() as i64),
     );
-    assert_eq!(gaps.len(), 4);
+    assert_eq!(gaps.len(), 3);
     let mut gap_ids = BTreeSet::new();
     for gap in gaps {
         let id = toml_str(gap, "id");
@@ -545,6 +566,11 @@ fn run_rust_probe_case(case: &Toml) -> RustProbe {
         "directive-value" => rust_probe_from_result(
             yaml::LoadOptions::yaml_version_directive()
                 .from_str::<yaml::Value>(&input)
+                .map(|value| format!("{value:#?}")),
+        ),
+        "directive-stream" => rust_probe_from_result(
+            yaml::LoadOptions::yaml_version_directive()
+                .from_documents_str::<yaml::Value>(&input)
                 .map(|value| format!("{value:#?}")),
         ),
         "typed-set-strings" => rust_probe_from_result(

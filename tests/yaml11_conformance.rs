@@ -182,7 +182,7 @@ const LEGACY_DUPLICATE_KEY_FIXTURES: &[LegacyDuplicateKeyFixture] = &[
 #[test]
 fn yaml11_conformance_manifest_is_complete() {
     let manifest = manifest();
-    assert_eq!(manifest.case.len(), 26);
+    assert_eq!(manifest.case.len(), 27);
     let manifest_paths = manifest
         .case
         .iter()
@@ -201,6 +201,7 @@ fn yaml11_conformance_manifest_is_complete() {
                 | "scalar-matrix"
                 | "scalar-denominator"
                 | "flow-scalar-matrix"
+                | "directive-boundary"
                 | "merge"
                 | "duplicate-key"
                 | "multi-doc"
@@ -1080,6 +1081,167 @@ fn yaml11_legacy_scalar_edge_stream_switches_per_document() {
             .minor,
         1
     );
+}
+
+#[test]
+fn yaml11_directive_boundary_stream_resets_schema_and_tag_handles() {
+    let source = read_fixture("directive-boundary-stream.yaml");
+    let options = LoadOptions::yaml_version_directive();
+    let docs: Vec<Value> = options
+        .from_documents_str(&source)
+        .expect("directive boundary stream deserializes");
+
+    assert_eq!(docs.len(), 3);
+    assert_eq!(docs[0]["doc"].as_str(), Some("first"));
+    assert_eq!(docs[0]["flag"].as_bool(), Some(true));
+    assert_eq!(docs[0]["octal"].as_i64(), Some(10));
+    assert_eq!(docs[0]["tagged"].as_str(), Some("ON"));
+    assert_eq!(
+        docs[0]["tagged"]
+            .as_tagged()
+            .expect("resolved string tag retained")
+            .tag,
+        yaml::Tag::new("!<tag:yaml.org,2002:str>")
+    );
+
+    assert_eq!(docs[1]["doc"].as_str(), Some("second"));
+    assert_eq!(docs[1]["flag"].as_str(), Some("ON"));
+    assert_eq!(docs[1]["octal"].as_i64(), Some(12));
+    assert!(docs[1]["flag"].as_bool().is_none());
+
+    assert_eq!(docs[2]["doc"].as_str(), Some("third"));
+    assert_eq!(docs[2]["flag"].as_bool(), Some(false));
+    assert_eq!(docs[2]["octal"].as_i64(), Some(10));
+
+    assert_value_sequences_equivalent(
+        options
+            .from_documents_slice(source.as_bytes())
+            .expect("directive boundary slice stream deserializes"),
+        &docs,
+        "from_documents_slice",
+    );
+    assert_value_sequences_equivalent(
+        options
+            .from_documents_reader(Cursor::new(source.as_bytes()))
+            .expect("directive boundary reader stream deserializes"),
+        &docs,
+        "from_documents_reader",
+    );
+    assert_value_sequences_equivalent(
+        options
+            .deserializer_from_str(&source)
+            .map(Value::deserialize)
+            .collect::<Result<Vec<_>, _>>()
+            .expect("directive boundary direct deserializer"),
+        &docs,
+        "deserializer_from_str",
+    );
+    assert_value_sequences_equivalent(
+        options
+            .parse_documents(&source)
+            .expect("directive boundary parser stream")
+            .iter()
+            .map(Value::from)
+            .collect(),
+        &docs,
+        "parse_documents",
+    );
+
+    let lossless = yaml::parse_lossless(&source).expect("directive boundary lossless parse");
+    assert_eq!(lossless.as_source(), source);
+    assert_eq!(lossless.to_string(), source);
+    assert_eq!(lossless.documents().len(), 3);
+    let first = lossless.documents()[0].directives();
+    assert_eq!(
+        first
+            .yaml_version
+            .as_ref()
+            .expect("first document YAML directive")
+            .minor,
+        1
+    );
+    assert_eq!(first.tag_directives.len(), 1);
+    assert_eq!(first.tag_directives[0].handle, "!yaml!");
+    assert!(lossless.documents()[1].directives().yaml_version.is_none());
+    assert!(
+        lossless.documents()[1]
+            .directives()
+            .tag_directives
+            .is_empty()
+    );
+    assert_eq!(
+        lossless.documents()[2]
+            .directives()
+            .yaml_version
+            .as_ref()
+            .expect("third document YAML directive")
+            .minor,
+        1
+    );
+    assert!(
+        lossless.documents()[2]
+            .directives()
+            .tag_directives
+            .is_empty()
+    );
+}
+
+#[test]
+fn yaml11_directive_boundary_errors_cover_tag_scope_and_duplicates() {
+    let tag_scope_reset = "\
+%TAG !e! tag:example.com,2026:
+--- !e!Thing first
+...
+--- !e!Thing second
+";
+    for (label, result) in [
+        ("events", yaml::parse_events(tag_scope_reset).map(|_| ())),
+        (
+            "documents",
+            LoadOptions::yaml_version_directive()
+                .parse_documents(tag_scope_reset)
+                .map(|_| ()),
+        ),
+        (
+            "lossless",
+            yaml::parse_lossless(tag_scope_reset).map(|_| ()),
+        ),
+    ] {
+        let error = result.unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("undeclared TAG directive handle"),
+            "{label} error was {error}"
+        );
+        assert_eq!(error.span().line, 4, "{label} line");
+    }
+
+    let duplicate_tag = "\
+%TAG !e! tag:example.com,2026:
+%TAG !e! tag:example.org,2026:
+---
+value
+";
+    let error = yaml::parse_events(duplicate_tag).expect_err("duplicate TAG handle rejected");
+    assert!(
+        error.to_string().contains("duplicate TAG directive handle"),
+        "{error}"
+    );
+    assert_eq!(error.span().line, 2);
+
+    let duplicate_yaml = "\
+%YAML 1.1
+%YAML 1.2
+---
+value
+";
+    let error = yaml::parse_events(duplicate_yaml).expect_err("duplicate YAML directive rejected");
+    assert!(
+        error.to_string().contains("duplicate YAML directive"),
+        "{error}"
+    );
+    assert_eq!(error.span().line, 2);
 }
 
 #[test]

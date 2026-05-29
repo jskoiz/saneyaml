@@ -153,6 +153,33 @@ fn main() {
         ]
     );
 
+    let directive_boundary: Vec<serde_yaml::Value> =
+        serde_yaml::LoadOptions::yaml_version_directive()
+            .from_documents_str(
+                "%YAML 1.1\n%TAG !yaml! tag:yaml.org,2002:\n---\n\
+doc: first\nflag: ON\noctal: 012\ntagged: !yaml!str ON\n...\n\
+---\ndoc: second\nflag: ON\noctal: 012\n...\n\
+%YAML 1.1\n---\ndoc: third\nflag: OFF\noctal: 012\n",
+            )
+            .unwrap();
+    assert_eq!(directive_boundary.len(), 3);
+    assert_eq!(directive_boundary[0]["flag"].as_bool(), Some(true));
+    assert_eq!(directive_boundary[0]["octal"].as_i64(), Some(10));
+    assert_eq!(directive_boundary[0]["tagged"].as_str(), Some("ON"));
+    assert_eq!(directive_boundary[1]["flag"].as_str(), Some("ON"));
+    assert_eq!(directive_boundary[1]["octal"].as_i64(), Some(12));
+    assert_eq!(directive_boundary[2]["flag"].as_bool(), Some(false));
+    assert_eq!(directive_boundary[2]["octal"].as_i64(), Some(10));
+
+    assert!(
+        serde_yaml::parse_events(
+            "%TAG !e! tag:example.com,2026:\n--- !e!Thing first\n...\n--- !e!Thing second\n",
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("undeclared TAG directive handle")
+    );
+
     let scalar_denominator: LegacyScalarDenominator =
         serde_yaml::LoadOptions::yaml_version_directive()
             .from_str(

@@ -368,6 +368,40 @@ CASES = [
     YAML
   },
   {
+    id: "directive-stream-boundary",
+    record: "tests/fixtures/divergences/records/yaml-version-directive-schema.toml",
+    mode: :stream,
+    yaml: fixture_yaml("tests/fixtures/yaml11-conformance/directive-boundary-stream.yaml")
+  },
+  {
+    id: "reserved-directive",
+    record: "tests/fixtures/divergences/records/raw-event-directives.toml",
+    mode: :events,
+    yaml: fixture_yaml("tests/fixtures/yaml-test-suite/data/6LVF/in.yaml")
+  },
+  {
+    id: "repeated-tag-directive",
+    record: "tests/fixtures/divergences/records/raw-event-directives.toml",
+    mode: :events,
+    yaml: <<~YAML
+      %TAG !e! tag:example.com,2026:
+      %TAG !e! tag:example.org,2026:
+      ---
+      value
+    YAML
+  },
+  {
+    id: "tag-directive-scope-reset",
+    record: "tests/fixtures/divergences/records/tag-directive-scope-and-undeclared-handles.toml",
+    mode: :events,
+    yaml: <<~YAML
+      %TAG !e! tag:example.com,2026:
+      --- !e!Thing first
+      ...
+      --- !e!Thing second
+    YAML
+  },
+  {
     id: "yaml-version-directive-schema",
     record: "tests/fixtures/divergences/records/yaml-version-directive-schema.toml",
     mode: :events,

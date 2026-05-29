@@ -95,8 +95,8 @@ Notable completed release-candidate behavior:
   per-case input digests, error locations where Psych
   exposes them, and first-class alias redefinition/recursive identity probes as
   deliberate compatibility decisions.
-- A Psych/libyaml coverage ledger now groups the 41 pinned probe cases into
-  eight behavior families and tracks four explicit next-probe gaps, keeping
+- A Psych/libyaml coverage ledger now groups the 45 pinned probe cases into
+  eight behavior families and tracks three explicit next-probe gaps, keeping
   YAML 1.1/libyaml scope auditable without claiming blanket compatibility.
 - `TaggedValue` now implements owned and borrowed Serde deserializer support
   for direct enum and `IgnoredAny` reads, matching the package-alias

@@ -3731,6 +3731,168 @@
       "input_bytes": 26
     },
     {
+      "id": "directive-stream-boundary",
+      "record": "tests/fixtures/divergences/records/yaml-version-directive-schema.toml",
+      "status": "ok",
+      "summary": {
+        "document_count": 3,
+        "documents": [
+          {
+            "class": "Hash",
+            "entries": [
+              {
+                "key": {
+                  "class": "String",
+                  "value": "doc"
+                },
+                "value": {
+                  "class": "String",
+                  "value": "first"
+                }
+              },
+              {
+                "key": {
+                  "class": "String",
+                  "value": "flag"
+                },
+                "value": {
+                  "class": "TrueClass",
+                  "value": true
+                }
+              },
+              {
+                "key": {
+                  "class": "String",
+                  "value": "octal"
+                },
+                "value": {
+                  "class": "Integer",
+                  "value": "10"
+                }
+              },
+              {
+                "key": {
+                  "class": "String",
+                  "value": "tagged"
+                },
+                "value": {
+                  "class": "String",
+                  "value": "ON"
+                }
+              }
+            ]
+          },
+          {
+            "class": "Hash",
+            "entries": [
+              {
+                "key": {
+                  "class": "String",
+                  "value": "doc"
+                },
+                "value": {
+                  "class": "String",
+                  "value": "second"
+                }
+              },
+              {
+                "key": {
+                  "class": "String",
+                  "value": "flag"
+                },
+                "value": {
+                  "class": "TrueClass",
+                  "value": true
+                }
+              },
+              {
+                "key": {
+                  "class": "String",
+                  "value": "octal"
+                },
+                "value": {
+                  "class": "Integer",
+                  "value": "10"
+                }
+              }
+            ]
+          },
+          {
+            "class": "Hash",
+            "entries": [
+              {
+                "key": {
+                  "class": "String",
+                  "value": "doc"
+                },
+                "value": {
+                  "class": "String",
+                  "value": "third"
+                }
+              },
+              {
+                "key": {
+                  "class": "String",
+                  "value": "flag"
+                },
+                "value": {
+                  "class": "FalseClass",
+                  "value": false
+                }
+              },
+              {
+                "key": {
+                  "class": "String",
+                  "value": "octal"
+                },
+                "value": {
+                  "class": "Integer",
+                  "value": "10"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "input_sha256": "e126c0e3890ffa58ce8672f4e9a9f5815b2aa2428ba3e005b600077f0f95c1b1",
+      "input_bytes": 187
+    },
+    {
+      "id": "reserved-directive",
+      "record": "tests/fixtures/divergences/records/raw-event-directives.toml",
+      "status": "error",
+      "error_class": "Psych::SyntaxError",
+      "error": "found unknown directive name",
+      "context": "while scanning a directive",
+      "line": 1,
+      "column": 1,
+      "input_sha256": "e5371128a11120004b5dfb8033dbfd66af61aa27af49ba73cbb67f8223c9298d",
+      "input_bytes": 76
+    },
+    {
+      "id": "repeated-tag-directive",
+      "record": "tests/fixtures/divergences/records/raw-event-directives.toml",
+      "status": "error",
+      "error_class": "Psych::SyntaxError",
+      "error": "found duplicate %TAG directive",
+      "line": 1,
+      "column": 1,
+      "input_sha256": "b72604c8c244e36c07ee9c024c7514ebbe00a5ebb6ab2fdcd5bdcf57e5da16fa",
+      "input_bytes": 72
+    },
+    {
+      "id": "tag-directive-scope-reset",
+      "record": "tests/fixtures/divergences/records/tag-directive-scope-and-undeclared-handles.toml",
+      "status": "error",
+      "error_class": "Psych::SyntaxError",
+      "error": "found undefined tag handle",
+      "context": "while parsing a node",
+      "line": 4,
+      "column": 5,
+      "input_sha256": "ad752bfd480a801b44e3f02fb4e2814c2fba348955afe49f29d6eba24ccc7442",
+      "input_bytes": 74
+    },
+    {
       "id": "yaml-version-directive-schema",
       "record": "tests/fixtures/divergences/records/yaml-version-directive-schema.toml",
       "status": "error",

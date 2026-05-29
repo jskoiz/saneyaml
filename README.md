@@ -29,9 +29,10 @@ The first milestone focuses on:
 - Ordered mappings, block/flow collections, quoted/plain scalars, and basic
   literal/folded block scalars.
 - Acyclic anchors and aliases expanded into the loaded tree.
-- Default YAML merge-key expansion for loaded trees and Serde reads, including
-  explicit `!!merge` / canonical merge-tag keys, while raw parser events still
-  expose `<<`, key tags, and alias events.
+- Default YAML merge-key expansion for loaded trees, `from_value`, and direct
+  owned/borrowed `Value` Serde reads, including explicit `!!merge` / canonical
+  merge-tag keys, while raw parser events still expose `<<`, key tags, and
+  alias events.
 - A source-backed `yaml::parse_lossless` / `yaml::LosslessStream` API that
   keeps the original source for byte-stable replay, exposes comments and blank
   lines as trivia, represents anchors/aliases with stable graph ids, compares

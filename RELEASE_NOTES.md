@@ -8,9 +8,10 @@ and explicit user approval for a crates.io push.
 
 Notable completed release-candidate behavior:
 
-- Default loaded-tree and Serde reads expand untagged and explicit
-  `!!merge` / canonical merge-tag keys while raw parser events retain merge
-  syntax and tag metadata.
+- Default loaded-tree, `from_value`, direct owned/borrowed `Value`
+  deserializers, and Serde reads expand untagged and explicit `!!merge` /
+  canonical merge-tag keys while raw parser events retain merge syntax and tag
+  metadata.
 - Explicit YAML core scalar tags retain tag/source metadata and support typed
   Serde reads for strings, booleans, nulls, integers, floats, timestamps, and
   binary byte targets.
@@ -29,8 +30,9 @@ Notable completed release-candidate behavior:
   `serde_yaml::...` paths against both `serde_yaml 0.9.34` and this package
   through `serde_yaml = { package = "yaml", ... }`; the expanded alias smoke
   separately covers root document-stream helpers, explicit YAML 1.1
-  `LoadOptions`, caller-built merge expansion, mapping/index ergonomics,
-  lossless graph identity inspection, and diagnostic locations. A separate
+  `LoadOptions`, caller-built default merge deserialization plus explicit
+  in-place merge expansion, mapping/index ergonomics, lossless graph identity
+  inspection, and diagnostic locations. A separate
   real-world package-alias smoke now copies the fixture registry into a clean
   downstream crate and parses representative GitHub Actions, Docker Compose,
   Kubernetes, Helm, OpenAPI, Wrangler, and Ansible documents through

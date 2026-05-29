@@ -96,7 +96,7 @@ pub fn from_value<T>(value: Value) -> crate::Result<T>
 where
     T: DeserializeOwned,
 {
-    T::deserialize(value)
+    T::deserialize(apply_default_value_merges(value)?)
 }
 
 /// Deserializes every document in a YAML stream from a string.
@@ -335,6 +335,127 @@ fn with_optional_span<T>(result: Result<T, Error>, span: Option<Span>) -> Result
         Some(span) => with_span(result, span),
         None => result,
     }
+}
+
+fn value_key_is_merge_key(key: &Value) -> bool {
+    match key {
+        Value::String(value) => value == "<<",
+        Value::Tagged(tagged) if tagged.tag.is_yaml_core("merge") => {
+            tagged.value.as_str() == Some("<<")
+        }
+        _ => false,
+    }
+}
+
+fn value_needs_default_merge(value: &Value) -> bool {
+    let mut values = vec![value];
+    while let Some(value) = values.pop() {
+        match value {
+            Value::Mapping(mapping) => {
+                for (key, value) in mapping.as_slice() {
+                    if value_key_is_merge_key(key) {
+                        return true;
+                    }
+                    values.push(value);
+                }
+            }
+            Value::Sequence(sequence) => values.extend(sequence),
+            Value::Tagged(tagged) => values.push(&tagged.value),
+            _ => {}
+        }
+    }
+    false
+}
+
+fn apply_default_value_merges(mut value: Value) -> Result<Value, Error> {
+    if value_needs_default_merge(&value) {
+        value.apply_merge()?;
+    }
+    Ok(value)
+}
+
+fn merged_value_ref_entries(mapping: &Mapping) -> Result<Option<Vec<(&Value, &Value)>>, Error> {
+    let Some(merge_index) = mapping
+        .as_slice()
+        .iter()
+        .position(|(key, _)| value_key_is_merge_key(key))
+    else {
+        return Ok(None);
+    };
+
+    let mut entries = mapping
+        .as_slice()
+        .iter()
+        .enumerate()
+        .filter_map(|(index, (key, value))| (index != merge_index).then_some((key, value)))
+        .collect::<Vec<_>>();
+    let merge = &mapping.as_slice()[merge_index].1;
+    let merge_entries = value_ref_merge_entries(merge)?;
+    insert_missing_value_ref_entries(&mut entries, merge_entries);
+    Ok(Some(entries))
+}
+
+fn value_ref_merge_entries(merge: &Value) -> Result<Vec<(&Value, &Value)>, Error> {
+    match merge {
+        Value::Mapping(mapping) => Ok(merged_value_ref_entries(mapping)?.unwrap_or_else(|| {
+            mapping
+                .as_slice()
+                .iter()
+                .map(|(key, value)| (key, value))
+                .collect()
+        })),
+        Value::Sequence(sequence) => {
+            let mut entries = Vec::new();
+            for value in sequence {
+                match value {
+                    Value::Mapping(mapping) => {
+                        let merge_entries =
+                            merged_value_ref_entries(mapping)?.unwrap_or_else(|| {
+                                mapping
+                                    .as_slice()
+                                    .iter()
+                                    .map(|(key, value)| (key, value))
+                                    .collect()
+                            });
+                        insert_missing_value_ref_entries(&mut entries, merge_entries);
+                    }
+                    Value::Sequence(_) => {
+                        return Err(value_merge_error(
+                            "expected a mapping for merging, but found sequence",
+                        ));
+                    }
+                    Value::Tagged(_) => {
+                        return Err(value_merge_error("unexpected tagged value in merge"));
+                    }
+                    _ => {
+                        return Err(value_merge_error(
+                            "expected a mapping for merging, but found scalar",
+                        ));
+                    }
+                }
+            }
+            Ok(entries)
+        }
+        Value::Tagged(_) => Err(value_merge_error("unexpected tagged value in merge")),
+        _ => Err(value_merge_error(
+            "expected a mapping or list of mappings for merging, but found scalar",
+        )),
+    }
+}
+
+fn insert_missing_value_ref_entries<'a>(
+    entries: &mut Vec<(&'a Value, &'a Value)>,
+    merge_entries: Vec<(&'a Value, &'a Value)>,
+) {
+    for (key, value) in merge_entries {
+        if entries.iter().all(|(existing_key, _)| *existing_key != key) {
+            entries.push((key, value));
+        }
+    }
+}
+
+fn value_merge_error(message: &'static str) -> Error {
+    Error::new(message, None)
 }
 
 fn is_empty_null_node(node: &Node) -> bool {
@@ -2549,7 +2670,7 @@ impl<'de> de::Deserializer<'de> for Value {
     where
         V: Visitor<'de>,
     {
-        match self {
+        match apply_default_value_merges(self)? {
             Value::Null => visitor.visit_unit(),
             Value::Bool(value) => visitor.visit_bool(value),
             Value::Number(number) => visit_any_number(number, None, visitor),
@@ -2780,10 +2901,11 @@ impl<'de> de::Deserializer<'de> for Value {
     where
         V: Visitor<'de>,
     {
-        if explicit_core_null_value(&self)? {
+        let value = apply_default_value_merges(self)?;
+        if explicit_core_null_value(&value)? {
             return visitor.visit_none();
         }
-        match untag_value_owned(self) {
+        match untag_value_owned(value) {
             Value::Null => visitor.visit_none(),
             other => visitor.visit_some(other),
         }
@@ -2821,39 +2943,40 @@ impl<'de> de::Deserializer<'de> for Value {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_newtype_struct(untag_value_owned(self))
+        visitor.visit_newtype_struct(untag_value_owned(apply_default_value_merges(self)?))
     }
 
     fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        if let Some(bytes) = explicit_core_binary_bytes_value(&self)? {
+        let value = apply_default_value_merges(self)?;
+        if let Some(bytes) = explicit_core_binary_bytes_value(&value)? {
             return visitor.visit_seq(ByteBufSeqDeserializer::new(bytes));
         }
-        if yaml11_set_entries_value(&self)?.is_some() {
-            let entries = take_yaml11_set_entries_value(self).expect("checked explicit !!set");
+        if yaml11_set_entries_value(&value)?.is_some() {
+            let entries = take_yaml11_set_entries_value(value).expect("checked explicit !!set");
             return visitor.visit_seq(ValueSetKeySeqDeserializer {
                 entries: entries.into_iter(),
             });
         }
-        if yaml11_pair_items_value(&self, "omap")?.is_some() {
+        if yaml11_pair_items_value(&value, "omap")?.is_some() {
             let items =
-                take_yaml11_pair_items_value(self, "omap").expect("checked explicit !!omap");
+                take_yaml11_pair_items_value(value, "omap").expect("checked explicit !!omap");
             return visitor.visit_seq(ValueYaml11PairSeqDeserializer {
                 items: items.into_iter(),
                 suffix: "omap",
             });
         }
-        if yaml11_pair_items_value(&self, "pairs")?.is_some() {
+        if yaml11_pair_items_value(&value, "pairs")?.is_some() {
             let items =
-                take_yaml11_pair_items_value(self, "pairs").expect("checked explicit !!pairs");
+                take_yaml11_pair_items_value(value, "pairs").expect("checked explicit !!pairs");
             return visitor.visit_seq(ValueYaml11PairSeqDeserializer {
                 items: items.into_iter(),
                 suffix: "pairs",
             });
         }
-        match untag_value_owned(self) {
+        match untag_value_owned(value) {
             Value::Null => visitor.visit_seq(ValueSeqDeserializer {
                 items: Vec::new().into_iter(),
             }),
@@ -2887,15 +3010,16 @@ impl<'de> de::Deserializer<'de> for Value {
     where
         V: Visitor<'de>,
     {
-        if yaml11_pair_items_value(&self, "omap")?.is_some() {
+        let value = apply_default_value_merges(self)?;
+        if yaml11_pair_items_value(&value, "omap")?.is_some() {
             let items =
-                take_yaml11_pair_items_value(self, "omap").expect("checked explicit !!omap");
+                take_yaml11_pair_items_value(value, "omap").expect("checked explicit !!omap");
             return visitor.visit_map(ValueYaml11OmapDeserializer {
                 items: items.into_iter(),
                 value: None,
             });
         }
-        match untag_value_owned(self) {
+        match untag_value_owned(value) {
             Value::Null => visitor.visit_map(ValueMapDeserializer {
                 entries: Mapping::new().into_iter(),
                 value: None,
@@ -2929,7 +3053,7 @@ impl<'de> de::Deserializer<'de> for Value {
     where
         V: Visitor<'de>,
     {
-        match self {
+        match apply_default_value_merges(self)? {
             Value::String(variant) => visitor.visit_enum(variant.into_deserializer()),
             Value::Mapping(entries) if entries.len() == 1 => {
                 let mut entries = entries.into_iter();
@@ -3871,11 +3995,18 @@ impl<'de> de::Deserializer<'de> for &'de Value {
             Value::Sequence(items) => {
                 visitor.visit_seq(ValueRefSeqDeserializer { items, index: 0 })
             }
-            Value::Mapping(mapping) => visitor.visit_map(ValueRefMapDeserializer {
-                entries: mapping.as_slice(),
-                index: 0,
-                value: None,
-            }),
+            Value::Mapping(mapping) => match merged_value_ref_entries(mapping)? {
+                Some(entries) => visitor.visit_map(ValueRefMergedMapDeserializer {
+                    entries,
+                    index: 0,
+                    value: None,
+                }),
+                None => visitor.visit_map(ValueRefMapDeserializer {
+                    entries: mapping.as_slice(),
+                    index: 0,
+                    value: None,
+                }),
+            },
             Value::Tagged(tagged) => visitor.visit_enum(ValueRefTaggedEnumDeserializer {
                 tag: &tagged.tag,
                 value: &tagged.value,
@@ -4212,11 +4343,18 @@ impl<'de> de::Deserializer<'de> for &'de Value {
                 index: 0,
                 value: None,
             }),
-            Value::Mapping(mapping) => visitor.visit_map(ValueRefMapDeserializer {
-                entries: mapping.as_slice(),
-                index: 0,
-                value: None,
-            }),
+            Value::Mapping(mapping) => match merged_value_ref_entries(mapping)? {
+                Some(entries) => visitor.visit_map(ValueRefMergedMapDeserializer {
+                    entries,
+                    index: 0,
+                    value: None,
+                }),
+                None => visitor.visit_map(ValueRefMapDeserializer {
+                    entries: mapping.as_slice(),
+                    index: 0,
+                    value: None,
+                }),
+            },
             other => Err(type_error_value("mapping", other)),
         }
     }
@@ -4334,6 +4472,39 @@ impl<'de> MapAccess<'de> for ValueRefMapDeserializer<'de> {
         self.index += 1;
         self.value = Some(value);
         seed.deserialize(key).map(Some)
+    }
+
+    fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
+    where
+        V: de::DeserializeSeed<'de>,
+    {
+        let value = self
+            .value
+            .take()
+            .ok_or_else(|| Error::new("value requested before key", None))?;
+        seed.deserialize(value)
+    }
+}
+
+struct ValueRefMergedMapDeserializer<'a> {
+    entries: Vec<(&'a Value, &'a Value)>,
+    index: usize,
+    value: Option<&'a Value>,
+}
+
+impl<'de> MapAccess<'de> for ValueRefMergedMapDeserializer<'de> {
+    type Error = Error;
+
+    fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error>
+    where
+        K: de::DeserializeSeed<'de>,
+    {
+        let Some((key, value)) = self.entries.get(self.index) else {
+            return Ok(None);
+        };
+        self.index += 1;
+        self.value = Some(value);
+        seed.deserialize(*key).map(Some)
     }
 
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>

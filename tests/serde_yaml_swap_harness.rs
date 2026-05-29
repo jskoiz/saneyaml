@@ -326,6 +326,25 @@ job:
     reference.apply_merge().expect("serde_yaml apply_merge");
     assert_eq!(reference["job"]["retries"].as_u64(), Some(3));
     assert_eq!(reference["job"]["timeout"].as_u64(), Some(10));
+
+    let mut merge_source = Mapping::new();
+    merge_source.insert(Value::from("retries"), Value::from(3u64));
+    merge_source.insert(Value::from("timeout"), Value::from(30u64));
+    let mut caller_job = Mapping::new();
+    caller_job.insert(Value::from("<<"), Value::Mapping(merge_source));
+    caller_job.insert(Value::from("timeout"), Value::from(10u64));
+    let mut caller_root = Mapping::new();
+    caller_root.insert(Value::from("job"), Value::Mapping(caller_job));
+    let caller_built = Value::Mapping(caller_root);
+
+    let from_value: BTreeMap<String, BTreeMap<String, u64>> =
+        yaml::from_value(caller_built.clone()).expect("caller-built from_value merge");
+    let by_ref: BTreeMap<String, BTreeMap<String, u64>> =
+        BTreeMap::deserialize(&caller_built).expect("caller-built &Value merge");
+    assert_eq!(from_value["job"]["retries"], 3);
+    assert_eq!(from_value["job"]["timeout"], 10);
+    assert_eq!(by_ref, from_value);
+    assert!(caller_built["job"]["<<"].is_mapping());
 }
 
 #[test]

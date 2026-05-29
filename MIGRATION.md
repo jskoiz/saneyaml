@@ -48,8 +48,9 @@ runs the same upstream-compatible `serde_yaml` API calls once against
 `serde_yaml 0.9.34` and once against this package under the `serde_yaml`
 dependency name. The expanded smoke then covers this crate's extension surface,
 including root document-stream helpers, explicit YAML 1.1 `LoadOptions`,
-caller-built merge expansion, lossless graph identity inspection, writer paths,
-and diagnostic locations. A real-world package-alias smoke copies the checked-in
+caller-built default merge deserialization plus explicit in-place merge
+expansion, lossless graph identity inspection, writer paths, and diagnostic
+locations. A real-world package-alias smoke copies the checked-in
 GitHub Actions, Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and
 Ansible fixture registry into a clean downstream crate and parses representative
 fields through `serde_yaml::...` imports, including default Docker Compose merge
@@ -121,12 +122,14 @@ currently covers:
 - `Value`, `Mapping`, and `Number` patch-style usage
 - `to_value`, `to_string`, and `to_writer` structural writer paths
 - `with::singleton_map` enum field annotations
-- default untagged and explicit merge-tag expansion plus idempotent
-  `Value::apply_merge` for caller-built values
+- default untagged and explicit merge-tag expansion for parsed and caller-built
+  `Value` deserialization plus idempotent `Value::apply_merge` as an in-place
+  helper
 - value-backed bytes and writer byte rejection policy
 - empty input and empty stream behavior
-- the default merge-key migration decision: parsed `yaml::Value` expands `<<`
-  while `serde_yaml::Value` keeps the literal key until `apply_merge()`
+- the default merge-key migration decision: parsed `yaml::Value`, `from_value`,
+  and direct owned/borrowed `Value` Serde reads expand `<<`, while
+  `serde_yaml::Value` keeps the literal key until `apply_merge()`
 - real-world GitHub Actions, Docker Compose, Kubernetes, Helm, OpenAPI,
   Wrangler, and Ansible fixture fields compared against `serde_yaml`
 
@@ -280,9 +283,10 @@ testing each adopter's own YAML corpus.
   entry values and non-singleton `!!omap`/`!!pairs` entries are rejected for
   those typed reads instead of being silently dropped or flattened.
 - Untagged and explicit `!!merge` / canonical merge-tag keys are expanded by
-  default in loaded trees and Serde reads. `Value::apply_merge()` remains
-  available for caller-built values and is idempotent for values parsed by this
-  crate. Explicit `!!str <<` and custom-tagged `<<` keys stay literal.
+  default in loaded trees, `from_value`, and direct owned/borrowed `Value`
+  Serde reads. `Value::apply_merge()` remains available as an explicit
+  in-place helper and is idempotent for values parsed by this crate. Explicit
+  `!!str <<` and custom-tagged `<<` keys stay literal.
 - `yaml::Deserializer::from_str("")`, `from_slice(b"")`, and
   `from_reader(empty)` yield one null document, matching
   `serde_yaml::Deserializer::from_str("")`. Direct `from_str::<Value>("")` and
@@ -307,7 +311,7 @@ testing each adopter's own YAML corpus.
 
 | Area | Migration impact |
 |---|---|
-| Default merge expansion | Parsed `Node`/`Value`/Serde reads expand untagged and explicit merge-tag `<<` keys by default. Code that inspected merge syntax should switch to `parse_events` or `LosslessStream`; explicit `!!str <<` and custom-tagged `<<` keys remain literal. |
+| Default merge expansion | Parsed `Node`/`Value`, `from_value`, direct owned/borrowed `Value` deserializers, and other Serde reads expand untagged and explicit merge-tag `<<` keys by default. Code that inspected merge syntax should switch to `parse_events`, `LosslessStream`, or inspect caller-built `Value` before deserializing; explicit `!!str <<` and custom-tagged `<<` keys remain literal. |
 | YAML 1.1 compatibility | Legacy scalar, collection, and merge-edge recovery behavior is available through explicit schema/tag paths. Default entrypoints stay YAML 1.2-oriented, so corpora that require YAML 1.1 typing or Psych-style repeated/invalid merge recovery need opt-in tests. |
 | Alias graph identity | Semantic `Node`/`Value` trees still clone acyclic aliases. Graph-sensitive callers should use `LosslessStream`; its anchor definitions and alias targets are checked against reference parser anchor events for redefinition, recursive, document-reset, merge, YAML 1.1 merge/comment graph fixtures, manifest-owned selected YAML-suite anchor/alias cases, and manifest-owned real-world Docker Compose anchor cases including an adapted official Compose Specification fragment. |
 | Lossless formatting | `LosslessStream` preserves source, comments, trivia, directives, anchors, aliases, tags, and scalar spelling for replay/inspection. `LosslessEdit` can replace retained node or raw source spans, update scalar-keyed mapping values, insert or delete block mapping entries, update block sequence items, insert or delete block sequence items, insert source, delete source spans, and validate the final YAML while preserving untouched bytes. Manifest-owned real-world replay now gates Ansible tagged scalars plus Kubernetes streams and block scalar fixtures. |

@@ -31,6 +31,17 @@ struct LegacyDocument {
     octal: i64,
 }
 
+#[derive(Debug, Deserialize, PartialEq)]
+struct MergeRoot {
+    job: MergeJob,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct MergeJob {
+    retries: u64,
+    timeout: u64,
+}
+
 fn main() {
     let config: Config = serde_yaml::from_str("name: api\nports: [80, 443]\n").unwrap();
     assert_eq!(config.name, "api");
@@ -160,15 +171,26 @@ fn main() {
     let mut caller_built_job = serde_yaml::Mapping::new();
     caller_built_job.insert("<<".into(), serde_yaml::Value::Mapping(merge_source));
     caller_built_job.insert("timeout".into(), 10u64.into());
-    let mut caller_built = serde_yaml::Value::Mapping(
+    let caller_built = serde_yaml::Value::Mapping(
         [("job".into(), serde_yaml::Value::Mapping(caller_built_job))]
             .into_iter()
             .collect(),
     );
-    caller_built.apply_merge().unwrap();
-    assert_eq!(caller_built["job"]["retries"].as_u64(), Some(3));
-    assert_eq!(caller_built["job"]["timeout"].as_u64(), Some(10));
-    assert!(caller_built["job"]["<<"].is_null());
+    let decoded_merge: MergeRoot = serde_yaml::from_value(caller_built.clone()).unwrap();
+    let decoded_merge_module: MergeRoot =
+        serde_yaml::value::from_value(caller_built.clone()).unwrap();
+    let decoded_merge_ref = MergeRoot::deserialize(&caller_built).unwrap();
+    assert_eq!(decoded_merge.job.retries, 3);
+    assert_eq!(decoded_merge.job.timeout, 10);
+    assert_eq!(decoded_merge_module, decoded_merge);
+    assert_eq!(decoded_merge_ref, decoded_merge);
+    assert!(caller_built["job"]["<<"].is_mapping());
+
+    let mut explicit_merge = caller_built.clone();
+    explicit_merge.apply_merge().unwrap();
+    assert_eq!(explicit_merge["job"]["retries"].as_u64(), Some(3));
+    assert_eq!(explicit_merge["job"]["timeout"].as_u64(), Some(10));
+    assert!(explicit_merge["job"]["<<"].is_null());
 
     let lossless = serde_yaml::parse_lossless("base: &base\n  item: 1\ncopy: *base\n").unwrap();
     assert_eq!(lossless.aliases().len(), 1);

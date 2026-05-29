@@ -70,6 +70,18 @@ struct DefaultedCollections {
     labels: BTreeMap<String, String>,
 }
 
+#[derive(Debug, Deserialize, PartialEq)]
+struct CallerBuiltMergeRoot {
+    job: CallerBuiltMergeJob,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct CallerBuiltMergeJob {
+    retries: u64,
+    timeout: u64,
+    command: String,
+}
+
 #[derive(Debug, Serialize)]
 struct SerializableConfig {
     name: String,
@@ -225,6 +237,22 @@ fn hash_of<T: Hash>(value: &T) -> u64 {
     let mut hasher = DefaultHasher::new();
     value.hash(&mut hasher);
     hasher.finish()
+}
+
+fn caller_built_merge_value() -> Value {
+    let mut defaults = Mapping::new();
+    defaults.insert(Value::from("retries"), Value::from(3u64));
+    defaults.insert(Value::from("timeout"), Value::from(30u64));
+    defaults.insert(Value::from("command"), Value::from("deploy"));
+
+    let mut job = Mapping::new();
+    job.insert(Value::from("<<"), Value::Mapping(defaults));
+    job.insert(Value::from("timeout"), Value::from(10u64));
+    job.insert(Value::from("command"), Value::from("smoke"));
+
+    let mut root = Mapping::new();
+    root.insert(Value::from("job"), Value::Mapping(job));
+    Value::Mapping(root)
 }
 
 fn assert_value_traits<T: Eq + Hash + PartialOrd>() {}
@@ -4711,6 +4739,130 @@ job:
     );
     assert_eq!(value["job"]["retries"].as_u64(), Some(3));
     assert_eq!(value["job"]["command"].as_str(), Some("smoke"));
+}
+
+#[test]
+fn serde_api_caller_built_value_deserializers_expand_merge_keys_by_default() {
+    let value = caller_built_merge_value();
+    let expected = CallerBuiltMergeRoot {
+        job: CallerBuiltMergeJob {
+            retries: 3,
+            timeout: 10,
+            command: "smoke".to_string(),
+        },
+    };
+
+    let from_value: CallerBuiltMergeRoot =
+        yaml::from_value(value.clone()).expect("from_value expands caller-built merge");
+    let direct: CallerBuiltMergeRoot =
+        CallerBuiltMergeRoot::deserialize(value.clone()).expect("Value deserializer expands merge");
+    let into_deserializer: CallerBuiltMergeRoot =
+        CallerBuiltMergeRoot::deserialize(value.clone().into_deserializer())
+            .expect("IntoDeserializer expands merge");
+    let by_ref: CallerBuiltMergeRoot =
+        CallerBuiltMergeRoot::deserialize(&value).expect("&Value deserializer expands merge");
+
+    assert_eq!(from_value, expected);
+    assert_eq!(direct, expected);
+    assert_eq!(into_deserializer, expected);
+    assert_eq!(by_ref, expected);
+
+    let normalized: Value = yaml::from_value(value.clone()).expect("from_value to Value");
+    assert!(normalized["job"]["<<"].is_null());
+    assert_eq!(normalized["job"]["retries"].as_u64(), Some(3));
+    assert_eq!(normalized["job"]["timeout"].as_u64(), Some(10));
+    assert_eq!(normalized["job"]["command"].as_str(), Some("smoke"));
+    assert!(
+        value["job"]
+            .as_mapping()
+            .expect("raw job mapping")
+            .keys()
+            .any(|key| key.as_str() == Some("<<")),
+        "borrowed/default reads must not mutate the caller-built value"
+    );
+}
+
+#[test]
+fn serde_api_caller_built_value_merge_respects_literal_tagged_keys() {
+    let mut defaults = Mapping::new();
+    defaults.insert(Value::from("retries"), Value::from(3u64));
+
+    let mut target = Mapping::new();
+    target.insert(
+        Value::Tagged(Box::new(TaggedValue {
+            tag: Tag::new("!!merge"),
+            value: Value::from("<<"),
+        })),
+        Value::Mapping(defaults),
+    );
+    target.insert(
+        Value::Tagged(Box::new(TaggedValue {
+            tag: Tag::new("!!str"),
+            value: Value::from("<<"),
+        })),
+        Value::from("literal"),
+    );
+    target.insert(
+        Value::Tagged(Box::new(TaggedValue {
+            tag: Tag::new("!Thing"),
+            value: Value::from("<<"),
+        })),
+        Value::from("custom"),
+    );
+    target.insert(Value::from("command"), Value::from("smoke"));
+
+    let normalized: Value =
+        yaml::from_value(Value::Mapping(target)).expect("caller-built tagged merge");
+    assert_eq!(normalized["retries"].as_u64(), Some(3));
+    assert_eq!(normalized["command"].as_str(), Some("smoke"));
+
+    let keys = normalized
+        .as_mapping()
+        .expect("normalized mapping")
+        .keys()
+        .collect::<Vec<_>>();
+    assert!(
+        keys.iter().all(|key| !matches!(key, Value::Tagged(tagged)
+            if tagged.tag == yaml::Tag::new("!!merge")
+                && tagged.value.as_str() == Some("<<"))),
+        "semantic merge-tag keys must be removed"
+    );
+    assert!(
+        keys.iter().any(|key| matches!(key, Value::Tagged(tagged)
+            if tagged.tag == yaml::Tag::new("!!str")
+                && tagged.value.as_str() == Some("<<"))),
+        "explicit string merge spelling stays literal"
+    );
+    assert!(
+        keys.iter().any(|key| matches!(key, Value::Tagged(tagged)
+            if tagged.tag == yaml::Tag::new("!Thing")
+                && tagged.value.as_str() == Some("<<"))),
+        "custom-tagged merge spelling stays literal"
+    );
+}
+
+#[test]
+fn serde_api_caller_built_value_merge_reports_invalid_payloads() {
+    let mut target = Mapping::new();
+    target.insert(Value::from("<<"), Value::from("scalar"));
+
+    let error = yaml::from_value::<Value>(Value::Mapping(target.clone()))
+        .expect_err("from_value rejects invalid caller-built merge payload");
+    assert!(
+        error
+            .to_string()
+            .contains("expected a mapping or list of mappings for merging, but found scalar"),
+        "{error}"
+    );
+
+    let error = Value::deserialize(Value::Mapping(target))
+        .expect_err("direct Value deserializer rejects invalid caller-built merge payload");
+    assert!(
+        error
+            .to_string()
+            .contains("expected a mapping or list of mappings for merging, but found scalar"),
+        "{error}"
+    );
 }
 
 #[test]

@@ -95,7 +95,7 @@ struct LegacyService {
 #[test]
 fn yaml11_conformance_manifest_is_complete() {
     let manifest = manifest();
-    assert_eq!(manifest.case.len(), 20);
+    assert_eq!(manifest.case.len(), 21);
     let manifest_paths = manifest
         .case
         .iter()
@@ -287,6 +287,8 @@ fn yaml11_collection_tags_reject_lossy_typed_shapes() {
             .contains("expected explicit !!set entry value to be null"),
         "{error}"
     );
+    assert_eq!(error.line(), Some(1));
+    assert_eq!(error.column(), Some(15));
 
     let omap_source = read_fixture("omap-rejects-non-singleton-entry.yaml");
     let error = yaml::from_str::<Vec<(String, i64)>>(&omap_source)
@@ -297,6 +299,20 @@ fn yaml11_collection_tags_reject_lossy_typed_shapes() {
             .contains("expected explicit !!omap entry to contain exactly one pair"),
         "{error}"
     );
+    assert_eq!(error.line(), Some(2));
+    assert_eq!(error.column(), Some(3));
+
+    let pairs_source = read_fixture("pairs-rejects-scalar-entry.yaml");
+    let error = yaml::from_str::<Vec<(String, i64)>>(&pairs_source)
+        .expect_err("scalar !!pairs entries are not flattened");
+    assert!(
+        error
+            .to_string()
+            .contains("expected single-pair mapping entry for explicit !!pairs"),
+        "{error}"
+    );
+    assert_eq!(error.line(), Some(2));
+    assert_eq!(error.column(), Some(3));
 }
 
 #[test]

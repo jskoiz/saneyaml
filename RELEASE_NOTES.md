@@ -52,7 +52,8 @@ Notable completed release-candidate behavior:
   construction, null and float spellings, timestamp time-zone forms, explicit
   binary, collection, and structural tags, invalid binary typed-target diagnostics,
   flow-style scalar collections and mapping keys, merge-key expansion under
-  legacy schema selection, and boolean/numeric-key duplicate diagnostics.
+  legacy schema selection, malformed collection-tag typed-read diagnostics, and
+  boolean/numeric-key duplicate diagnostics.
 - `parse_lossless` / `LosslessStream` preserve comments, trivia, anchors,
   aliases, and stable graph ids for source-backed inspection, replay, and
   validated node/source-span edits, insertions, and deletions that preserve

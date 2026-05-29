@@ -31,6 +31,9 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "alias-graph-identity",
         "explicit-core-tags",
         "yaml11-collection-tags",
+        "yaml11-set-non-null-payload",
+        "yaml11-omap-non-singleton-entry",
+        "yaml11-pairs-scalar-entry",
         "yaml11-core-structural-tags",
         "legacy-merge-edge-recovery",
         "explicit-merge-tags",
@@ -52,7 +55,7 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_eq!(artifact["libyaml"], "0.2.1");
 
     let cases = artifact["cases"].as_array().expect("probe cases array");
-    assert_eq!(cases.len(), 32);
+    assert_eq!(cases.len(), 35);
 
     let expected_ids = BTreeSet::from([
         "adjacent-flow-mapping-scalars",
@@ -86,6 +89,9 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
         "tag-directive-scope-and-undeclared-handles",
         "yaml-version-directive-schema",
         "yaml11-collection-tags",
+        "yaml11-omap-non-singleton-entry",
+        "yaml11-pairs-scalar-entry",
+        "yaml11-set-non-null-payload",
         "yaml11-core-structural-tags",
     ]);
     let actual_ids = cases
@@ -149,6 +155,12 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_case_summary_contains(&artifact, "yaml11-collection-tags", "Psych::Set");
     assert_case_summary_contains(&artifact, "yaml11-collection-tags", "Psych::Omap");
     assert_case_summary_contains(&artifact, "yaml11-collection-tags", "repeat");
+    assert_case_summary_contains(&artifact, "yaml11-set-non-null-payload", "Psych::Set");
+    assert_case_summary_contains(&artifact, "yaml11-set-non-null-payload", "TrueClass");
+    assert_case_summary_contains(&artifact, "yaml11-omap-non-singleton-entry", "Psych::Omap");
+    assert_case_summary_contains(&artifact, "yaml11-omap-non-singleton-entry", "first");
+    assert_case_summary_contains(&artifact, "yaml11-pairs-scalar-entry", "Array");
+    assert_case_summary_contains(&artifact, "yaml11-pairs-scalar-entry", "scalar");
     assert_case_summary_contains(&artifact, "yaml11-core-structural-tags", "Array");
     assert_case_summary_contains(&artifact, "yaml11-core-structural-tags", "Hash");
     assert_case_summary_contains(&artifact, "yaml11-core-structural-tags", "value_mapping");
@@ -503,6 +515,12 @@ fn run_rust_probe_case(case: &Toml) -> RustProbe {
             yaml::LoadOptions::yaml_version_directive()
                 .from_str::<yaml::Value>(&input)
                 .map(|value| format!("{value:#?}")),
+        ),
+        "typed-set-strings" => rust_probe_from_result(
+            yaml::from_str::<BTreeSet<String>>(&input).map(|value| format!("{value:#?}")),
+        ),
+        "typed-string-i64-pairs" => rust_probe_from_result(
+            yaml::from_str::<Vec<(String, i64)>>(&input).map(|value| format!("{value:#?}")),
         ),
         "events" => {
             rust_probe_from_result(yaml::parse_events(&input).map(|events| format!("{events:#?}")))

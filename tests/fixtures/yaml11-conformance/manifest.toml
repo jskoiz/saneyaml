@@ -55,6 +55,13 @@ tag = "!!omap"
 expected = "error"
 
 [[case]]
+id = "pairs-rejects-scalar-entry"
+path = "pairs-rejects-scalar-entry.yaml"
+kind = "pairs"
+tag = "!!pairs"
+expected = "error"
+
+[[case]]
 id = "legacy-migration-pack"
 path = "legacy-migration-pack.yaml"
 kind = "scalar-matrix"

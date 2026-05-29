@@ -4,7 +4,7 @@ comparison_manifest = "tests/fixtures/divergences/probes/psych-libyaml-compariso
 ruby = "2.6.10"
 psych = "3.1.0"
 libyaml = "0.2.1"
-probe_case_count = 32
+probe_case_count = 35
 behavior_family_count = 8
 tracked_gap_count = 7
 coverage_policy = "Pinned Psych/libyaml cases are grouped by behavior family. Covered families are executable proof for the listed cases, not blanket YAML 1.1/libyaml compatibility."
@@ -73,12 +73,15 @@ summary = "Explicit core, collection, and structural YAML 1.1 tags across short,
 cases = [
   "explicit-core-tags",
   "yaml11-collection-tags",
+  "yaml11-set-non-null-payload",
+  "yaml11-omap-non-singleton-entry",
+  "yaml11-pairs-scalar-entry",
   "yaml11-core-structural-tags",
   "core-structural-tags",
 ]
-rust_entrypoints = ["yaml11-value", "directive-value"]
+rust_entrypoints = ["yaml11-value", "directive-value", "typed-set-strings", "typed-string-i64-pairs"]
 adoption_risk = "Typed reads expose YAML 1.1 shapes, while retained trees preserve tag metadata instead of Psych object classes."
-next_expansion = "Add malformed set/omap/pairs payloads, custom tag handles, and explicit tag typed-target coverage."
+next_expansion = "Add value-mapping duplicate payloads, custom tag handles, and explicit tag typed-target coverage."
 
 [[behavior_family]]
 id = "directives-and-documents"
@@ -150,8 +153,8 @@ next_probe_candidates = ["graph-aware semantic API decision", "documented non-go
 [[tracked_gap]]
 id = "collection-tag-malformed-payloads"
 family = "yaml11-tags-and-structures"
-reason = "Valid set/omap/pairs/seq/map/value payloads are covered; malformed YAML 1.1 structural tag diagnostics need broader probes."
-next_probe_candidates = ["non-singleton omap entry", "set non-null values", "pairs scalar entry", "value mapping duplicates"]
+reason = "Representative malformed set, omap, and pairs typed-read diagnostics are covered; value-mapping duplicate and custom-handle payload variants remain open."
+next_probe_candidates = ["value mapping duplicates", "custom tag handles", "explicit tag typed-target variants"]
 
 [[tracked_gap]]
 id = "directive-stream-boundary-matrix"

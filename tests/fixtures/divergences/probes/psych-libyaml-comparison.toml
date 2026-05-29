@@ -268,6 +268,39 @@ pairs: !!pairs
 rust_contains = ["Tagged", "set", "omap", "pairs"]
 
 [[case]]
+id = "yaml11-set-non-null-payload"
+record = "tests/fixtures/divergences/records/yaml11-collection-tags.toml"
+psych_status = "ok"
+rust_entrypoint = "typed-set-strings"
+rust_status = "error"
+rust_policy = "intentional-divergence"
+reason = "Psych keeps non-null !!set payload values in a Psych::Set; typed Rust set reads reject lossy non-null values with spans instead of silently discarding them."
+fixture = "tests/fixtures/yaml11-conformance/set-rejects-non-null-values.yaml"
+rust_error_contains = "expected explicit !!set entry value to be null"
+
+[[case]]
+id = "yaml11-omap-non-singleton-entry"
+record = "tests/fixtures/divergences/records/yaml11-collection-tags.toml"
+psych_status = "ok"
+rust_entrypoint = "typed-string-i64-pairs"
+rust_status = "error"
+rust_policy = "intentional-divergence"
+reason = "Psych recovers malformed !!omap entries with Ruby object construction, while typed Rust omap reads require each entry to contain exactly one key/value pair."
+fixture = "tests/fixtures/yaml11-conformance/omap-rejects-non-singleton-entry.yaml"
+rust_error_contains = "expected explicit !!omap entry to contain exactly one pair"
+
+[[case]]
+id = "yaml11-pairs-scalar-entry"
+record = "tests/fixtures/divergences/records/yaml11-collection-tags.toml"
+psych_status = "ok"
+rust_entrypoint = "typed-string-i64-pairs"
+rust_status = "error"
+rust_policy = "intentional-divergence"
+reason = "Psych constructs a scalar item inside !!pairs as an array item; typed Rust pair reads reject scalar entries because they cannot preserve key/value pair shape."
+fixture = "tests/fixtures/yaml11-conformance/pairs-rejects-scalar-entry.yaml"
+rust_error_contains = "expected single-pair mapping entry for explicit !!pairs"
+
+[[case]]
 id = "yaml11-core-structural-tags"
 record = "tests/fixtures/divergences/records/yaml11-core-structural-tags.toml"
 psych_status = "ok"

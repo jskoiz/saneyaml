@@ -1414,6 +1414,66 @@
       "input_bytes": 113
     },
     {
+      "id": "yaml11-set-non-null-payload",
+      "record": "tests/fixtures/divergences/records/yaml11-collection-tags.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Psych::Set",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "alpha"
+            },
+            "value": {
+              "class": "TrueClass",
+              "value": true
+            }
+          }
+        ]
+      },
+      "input_sha256": "e9e10f042d7e2fd10d27ce1aa16d19ed3e8bf1c7a26fc6a3ccbb2c69e21ddbc6",
+      "input_bytes": 20
+    },
+    {
+      "id": "yaml11-omap-non-singleton-entry",
+      "record": "tests/fixtures/divergences/records/yaml11-collection-tags.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Psych::Omap",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "first"
+            },
+            "value": {
+              "class": "Integer",
+              "value": "2"
+            }
+          }
+        ]
+      },
+      "input_sha256": "0424ba82244fafd19a5f3157a0501ec045e3f7eb72e8c9f6460f09fbab676e15",
+      "input_bytes": 31
+    },
+    {
+      "id": "yaml11-pairs-scalar-entry",
+      "record": "tests/fixtures/divergences/records/yaml11-collection-tags.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Array",
+        "items": [
+          {
+            "class": "String",
+            "value": "scalar"
+          }
+        ]
+      },
+      "input_sha256": "3164cf09067ebd37bda2b2944d772ebe05e5eec4d068710257460442bcceb2a8",
+      "input_bytes": 17
+    },
+    {
       "id": "yaml11-core-structural-tags",
       "record": "tests/fixtures/divergences/records/yaml11-core-structural-tags.toml",
       "status": "ok",

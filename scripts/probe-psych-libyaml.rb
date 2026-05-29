@@ -216,6 +216,21 @@ CASES = [
     YAML
   },
   {
+    id: "yaml11-set-non-null-payload",
+    record: "tests/fixtures/divergences/records/yaml11-collection-tags.toml",
+    yaml: fixture_yaml("tests/fixtures/yaml11-conformance/set-rejects-non-null-values.yaml")
+  },
+  {
+    id: "yaml11-omap-non-singleton-entry",
+    record: "tests/fixtures/divergences/records/yaml11-collection-tags.toml",
+    yaml: fixture_yaml("tests/fixtures/yaml11-conformance/omap-rejects-non-singleton-entry.yaml")
+  },
+  {
+    id: "yaml11-pairs-scalar-entry",
+    record: "tests/fixtures/divergences/records/yaml11-collection-tags.toml",
+    yaml: fixture_yaml("tests/fixtures/yaml11-conformance/pairs-rejects-scalar-entry.yaml")
+  },
+  {
     id: "yaml11-core-structural-tags",
     record: "tests/fixtures/divergences/records/yaml11-core-structural-tags.toml",
     yaml: <<~YAML

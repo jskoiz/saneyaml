@@ -8,6 +8,11 @@ and explicit user approval for a crates.io push.
 
 Notable completed release-candidate behavior:
 
+- `Cargo.toml` now has an explicit package include boundary for the developer
+  preview: source, examples, and public docs are package contents, while
+  repository-only fixtures, downstream reductions, fuzz corpora, CI files, and
+  proof scripts stay local until the public license/redistribution policy is
+  selected.
 - Default loaded-tree, `from_value`, direct owned/borrowed `Value`
   deserializers, and Serde reads expand untagged and explicit `!!merge` /
   canonical merge-tag keys while raw parser events retain merge syntax and tag

@@ -10,6 +10,19 @@ repository = "https://github.com/jskoiz/yaml"
 keywords = ["yaml", "serde", "parser", "configuration"]
 categories = ["config", "encoding", "parser-implementations"]
 publish = false
+include = [
+    "/Cargo.lock",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE.md",
+    "/BENCHMARKS.md",
+    "/COMPATIBILITY.md",
+    "/DEVELOPER_PREVIEW.md",
+    "/MIGRATION.md",
+    "/RELEASE_NOTES.md",
+    "/examples/**",
+    "/src/**",
+]
 
 [dependencies]
 ryu = "1.0"

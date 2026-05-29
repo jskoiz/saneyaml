@@ -8,6 +8,10 @@ Status: local developer preview. The crate is intentionally not published yet
 decisions. Start with [DEVELOPER_PREVIEW.md](DEVELOPER_PREVIEW.md),
 [MIGRATION.md](MIGRATION.md), [COMPATIBILITY.md](COMPATIBILITY.md), and
 [BASELINE.md](BASELINE.md) before evaluating it in another project.
+The Cargo package include list is explicit: it packages source, examples, and
+public documentation, while repository-only fixtures, fuzz corpora, CI files,
+and proof scripts remain local evidence until the final redistribution policy is
+chosen.
 
 The first milestone focuses on:
 
@@ -138,7 +142,7 @@ scripts/fuzz-release-sweep.sh
 ```
 
 `tests/baseline_audit.rs` verifies that `BASELINE.md` matches the committed
-manifest, registry, migration report, corpus, and command evidence. `cargo
+manifest, registry, migration report, package boundary, corpus, and command evidence. `cargo
 fuzz` is optional for ordinary development; the script copies corpora to a
 temporary directory before running all eight targets so it does not grow tracked
 corpus files. CI runs that script with one requested pass per target to verify

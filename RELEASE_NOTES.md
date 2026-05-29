@@ -78,6 +78,10 @@ Notable completed release-candidate behavior:
   recovery, non-mergeable merge payload recovery, fixture-backed YAML 1.1
   merge/tag/graph cross-checks, and alias object identity as deliberate
   compatibility decisions.
+- Fuzz release proof now has a manual `scripts/fuzz-release-sweep.sh` path that
+  records target names, corpus counts, run counts, statuses, elapsed time, and
+  artifact directories, while `parser_properties` gates corpus target parity,
+  release floors, and named safety seeds.
 
 Known release-candidate gaps remain tracked in `BASELINE.md`,
 `COMPATIBILITY.md`, and `MIGRATION.md`: complete YAML 1.1 ecosystem parity,

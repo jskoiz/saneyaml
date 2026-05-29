@@ -321,7 +321,9 @@ testing each adopter's own YAML corpus.
 - Keep migration-impact wording current as new divergence records are added.
 - Keep growing default merge, `apply_merge`, emitter, and lossless graph
   coverage with sustained fuzz runs and minimized discoveries beyond the
-  curated seed corpus.
+  curated seed corpus. `scripts/fuzz-release-sweep.sh` is the release-audit path
+  for recording per-target corpus counts, run counts, elapsed time, statuses,
+  and artifact directories before a release candidate.
 - Finish broader YAML 1.1/libyaml compatibility decisions beyond the
   fixture-backed Psych/libyaml merge/tag/graph cross-checks, full structural
   lossless formatting/emission beyond source-span editing, and the long-term

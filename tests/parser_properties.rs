@@ -4,7 +4,7 @@ use serde::{
     de::{self, DeserializeOwned, Visitor},
 };
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fmt, fs,
     io::Cursor,
     path::{Path, PathBuf},
@@ -14,6 +14,48 @@ use yaml::{
     LosslessStream, LosslessTriviaKind, Node, NodeId, NodeValue, Number, Schema, Span, Tag,
     TaggedNode, Value,
 };
+
+const EMPTY_REQUIRED_SEEDS: &[&str] = &[];
+const EVENT_STREAM_REQUIRED_SEEDS: &[&str] = &[
+    "alias-expansion-bomb",
+    "alias-recursive-flow",
+    "docker-compose-anchors",
+    "directive-tag-handle",
+    "yts-zxt5-implicit-key-adjacent-newline",
+];
+const EMIT_ROUNDTRIP_REQUIRED_SEEDS: &[&str] = &[
+    "anchors-and-aliases",
+    "default-merge",
+    "yaml11-directive-tags-merge",
+];
+const APPLY_MERGE_REQUIRED_SEEDS: &[&str] = &[
+    "apply-merge-scalar-error",
+    "apply-merge-sequence-element-error",
+    "apply-merge-single",
+    "apply-merge-tagged-container-recursion",
+    "docker-compose-compose-anchors",
+];
+const SCHEMA_MODES_REQUIRED_SEEDS: &[&str] = &[
+    "yaml11-collection-tags",
+    "yaml11-directive-driven",
+    "yaml11-explicit-merge-tags",
+    "yaml11-scalar-edge-stream",
+    "yaml12-config-words",
+];
+const LOSSLESS_GRAPH_REQUIRED_SEEDS: &[&str] = &[
+    "comments_anchor.yml",
+    "document_reset_anchor.yml",
+    "recursive_alias.yml",
+    "yaml11_merge_comments_alias_graph.yml",
+    "yaml11_recursive_merge_comments.yml",
+];
+const LOSSLESS_EDIT_REQUIRED_SEEDS: &[&str] = &[
+    "delete-compose-root-source",
+    "insert-document-comment",
+    "replace-flow-mapping",
+    "replace-scalar",
+    "replace-tagged-block-scalar",
+];
 
 proptest! {
     #![proptest_config(ProptestConfig {
@@ -247,6 +289,38 @@ fn apply_merge_semantic_corpus_matches_serde_yaml() {
 }
 
 #[test]
+fn fuzz_corpora_cover_release_targets_and_named_safety_seeds() {
+    let expected: BTreeMap<&str, (usize, &[&str])> = BTreeMap::from([
+        ("apply_merge", (16, APPLY_MERGE_REQUIRED_SEEDS)),
+        ("emit_roundtrip", (11, EMIT_ROUNDTRIP_REQUIRED_SEEDS)),
+        ("event_stream", (80, EVENT_STREAM_REQUIRED_SEEDS)),
+        ("lossless_edit", (9, LOSSLESS_EDIT_REQUIRED_SEEDS)),
+        ("lossless_graph", (16, LOSSLESS_GRAPH_REQUIRED_SEEDS)),
+        ("parse_bytes", (800, EMPTY_REQUIRED_SEEDS)),
+        ("schema_modes", (14, SCHEMA_MODES_REQUIRED_SEEDS)),
+        ("serde_entrypoints", (250, EMPTY_REQUIRED_SEEDS)),
+    ]);
+    let expected_targets = expected.keys().copied().collect::<BTreeSet<_>>();
+    assert_eq!(declared_fuzz_targets(), expected_targets);
+    assert_eq!(fuzz_corpus_targets(), expected_targets);
+
+    for (target, (minimum_files, required_seeds)) in expected {
+        let seeds = fuzz_corpus_file_names(target);
+        assert!(
+            seeds.len() >= minimum_files,
+            "{target} corpus has {} files; release floor is {minimum_files}",
+            seeds.len()
+        );
+        for required_seed in required_seeds {
+            assert!(
+                seeds.contains(*required_seed),
+                "{target} corpus must keep release safety seed {required_seed}"
+            );
+        }
+    }
+}
+
+#[test]
 fn malformed_block_scalar_header_corpus_rejects_with_in_bounds_spans() {
     for (name, input) in malformed_block_scalar_header_inputs() {
         for error in [
@@ -302,6 +376,64 @@ fn fuzz_corpus_inputs(target: &str) -> Vec<(String, Vec<u8>)> {
     let mut inputs = Vec::new();
     collect_all_files(&root, &root, &mut inputs);
     inputs
+}
+
+fn fuzz_corpus_file_names(target: &str) -> BTreeSet<String> {
+    fuzz_corpus_inputs(target)
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect()
+}
+
+fn fuzz_corpus_targets() -> BTreeSet<&'static str> {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fuzz/corpus");
+    fs::read_dir(&root)
+        .unwrap_or_else(|error| panic!("read corpus root {}: {error}", root.display()))
+        .map(|entry| {
+            let path = entry
+                .unwrap_or_else(|error| panic!("read corpus root entry: {error}"))
+                .path();
+            let name = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or_else(|| panic!("corpus dir has UTF-8 filename: {}", path.display()));
+            match name {
+                "apply_merge" => "apply_merge",
+                "emit_roundtrip" => "emit_roundtrip",
+                "event_stream" => "event_stream",
+                "lossless_edit" => "lossless_edit",
+                "lossless_graph" => "lossless_graph",
+                "parse_bytes" => "parse_bytes",
+                "schema_modes" => "schema_modes",
+                "serde_entrypoints" => "serde_entrypoints",
+                other => panic!("unexpected fuzz corpus target {other}"),
+            }
+        })
+        .collect()
+}
+
+fn declared_fuzz_targets() -> BTreeSet<&'static str> {
+    let manifest: toml::Value =
+        toml::from_str(include_str!("../fuzz/Cargo.toml")).expect("fuzz Cargo.toml parses");
+    manifest["bin"]
+        .as_array()
+        .expect("fuzz Cargo.toml declares bin targets")
+        .iter()
+        .map(|bin| {
+            let name = bin["name"].as_str().expect("fuzz bin declares name");
+            match name {
+                "apply_merge" => "apply_merge",
+                "emit_roundtrip" => "emit_roundtrip",
+                "event_stream" => "event_stream",
+                "lossless_edit" => "lossless_edit",
+                "lossless_graph" => "lossless_graph",
+                "parse_bytes" => "parse_bytes",
+                "schema_modes" => "schema_modes",
+                "serde_entrypoints" => "serde_entrypoints",
+                other => panic!("unexpected fuzz target {other}"),
+            }
+        })
+        .collect()
 }
 
 fn collect_yaml_fixtures(path: &Path, root: &Path, inputs: &mut Vec<(String, Vec<u8>)>) {

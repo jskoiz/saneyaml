@@ -108,6 +108,7 @@ cargo clippy --all-targets -- -D warnings
 cargo clippy --manifest-path fuzz/Cargo.toml --all-targets -- -D warnings
 cargo run --release --example real_world_benchmark
 scripts/fuzz-smoke-nonmutating.sh
+scripts/fuzz-release-sweep.sh
 ```
 
 `tests/baseline_audit.rs` verifies that `BASELINE.md` matches the committed
@@ -115,6 +116,10 @@ manifest, registry, migration report, corpus, and command evidence. `cargo
 fuzz` is optional for ordinary development; the script copies corpora to a
 temporary directory before running all eight targets so it does not grow tracked
 corpus files. CI runs that script with one requested pass per target to verify
-the wiring; sustained fuzzing remains a separate release-readiness activity.
+the wiring. `scripts/fuzz-release-sweep.sh` is the manual release gate: it runs
+the same eight targets with a configurable budget and writes a summary with
+target names, corpus counts, run counts, statuses, elapsed time, and artifact
+directories. Sustained fuzzing and minimized findings remain separate
+release-readiness activity.
 Parser safety properties are also exercised by
 `tests/parser_properties.rs`, which runs with plain `cargo test`.

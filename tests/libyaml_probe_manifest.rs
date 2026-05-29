@@ -74,6 +74,7 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_case_summary_contains(&artifact, "legacy-scalar-resolution", "Infinity");
     assert_case_summary_contains(&artifact, "rw-github-actions-on-key", "TrueClass");
     assert_case_summary_contains(&artifact, "merge-keys", "app:v2");
+    assert_merge_key_precedence(&artifact);
     let alias_graph = case_by_id(&artifact, "alias-graph-identity");
     assert_eq!(alias_graph["summary"]["shared_alias_identity"], true);
     assert_eq!(alias_graph["summary"]["mutation_visible_in_b"], 2);
@@ -131,4 +132,44 @@ fn case_by_id<'a>(artifact: &'a Json, id: &str) -> &'a Json {
         .iter()
         .find(|case| case["id"] == id)
         .unwrap_or_else(|| panic!("missing probe case {id}"))
+}
+
+fn assert_merge_key_precedence(artifact: &Json) {
+    let case = case_by_id(artifact, "merge-keys");
+    assert_eq!(case["status"], "ok");
+    let summary = &case["summary"];
+
+    assert_mapping_entry_value(summary, "service", "image", "app:v2");
+    assert_mapping_entry_value(summary, "service", "replicas", "2");
+
+    assert_mapping_entry_value(summary, "list_service", "shared", "first");
+    assert_mapping_entry_value(summary, "list_service", "image", "app:first");
+    assert_mapping_entry_value(summary, "list_service", "timeout", "10");
+    assert_mapping_entry_value(summary, "list_service", "retries", "3");
+
+    assert_mapping_entry_value(summary, "explicit_service", "shared", "explicit");
+    assert_mapping_entry_value(summary, "explicit_service", "image", "app:first");
+    assert_mapping_entry_value(summary, "explicit_service", "timeout", "explicit");
+    assert_mapping_entry_value(summary, "explicit_service", "retries", "3");
+}
+
+fn assert_mapping_entry_value(summary: &Json, mapping_key: &str, entry_key: &str, expected: &str) {
+    let mapping = entry_value(summary, mapping_key);
+    let value = entry_value(mapping, entry_key);
+    assert_eq!(
+        value["value"].as_str(),
+        Some(expected),
+        "{mapping_key}.{entry_key}"
+    );
+}
+
+fn entry_value<'a>(summary: &'a Json, key: &str) -> &'a Json {
+    let entries = summary["entries"]
+        .as_array()
+        .expect("summary entries array");
+    entries
+        .iter()
+        .find(|entry| entry["key"]["value"] == key)
+        .map(|entry| &entry["value"])
+        .unwrap_or_else(|| panic!("missing summary entry {key}"))
 }

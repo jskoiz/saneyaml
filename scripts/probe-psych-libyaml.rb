@@ -49,6 +49,20 @@ CASES = [
       service:
         <<: *base
         image: app:v2
+      first: &first
+        shared: first
+        image: app:first
+        retries: 3
+      second: &second
+        shared: second
+        image: app:second
+        timeout: 10
+      list_service:
+        <<: [*first, *second]
+      explicit_service:
+        <<: [*first, *second]
+        shared: explicit
+        timeout: explicit
     YAML
   },
   {

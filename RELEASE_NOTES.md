@@ -43,8 +43,9 @@ Notable completed release-candidate behavior:
   single-document boundaries before skipping a document.
 - Divergence records now require caller-facing `migration_impact` text, so
   compatibility decisions are tied to adoption risk instead of only parser
-  policy. The pinned Psych/libyaml probe records alias object identity as a
-  deliberate semantic-tree divergence covered by `LosslessStream`.
+  policy. The pinned Psych/libyaml probe records merge-list precedence,
+  explicit merge overrides, and alias object identity as deliberate
+  compatibility decisions.
 
 Known release-candidate gaps remain tracked in `BASELINE.md`,
 `COMPATIBILITY.md`, and `MIGRATION.md`: complete YAML 1.1 ecosystem parity,

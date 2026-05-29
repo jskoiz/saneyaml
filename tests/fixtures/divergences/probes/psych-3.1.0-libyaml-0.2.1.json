@@ -179,6 +179,190 @@
                 }
               ]
             }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "first"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "first"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "image"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "app:first"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "retries"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "3"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "second"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "second"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "image"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "app:second"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "timeout"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "10"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "list_service"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "first"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "image"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "app:first"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "timeout"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "10"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "retries"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "3"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "explicit_service"
+            },
+            "value": {
+              "class": "Hash",
+              "entries": [
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "shared"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "explicit"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "image"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "app:first"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "timeout"
+                  },
+                  "value": {
+                    "class": "String",
+                    "value": "explicit"
+                  }
+                },
+                {
+                  "key": {
+                    "class": "String",
+                    "value": "retries"
+                  },
+                  "value": {
+                    "class": "Integer",
+                    "value": "3"
+                  }
+                }
+              ]
+            }
           }
         ]
       }

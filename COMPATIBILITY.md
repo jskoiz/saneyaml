@@ -111,7 +111,9 @@ Untagged YAML merge keys are expanded by default in loaded trees and Serde
 `Value` reads using the common libyaml/Psych construction shape: nested merge
 sources are expanded before they are merged into aliases, earlier merge-list
 mappings win, and explicit target keys override merged keys. Raw parser events
-still preserve `<<` and alias references. `Value::apply_merge()` remains
+still preserve `<<` and alias references. The pinned Psych/libyaml probe gates
+single-merge expansion, merge-list duplicate precedence, later non-conflicting
+keys, and explicit target overrides. `Value::apply_merge()` remains
 available for caller-built values with `serde_yaml::Value::apply_merge()`-style
 semantics and is idempotent for values parsed by this crate.
 Default scalar construction remains YAML 1.2-oriented even when a stream has

@@ -77,6 +77,46 @@ merged:
 }
 
 #[test]
+fn default_merge_expands_explicit_merge_tag_keys() {
+    let input = "\
+base: &base {a: 1, b: 1}
+tagged:
+  !!merge <<: *base
+  b: tagged
+canonical:
+  !<tag:yaml.org,2002:merge> <<: *base
+  b: canonical
+";
+
+    let node = yaml::parse_str(input).expect("parse explicit merge-tag keys");
+    let root = top_mapping(&node);
+    for (key, expected_b) in [("tagged", "tagged"), ("canonical", "canonical")] {
+        let target = mapping_value(root, key);
+        let NodeValue::Mapping(entries) = &target.value else {
+            panic!("expected {key} mapping");
+        };
+
+        assert!(
+            entries.iter().all(|(key, _)| key.as_str() != Some("<<")),
+            "{key} merge tag must be expanded"
+        );
+        assert!(matches!(
+            mapping_value(entries, "a").value,
+            NodeValue::Number(yaml::Number::Integer(1))
+        ));
+        assert_eq!(mapping_value(entries, "b").as_str(), Some(expected_b));
+    }
+
+    let value: Value = yaml::from_str(input).expect("value read expands explicit merge tags");
+    assert!(value["tagged"]["<<"].is_null());
+    assert_eq!(value["tagged"]["a"].as_u64(), Some(1));
+    assert_eq!(value["tagged"]["b"].as_str(), Some("tagged"));
+    assert!(value["canonical"]["<<"].is_null());
+    assert_eq!(value["canonical"]["a"].as_u64(), Some(1));
+    assert_eq!(value["canonical"]["b"].as_str(), Some("canonical"));
+}
+
+#[test]
 fn default_merge_reports_spanful_invalid_payloads() {
     let error = yaml::parse_str("item:\n  <<: scalar\n").expect_err("invalid merge payload");
 

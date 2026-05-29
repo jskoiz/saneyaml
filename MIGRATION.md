@@ -105,8 +105,8 @@ currently covers:
 - `Value`, `Mapping`, and `Number` patch-style usage
 - `to_value`, `to_string`, and `to_writer` structural writer paths
 - `with::singleton_map` enum field annotations
-- default merge-key expansion plus idempotent `Value::apply_merge` for
-  caller-built values
+- default untagged and explicit merge-tag expansion plus idempotent
+  `Value::apply_merge` for caller-built values
 - value-backed bytes and writer byte rejection policy
 - empty input and empty stream behavior
 - the default merge-key migration decision: parsed `yaml::Value` expands `<<`
@@ -246,9 +246,10 @@ testing each adopter's own YAML corpus.
   that preserve duplicate keys. Non-null `!!set` entry values and non-singleton
   `!!omap`/`!!pairs` entries are rejected for those typed reads instead of being
   silently dropped or flattened.
-- Untagged merge keys are expanded by default in loaded trees and Serde reads.
-  `Value::apply_merge()` remains available for caller-built values and is
-  idempotent for values parsed by this crate.
+- Untagged and explicit `!!merge` / canonical merge-tag keys are expanded by
+  default in loaded trees and Serde reads. `Value::apply_merge()` remains
+  available for caller-built values and is idempotent for values parsed by this
+  crate. Explicit `!!str <<` and custom-tagged `<<` keys stay literal.
 - `yaml::Deserializer::from_str("")`, `from_slice(b"")`, and
   `from_reader(empty)` yield one null document, matching
   `serde_yaml::Deserializer::from_str("")`. Direct `from_str::<Value>("")` and
@@ -272,7 +273,7 @@ testing each adopter's own YAML corpus.
 
 | Area | Migration impact |
 |---|---|
-| Default merge expansion | Parsed `Node`/`Value`/Serde reads expand untagged `<<` by default. Code that inspected literal merge keys should switch to `parse_events` or `LosslessStream`. |
+| Default merge expansion | Parsed `Node`/`Value`/Serde reads expand untagged and explicit merge-tag `<<` keys by default. Code that inspected merge syntax should switch to `parse_events` or `LosslessStream`; explicit `!!str <<` and custom-tagged `<<` keys remain literal. |
 | YAML 1.1 compatibility | Legacy scalar and collection behavior is available through explicit schema/tag paths. Default entrypoints stay YAML 1.2-oriented, so corpora that require YAML 1.1 typing need opt-in tests. |
 | Alias graph identity | Semantic `Node`/`Value` trees still clone acyclic aliases. Graph-sensitive callers should use `LosslessStream`; its anchor definitions and alias targets are checked against reference parser anchor events for redefinition, recursive, document-reset, merge, YAML-suite, and Docker Compose anchor cases. |
 | Lossless formatting | `LosslessStream` preserves source, comments, trivia, directives, anchors, aliases, tags, and scalar spelling for replay/inspection. `LosslessEdit` can replace retained node or raw source spans, insert source, delete source spans, and validate the final YAML while preserving untouched bytes. |

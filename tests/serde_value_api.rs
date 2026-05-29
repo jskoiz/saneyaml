@@ -4770,6 +4770,38 @@ target:
             if tagged.value.as_str() == Some("<<"))),
         "tagged << key must stay literal"
     );
+
+    for tag in ["!!merge", "!<tag:yaml.org,2002:merge>"] {
+        let mut base = Mapping::new();
+        base.insert(Value::from("a"), Value::from(1u64));
+
+        let mut target = Mapping::new();
+        target.insert(
+            Value::Tagged(Box::new(TaggedValue {
+                tag: Tag::new(tag),
+                value: Value::from("<<"),
+            })),
+            Value::Mapping(base),
+        );
+        target.insert(Value::from("b"), Value::from("explicit"));
+
+        let mut value = Value::Mapping(target);
+        value
+            .apply_merge()
+            .unwrap_or_else(|error| panic!("yaml explicit merge tag {tag}: {error}"));
+
+        assert_eq!(value["a"].as_u64(), Some(1), "{tag}");
+        assert_eq!(value["b"].as_str(), Some("explicit"), "{tag}");
+        assert!(
+            value
+                .as_mapping()
+                .expect("merged mapping")
+                .keys()
+                .all(|key| !matches!(key, Value::Tagged(tagged)
+                    if tagged.value.as_str() == Some("<<"))),
+            "{tag} merge key must be removed"
+        );
+    }
 }
 
 #[test]

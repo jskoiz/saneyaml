@@ -686,6 +686,10 @@ fn is_float_tag(tag: &Tag) -> bool {
     is_core_tag(tag, "float")
 }
 
+fn is_merge_tag(tag: &Tag) -> bool {
+    is_core_tag(tag, "merge")
+}
+
 fn explicit_core_bool_value(value: &Value) -> Option<bool> {
     match value {
         Value::Bool(value) => Some(*value),
@@ -2155,6 +2159,22 @@ fn string_index_position_in_mapping(mapping: &Mapping, index: &str) -> Option<us
         .position(|(existing, _)| matches!(existing, Value::String(value) if value == index))
 }
 
+fn value_is_merge_key(value: &Value) -> bool {
+    match value {
+        Value::String(value) => value == "<<",
+        Value::Tagged(tagged) if is_merge_tag(&tagged.tag) => tagged.value.as_str() == Some("<<"),
+        _ => false,
+    }
+}
+
+fn shift_remove_merge_value(mapping: &mut Mapping) -> Option<Value> {
+    mapping
+        .entries
+        .iter()
+        .position(|(key, _)| value_is_merge_key(key))
+        .map(|index| mapping.entries.remove(index).1)
+}
+
 fn value_type_name(value: &Value) -> &'static str {
     match value {
         Value::Null => "null",
@@ -2174,7 +2194,7 @@ impl Value {
         while let Some(value) = values.pop() {
             match value {
                 Value::Mapping(mapping) => {
-                    match mapping.shift_remove("<<") {
+                    match shift_remove_merge_value(mapping) {
                         Some(Value::Mapping(merge)) => merge_mapping(mapping, merge),
                         Some(Value::Sequence(sequence)) => {
                             for value in sequence {
@@ -2542,8 +2562,18 @@ fn apply_merge_entries(entries: &mut Vec<(Node, Node)>) -> crate::Result<()> {
 fn shift_remove_merge_node(entries: &mut Vec<(Node, Node)>) -> Option<Node> {
     entries
         .iter()
-        .position(|(key, _)| matches!(&key.value, NodeValue::String(value) if value == "<<"))
+        .position(|(key, _)| node_is_merge_key(key))
         .map(|index| entries.remove(index).1)
+}
+
+fn node_is_merge_key(key: &Node) -> bool {
+    match &key.value {
+        NodeValue::String(value) => value == "<<",
+        NodeValue::Tagged(tagged) if is_merge_tag(&tagged.tag) => {
+            tagged.value.as_str() == Some("<<")
+        }
+        _ => false,
+    }
 }
 
 fn merge_node_mapping(entries: &mut Vec<(Node, Node)>, merge: Node) -> crate::Result<()> {

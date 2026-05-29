@@ -83,10 +83,12 @@ fn divergence_merge_list_expands_by_default_in_loaded_trees() {
 #[test]
 fn divergence_merge_key_record_documents_default_and_opt_in_policy() {
     let record = include_str!("fixtures/divergences/records/merge-keys.toml");
-    assert!(record.contains("expand untagged block, flow, and merge-list key << forms by default"));
+    assert!(record.contains("expand untagged block, flow, merge-list, and explicit"));
     assert!(record.contains("Value::apply_merge() remains available"));
     assert!(record.contains("Psych 3.1.0/libyaml 0.2.1"));
     assert!(record.contains("earlier merge-list mappings"));
+    assert!(record.contains("explicit !!merge"));
+    assert!(record.contains("custom-tagged << keys remain literal"));
     assert!(record.contains("explicit target keys override"));
 }
 

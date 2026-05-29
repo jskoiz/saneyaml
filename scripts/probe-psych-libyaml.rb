@@ -63,6 +63,18 @@ CASES = [
         <<: [*first, *second]
         shared: explicit
         timeout: explicit
+      tagged_service:
+        !!merge <<: *base
+        image: app:tagged
+      canonical_service:
+        !<tag:yaml.org,2002:merge> <<: *base
+        image: app:canonical
+      string_service:
+        !!str <<: literal
+        image: app:string
+      custom_service:
+        !Thing <<: literal
+        image: app:custom
     YAML
   },
   {

@@ -30,7 +30,7 @@ for intentional behavior splits that matter during migration.
 | YAML version | Numeric `%YAML` version directives are accepted as syntax metadata; scalar resolution remains YAML 1.2/core-config oriented unless the caller selects `LoadOptions::yaml_1_1()` or `LoadOptions::yaml_version_directive()` for per-document `%YAML 1.1` opt-in | Often YAML 1.1 heritage | Compare as YAML 1.2-oriented Rust parsers | Serde data model |
 | `on`, `off`, `yes`, `no` | Strings by default; booleans in explicit YAML 1.1 construction, including duplicate-key collisions such as `on` and `yes` | Often booleans; aliases like `on` and `yes` can collide as the same key | Compare per schema | Usually data-model dependent |
 | Duplicate keys | Error for duplicate scalar, sequence, and mapping keys after alias expansion, with mapping-key identity order-insensitive like public `Mapping` equality and typed scalar key domains distinct (`1` and `"1"` are different keys); nonnegative signed and unsigned integer keys share identity; signed-zero float keys share identity; raw events still expose duplicate keys | Psych/libyaml can construct duplicate scalar keys as last-wins values | yaml-rust2 rejects some duplicate collection keys, while saphyr accepts selected cases such as X38W | `serde_yaml` rejects duplicate scalar keys |
-| Merge key `<<` | Expanded by default in loaded trees and Serde `Value` reads after alias expansion; raw events still expose `<<` and alias references; `Value::apply_merge()` remains available for caller-built values | Common legacy feature, often expanded with earlier merge-list mappings winning and explicit target keys overriding merged keys | Preserved literally in current tree loaders | Preserved literally in `Value`; opt-in `Value::apply_merge()` expands merges |
+| Merge key `<<` | Expanded by default in loaded trees and Serde `Value` reads after alias expansion, including untagged keys and explicit `!!merge` / canonical `tag:yaml.org,2002:merge` keys; raw events still expose `<<`, key tags, and alias references; `Value::apply_merge()` remains available for caller-built values | Common legacy feature, often expanded with earlier merge-list mappings winning, explicit merge tags honored, and explicit target keys overriding merged keys | Preserved literally in current tree loaders | Preserved literally in `Value`; opt-in `Value::apply_merge()` expands merges |
 | Anchors and aliases | Semantic `Node`/`Value` loading supports acyclic value expansion and does not preserve graph identity; `LosslessStream` preserves alias-to-anchor identity with stable graph ids; colon-bearing anchor names and anchors on empty scalar nodes are accepted with recorded tree-shape divergences | Supported, sometimes with graph identity and legacy loader-specific tree shapes | Supported by clone-on-alias loading; saphyr loads selected empty scalar anchor nodes as empty strings | Data-model dependent, accepted in common read paths |
 | Custom tags | Preserved as tagged tree/Value nodes for `Value` and Serde enum support; transparent metadata for ordinary typed Serde reads; `%TAG` handles are resolved for the following explicit document; undeclared named handles are rejected; canonical YAML core URI tags are recognized for the supported core targets, while broader schema coercion is not implemented | Supported as tags | Supported as tags | Partial/lossy |
 | Multiline quoted flow scalars | Supported with YAML line folding | Some libyaml paths reject selected YAML 1.2 flow-key cases | Accepted by yaml-rust2/saphyr | Some cases rejected |
@@ -107,13 +107,15 @@ until `apply_merge()` is called.
 direction of `serde_yaml::Value`: sequences contain `Vec<Value>`, mappings use
 `yaml::Mapping`, `Value::Tagged` preserves YAML tags, and tagged nodes remain
 visible when deserializing into `Value` or into YAML-tagged enum variants.
-Untagged YAML merge keys are expanded by default in loaded trees and Serde
-`Value` reads using the common libyaml/Psych construction shape: nested merge
-sources are expanded before they are merged into aliases, earlier merge-list
-mappings win, and explicit target keys override merged keys. Raw parser events
-still preserve `<<` and alias references. The pinned Psych/libyaml probe gates
-single-merge expansion, merge-list duplicate precedence, later non-conflicting
-keys, and explicit target overrides. `Value::apply_merge()` remains
+YAML merge keys are expanded by default in loaded trees and Serde `Value` reads
+using the common libyaml/Psych construction shape: nested merge sources are
+expanded before they are merged into aliases, earlier merge-list mappings win,
+explicit `!!merge` / canonical `tag:yaml.org,2002:merge` keys are honored, and
+explicit target keys override merged keys. Explicit `!!str <<` and custom-tagged
+`<<` keys stay literal. Raw parser events still preserve `<<`, key tags, and
+alias references. The pinned Psych/libyaml probe gates single-merge expansion,
+merge-list duplicate precedence, explicit merge-tag expansion, later
+non-conflicting keys, and explicit target overrides. `Value::apply_merge()` remains
 available for caller-built values with `serde_yaml::Value::apply_merge()`-style
 semantics and is idempotent for values parsed by this crate.
 Default scalar construction remains YAML 1.2-oriented even when a stream has

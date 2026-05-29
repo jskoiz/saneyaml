@@ -8,8 +8,9 @@ and explicit user approval for a crates.io push.
 
 Notable completed release-candidate behavior:
 
-- Default loaded-tree and Serde reads expand untagged merge keys while raw
-  parser events retain merge syntax.
+- Default loaded-tree and Serde reads expand untagged and explicit
+  `!!merge` / canonical merge-tag keys while raw parser events retain merge
+  syntax and tag metadata.
 - Explicit YAML core scalar tags retain tag/source metadata and support typed
   Serde reads for strings, booleans, nulls, integers, floats, timestamps, and
   binary byte targets.
@@ -44,8 +45,8 @@ Notable completed release-candidate behavior:
 - Divergence records now require caller-facing `migration_impact` text, so
   compatibility decisions are tied to adoption risk instead of only parser
   policy. The pinned Psych/libyaml probe records merge-list precedence,
-  explicit merge overrides, and alias object identity as deliberate
-  compatibility decisions.
+  explicit merge-tag expansion, explicit merge overrides, and alias object
+  identity as deliberate compatibility decisions.
 
 Known release-candidate gaps remain tracked in `BASELINE.md`,
 `COMPATIBILITY.md`, and `MIGRATION.md`: complete YAML 1.1 ecosystem parity,

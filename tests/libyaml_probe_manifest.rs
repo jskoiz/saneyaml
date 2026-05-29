@@ -151,6 +151,15 @@ fn assert_merge_key_precedence(artifact: &Json) {
     assert_mapping_entry_value(summary, "explicit_service", "image", "app:first");
     assert_mapping_entry_value(summary, "explicit_service", "timeout", "explicit");
     assert_mapping_entry_value(summary, "explicit_service", "retries", "3");
+
+    assert_mapping_entry_value(summary, "tagged_service", "image", "app:tagged");
+    assert_mapping_entry_value(summary, "tagged_service", "replicas", "2");
+    assert_mapping_entry_value(summary, "canonical_service", "image", "app:canonical");
+    assert_mapping_entry_value(summary, "canonical_service", "replicas", "2");
+    assert_mapping_entry_value(summary, "string_service", "<<", "literal");
+    assert_mapping_entry_value(summary, "string_service", "image", "app:string");
+    assert_mapping_entry_value(summary, "custom_service", "<<", "literal");
+    assert_mapping_entry_value(summary, "custom_service", "image", "app:custom");
 }
 
 fn assert_mapping_entry_value(summary: &Json, mapping_key: &str, entry_key: &str, expected: &str) {

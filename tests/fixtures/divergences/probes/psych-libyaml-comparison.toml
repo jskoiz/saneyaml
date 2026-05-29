@@ -113,6 +113,33 @@ b: *base
 rust_contains = ["LosslessStream", "anchors", "aliases"]
 
 [[case]]
+id = "alias-redefinition-identity"
+record = "tests/fixtures/divergences/records/alias-graph-identity.toml"
+psych_status = "ok"
+rust_entrypoint = "lossless"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "Psych resolves aliases through mutable object identity; this crate exposes redefinition generations on the LosslessStream graph surface."
+yaml = '''
+first: &item one
+b: *item
+second: &item two
+d: *item
+'''
+rust_contains = ["LosslessStream", "anchors", "aliases"]
+
+[[case]]
+id = "alias-recursive-identity"
+record = "tests/fixtures/divergences/records/alias-graph-identity.toml"
+psych_status = "ok"
+rust_entrypoint = "lossless"
+rust_status = "ok"
+rust_policy = "intentional-divergence"
+reason = "Psych constructs recursive alias object identity; this crate keeps the recursive edge inspectable on LosslessStream while semantic loaders reject recursive expansion."
+yaml = "root: &root [*root]\n"
+rust_contains = ["LosslessStream", "anchors", "aliases"]
+
+[[case]]
 id = "duplicate-scalar-keys"
 record = "tests/fixtures/divergences/records/duplicate-scalar-keys.toml"
 psych_status = "ok"

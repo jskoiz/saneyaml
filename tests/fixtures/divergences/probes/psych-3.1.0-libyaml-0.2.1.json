@@ -62,7 +62,9 @@
             }
           }
         ]
-      }
+      },
+      "input_sha256": "ed2176d7771119fae015f5979bba5dc3599fde8a1d10b52c7ce88975b927f11a",
+      "input_bytes": 80
     },
     {
       "id": "rw-github-actions-on-key",
@@ -109,7 +111,9 @@
             }
           }
         ]
-      }
+      },
+      "input_sha256": "012a039b50f26c3b820e43d4f72e41089095394b2dcd0e9027fb1a05b74248b6",
+      "input_bytes": 33
     },
     {
       "id": "merge-keys",
@@ -740,7 +744,9 @@
             }
           }
         ]
-      }
+      },
+      "input_sha256": "21b18c96f8158cb3dbf4905e2b678efa4ec152f2ce52b528c899700920850d23",
+      "input_bytes": 934
     },
     {
       "id": "alias-graph-identity",
@@ -748,11 +754,72 @@
       "status": "ok",
       "summary": {
         "shared_alias_identity": true,
-        "mutation_visible_in_b": 2,
-        "redefinition_b": "one",
-        "redefinition_d": "two",
+        "mutation_visible_in_b": 2
+      },
+      "input_sha256": "83cf2013789286bfafcf048f9ce9e91d89c7eef75475d5b3cbf97efe60443755",
+      "input_bytes": 41
+    },
+    {
+      "id": "alias-redefinition-identity",
+      "record": "tests/fixtures/divergences/records/alias-graph-identity.toml",
+      "status": "ok",
+      "summary": {
+        "class": "Hash",
+        "entries": [
+          {
+            "key": {
+              "class": "String",
+              "value": "first"
+            },
+            "value": {
+              "class": "String",
+              "value": "one"
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "b"
+            },
+            "value": {
+              "class": "String",
+              "value": "one"
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "second"
+            },
+            "value": {
+              "class": "String",
+              "value": "two"
+            }
+          },
+          {
+            "key": {
+              "class": "String",
+              "value": "d"
+            },
+            "value": {
+              "class": "String",
+              "value": "two"
+            }
+          }
+        ]
+      },
+      "input_sha256": "57d1c0d49846f69da9e31c392d5fc6adba06f2d506a50546385059e7c079f702",
+      "input_bytes": 53
+    },
+    {
+      "id": "alias-recursive-identity",
+      "record": "tests/fixtures/divergences/records/alias-graph-identity.toml",
+      "status": "ok",
+      "summary": {
         "recursive_identity": true
-      }
+      },
+      "input_sha256": "24cb7f9fe27f8454d82143bcaa0beb3eab879ee930f327c28d8f104bc473371c",
+      "input_bytes": 20
     },
     {
       "id": "duplicate-scalar-keys",
@@ -772,7 +839,9 @@
             }
           }
         ]
-      }
+      },
+      "input_sha256": "a4f1922eee529656b804f3f0d389906847eb5fe5275feefa06c67101f4a2f226",
+      "input_bytes": 25
     },
     {
       "id": "explicit-core-tags",
@@ -912,7 +981,9 @@
             }
           }
         ]
-      }
+      },
+      "input_sha256": "9ef1134519e7f42ffcf746ea376c4ede669ad514a90d655a4450b7f9aba75f5f",
+      "input_bytes": 319
     },
     {
       "id": "yaml11-collection-tags",
@@ -1025,7 +1096,9 @@
             }
           }
         ]
-      }
+      },
+      "input_sha256": "7bf473f611f2031be33e11961742604851f347e13dcaa1446dc00e299d88a523",
+      "input_bytes": 113
     },
     {
       "id": "yaml11-core-structural-tags",
@@ -1196,7 +1269,9 @@
             }
           }
         ]
-      }
+      },
+      "input_sha256": "8cf23defb9b93dc335c2ca34eb7ca5d4924d169eb2284d84f7a237d790c8eb88",
+      "input_bytes": 322
     },
     {
       "id": "core-structural-tags",
@@ -1367,7 +1442,9 @@
             }
           }
         ]
-      }
+      },
+      "input_sha256": "8cf23defb9b93dc335c2ca34eb7ca5d4924d169eb2284d84f7a237d790c8eb88",
+      "input_bytes": 322
     },
     {
       "id": "legacy-merge-edge-recovery",
@@ -1791,7 +1868,9 @@
             }
           }
         ]
-      }
+      },
+      "input_sha256": "251ec602dad7e8499668ea33343eacdf82f73d04a62db3756aec5391964219d2",
+      "input_bytes": 595
     },
     {
       "id": "explicit-merge-tags",
@@ -2090,7 +2169,9 @@
             }
           }
         ]
-      }
+      },
+      "input_sha256": "32939c8217adf31c86ffba3ec7f7b1d8d0ab14b82f4bb60055cd8d2d3dc8f279",
+      "input_bytes": 560
     },
     {
       "id": "lossless-merge-graph",
@@ -2324,7 +2405,9 @@
             "event": "end_stream"
           }
         ]
-      }
+      },
+      "input_sha256": "0c91cde54270666435622b7ed948a20c923e2cbfe3f188ef19a9e18bd7467911",
+      "input_bytes": 252
     },
     {
       "id": "lossless-recursive-graph",
@@ -2453,7 +2536,9 @@
             "event": "end_stream"
           }
         ]
-      }
+      },
+      "input_sha256": "c9a85fb5ce99b6c699b7c4cb9db8cd2594a8682d9d4f4c431a9e6f2937d60060",
+      "input_bytes": 129
     },
     {
       "id": "null-like-string-targets",
@@ -2503,7 +2588,9 @@
             }
           }
         ]
-      }
+      },
+      "input_sha256": "39d6c04f88cc437f0fbd3b377bf096ee8354f2c2818b94862ddbcca940433c6d",
+      "input_bytes": 47
     },
     {
       "id": "numeric-key-identity",
@@ -2543,7 +2630,9 @@
             }
           }
         ]
-      }
+      },
+      "input_sha256": "47d95befe97f22e46ab061a911d53e62b7d3f07f9d887812e4c655f248ab7781",
+      "input_bytes": 34
     },
     {
       "id": "tab-token-separation",
@@ -2563,21 +2652,27 @@
             }
           }
         ]
-      }
+      },
+      "input_sha256": "ec128dbece206fe4d6b32cc5401265c0ac8fbe07d6f20c193f02fe682f373e77",
+      "input_bytes": 11
     },
     {
       "id": "adjacent-flow-mapping-scalars",
       "record": "tests/fixtures/divergences/records/adjacent-flow-mapping-scalars.toml",
       "status": "error",
       "error_class": "Psych::SyntaxError",
-      "error": "found unexpected ':'"
+      "error": "found unexpected ':'",
+      "input_sha256": "b1b5e4694f6a42016482cc624cfc8548dcb87fe766d134ec34bffcea6f561f6a",
+      "input_bytes": 15
     },
     {
       "id": "multiline-quoted-flow-key",
       "record": "tests/fixtures/divergences/records/multiline-quoted-flow-key.toml",
       "status": "error",
       "error_class": "Psych::SyntaxError",
-      "error": "did not find expected ',' or '}'"
+      "error": "did not find expected ',' or '}'",
+      "input_sha256": "6e29beaa4ecdc68de4b9234dd9d890ab3af87c9feefccf871dde2b72972cadee",
+      "input_bytes": 30
     },
     {
       "id": "raw-event-directives",
@@ -2640,7 +2735,9 @@
             "event": "end_stream"
           }
         ]
-      }
+      },
+      "input_sha256": "669c04cf97e4e13e3678f3b092099b3b5eee7deee72dda242438efa505dfc1b4",
+      "input_bytes": 67
     },
     {
       "id": "raw-event-document-markers",
@@ -2722,21 +2819,27 @@
             "event": "end_stream"
           }
         ]
-      }
+      },
+      "input_sha256": "1dd8cafe7ad8a3ccc695c8700ab29f1398b90843d3c9c4bde35ae84841aa8df2",
+      "input_bytes": 26
     },
     {
       "id": "yaml-version-directive-schema",
       "record": "tests/fixtures/divergences/records/yaml-version-directive-schema.toml",
       "status": "error",
       "error_class": "Psych::SyntaxError",
-      "error": "found incompatible YAML document"
+      "error": "found incompatible YAML document",
+      "input_sha256": "74c73931ac99c3695d17adfbe0a4b927b0ab6e88a32ccbe65b0b0b59303388ab",
+      "input_bytes": 65
     },
     {
       "id": "tag-directive-scope-and-undeclared-handles",
       "record": "tests/fixtures/divergences/records/tag-directive-scope-and-undeclared-handles.toml",
       "status": "error",
       "error_class": "Psych::SyntaxError",
-      "error": "found undefined tag handle"
+      "error": "found undefined tag handle",
+      "input_sha256": "74514bfa34835f29e1a593d21eafce58a7b6daef2d601a40427094258f1678a4",
+      "input_bytes": 15
     },
     {
       "id": "document-start-inline-node",
@@ -2795,28 +2898,36 @@
             "event": "end_stream"
           }
         ]
-      }
+      },
+      "input_sha256": "907687da085dc17d1c63bdaf86ea8576faf221715e4f576b7fa03ef225729a5f",
+      "input_bytes": 24
     },
     {
       "id": "document-start-block-scalars",
       "record": "tests/fixtures/divergences/records/document-start-block-scalars.toml",
       "status": "error",
       "error_class": "Psych::SyntaxError",
-      "error": "found incompatible YAML document"
+      "error": "found incompatible YAML document",
+      "input_sha256": "d77e76c96528a965793e9246a10090465b34a08edd8f1d27d48dd7ff5c25a0e2",
+      "input_bytes": 61
     },
     {
       "id": "bare-document-streams",
       "record": "tests/fixtures/divergences/records/bare-document-streams.toml",
       "status": "error",
       "error_class": "Psych::SyntaxError",
-      "error": "did not find expected <document start>"
+      "error": "did not find expected <document start>",
+      "input_sha256": "ab86c48ade9d0fd106857b346cf128926065eaf41d330d3535c8a47d2737d839",
+      "input_bytes": 74
     },
     {
       "id": "directive-looking-flow-content",
       "record": "tests/fixtures/divergences/records/directive-looking-flow-content.toml",
       "status": "error",
       "error_class": "Psych::SyntaxError",
-      "error": "did not find expected ',' or '}'"
+      "error": "did not find expected ',' or '}'",
+      "input_sha256": "c4b55882aaa360b7e3b338d9528c9513e53501e2dcd56180a843cc0e83cd2cf4",
+      "input_bytes": 43
     }
   ]
 }

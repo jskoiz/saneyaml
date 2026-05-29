@@ -1,4 +1,5 @@
 use serde_json::Value as Json;
+use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
@@ -45,11 +46,13 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     assert_eq!(artifact["libyaml"], "0.2.1");
 
     let cases = artifact["cases"].as_array().expect("probe cases array");
-    assert_eq!(cases.len(), 26);
+    assert_eq!(cases.len(), 28);
 
     let expected_ids = BTreeSet::from([
         "adjacent-flow-mapping-scalars",
         "alias-graph-identity",
+        "alias-recursive-identity",
+        "alias-redefinition-identity",
         "bare-document-streams",
         "core-structural-tags",
         "directive-looking-flow-content",
@@ -92,6 +95,18 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
             matches!(case["status"].as_str(), Some("ok" | "error")),
             "{id} must record ok or error status"
         );
+        let digest = case["input_sha256"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{id} must record input_sha256"));
+        assert_eq!(digest.len(), 64, "{id} input_sha256 length");
+        assert!(
+            digest.chars().all(|ch| ch.is_ascii_hexdigit()),
+            "{id} input_sha256 must be hex"
+        );
+        assert!(
+            case["input_bytes"].as_u64().unwrap_or_default() > 0,
+            "{id} must record input byte length"
+        );
     }
 
     assert_case_summary_contains(&artifact, "legacy-scalar-resolution", "TrueClass");
@@ -103,9 +118,17 @@ fn psych_libyaml_probe_artifact_is_version_pinned_and_linked() {
     let alias_graph = case_by_id(&artifact, "alias-graph-identity");
     assert_eq!(alias_graph["summary"]["shared_alias_identity"], true);
     assert_eq!(alias_graph["summary"]["mutation_visible_in_b"], 2);
-    assert_eq!(alias_graph["summary"]["redefinition_b"], "one");
-    assert_eq!(alias_graph["summary"]["redefinition_d"], "two");
-    assert_eq!(alias_graph["summary"]["recursive_identity"], true);
+    let alias_redefinition = case_by_id(&artifact, "alias-redefinition-identity");
+    assert_eq!(
+        entry_value(&alias_redefinition["summary"], "b")["value"].as_str(),
+        Some("one")
+    );
+    assert_eq!(
+        entry_value(&alias_redefinition["summary"], "d")["value"].as_str(),
+        Some("two")
+    );
+    let alias_recursive = case_by_id(&artifact, "alias-recursive-identity");
+    assert_eq!(alias_recursive["summary"]["recursive_identity"], true);
     assert_case_summary_contains(&artifact, "duplicate-scalar-keys", "second");
     assert_case_summary_contains(&artifact, "explicit-core-tags", "Hello");
     assert_case_summary_contains(&artifact, "explicit-core-tags", "123");
@@ -226,6 +249,18 @@ fn psych_libyaml_probe_cases_have_rust_policy_gate() {
         let id = toml_str(case, "id");
         let record = toml_str(case, "record");
         let psych_case = case_by_id(&artifact, id);
+        let input = case_input(case);
+        let expected_digest = sha256_hex(input.as_bytes());
+        assert_eq!(
+            psych_case["input_sha256"].as_str(),
+            Some(expected_digest.as_str()),
+            "{id} Psych and Rust comparison inputs must be byte-identical"
+        );
+        assert_eq!(
+            psych_case["input_bytes"].as_u64(),
+            Some(input.len() as u64),
+            "{id} Psych and Rust comparison input byte lengths must match"
+        );
         assert_eq!(
             Some(toml_str(case, "psych_status")),
             psych_case["status"].as_str(),
@@ -350,6 +385,13 @@ fn case_input(case: &Toml) -> String {
             .unwrap_or_else(|error| panic!("{fixture}: {error}"));
     }
     panic!("{} must define yaml or fixture", toml_str(case, "id"));
+}
+
+fn sha256_hex(input: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(input);
+    let digest = hasher.finalize();
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 fn toml_str<'a>(value: &'a Toml, key: &str) -> &'a str {

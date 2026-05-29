@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require "date"
+require "digest"
 require "json"
 require "psych"
 
@@ -111,6 +112,21 @@ CASES = [
       a: *base
       b: *base
     YAML
+  },
+  {
+    id: "alias-redefinition-identity",
+    record: "tests/fixtures/divergences/records/alias-graph-identity.toml",
+    yaml: <<~YAML
+      first: &item one
+      b: *item
+      second: &item two
+      d: *item
+    YAML
+  },
+  {
+    id: "alias-recursive-identity",
+    record: "tests/fixtures/divergences/records/alias-graph-identity.toml",
+    yaml: "root: &root [*root]\n"
   },
   {
     id: "duplicate-scalar-keys",
@@ -400,67 +416,83 @@ def summarize(value)
   end
 end
 
+def with_input_metadata(entry, result)
+  result.merge(
+    input_sha256: Digest::SHA256.hexdigest(entry[:yaml]),
+    input_bytes: entry[:yaml].bytesize
+  )
+end
+
 def probe_alias_graph_identity(entry)
   shared = Psych.load(entry[:yaml])
   shared_alias_identity = shared["a"].object_id == shared["b"].object_id
   shared["a"]["count"] = 2
 
-  redefinition = Psych.load(<<~YAML)
-    first: &item one
-    b: *item
-    second: &item two
-    d: *item
-  YAML
-
-  recursive = Psych.load("root: &root [*root]\n")
-
-  {
+  with_input_metadata(entry, {
     id: entry[:id],
     record: entry[:record],
     status: "ok",
     summary: {
       shared_alias_identity: shared_alias_identity,
-      mutation_visible_in_b: shared["b"]["count"],
-      redefinition_b: redefinition["b"],
-      redefinition_d: redefinition["d"],
-      recursive_identity: recursive["root"].object_id == recursive["root"][0].object_id
+      mutation_visible_in_b: shared["b"]["count"]
     }
-  }
+  })
 rescue Psych::SyntaxError => error
-  {
+  with_input_metadata(entry, {
     id: entry[:id],
     record: entry[:record],
     status: "error",
     error_class: error.class.name,
     error: error.problem || error.message.lines.first.to_s.strip
-  }
+  })
+end
+
+def probe_recursive_alias_identity(entry)
+  recursive = Psych.load(entry[:yaml])
+  with_input_metadata(entry, {
+    id: entry[:id],
+    record: entry[:record],
+    status: "ok",
+    summary: {
+      recursive_identity: recursive["root"].object_id == recursive["root"][0].object_id
+    }
+  })
+rescue Psych::SyntaxError => error
+  with_input_metadata(entry, {
+    id: entry[:id],
+    record: entry[:record],
+    status: "error",
+    error_class: error.class.name,
+    error: error.problem || error.message.lines.first.to_s.strip
+  })
 end
 
 def probe_case(entry)
   return probe_alias_graph_identity(entry) if entry[:id] == "alias-graph-identity"
+  return probe_recursive_alias_identity(entry) if entry[:id] == "alias-recursive-identity"
   return probe_events(entry) if entry[:mode] == :events
 
   value = Psych.load(entry[:yaml])
-  {
+  with_input_metadata(entry, {
     id: entry[:id],
     record: entry[:record],
     status: "ok",
     summary: summarize(value)
-  }
+  })
 rescue Psych::SyntaxError => error
-  {
+  with_input_metadata(entry, {
     id: entry[:id],
     record: entry[:record],
     status: "error",
     error_class: error.class.name,
     error: error.problem || error.message.lines.first.to_s.strip
-  }
+  })
 end
 
 def probe_events(entry)
   handler = EventSummary.new
   Psych::Parser.new(handler).parse(entry[:yaml])
-  {
+  with_input_metadata(entry, {
     id: entry[:id],
     record: entry[:record],
     status: "ok",
@@ -468,15 +500,15 @@ def probe_events(entry)
       event_count: handler.events.length,
       events: handler.events
     }
-  }
+  })
 rescue Psych::SyntaxError => error
-  {
+  with_input_metadata(entry, {
     id: entry[:id],
     record: entry[:record],
     status: "error",
     error_class: error.class.name,
     error: error.problem || error.message.lines.first.to_s.strip
-  }
+  })
 end
 
 payload = {

@@ -76,7 +76,8 @@ Notable completed release-candidate behavior:
   policy. The pinned Psych/libyaml probe records merge-list precedence,
   explicit merge-tag expansion, explicit merge overrides, repeated merge-key
   recovery, non-mergeable merge payload recovery, fixture-backed YAML 1.1
-  merge/tag/graph cross-checks, and alias object identity as deliberate
+  merge/tag/graph cross-checks, alias object identity, per-case input digests,
+  and first-class alias redefinition/recursive identity probes as deliberate
   compatibility decisions.
 - Fuzz release proof now has a manual `scripts/fuzz-release-sweep.sh` path that
   records target names, corpus counts, run counts, statuses, elapsed time, and

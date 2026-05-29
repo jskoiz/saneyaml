@@ -289,8 +289,9 @@ cross-checks, plus libyaml-era parser-event behavior for YAML/TAG directives,
 document markers, document-start inline nodes, undeclared tag-handle errors,
 YAML 1.3 rejection, document-start block-scalar rejection, bare-document-stream
 rejection, and directive-looking flow-content rejection. The
-Rust-vs-Psych policy manifest now gates all 26 pinned cases against this crate's
-chosen default, YAML 1.1, directive-driven, event, or lossless entrypoint and
+Rust-vs-Psych policy manifest now gates all 28 pinned cases against this crate's
+chosen default, YAML 1.1, directive-driven, event, or lossless entrypoint,
+checks the Psych input SHA-256 digests against the Rust comparison inputs, and
 requires intentional divergences to link back to migration-impact records.
 This crate keeps alias identity in the lossless graph surface, not semantic
 `Node` or `Value` trees. `graph_identity` now also compares

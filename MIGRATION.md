@@ -126,7 +126,8 @@ currently covers:
 - `Value`, `Mapping`, `Number`, `Tag`, and `TaggedValue` patch-style and
   direct deserializer usage
 - `to_value`, `to_string`, and `to_writer` structural writer paths
-- `with::singleton_map` enum field annotations
+- `with::singleton_map` enum field annotations, including upstream-style
+  rejection of YAML tag shorthand through those helper paths
 - default untagged and explicit merge-tag expansion for parsed and caller-built
   `Value` deserialization plus idempotent `Value::apply_merge` as an in-place
   helper

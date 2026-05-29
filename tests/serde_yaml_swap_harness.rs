@@ -238,6 +238,17 @@ fn swap_harness_singleton_map_helpers_cover_serde_yaml_with_paths() {
 }
 
 #[test]
+fn swap_harness_singleton_map_helpers_reject_tagged_shorthand_like_serde_yaml() {
+    let input = "action: !Shell\n  run: cargo test\n";
+    let yaml_error =
+        yaml::from_str::<SingletonActionConfig>(input).expect_err("yaml tagged helper rejection");
+    let reference_error = serde_yaml::from_str::<ReferenceSingletonActionConfig>(input)
+        .expect_err("serde_yaml tagged helper rejection");
+    assert!(yaml_error.to_string().contains("invalid type"));
+    assert!(reference_error.to_string().contains("invalid type"));
+}
+
+#[test]
 fn swap_harness_merge_null_bytes_and_empty_input_decisions_are_explicit() {
     let null_input = "ports:\nlabels:\n";
     let parsed: DefaultedCollections = yaml::from_str(null_input).expect("yaml empty nodes");

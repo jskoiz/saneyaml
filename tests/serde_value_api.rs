@@ -2028,6 +2028,75 @@ shell:
 }
 
 #[test]
+fn serde_api_with_singleton_map_rejects_tagged_enum_shape_like_serde_yaml() {
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct SingletonMapConfig {
+        #[serde(with = "yaml::with::singleton_map")]
+        action: SingletonAction,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct ReferenceSingletonMapConfig {
+        #[serde(with = "serde_yaml::with::singleton_map")]
+        action: SingletonAction,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct PlainTaggedConfig {
+        action: SingletonAction,
+    }
+
+    let input = "\
+action: !Shell
+  run: cargo test
+";
+
+    let plain: PlainTaggedConfig = yaml::from_str(input).expect("plain tagged enum shape");
+    assert_eq!(
+        plain.action,
+        SingletonAction::Shell {
+            run: "cargo test".to_string()
+        }
+    );
+
+    let yaml_error =
+        yaml::from_str::<SingletonMapConfig>(input).expect_err("tagged helper input rejected");
+    let reference_error = serde_yaml::from_str::<ReferenceSingletonMapConfig>(input)
+        .expect_err("serde_yaml tagged helper input rejected");
+    assert!(yaml_error.to_string().contains("invalid type"));
+    assert!(reference_error.to_string().contains("invalid type"));
+}
+
+#[test]
+fn serde_api_with_singleton_map_rejects_multi_key_variants_like_serde_yaml() {
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct SingletonMapConfig {
+        #[serde(with = "yaml::with::singleton_map")]
+        action: SingletonAction,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct ReferenceSingletonMapConfig {
+        #[serde(with = "serde_yaml::with::singleton_map")]
+        action: SingletonAction,
+    }
+
+    let input = "\
+action:
+  Shell:
+    run: cargo test
+  Newtype: deploy
+";
+
+    let yaml_error =
+        yaml::from_str::<SingletonMapConfig>(input).expect_err("multi-key variant rejected");
+    let reference_error = serde_yaml::from_str::<ReferenceSingletonMapConfig>(input)
+        .expect_err("serde_yaml multi-key variant rejected");
+    assert!(yaml_error.to_string().contains("single key"));
+    assert!(reference_error.to_string().contains("single key"));
+}
+
+#[test]
 fn serde_api_with_singleton_map_recursive_deserializes_nested_enum_fields() {
     #[derive(Debug, Deserialize, PartialEq)]
     struct RecursiveSingletonMapConfig {
@@ -2083,6 +2152,38 @@ actions:
         parsed.actions.by_name["release"],
         SingletonAction::Newtype("ship".to_string())
     );
+}
+
+#[test]
+fn serde_api_with_singleton_map_recursive_rejects_nested_tagged_enum_shape_like_serde_yaml() {
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct RecursiveSingletonMapConfig {
+        #[serde(with = "yaml::with::singleton_map_recursive")]
+        actions: RecursiveActions,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct ReferenceRecursiveSingletonMapConfig {
+        #[serde(with = "serde_yaml::with::singleton_map_recursive")]
+        actions: RecursiveActions,
+    }
+
+    let input = "\
+actions:
+  primary:
+    Shell:
+      run: cargo test
+  steps:
+    - !Newtype deploy
+  by_name: {}
+";
+
+    let yaml_error = yaml::from_str::<RecursiveSingletonMapConfig>(input)
+        .expect_err("recursive tagged helper input rejected");
+    let reference_error = serde_yaml::from_str::<ReferenceRecursiveSingletonMapConfig>(input)
+        .expect_err("serde_yaml recursive tagged helper input rejected");
+    assert!(yaml_error.to_string().contains("invalid type"));
+    assert!(reference_error.to_string().contains("invalid type"));
 }
 
 #[test]

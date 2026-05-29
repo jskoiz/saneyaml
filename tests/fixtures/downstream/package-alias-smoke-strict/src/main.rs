@@ -187,6 +187,10 @@ fn main() {
         singleton_value["action"]["Shell"]["run"].as_str(),
         Some("cargo test")
     );
+    assert!(
+        serde_yaml::from_str::<SingletonConfig>("action: !Shell\n  run: cargo test\n").is_err(),
+        "singleton_map helper must reject tag-style enum shorthand"
+    );
 
     let recursive: RecursiveSingletonConfig =
         serde_yaml::from_str("actions:\n  - Shell:\n      run: cargo test\n  - Unit\n").unwrap();
@@ -198,6 +202,13 @@ fn main() {
             },
             Action::Unit,
         ]
+    );
+    assert!(
+        serde_yaml::from_str::<RecursiveSingletonConfig>(
+            "actions:\n  - !Shell\n    run: cargo test\n"
+        )
+        .is_err(),
+        "recursive singleton_map helper must reject nested tag-style enum shorthand"
     );
 
     let emitted = serde_yaml::to_string(&config).unwrap();

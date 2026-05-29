@@ -72,7 +72,9 @@ Current read APIs:
 - `yaml::with::singleton_map::deserialize` for read-side enum field
   annotations compatible with `serde_yaml::with::singleton_map`
 - `yaml::with::singleton_map_recursive::deserialize` for read-side nested enum
-  field annotations compatible with `serde_yaml::with::singleton_map_recursive`
+  field annotations compatible with `serde_yaml::with::singleton_map_recursive`;
+  both helpers enforce the upstream singleton-map enum shape instead of
+  accepting YAML tag shorthand through those `with` paths
 - `yaml::to_value<T: serde::Serialize>(T) -> Result<yaml::Value>` for
   common config-shaped structs, maps, sequences, scalar values, and Serde enum
   representations
@@ -105,11 +107,11 @@ Migration-facing API status is tracked by `MIGRATION.md` and the executable
 | `serde_yaml` surface | `yaml` surface | Status |
 |---|---|---|
 | `from_str`, `from_slice`, `from_reader` | `yaml::from_str`, `yaml::from_slice`, `yaml::from_reader` | Config-shaped typed reads and `Value` reads covered; reader-backed borrowed targets remain owned-only |
-| `Deserializer::{from_str, from_slice, from_reader}` | `yaml::Deserializer::{from_str, from_slice, from_reader}` | Direct Serde use and stream iteration covered, with one empty-stream iterator divergence documented below |
+| `Deserializer::{from_str, from_slice, from_reader}` | `yaml::Deserializer::{from_str, from_slice, from_reader}` | Direct Serde use, stream iteration, and empty-stream behavior covered |
 | `Value`, `Mapping`, `Number` | `yaml::Value`, `yaml::Mapping`, `yaml::Number` | Common read, mutation, sealed indexing, helper, trait, and number conversion surfaces covered |
 | `value::to_value`, `value::Serializer` | `yaml::value::to_value`, `yaml::value::Serializer` | Value-backed serialization covered for common config shapes, tags, bytes, and 128-bit integer policy |
 | `to_string`, `to_writer`, `Serializer` | `yaml::to_string`, `yaml::to_writer`, `yaml::Serializer` | Structural writer support covered; byte-for-byte emitter formatting parity remains out of scope |
-| `with::singleton_map`, `with::singleton_map_recursive` | `yaml::with::singleton_map`, `yaml::with::singleton_map_recursive` | Read/write enum-field annotation paths covered |
+| `with::singleton_map`, `with::singleton_map_recursive` | `yaml::with::singleton_map`, `yaml::with::singleton_map_recursive` | Read/write enum-field annotation paths covered, including singleton-map shape rejection of tag shorthand |
 
 The migration harness also contains a dedicated default-merge test showing the
 intentional split from `serde_yaml::Value`: parsed `yaml::Value` and

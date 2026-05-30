@@ -54,6 +54,10 @@ Notable completed release-candidate behavior:
   string and reader config loads, and Stackable CRD/OpenAPI shapes before the
   live checkout trials run. Stackable adds Kubernetes CRD/OpenAPI schema
   fixture coverage plus serializer and scalar serde build checks.
+- External downstream writer replay now covers cfn-guard tagged
+  CloudFormation `Value` fixtures and every checked-in Stackable CRD through
+  `to_string`, `to_writer`, and streaming `Serializer`, both in direct tests
+  and in the packaged `serde_yaml` alias smoke.
 - YAML 1.1 conformance fixtures now cover directive-driven legacy scalar
   construction, bool/null aliases, null and float spellings, radix and
   sexagesimal numerics, oversized numeric spellings, timestamp time-zone and

@@ -63,6 +63,9 @@ checked-in Pingora, rust-i18n, cfn-guard, navi, and Stackable fixture reductions
 into a clean downstream crate and exercises typed reads, reader paths,
 structural emits, tagged CloudFormation `Value` access, locale trees, CLI config
 defaults, and Kubernetes CRD/OpenAPI shapes through `serde_yaml::...` imports.
+It also replays tagged CloudFormation values and Stackable CRDs through
+`to_string`, `to_writer`, and streaming `Serializer`, then reparses the output
+as equivalent structure.
 These are package-resolution and runtime smoke tools, not blanket promises that
 every `serde_yaml` behavior or formatting byte matches.
 

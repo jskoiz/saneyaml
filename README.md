@@ -92,7 +92,9 @@ The first milestone focuses on:
   downstream crate and parses GitHub Actions, Docker Compose, Kubernetes, Helm,
   OpenAPI, Wrangler, and Ansible files through `serde_yaml::...` imports, plus
   an external downstream package-alias smoke over checked-in Pingora,
-  rust-i18n, cfn-guard, navi, and Stackable operator fixtures.
+  rust-i18n, cfn-guard, navi, and Stackable operator fixtures, including
+  tagged CloudFormation and Stackable CRD writer replay through `to_string`,
+  `to_writer`, and streaming `Serializer`.
 - A downstream-shaped migration harness, compileable migration example,
   Ubuntu-only CI workflow with all-target fuzz-smoke wiring, non-mutating
   fuzz replay script, and real-world config benchmark command.

@@ -268,6 +268,7 @@ fn cfn_guard_templates_use_package_alias() {
         "AllSecurityGroups.Value",
         "CloudFormation security group id lookup",
     );
+    assert_value_writer_replays("fixtures/cfn-guard/cfn-lambda.yaml", &value);
 
     let test_spec: serde_yaml::Value =
         serde_yaml::from_str(include_str!("../fixtures/cfn-guard/test-command-test.yaml"))
@@ -283,6 +284,7 @@ fn cfn_guard_templates_use_package_alias() {
         "${pSecretKmsKey}",
         "nested CloudFormation import value",
     );
+    assert_value_writer_replays("fixtures/cfn-guard/test-command-test.yaml", &test_spec);
 
     let s3_spec: serde_yaml::Value = serde_yaml::from_str(include_str!(
         "../fixtures/cfn-guard/s3-bucket-logging-enabled-tests.yaml"
@@ -302,6 +304,10 @@ fn cfn_guard_templates_use_package_alias() {
         "Ref",
         "LoggingBucket",
         "S3 logging destination bucket",
+    );
+    assert_value_writer_replays(
+        "fixtures/cfn-guard/s3-bucket-logging-enabled-tests.yaml",
+        &s3_spec,
     );
 }
 
@@ -356,6 +362,7 @@ fn stackable_crds_use_package_alias() {
             schema["properties"]["spec"].as_mapping().is_some(),
             "{path} must expose a spec OpenAPI object"
         );
+        assert_value_writer_replays(path, &value);
     }
 
     let listener_class: serde_yaml::Value = serde_yaml::from_str(include_str!(
@@ -406,6 +413,39 @@ fn assert_stackable_crd_header(value: &serde_yaml::Value, path: &str) {
         value["spec"]["versions"][0]["storage"].as_bool(),
         Some(true)
     );
+}
+
+fn assert_value_writer_replays(path: &str, value: &serde_yaml::Value) {
+    let emitted = serde_yaml::to_string(value)
+        .unwrap_or_else(|error| panic!("package alias writes downstream value {path}: {error}"));
+    let reparsed: serde_yaml::Value = serde_yaml::from_str(&emitted)
+        .unwrap_or_else(|error| panic!("package alias reparses emitted value {path}: {error}"));
+    assert!(
+        reparsed.equivalent(value),
+        "package alias emitted value must reparse equivalently for {path}"
+    );
+
+    let mut written = Vec::new();
+    serde_yaml::to_writer(&mut written, value)
+        .unwrap_or_else(|error| panic!("package alias writes value to writer {path}: {error}"));
+    assert_eq!(written, emitted.as_bytes(), "{path}");
+
+    let mut stream = serde_yaml::Serializer::new(Vec::new());
+    value
+        .serialize(&mut stream)
+        .unwrap_or_else(|error| panic!("package alias streams first value {path}: {error}"));
+    value
+        .serialize(&mut stream)
+        .unwrap_or_else(|error| panic!("package alias streams second value {path}: {error}"));
+    let stream_output = String::from_utf8(stream.into_inner().expect("stream into inner"))
+        .expect("serializer output is UTF-8");
+    let docs = serde_yaml::Deserializer::from_str(&stream_output)
+        .map(serde_yaml::Value::deserialize)
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap_or_else(|error| panic!("package alias reparses stream {path}: {error}"));
+    assert_eq!(docs.len(), 2, "{path}");
+    assert!(docs[0].equivalent(value), "{path}");
+    assert!(docs[1].equivalent(value), "{path}");
 }
 
 fn assert_tagged_scalar<'a>(

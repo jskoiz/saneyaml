@@ -240,9 +240,7 @@ fn external_cfn_guard_cloudformation_template_matches_serde_yaml() {
         "CloudFormation security group id lookup",
     );
 
-    let output = yaml::to_string(&value).expect("yaml writes cfn-guard template value");
-    let reparsed: Value = yaml::from_str(&output).expect("yaml reparses cfn-guard template output");
-    assert!(reparsed.equivalent(&value));
+    assert_value_writer_replays("cfn-guard/cfn-lambda.yaml", &value);
 }
 
 #[test]
@@ -286,6 +284,9 @@ fn external_cfn_guard_rule_test_specs_match_serde_yaml() {
         "LoggingBucket",
         "S3 logging destination bucket",
     );
+
+    assert_value_writer_replays("cfn-guard/test-command-test.yaml", &test_spec);
+    assert_value_writer_replays("cfn-guard/s3-bucket-logging-enabled-tests.yaml", &s3_spec);
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -396,6 +397,7 @@ fn external_stackable_operator_crds_match_serde_yaml() {
             schema["properties"]["spec"].as_mapping().is_some(),
             "{path} must expose a spec OpenAPI object"
         );
+        assert_value_writer_replays(path, &value);
     }
 }
 
@@ -473,6 +475,39 @@ fn assert_value_matches_serde(input: &str) -> Value {
     let reference = yaml::to_value(reference).expect("serde_yaml value converts to yaml::Value");
     assert!(parsed.equivalent(&reference));
     parsed
+}
+
+fn assert_value_writer_replays(path: &str, value: &Value) {
+    let emitted = yaml::to_string(value)
+        .unwrap_or_else(|error| panic!("yaml writes downstream value {path}: {error}"));
+    let reparsed: Value = yaml::from_str(&emitted)
+        .unwrap_or_else(|error| panic!("yaml reparses emitted downstream value {path}: {error}"));
+    assert!(
+        reparsed.equivalent(value),
+        "emitted downstream value must reparse equivalently for {path}"
+    );
+
+    let mut written = Vec::new();
+    yaml::to_writer(&mut written, value)
+        .unwrap_or_else(|error| panic!("yaml writes downstream value to writer {path}: {error}"));
+    assert_eq!(written, emitted.as_bytes(), "{path}");
+
+    let mut stream = yaml::Serializer::new(Vec::new());
+    value
+        .serialize(&mut stream)
+        .unwrap_or_else(|error| panic!("yaml streams first downstream value {path}: {error}"));
+    value
+        .serialize(&mut stream)
+        .unwrap_or_else(|error| panic!("yaml streams second downstream value {path}: {error}"));
+    let stream_output = String::from_utf8(stream.into_inner().expect("stream into inner"))
+        .expect("serializer output is UTF-8");
+    let docs = yaml::Deserializer::from_str(&stream_output)
+        .map(Value::deserialize)
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap_or_else(|error| panic!("yaml reparses streamed downstream value {path}: {error}"));
+    assert_eq!(docs.len(), 2, "{path}");
+    assert!(docs[0].equivalent(value), "{path}");
+    assert!(docs[1].equivalent(value), "{path}");
 }
 
 impl Default for NaviColorWidth {

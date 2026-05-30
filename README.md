@@ -146,10 +146,10 @@ scripts/fuzz-release-sweep.sh
 `tests/baseline_audit.rs` verifies that `BASELINE.md` matches the committed
 manifest, registry, migration report, package boundary, corpus, and command evidence. `cargo
 fuzz` is optional for ordinary development; the script copies corpora to a
-temporary directory before running all eight targets so it does not grow tracked
+temporary directory before running all nine targets so it does not grow tracked
 corpus files. CI runs that script with one requested pass per target to verify
 the wiring. `scripts/fuzz-release-sweep.sh` is the manual release gate: it runs
-the same eight targets with a configurable budget and writes a summary with
+the same nine targets with a configurable budget and writes a summary with
 checkout HEAD/status, target mode, target names, corpus counts, run counts,
 statuses, elapsed time, and artifact directories. Unfiltered release sweeps must
 cover every target declared in `fuzz/Cargo.toml`. Sustained fuzzing and minimized findings remain separate

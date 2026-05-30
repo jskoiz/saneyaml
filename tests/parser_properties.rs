@@ -30,6 +30,15 @@ const SERDE_ENTRYPOINTS_REQUIRED_SEEDS: &[&str] = &[
     "yaml11-value-duplicate-key",
     "yaml11-value-resolved-handle",
 ];
+const SERDE_SERIALIZER_REQUIRED_SEEDS: &[&str] = &[
+    "bytes-rejection",
+    "document-stream",
+    "enum-helper-shape",
+    "kubernetes-resource",
+    "nested-options",
+    "openapi-shape",
+    "struct-config",
+];
 const EVENT_STREAM_REQUIRED_SEEDS: &[&str] = &[
     "alias-expansion-bomb",
     "alias-recursive-flow",
@@ -361,6 +370,7 @@ fn fuzz_corpora_cover_release_targets_and_named_safety_seeds() {
         ("parse_bytes", (881, PARSE_BYTES_REQUIRED_SEEDS)),
         ("schema_modes", (22, SCHEMA_MODES_REQUIRED_SEEDS)),
         ("serde_entrypoints", (290, SERDE_ENTRYPOINTS_REQUIRED_SEEDS)),
+        ("serde_serializer", (7, SERDE_SERIALIZER_REQUIRED_SEEDS)),
     ]);
     let expected_targets = expected.keys().copied().collect::<BTreeSet<_>>();
     assert_eq!(declared_fuzz_targets(), expected_targets);
@@ -468,6 +478,7 @@ fn fuzz_corpus_targets() -> BTreeSet<&'static str> {
                 "parse_bytes" => "parse_bytes",
                 "schema_modes" => "schema_modes",
                 "serde_entrypoints" => "serde_entrypoints",
+                "serde_serializer" => "serde_serializer",
                 other => panic!("unexpected fuzz corpus target {other}"),
             }
         })
@@ -492,6 +503,7 @@ fn declared_fuzz_targets() -> BTreeSet<&'static str> {
                 "parse_bytes" => "parse_bytes",
                 "schema_modes" => "schema_modes",
                 "serde_entrypoints" => "serde_entrypoints",
+                "serde_serializer" => "serde_serializer",
                 other => panic!("unexpected fuzz target {other}"),
             }
         })

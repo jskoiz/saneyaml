@@ -28,6 +28,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "serde_serializer"
+path = "fuzz_targets/serde_serializer.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "event_stream"
 path = "fuzz_targets/event_stream.rs"
 test = false

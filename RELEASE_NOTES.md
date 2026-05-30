@@ -101,6 +101,10 @@ Notable completed release-candidate behavior:
   safety gates.
 - Emitter round-trip fuzz coverage now exercises `to_string`, `to_writer`, and
   streaming `Serializer` output against parsed-tree and `Value` replay.
+- A dedicated Serde serializer fuzz target now cross-checks `to_value`,
+  `to_string`, `to_writer`, and streaming `Serializer` output for
+  struct/map/enum/helper shapes, Kubernetes/OpenAPI-like documents, nested
+  options, multi-document streams, and unsupported byte serialization.
 - The Ubuntu CI workflow now installs nightly plus `cargo-fuzz` and runs a
   one-pass all-target non-mutating fuzz smoke over copied corpora.
 - Direct Serde `IgnoredAny` entrypoints now validate malformed YAML and

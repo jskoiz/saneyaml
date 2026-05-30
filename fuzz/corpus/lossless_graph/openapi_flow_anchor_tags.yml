@@ -1,0 +1,8 @@
+%TAG !o! tag:openapi.example,2026:
+---
+components:
+  schemas:
+    Base: &base !o!Schema {type: object, required: [id], properties: {id: {type: string}}}
+    User:
+      allOf: [*base, {type: object, properties: {email: {type: string}}}]
+    UserRef: *base

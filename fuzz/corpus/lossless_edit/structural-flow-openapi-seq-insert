@@ -1,0 +1,4 @@
+mode=seq-insert index=0
+components: {schemas: {User: {allOf: [&base {type: object}, {properties: {name: {type: string}}}]}}}
+=== yaml replacement ===
+{properties: {email: {type: string}}}

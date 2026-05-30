@@ -1,0 +1,20 @@
+%YAML 1.2
+---
+# workflow anchors must keep comments and source spelling
+name: &workflow "CI"
+"on":
+  push:
+    branches: [main]
+env: &env
+  RUST_LOG: info # inline comment
+jobs:
+  build: &job
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo test
+  lint:
+    <<: *job
+    env: *env
+workflow_ref: *workflow
+...

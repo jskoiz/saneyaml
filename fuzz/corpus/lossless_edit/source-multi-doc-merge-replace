@@ -1,0 +1,16 @@
+mode=source index=1
+---
+defaults: &defaults
+  image: nginx
+  ports: [80]
+service:
+  <<: *defaults
+  name: web
+---
+defaults: &defaults
+  image: worker
+service: *defaults
+=== yaml replacement ===
+service:
+  image: api
+  ports: [8080]

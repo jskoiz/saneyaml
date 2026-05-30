@@ -91,6 +91,10 @@ Notable completed release-candidate behavior:
   selected YAML-suite anchor/alias cases, manifest-owned Docker Compose anchor
   cases, and validated source edits after reparsing. YAML 1.1 merge/comment
   graph seeds are promoted into deterministic conformance fixtures.
+- Lossless fuzz/property replay now includes real-world-shaped GitHub Actions,
+  Helm, Kubernetes ConfigMap, and OpenAPI seeds that combine comments,
+  directives, document markers, block scalars, anchors, aliases, merge keys,
+  flow collections, and structural source edits.
 - Serde and schema-mode fuzz corpora now require YAML 1.1 malformed `!!set`,
   `!!omap`, and `!!pairs` seeds plus resolved and duplicate `!!value` key
   seeds, so recent compatibility diagnostics replay through the fuzz/property

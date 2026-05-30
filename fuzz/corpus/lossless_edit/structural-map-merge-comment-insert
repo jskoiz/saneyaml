@@ -1,0 +1,12 @@
+mode=map-insert index=0
+# service with merge defaults
+defaults: &defaults
+  image: nginx
+  restart: unless-stopped
+service:
+  <<: *defaults
+  ports:
+    - "8080:80"
+=== yaml replacement ===
+labels:
+  com.example.role: web

@@ -1,0 +1,15 @@
+mode=scalar index=2
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scripts
+data:
+  entrypoint.sh: |
+    set -e
+    echo start
+  config.yaml: >-
+    feature: true
+=== yaml replacement ===
+|-
+  set -e
+  echo replaced

@@ -40,6 +40,9 @@ const EVENT_STREAM_REQUIRED_SEEDS: &[&str] = &[
 const EMIT_ROUNDTRIP_REQUIRED_SEEDS: &[&str] = &[
     "anchors-and-aliases",
     "default-merge",
+    "github-actions-anchors",
+    "helm-block-merge",
+    "openapi-flow-tags",
     "yaml11-directive-tags-merge",
 ];
 const APPLY_MERGE_REQUIRED_SEEDS: &[&str] = &[
@@ -67,21 +70,30 @@ const SCHEMA_MODES_REQUIRED_SEEDS: &[&str] = &[
 const LOSSLESS_GRAPH_REQUIRED_SEEDS: &[&str] = &[
     "comments_anchor.yml",
     "document_reset_anchor.yml",
+    "github_actions_comments_markers.yml",
+    "helm_block_scalar_merge.yml",
+    "multi_doc_merge_anchor_reset.yml",
+    "openapi_flow_anchor_tags.yml",
     "recursive_alias.yml",
     "yaml11_merge_comments_alias_graph.yml",
     "yaml11_recursive_merge_comments.yml",
 ];
 const LOSSLESS_EDIT_REQUIRED_SEEDS: &[&str] = &[
     "delete-compose-root-source",
+    "insert-directive-document-comment",
     "insert-document-comment",
     "replace-flow-mapping",
+    "replace-real-world-block-scalar",
     "replace-scalar",
     "replace-tagged-block-scalar",
+    "source-multi-doc-merge-replace",
     "structural-map-delete",
     "structural-map-insert",
+    "structural-map-merge-comment-insert",
     "structural-map-replace",
     "structural-flow-map-delete",
     "structural-flow-map-insert",
+    "structural-flow-openapi-seq-insert",
     "structural-flow-sequence-delete",
     "structural-flow-sequence-insert",
     "structural-sequence-delete",
@@ -324,10 +336,10 @@ fn apply_merge_semantic_corpus_matches_serde_yaml() {
 fn fuzz_corpora_cover_release_targets_and_named_safety_seeds() {
     let expected: BTreeMap<&str, (usize, &[&str])> = BTreeMap::from([
         ("apply_merge", (16, APPLY_MERGE_REQUIRED_SEEDS)),
-        ("emit_roundtrip", (11, EMIT_ROUNDTRIP_REQUIRED_SEEDS)),
+        ("emit_roundtrip", (14, EMIT_ROUNDTRIP_REQUIRED_SEEDS)),
         ("event_stream", (80, EVENT_STREAM_REQUIRED_SEEDS)),
-        ("lossless_edit", (23, LOSSLESS_EDIT_REQUIRED_SEEDS)),
-        ("lossless_graph", (16, LOSSLESS_GRAPH_REQUIRED_SEEDS)),
+        ("lossless_edit", (28, LOSSLESS_EDIT_REQUIRED_SEEDS)),
+        ("lossless_graph", (20, LOSSLESS_GRAPH_REQUIRED_SEEDS)),
         ("parse_bytes", (881, PARSE_BYTES_REQUIRED_SEEDS)),
         ("schema_modes", (22, SCHEMA_MODES_REQUIRED_SEEDS)),
         ("serde_entrypoints", (290, SERDE_ENTRYPOINTS_REQUIRED_SEEDS)),

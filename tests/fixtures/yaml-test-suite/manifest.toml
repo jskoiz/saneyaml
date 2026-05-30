@@ -143,6 +143,78 @@ policy = "raw-events-tree-serde-accept"
 features = ["anchor", "mapping", "sequence", "null", "explicit"]
 
 [[case]]
+id = "3R3P"
+name = "single block sequence with anchor"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["anchor", "block", "sequence", "scalar"]
+
+[[case]]
+id = "6KGN"
+name = "anchor for empty node"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["anchor", "alias", "mapping", "null"]
+
+[[case]]
+id = "7BMT"
+name = "node and mapping key anchors"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["anchor", "mapping", "key", "scalar", "comment"]
+
+[[case]]
+id = "7BUB"
+name = "spec example node referenced by alias"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["anchor", "alias", "mapping", "sequence", "scalar", "comment"]
+
+[[case]]
+id = "CN3R"
+name = "anchors at various flow-sequence locations"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["anchor", "flow", "sequence", "mapping", "scalar"]
+
+[[case]]
+id = "CUP7"
+name = "node property indicators"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["anchor", "alias", "tag", "mapping", "scalar"]
+
+[[case]]
+id = "E76Z"
+name = "aliases in implicit block mapping"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["anchor", "alias", "mapping", "key", "scalar"]
+
+[[case]]
+id = "Y2GN"
+name = "anchor with colon in the middle"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["anchor", "mapping", "scalar"]
+
+[[case]]
+id = "ZWK4"
+name = "key with anchor after missing explicit mapping value"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["anchor", "mapping", "key", "null", "explicit", "scalar"]
+
+[[case]]
 id = "JHB9"
 name = "two documents in stream"
 expected = "accept"
@@ -1287,6 +1359,15 @@ event = [
     "U3XV",
     "2SXE",
     "JHB9",
+    "3R3P",
+    "6KGN",
+    "7BMT",
+    "7BUB",
+    "CN3R",
+    "CUP7",
+    "E76Z",
+    "Y2GN",
+    "ZWK4",
     "6LVF",
     "6BCT",
     "6CA3",
@@ -1436,10 +1517,19 @@ tree = [
     "U3C3",
     "6CK3",
     "FTA2",
+    "3R3P",
+    "7BMT",
+    "7BUB",
+    "CN3R",
+    "CUP7",
+    "E76Z",
+    "Y2GN",
+    "ZWK4",
 ]
 
 tree_deferred = [
     "PW8X",
+    "6KGN",
     "S4JQ",
 ]
 
@@ -1514,6 +1604,15 @@ shared_reference = [
     "MUS6/04",
     "U3C3",
     "FTA2",
+    "3R3P",
+    "6KGN",
+    "7BMT",
+    "7BUB",
+    "CN3R",
+    "CUP7",
+    "E76Z",
+    "Y2GN",
+    "ZWK4",
 ]
 
 shared_reference_deferred = [
@@ -1563,4 +1662,13 @@ lossless_graph = [
     "BU8L",
     "9KAX",
     "FTA2",
+    "3R3P",
+    "6KGN",
+    "7BMT",
+    "7BUB",
+    "CN3R",
+    "CUP7",
+    "E76Z",
+    "Y2GN",
+    "ZWK4",
 ]

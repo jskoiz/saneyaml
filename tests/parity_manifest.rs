@@ -46,6 +46,11 @@ const TREE_DEFERRED_DIVERGENCES: &[DeferredDivergenceCase] = &[
         record_source: EMPTY_SCALAR_ANCHORS_RECORD,
     },
     DeferredDivergenceCase {
+        id: "6KGN",
+        record_case: "empty-scalar-anchors",
+        record_source: EMPTY_SCALAR_ANCHORS_RECORD,
+    },
+    DeferredDivergenceCase {
         id: "S4JQ",
         record_case: "explicit-non-specific-tag-shape",
         record_source: EXPLICIT_NON_SPECIFIC_TAG_SHAPE_RECORD,
@@ -204,6 +209,12 @@ const TREE_SHAPE_DIVERGENCE_CASES: &[TreeShapeDivergenceCase] = &[
         record_case: "empty-scalar-anchors",
         record_source: EMPTY_SCALAR_ANCHORS_RECORD,
         compatibility_terms: &["PW8X", "empty scalar nodes", "tree-shape divergences"],
+    },
+    TreeShapeDivergenceCase {
+        id: "6KGN",
+        record_case: "empty-scalar-anchors",
+        record_source: EMPTY_SCALAR_ANCHORS_RECORD,
+        compatibility_terms: &["6KGN", "empty scalar nodes", "tree-shape divergences"],
     },
     TreeShapeDivergenceCase {
         id: "S4JQ",
@@ -475,7 +486,7 @@ fn yaml_suite_tag_anchor_metadata_cases_are_reference_gated() {
         .collect();
     assert_eq!(
         tag_anchor_cases,
-        BTreeSet::from(["9KAX", "BU8L"]),
+        BTreeSet::from(["9KAX", "BU8L", "CUP7"]),
         "all accepted tag+anchor YAML-suite cases must be explicitly audited",
     );
 

@@ -2,8 +2,8 @@ schema = "yaml-test-suite-coverage-v1"
 upstream = "https://github.com/yaml/yaml-test-suite"
 upstream_commit = "6ad3d2c62885d82fc349026c136ef560838fdf3d"
 upstream_case_count = 402
-selected_case_count = 154
-not_imported_case_count = 248
+selected_case_count = 163
+not_imported_case_count = 239
 id_format = "Upstream slash IDs for directories containing in.yaml at the pinned data branch commit."
 selection_policy = "The selected manifest is a hand-curated YAML 1.2 core/config milestone subset; not-imported cases remain explicit coverage debt."
 
@@ -431,6 +431,15 @@ selected_cases = [
   "U3XV",
   "2SXE",
   "PW8X",
+  "3R3P",
+  "6KGN",
+  "7BMT",
+  "7BUB",
+  "CN3R",
+  "CUP7",
+  "E76Z",
+  "Y2GN",
+  "ZWK4",
   "JHB9",
   "6LVF",
   "6BCT",
@@ -581,7 +590,6 @@ not_imported_cases = [
   "3ALJ",
   "3HFZ",
   "3MYT",
-  "3R3P",
   "3RLN/00",
   "3RLN/03",
   "3RLN/04",
@@ -617,7 +625,6 @@ not_imported_cases = [
   "6HB6",
   "6JQW",
   "6JWB",
-  "6KGN",
   "6S55",
   "6SLA",
   "6WLZ",
@@ -626,8 +633,6 @@ not_imported_cases = [
   "74H7",
   "753E",
   "7A4E",
-  "7BMT",
-  "7BUB",
   "7FWL",
   "7Z25",
   "7ZZ5",
@@ -664,10 +669,8 @@ not_imported_cases = [
   "BD7L",
   "C4HZ",
   "CC74",
-  "CN3R",
   "CPZ3",
   "CQ3W",
-  "CUP7",
   "D83L",
   "D88J",
   "D9TU",
@@ -676,7 +679,6 @@ not_imported_cases = [
   "DFF7",
   "DMG6",
   "DWX9",
-  "E76Z",
   "EHF6",
   "EW3V",
   "EX5H",
@@ -805,7 +807,6 @@ not_imported_cases = [
   "X4QW",
   "X8DW",
   "XV9V",
-  "Y2GN",
   "Y79Y/003",
   "Y79Y/007",
   "Y79Y/009",
@@ -817,7 +818,6 @@ not_imported_cases = [
   "ZK9H",
   "ZL4Z",
   "ZVH3",
-  "ZWK4",
 ]
 
 [[local_case_alias]]

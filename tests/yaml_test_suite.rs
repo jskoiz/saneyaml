@@ -153,8 +153,8 @@ fn yts_manifest_selected_cases_have_fixture_inputs_and_unique_ids() {
         }
     }
 
-    assert_eq!(manifest.case.len(), 154);
-    assert_eq!(accepted, 99);
+    assert_eq!(manifest.case.len(), 163);
+    assert_eq!(accepted, 108);
     assert_eq!(error_cases, 53);
     assert_eq!(tree_only_rejections, 2);
 }
@@ -250,7 +250,7 @@ fn yts_manifest_acceptance_policy_matches_parser_event_and_serde_entrypoints() {
         accepted += 1;
     }
 
-    assert_eq!(accepted, 99);
+    assert_eq!(accepted, 108);
     assert_eq!(syntax_rejections, 53);
     assert_eq!(tree_only_rejections, 2);
 }
@@ -3258,6 +3258,51 @@ fn yts_events_x38w__flow_key_aliases_remain_raw_events() {
         })
         .collect::<Vec<_>>();
     assert_eq!(aliases, ["b", "a", "b"]);
+}
+
+#[test]
+fn yts_parse_graph_property_tranche() {
+    for (name, input) in [
+        (
+            "3R3P",
+            include_str!("fixtures/yaml-test-suite/data/3R3P/in.yaml"),
+        ),
+        (
+            "6KGN",
+            include_str!("fixtures/yaml-test-suite/data/6KGN/in.yaml"),
+        ),
+        (
+            "7BMT",
+            include_str!("fixtures/yaml-test-suite/data/7BMT/in.yaml"),
+        ),
+        (
+            "7BUB",
+            include_str!("fixtures/yaml-test-suite/data/7BUB/in.yaml"),
+        ),
+        (
+            "CN3R",
+            include_str!("fixtures/yaml-test-suite/data/CN3R/in.yaml"),
+        ),
+        (
+            "CUP7",
+            include_str!("fixtures/yaml-test-suite/data/CUP7/in.yaml"),
+        ),
+        (
+            "E76Z",
+            include_str!("fixtures/yaml-test-suite/data/E76Z/in.yaml"),
+        ),
+        (
+            "Y2GN",
+            include_str!("fixtures/yaml-test-suite/data/Y2GN/in.yaml"),
+        ),
+        (
+            "ZWK4",
+            include_str!("fixtures/yaml-test-suite/data/ZWK4/in.yaml"),
+        ),
+    ] {
+        parse_str(input).unwrap_or_else(|error| panic!("{name} tree parses: {error}"));
+        parse_events(input).unwrap_or_else(|error| panic!("{name} events parse: {error}"));
+    }
 }
 
 #[test]

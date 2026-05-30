@@ -327,6 +327,51 @@ const CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "yts_3r3p_single_block_sequence_with_anchor",
+        input: include_str!("fixtures/yaml-test-suite/data/3R3P/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_6kgn_anchor_for_empty_node",
+        input: include_str!("fixtures/yaml-test-suite/data/6KGN/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_7bmt_node_and_mapping_key_anchors",
+        input: include_str!("fixtures/yaml-test-suite/data/7BMT/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_7bub_spec_node_referenced_by_alias",
+        input: include_str!("fixtures/yaml-test-suite/data/7BUB/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_cn3r_flow_sequence_anchor_locations",
+        input: include_str!("fixtures/yaml-test-suite/data/CN3R/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_cup7_node_property_indicators",
+        input: include_str!("fixtures/yaml-test-suite/data/CUP7/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_e76z_aliases_in_implicit_block_mapping",
+        input: include_str!("fixtures/yaml-test-suite/data/E76Z/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_y2gn_anchor_with_colon_in_middle",
+        input: include_str!("fixtures/yaml-test-suite/data/Y2GN/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_zwk4_anchor_after_missing_explicit_value",
+        input: include_str!("fixtures/yaml-test-suite/data/ZWK4/in.yaml"),
+        docs: 1,
+    },
+    Case {
         name: "yts_57h4_tagged_block_collections",
         input: include_str!("fixtures/yaml-test-suite/data/57H4/in.yaml"),
         docs: 1,

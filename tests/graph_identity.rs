@@ -528,7 +528,7 @@ fn yaml_suite_anchor_alias_cases_match_reference_parser_events() {
         .collect::<Vec<_>>();
     assert_eq!(
         cases.len(),
-        14,
+        23,
         "manifest-owned lossless graph parity case count drifted"
     );
 

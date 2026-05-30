@@ -419,21 +419,21 @@ The compatibility harness checks shared acceptance across this crate,
 `serde_yaml`, `yaml-rust2`, and `saphyr`, plus dedicated Rust-reference
 parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
 
-- the pinned selected YAML test-suite manifest, currently 154 fixtures with
+- the pinned selected YAML test-suite manifest, currently 163 fixtures with
   explicit per-case `expected`, `source`, and parser/tree/Serde `policy`
-  fields: 99 normal accepts, 53 syntax/error rejects, and YAML-suite
+  fields: 108 normal accepts, 53 syntax/error rejects, and YAML-suite
   2JQS/X38W as intentional tree/Serde-only rejections while raw parser events
   remain available. The manifest also owns the selected-suite parity ledger:
   `parity.event`, `parity.tree`, `parity.shared_reference`, and
   `parity.lossless_graph` make the selected proof surfaces auditable. Current
-  selected-suite ledgers cover event parity for all 99 accepted cases with no
-  event-shape deferrals, loaded-tree value-shape parity for 97 accepted cases
-  with 2 documented tree-shape deferrals, shared-reference acceptance for 70
+  selected-suite ledgers cover event parity for all 108 accepted cases with no
+  event-shape deferrals, loaded-tree value-shape parity for 105 accepted cases
+  with 3 documented tree-shape deferrals, shared-reference acceptance for 79
   accepted cases with 29 documented `serde_yaml`/libyaml divergence deferrals,
-  and lossless graph identity parity for 14 graph-sensitive raw-event cases.
+  and lossless graph identity parity for 23 graph-sensitive raw-event cases.
   `tests/fixtures/yaml-test-suite/coverage.toml` also pins the full upstream
-  denominator at 402 cases from the same upstream commit, with 154 selected
-  cases and 248 not-imported cases partitioned explicitly by
+  denominator at 402 cases from the same upstream commit, with 163 selected
+  cases and 239 not-imported cases partitioned explicitly by
   `yaml_suite_coverage`
 - core scalars
 - explicit YAML 1.1 schema-mode scalars, including boolean aliases, retained
@@ -454,7 +454,7 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   mapping-key anchors, tag/anchor property-order preservation for aliases,
   anchor-only flow nodes that resolve to null, scalar block mapping-key aliases
   in raw events, YAML-suite 2SXE colon-bearing block anchor and alias names, and
-  YAML-suite PW8X anchors on empty scalar nodes. Colon-bearing anchor names and
+  YAML-suite PW8X and 6KGN anchors on empty scalar nodes. Colon-bearing anchor names and
   anchor-only empty scalar nodes are covered as documented tree-shape
   divergences where reference loaders disagree. The Serde API matrix also
   checks tag/anchor alias preservation across parser nodes, retained `Value`,

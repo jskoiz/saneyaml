@@ -35,6 +35,15 @@ const EVENT_STREAM_REQUIRED_SEEDS: &[&str] = &[
     "alias-recursive-flow",
     "docker-compose-anchors",
     "directive-tag-handle",
+    "yts-3r3p-root-sequence-anchor",
+    "yts-6kgn-empty-anchor-alias",
+    "yts-7bmt-anchor-key-properties",
+    "yts-7bub-commented-alias",
+    "yts-cn3r-flow-anchor-properties",
+    "yts-cup7-tagged-anchor-alias",
+    "yts-e76z-anchor-alias-keys",
+    "yts-y2gn-colon-anchor-name",
+    "yts-zwk4-anchor-explicit-key",
     "yts-zxt5-implicit-key-adjacent-newline",
 ];
 const EMIT_ROUNDTRIP_REQUIRED_SEEDS: &[&str] = &[
@@ -77,6 +86,15 @@ const LOSSLESS_GRAPH_REQUIRED_SEEDS: &[&str] = &[
     "recursive_alias.yml",
     "yaml11_merge_comments_alias_graph.yml",
     "yaml11_recursive_merge_comments.yml",
+    "yts-3r3p-root-sequence-anchor.yml",
+    "yts-6kgn-empty-anchor-alias.yml",
+    "yts-7bmt-anchor-key-properties.yml",
+    "yts-7bub-commented-alias.yml",
+    "yts-cn3r-flow-anchor-properties.yml",
+    "yts-cup7-tagged-anchor-alias.yml",
+    "yts-e76z-anchor-alias-keys.yml",
+    "yts-y2gn-colon-anchor-name.yml",
+    "yts-zwk4-anchor-explicit-key.yml",
 ];
 const LOSSLESS_EDIT_REQUIRED_SEEDS: &[&str] = &[
     "delete-compose-root-source",
@@ -337,9 +355,9 @@ fn fuzz_corpora_cover_release_targets_and_named_safety_seeds() {
     let expected: BTreeMap<&str, (usize, &[&str])> = BTreeMap::from([
         ("apply_merge", (16, APPLY_MERGE_REQUIRED_SEEDS)),
         ("emit_roundtrip", (14, EMIT_ROUNDTRIP_REQUIRED_SEEDS)),
-        ("event_stream", (80, EVENT_STREAM_REQUIRED_SEEDS)),
+        ("event_stream", (94, EVENT_STREAM_REQUIRED_SEEDS)),
         ("lossless_edit", (28, LOSSLESS_EDIT_REQUIRED_SEEDS)),
-        ("lossless_graph", (20, LOSSLESS_GRAPH_REQUIRED_SEEDS)),
+        ("lossless_graph", (29, LOSSLESS_GRAPH_REQUIRED_SEEDS)),
         ("parse_bytes", (881, PARSE_BYTES_REQUIRED_SEEDS)),
         ("schema_modes", (22, SCHEMA_MODES_REQUIRED_SEEDS)),
         ("serde_entrypoints", (290, SERDE_ENTRYPOINTS_REQUIRED_SEEDS)),

@@ -439,17 +439,19 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   `parity.event`, `parity.tree`, `parity.shared_reference`, and
   `parity.lossless_graph` make the selected proof surfaces auditable. Current
   selected-suite ledgers cover event parity for all 306 accepted cases with no
-  documented event-shape deferrals, loaded-tree value-shape parity for 296
-  accepted cases with 10 documented tree-shape deferrals, shared-reference
+  documented event-shape deferrals, loaded-tree value-shape parity for 301
+  accepted cases with 5 documented tree-shape deferrals, shared-reference
   acceptance for 253 accepted cases with 53 documented `serde_yaml`/libyaml
   divergence deferrals, and lossless graph identity parity for 34
   graph-sensitive raw-event cases. The remaining loaded-tree deferrals are
-  split into empty scalar anchor/non-specific tag reference-shape divergences
-  and explicit tag/schema loaded-tree deferrals for 2AUY, 33X3, 74H7, C4HZ,
-  F2C7, FH7J, and L94M, including a custom tag plus schema scalar divergence
-  in C4HZ and tags on empty scalar nodes in FH7J. Shared-reference deferrals
-  distinguish hard `serde_yaml`/libyaml rejections from the AVM7, 8G76, and
-  98YD empty/comment-only null-document API split. The remaining hard
+  split into empty scalar anchor/non-specific tag reference-shape divergences,
+  explicit core tag promotions for 2AUY, 33X3, 74H7, F2C7, and L94M under a
+  semantic explicit-core projection, and remaining tagged loaded-tree
+  deferrals for C4HZ and FH7J. C4HZ stays deferred for the custom tag plus
+  schema scalar divergence, and FH7J stays deferred for tags on empty scalar
+  nodes. Shared-reference deferrals distinguish hard `serde_yaml`/libyaml
+  rejections from the AVM7, 8G76, and 98YD empty/comment-only null-document API
+  split. The remaining hard
   shared-reference deferrals are no longer represented by a final catch-all:
   flow collection cases, stream-marker and empty-key document shapes, unusual
   anchor-character cases, and A2M4 block-indentation behavior each have

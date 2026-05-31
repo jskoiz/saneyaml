@@ -391,8 +391,12 @@ testing each adopter's own YAML corpus.
   targeted block/flow mapping entry and sequence item helpers; and the
   long-term graph API contract before claiming full YAML compatibility.
 - Drive the next phase from the conformance dashboard parity ledgers: event
-  parity is closed, while remaining loaded-tree and shared-reference deferrals
-  need reference-policy changes before promotion. The broad shared-reference
+  parity is closed, and explicit core scalar tag fixtures now count in
+  loaded-tree value-shape parity under semantic explicit-core projection while
+  retained `Node`/`Value` trees still preserve tag metadata. Remaining
+  loaded-tree and shared-reference deferrals need reference-policy changes
+  before promotion.
+  The broad shared-reference
   catch-all has been split into case-family records for flow collection syntax,
   stream-marker and empty-key document shapes, unusual anchor characters, and
   A2M4 block indentation, so the remaining work is policy rather than missing

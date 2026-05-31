@@ -20,6 +20,11 @@ Notable completed release-candidate behavior:
   into named loaded-tree, null-document, flow, stream, anchor-character, and
   indentation families, with named fuzz/span coverage before any loaded-tree or
   Serde policy promotion.
+- Explicit core scalar tag fixtures `2AUY`, `33X3`, `74H7`, `F2C7`, and
+  `L94M` now count in loaded-tree value-shape parity under semantic
+  explicit-core projection, while retained `Node`/`Value` trees still preserve
+  tag metadata and source spellings. `C4HZ` and `FH7J` remain the tagged
+  loaded-tree deferrals.
 - Emission now has explicit fidelity tiers through `EmitOptions`:
   `Structural` is the implemented default, `ByteCompatible` is opt-in
   `serde_yaml` writer-byte parity for the supported structural corpus, and

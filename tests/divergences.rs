@@ -964,9 +964,15 @@ fn divergence_explicit_non_specific_tag_shape_record_is_present() {
 fn divergence_yaml_suite_tagged_tree_deferrals_record_is_present() {
     let record = include_str!("fixtures/divergences/records/yaml-suite-tagged-tree-deferrals.toml");
     assert!(record.contains("yaml-suite-tagged-tree-deferrals"));
-    for case in ["2AUY", "33X3", "74H7", "C4HZ", "F2C7", "FH7J", "L94M"] {
+    for case in ["2AUY", "33X3", "74H7", "F2C7", "L94M"] {
         assert!(record.contains(case));
     }
+    for case in ["C4HZ", "FH7J"] {
+        assert!(record.contains(case));
+    }
+    assert!(record.contains("promoted"));
+    assert!(record.contains("semantic explicit-core projection"));
+    assert!(record.contains("remaining loaded-tree deferrals"));
     assert!(record.contains("retained tag"));
     assert!(record.contains("yaml-rust2 0.11.0"));
     assert!(record.contains("saphyr 0.0.6"));

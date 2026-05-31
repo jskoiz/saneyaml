@@ -1222,6 +1222,26 @@ const VALUE_SHAPE_CASES: &[TreeCase] = &[
         name: "yts_z9m4",
         input: include_str!("fixtures/yaml-test-suite/data/Z9M4/in.yaml"),
     },
+    TreeCase {
+        name: "yts_2auy_explicit_core_scalar_tags",
+        input: include_str!("fixtures/yaml-test-suite/data/2AUY/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_33x3_explicit_integer_tags",
+        input: include_str!("fixtures/yaml-test-suite/data/33X3/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_74h7_explicit_core_tagged_mapping_scalars",
+        input: include_str!("fixtures/yaml-test-suite/data/74H7/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_f2c7_anchored_explicit_core_scalars",
+        input: include_str!("fixtures/yaml-test-suite/data/F2C7/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_l94m_explicit_core_mapping_key_values",
+        input: include_str!("fixtures/yaml-test-suite/data/L94M/in.yaml"),
+    },
 ];
 
 const TAGGED_SAPHYR_CASES: &[TreeCase] = &[TreeCase {
@@ -1550,9 +1570,46 @@ fn normalize_ours_node(node: &yaml::Node, tags: TagPolicy) -> NormTree {
                 normalize_tag(&tagged.tag.to_string()),
                 Box::new(normalize_ours_node(&tagged.value, tags)),
             ),
-            TagPolicy::Strip => normalize_ours_node(&tagged.value, tags),
+            TagPolicy::Strip => normalize_stripped_ours_tagged_node(tagged)
+                .unwrap_or_else(|| normalize_ours_node(&tagged.value, tags)),
         },
     }
+}
+
+fn normalize_stripped_ours_tagged_node(tagged: &yaml::TaggedNode) -> Option<NormTree> {
+    if is_yaml_core_tag(&tagged.tag, "str") {
+        return Some(normalize_ours_node(&tagged.value, TagPolicy::Strip));
+    }
+
+    let value = yaml::Value::Tagged(Box::new(yaml::TaggedValue {
+        tag: tagged.tag.clone(),
+        value: yaml::Value::from(&tagged.value),
+    }));
+
+    if is_yaml_core_tag(&tagged.tag, "int") {
+        return value.as_i128().map(NormTree::Int);
+    }
+    if is_yaml_core_tag(&tagged.tag, "float") {
+        return value
+            .as_f64()
+            .map(|number| NormTree::Float(normalize_float(number)));
+    }
+    if is_yaml_core_tag(&tagged.tag, "bool") {
+        return value.as_bool().map(NormTree::Bool);
+    }
+    if is_yaml_core_tag(&tagged.tag, "null") && value.as_null().is_some() {
+        return Some(NormTree::Null);
+    }
+    None
+}
+
+fn is_yaml_core_tag(tag: &yaml::Tag, suffix: &str) -> bool {
+    (tag.handle == "!!" && tag.suffix == suffix)
+        || (tag.handle == "!"
+            && tag
+                .suffix
+                .strip_prefix("tag:yaml.org,2002:")
+                .is_some_and(|core_suffix| core_suffix == suffix))
 }
 
 fn normalize_ours_number(number: yaml::Number) -> NormTree {

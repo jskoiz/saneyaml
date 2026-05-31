@@ -68,37 +68,12 @@ const TREE_DEFERRED_DIVERGENCES: &[DeferredDivergenceCase] = &[
         record_source: EXPLICIT_NON_SPECIFIC_TAG_SHAPE_RECORD,
     },
     DeferredDivergenceCase {
-        id: "2AUY",
-        record_case: "yaml-suite-tagged-tree-deferrals",
-        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
-    },
-    DeferredDivergenceCase {
-        id: "33X3",
-        record_case: "yaml-suite-tagged-tree-deferrals",
-        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
-    },
-    DeferredDivergenceCase {
-        id: "74H7",
-        record_case: "yaml-suite-tagged-tree-deferrals",
-        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
-    },
-    DeferredDivergenceCase {
         id: "C4HZ",
         record_case: "yaml-suite-tagged-tree-deferrals",
         record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
-        id: "F2C7",
-        record_case: "yaml-suite-tagged-tree-deferrals",
-        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
-    },
-    DeferredDivergenceCase {
         id: "FH7J",
-        record_case: "yaml-suite-tagged-tree-deferrals",
-        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
-    },
-    DeferredDivergenceCase {
-        id: "L94M",
         record_case: "yaml-suite-tagged-tree-deferrals",
         record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
     },
@@ -390,34 +365,10 @@ const TREE_SHAPE_DIVERGENCE_CASES: &[TreeShapeDivergenceCase] = &[
         compatibility_terms: &["S4JQ", "explicit non-specific tag"],
     },
     TreeShapeDivergenceCase {
-        id: "2AUY",
-        record_case: "yaml-suite-tagged-tree-deferrals",
-        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
-        compatibility_terms: &["2AUY", "explicit tag/schema loaded-tree deferrals"],
-    },
-    TreeShapeDivergenceCase {
-        id: "33X3",
-        record_case: "yaml-suite-tagged-tree-deferrals",
-        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
-        compatibility_terms: &["33X3", "explicit tag/schema loaded-tree deferrals"],
-    },
-    TreeShapeDivergenceCase {
-        id: "74H7",
-        record_case: "yaml-suite-tagged-tree-deferrals",
-        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
-        compatibility_terms: &["74H7", "explicit tag/schema loaded-tree deferrals"],
-    },
-    TreeShapeDivergenceCase {
         id: "C4HZ",
         record_case: "yaml-suite-tagged-tree-deferrals",
         record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
-        compatibility_terms: &["C4HZ", "custom tag plus schema scalar divergence"],
-    },
-    TreeShapeDivergenceCase {
-        id: "F2C7",
-        record_case: "yaml-suite-tagged-tree-deferrals",
-        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
-        compatibility_terms: &["F2C7", "explicit tag/schema loaded-tree deferrals"],
+        compatibility_terms: &["C4HZ", "custom tag plus", "schema scalar divergence"],
     },
     TreeShapeDivergenceCase {
         id: "FH7J",
@@ -425,13 +376,9 @@ const TREE_SHAPE_DIVERGENCE_CASES: &[TreeShapeDivergenceCase] = &[
         record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
         compatibility_terms: &["FH7J", "tags on empty scalar nodes"],
     },
-    TreeShapeDivergenceCase {
-        id: "L94M",
-        record_case: "yaml-suite-tagged-tree-deferrals",
-        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
-        compatibility_terms: &["L94M", "explicit tag/schema loaded-tree deferrals"],
-    },
 ];
+
+const TAGGED_CORE_TREE_PROMOTIONS: &[&str] = &["2AUY", "33X3", "74H7", "F2C7", "L94M"];
 
 struct DeferredDivergenceCase {
     id: &'static str,
@@ -831,6 +778,48 @@ fn yaml_suite_tree_shape_divergences_are_explicitly_gated() {
                 divergence.id,
             );
         }
+    }
+}
+
+#[test]
+fn yaml_suite_tagged_core_tree_promotions_are_explicitly_gated() {
+    let cases_by_id = yaml_suite_cases_by_id();
+    let event_dirs = yts_fixture_dirs(source_section(EVENT_PARITY_SOURCE, "const CASES"));
+    let tree_dirs = yts_fixture_dirs(source_section(
+        TREE_PARITY_SOURCE,
+        "const VALUE_SHAPE_CASES",
+    ));
+    let compatibility_dirs = yts_fixture_dirs(source_section(
+        COMPATIBILITY_HARNESS_SOURCE,
+        "const SHARED_ACCEPT_CASES",
+    ));
+
+    assert!(YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD.contains("promoted"));
+    assert!(YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD.contains("semantic explicit-core projection"));
+    for id in TAGGED_CORE_TREE_PROMOTIONS {
+        let case = cases_by_id
+            .get(*id)
+            .unwrap_or_else(|| panic!("missing tagged core promotion case {id}"));
+        assert_eq!(case.expected, ExpectedOutcome::Accept);
+        assert_eq!(case.policy, "raw-events-tree-serde-accept");
+
+        let fixture_dir = case.fixture_dir();
+        assert!(
+            event_dirs.contains(&fixture_dir),
+            "tagged core promotion {id} must stay in event parity",
+        );
+        assert!(
+            tree_dirs.contains(&fixture_dir),
+            "tagged core promotion {id} must be in loaded-tree value-shape parity",
+        );
+        assert!(
+            compatibility_dirs.contains(&fixture_dir),
+            "tagged core promotion {id} must keep shared-reference acceptance coverage",
+        );
+        assert!(
+            YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD.contains(id),
+            "tagged core promotion {id} must stay documented in the tagged-tree record",
+        );
     }
 }
 

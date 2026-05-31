@@ -370,6 +370,80 @@ fn lossless_effective_mapping_view_expands_compose_merge_without_rewriting_sourc
     assert_effective_scalar_entry(&stream, &entries, "KEY", "VALUE", Some("keys"), false);
 }
 
+#[test]
+fn lossless_in_place_edit_bumps_helm_versions_with_minimal_diff() {
+    let input = include_str!("fixtures/real-world/helm/upstream-hello-world-Chart.yaml");
+    let stream = parse_lossless(input).expect("lossless parse Helm chart");
+    let root = stream.documents()[0].root().expect("root mapping");
+
+    let mut edit = stream.edit();
+    edit.replace_mapping_value_source(root, "version", "0.2.0")
+        .expect("replace chart version");
+    edit.replace_mapping_value_source(root, "appVersion", "\"1.17.0\"")
+        .expect("replace app version");
+    let edited = edit.finish().expect("edited Helm chart re-parses");
+
+    // Untouched spans (comments, blank lines, every other key) stay byte-stable;
+    // only the two intended value lines change.
+    assert_minimal_line_diff(
+        input,
+        &edited,
+        &[
+            ("version: 0.1.0", "version: 0.2.0"),
+            ("appVersion: \"1.16.0\"", "appVersion: \"1.17.0\""),
+        ],
+    );
+}
+
+#[test]
+fn lossless_in_place_edit_updates_compose_db_service_with_minimal_diff() {
+    let input = include_str!("fixtures/real-world/docker-compose/awesome-nginx-flask-mysql.yaml");
+    let stream = parse_lossless(input).expect("lossless parse Compose stack");
+    let root = stream.documents()[0].root().expect("root mapping");
+    let services = mapping_value_by_scalar_key(&stream, root, "services");
+    let db = mapping_value_by_scalar_key(&stream, services, "db");
+
+    let mut edit = stream.edit();
+    edit.replace_mapping_value_source(db, "image", "mariadb:11-focal")
+        .expect("replace db image");
+    edit.replace_mapping_value_source(db, "restart", "unless-stopped")
+        .expect("replace db restart policy");
+    let edited = edit.finish().expect("edited Compose stack re-parses");
+
+    // The db service nests under services; the sibling `restart: always` lines on
+    // the backend/proxy services and the inline `#image: mysql:8` comment must be
+    // left untouched.
+    assert_minimal_line_diff(
+        input,
+        &edited,
+        &[
+            ("    image: mariadb:10-focal", "    image: mariadb:11-focal"),
+            ("    restart: always", "    restart: unless-stopped"),
+        ],
+    );
+}
+
+/// Asserts the edit changed only the intended lines: line count is preserved and
+/// the ordered set of `(before, after)` line replacements matches `expected`,
+/// proving every untouched line is byte-stable.
+fn assert_minimal_line_diff(original: &str, edited: &str, expected: &[(&str, &str)]) {
+    let original_lines: Vec<&str> = original.lines().collect();
+    let edited_lines: Vec<&str> = edited.lines().collect();
+    assert_eq!(
+        original_lines.len(),
+        edited_lines.len(),
+        "in-place edit must not add or remove lines"
+    );
+    let changes: Vec<(&str, &str)> = original_lines
+        .iter()
+        .zip(edited_lines.iter())
+        .filter(|(before, after)| before != after)
+        .map(|(before, after)| (*before, *after))
+        .collect();
+    let expected: Vec<(&str, &str)> = expected.to_vec();
+    assert_eq!(changes, expected, "unexpected lines changed during edit");
+}
+
 fn fixture_manifest() -> FixtureManifest {
     toml::from_str(SOURCE).expect("real-world fixture source manifest parses")
 }

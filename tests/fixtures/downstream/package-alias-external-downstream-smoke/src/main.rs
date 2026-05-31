@@ -430,6 +430,30 @@ fn assert_value_writer_replays(path: &str, value: &serde_yaml::Value) {
         .unwrap_or_else(|error| panic!("package alias writes value to writer {path}: {error}"));
     assert_eq!(written, emitted.as_bytes(), "{path}");
 
+    let byte_emitted =
+        serde_yaml::to_string_with_options(value, serde_yaml::EmitOptions::ByteCompatible)
+            .unwrap_or_else(|error| {
+                panic!("package alias writes byte-compatible value {path}: {error}")
+            });
+    let byte_reparsed: serde_yaml::Value = serde_yaml::from_str(&byte_emitted).unwrap_or_else(
+        |error| panic!("package alias reparses byte-compatible emitted value {path}: {error}"),
+    );
+    assert!(
+        byte_reparsed.equivalent(value),
+        "package alias byte-compatible output must reparse equivalently for {path}"
+    );
+
+    let mut byte_written = Vec::new();
+    serde_yaml::to_writer_with_options(
+        &mut byte_written,
+        value,
+        serde_yaml::EmitOptions::ByteCompatible,
+    )
+    .unwrap_or_else(|error| {
+        panic!("package alias writes byte-compatible value to writer {path}: {error}")
+    });
+    assert_eq!(byte_written, byte_emitted.as_bytes(), "{path}");
+
     let mut stream = serde_yaml::Serializer::new(Vec::new());
     value
         .serialize(&mut stream)
@@ -446,6 +470,25 @@ fn assert_value_writer_replays(path: &str, value: &serde_yaml::Value) {
     assert_eq!(docs.len(), 2, "{path}");
     assert!(docs[0].equivalent(value), "{path}");
     assert!(docs[1].equivalent(value), "{path}");
+
+    let mut byte_stream =
+        serde_yaml::Serializer::with_options(Vec::new(), serde_yaml::EmitOptions::ByteCompatible);
+    value
+        .serialize(&mut byte_stream)
+        .unwrap_or_else(|error| panic!("package alias streams first byte-compatible value {path}: {error}"));
+    value
+        .serialize(&mut byte_stream)
+        .unwrap_or_else(|error| panic!("package alias streams second byte-compatible value {path}: {error}"));
+    let byte_stream_output =
+        String::from_utf8(byte_stream.into_inner().expect("byte stream into inner"))
+            .expect("byte-compatible serializer output is UTF-8");
+    let byte_docs = serde_yaml::Deserializer::from_str(&byte_stream_output)
+        .map(serde_yaml::Value::deserialize)
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap_or_else(|error| panic!("package alias reparses byte stream {path}: {error}"));
+    assert_eq!(byte_docs.len(), 2, "{path}");
+    assert!(byte_docs[0].equivalent(value), "{path}");
+    assert!(byte_docs[1].equivalent(value), "{path}");
 }
 
 fn assert_tagged_scalar<'a>(

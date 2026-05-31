@@ -21,9 +21,10 @@ Notable completed release-candidate behavior:
   indentation families, with named fuzz/span coverage before any loaded-tree or
   Serde policy promotion.
 - Emission now has explicit fidelity tiers through `EmitOptions`:
-  `Structural` is the implemented default, while `ByteCompatible` and
-  `Preserving` are declared future target tiers that return not-implemented
-  errors instead of silently falling back to structural output.
+  `Structural` is the implemented default, `ByteCompatible` is opt-in
+  `serde_yaml` writer-byte parity for the supported structural corpus, and
+  `Preserving` remains a declared future target tier that returns a
+  not-implemented error instead of silently falling back to structural output.
 - `Cargo.toml` now has an explicit package include boundary for the developer
   preview: source, examples, and public docs are package contents, while
   repository-only fixtures, downstream reductions, fuzz corpora, CI files, and
@@ -182,7 +183,8 @@ Notable completed release-candidate behavior:
 
 Known release-candidate gaps remain tracked in `BASELINE.md`,
 `COMPATIBILITY.md`, and `MIGRATION.md`: complete YAML 1.1 ecosystem parity,
-`ByteCompatible` emission, full arbitrary structural lossless formatting beyond
+arbitrary `serde_yaml` byte parity outside the supported `ByteCompatible`
+structural writer corpus, full arbitrary structural lossless formatting beyond
 targeted block/flow mapping entry and sequence item helpers,
 `EmitOptions::Preserving`, final package metadata, and external publication.
 Semantic `Node`/`Value` loaders remain value-oriented by design; alias graph

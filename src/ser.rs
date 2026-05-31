@@ -35,12 +35,13 @@ where
 
 /// Serializes a value into a YAML string using explicit emission options.
 ///
-/// Only [`EmitOptions::Structural`] is implemented in this preview.
+/// [`EmitOptions::Structural`] is the default. [`EmitOptions::ByteCompatible`]
+/// is opt-in for the supported `serde_yaml` writer-byte corpus.
 pub fn to_string_with_options<T>(value: &T, options: EmitOptions) -> Result<String>
 where
     T: ?Sized + Serialize,
 {
-    let node = serialized_node(value)?;
+    let node = serialized_node_with_options(value, options)?;
     crate::emit::to_string_with_options(&node, options)
 }
 
@@ -56,7 +57,8 @@ where
 /// Serializes a value as YAML using explicit emission options and writes it to
 /// an output sink.
 ///
-/// Only [`EmitOptions::Structural`] is implemented in this preview.
+/// [`EmitOptions::Structural`] is the default. [`EmitOptions::ByteCompatible`]
+/// is opt-in for the supported `serde_yaml` writer-byte corpus.
 pub fn to_writer_with_options<W, T>(mut writer: W, value: &T, options: EmitOptions) -> Result<()>
 where
     W: Write,
@@ -76,7 +78,27 @@ where
     T: ?Sized + Serialize,
 {
     let value = value.serialize(DocumentValueSerializer)?;
-    Ok(Node::new(value.into(), Default::default()))
+    Ok(node_from_value(value))
+}
+
+fn serialized_node_with_options<T>(value: &T, options: EmitOptions) -> Result<Node>
+where
+    T: ?Sized + Serialize,
+{
+    if matches!(options, EmitOptions::ByteCompatible) {
+        value.serialize(ByteCompatibleRootSerializer)
+    } else {
+        serialized_node(value)
+    }
+}
+
+fn node_from_value(value: Value) -> Node {
+    Node::new(value.into(), Default::default())
+}
+
+fn byte_compatible_single_quoted_node(value: impl Into<String>) -> Node {
+    Node::new(NodeValue::String(value.into()), Default::default())
+        .with_scalar_source(crate::emit::BYTE_COMPATIBLE_SINGLE_QUOTED_SOURCE)
 }
 
 /// Streaming YAML serializer for writing one document at a time.
@@ -98,7 +120,8 @@ where
     /// Creates a serializer that writes YAML documents to `writer` using
     /// explicit emission options.
     ///
-    /// Only [`EmitOptions::Structural`] is implemented in this preview.
+    /// [`EmitOptions::Structural`] is the default. [`EmitOptions::ByteCompatible`]
+    /// is opt-in for the supported `serde_yaml` writer-byte corpus.
     pub fn with_options(writer: W, emit_options: EmitOptions) -> Self {
         Self {
             writer,
@@ -119,12 +142,16 @@ where
     }
 
     fn write_value(&mut self, value: Value) -> Result<()> {
+        self.write_node(node_from_value(value))
+    }
+
+    fn write_node(&mut self, node: Node) -> Result<()> {
         let mut output = String::new();
         if self.document_written {
             output.push_str("---\n");
         }
         output.push_str(&crate::emit::to_string_with_options(
-            &Node::new(value.into(), Default::default()),
+            &node,
             self.emit_options,
         )?);
         self.writer
@@ -202,6 +229,9 @@ where
     }
 
     fn serialize_char(self, value: char) -> Result<()> {
+        if matches!(self.emit_options, EmitOptions::ByteCompatible) {
+            return self.write_node(byte_compatible_single_quoted_node(value.to_string()));
+        }
         self.write_value(Value::String(value.to_string()))
     }
 
@@ -916,6 +946,344 @@ impl ser::Serializer for DocumentValueSerializer {
         T: ?Sized + std::fmt::Display,
     {
         ValueSerializer.collect_str(value)
+    }
+}
+
+struct ByteCompatibleRootSerializer;
+
+impl ser::Serializer for ByteCompatibleRootSerializer {
+    type Ok = Node;
+    type Error = Error;
+    type SerializeSeq = RootSequenceSerializer;
+    type SerializeTuple = RootSequenceSerializer;
+    type SerializeTupleStruct = RootSequenceSerializer;
+    type SerializeTupleVariant = RootTupleVariantSerializer;
+    type SerializeMap = RootMappingSerializer;
+    type SerializeStruct = RootStructSerializer;
+    type SerializeStructVariant = RootStructVariantSerializer;
+
+    fn serialize_bool(self, value: bool) -> Result<Node> {
+        Ok(node_from_value(Value::Bool(value)))
+    }
+
+    fn serialize_i8(self, value: i8) -> Result<Node> {
+        Ok(node_from_value(Value::from(value)))
+    }
+
+    fn serialize_i16(self, value: i16) -> Result<Node> {
+        Ok(node_from_value(Value::from(value)))
+    }
+
+    fn serialize_i32(self, value: i32) -> Result<Node> {
+        Ok(node_from_value(Value::from(value)))
+    }
+
+    fn serialize_i64(self, value: i64) -> Result<Node> {
+        Ok(node_from_value(Value::from(value)))
+    }
+
+    fn serialize_i128(self, value: i128) -> Result<Node> {
+        Ok(node_from_value(ValueSerializer.serialize_i128(value)?))
+    }
+
+    fn serialize_u8(self, value: u8) -> Result<Node> {
+        Ok(node_from_value(Value::from(value)))
+    }
+
+    fn serialize_u16(self, value: u16) -> Result<Node> {
+        Ok(node_from_value(Value::from(value)))
+    }
+
+    fn serialize_u32(self, value: u32) -> Result<Node> {
+        Ok(node_from_value(Value::from(value)))
+    }
+
+    fn serialize_u64(self, value: u64) -> Result<Node> {
+        Ok(node_from_value(Value::from(value)))
+    }
+
+    fn serialize_u128(self, value: u128) -> Result<Node> {
+        Ok(node_from_value(ValueSerializer.serialize_u128(value)?))
+    }
+
+    fn serialize_f32(self, value: f32) -> Result<Node> {
+        Ok(node_from_value(Value::from(value)))
+    }
+
+    fn serialize_f64(self, value: f64) -> Result<Node> {
+        Ok(node_from_value(Value::from(value)))
+    }
+
+    fn serialize_char(self, value: char) -> Result<Node> {
+        Ok(byte_compatible_single_quoted_node(value.to_string()))
+    }
+
+    fn serialize_str(self, value: &str) -> Result<Node> {
+        Ok(node_from_value(Value::String(value.to_string())))
+    }
+
+    fn serialize_bytes(self, _value: &[u8]) -> Result<Node> {
+        Err(bytes_unsupported_error())
+    }
+
+    fn serialize_none(self) -> Result<Node> {
+        self.serialize_unit()
+    }
+
+    fn serialize_some<T>(self, value: &T) -> Result<Node>
+    where
+        T: ?Sized + Serialize,
+    {
+        value.serialize(self)
+    }
+
+    fn serialize_unit(self) -> Result<Node> {
+        Ok(node_from_value(Value::Null))
+    }
+
+    fn serialize_unit_struct(self, _name: &'static str) -> Result<Node> {
+        self.serialize_unit()
+    }
+
+    fn serialize_unit_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        variant: &'static str,
+    ) -> Result<Node> {
+        Ok(node_from_value(Value::String(variant.to_string())))
+    }
+
+    fn serialize_newtype_struct<T>(self, name: &'static str, value: &T) -> Result<Node>
+    where
+        T: ?Sized + Serialize,
+    {
+        if name == NUMBER_STRUCT {
+            return Ok(node_from_value(value.serialize(PreserveNumberSerializer)?));
+        }
+        value.serialize(self)
+    }
+
+    fn serialize_newtype_variant<T>(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        variant: &'static str,
+        value: &T,
+    ) -> Result<Node>
+    where
+        T: ?Sized + Serialize,
+    {
+        validate_variant_tag(variant)?;
+        Ok(node_from_value(Value::Tagged(Box::new(TaggedValue {
+            tag: Tag::new(variant),
+            value: value.serialize(DocumentValueSerializer)?,
+        }))))
+    }
+
+    fn serialize_seq(self, len: Option<usize>) -> Result<RootSequenceSerializer> {
+        Ok(RootSequenceSerializer(sequence_serializer_with_capacity(
+            len, true,
+        )))
+    }
+
+    fn serialize_tuple(self, len: usize) -> Result<RootSequenceSerializer> {
+        self.serialize_seq(Some(len))
+    }
+
+    fn serialize_tuple_struct(
+        self,
+        _name: &'static str,
+        len: usize,
+    ) -> Result<RootSequenceSerializer> {
+        self.serialize_seq(Some(len))
+    }
+
+    fn serialize_tuple_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        variant: &'static str,
+        len: usize,
+    ) -> Result<RootTupleVariantSerializer> {
+        validate_variant_tag(variant)?;
+        Ok(RootTupleVariantSerializer(
+            tuple_variant_serializer_with_capacity(variant, len, true),
+        ))
+    }
+
+    fn serialize_map(self, len: Option<usize>) -> Result<RootMappingSerializer> {
+        Ok(RootMappingSerializer(MappingSerializer::new(
+            len,
+            len == Some(1),
+            true,
+        )))
+    }
+
+    fn serialize_struct(self, _name: &'static str, len: usize) -> Result<RootStructSerializer> {
+        Ok(RootStructSerializer(StructSerializer {
+            entries: mapping_with_hinted_capacity(Some(len)),
+            reject_bytes: true,
+        }))
+    }
+
+    fn serialize_struct_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        variant: &'static str,
+        len: usize,
+    ) -> Result<RootStructVariantSerializer> {
+        validate_variant_tag(variant)?;
+        Ok(RootStructVariantSerializer(StructVariantSerializer {
+            variant,
+            entries: mapping_with_hinted_capacity(Some(len)),
+            reject_bytes: true,
+        }))
+    }
+
+    fn collect_str<T>(self, value: &T) -> Result<Node>
+    where
+        T: ?Sized + std::fmt::Display,
+    {
+        Ok(node_from_value(Value::String(value.to_string())))
+    }
+}
+
+struct RootSequenceSerializer(SequenceSerializer);
+
+impl SerializeSeq for RootSequenceSerializer {
+    type Ok = Node;
+    type Error = Error;
+
+    fn serialize_element<T>(&mut self, value: &T) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        SerializeSeq::serialize_element(&mut self.0, value)
+    }
+
+    fn end(self) -> Result<Node> {
+        Ok(node_from_value(SerializeSeq::end(self.0)?))
+    }
+}
+
+impl SerializeTuple for RootSequenceSerializer {
+    type Ok = Node;
+    type Error = Error;
+
+    fn serialize_element<T>(&mut self, value: &T) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        SerializeTuple::serialize_element(&mut self.0, value)
+    }
+
+    fn end(self) -> Result<Node> {
+        Ok(node_from_value(SerializeTuple::end(self.0)?))
+    }
+}
+
+impl SerializeTupleStruct for RootSequenceSerializer {
+    type Ok = Node;
+    type Error = Error;
+
+    fn serialize_field<T>(&mut self, value: &T) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        SerializeTupleStruct::serialize_field(&mut self.0, value)
+    }
+
+    fn end(self) -> Result<Node> {
+        Ok(node_from_value(SerializeTupleStruct::end(self.0)?))
+    }
+}
+
+struct RootTupleVariantSerializer(TupleVariantSerializer);
+
+impl SerializeTupleVariant for RootTupleVariantSerializer {
+    type Ok = Node;
+    type Error = Error;
+
+    fn serialize_field<T>(&mut self, value: &T) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        SerializeTupleVariant::serialize_field(&mut self.0, value)
+    }
+
+    fn end(self) -> Result<Node> {
+        Ok(node_from_value(SerializeTupleVariant::end(self.0)?))
+    }
+}
+
+struct RootMappingSerializer(MappingSerializer);
+
+impl SerializeMap for RootMappingSerializer {
+    type Ok = Node;
+    type Error = Error;
+
+    fn serialize_key<T>(&mut self, key: &T) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        SerializeMap::serialize_key(&mut self.0, key)
+    }
+
+    fn serialize_value<T>(&mut self, value: &T) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        SerializeMap::serialize_value(&mut self.0, value)
+    }
+
+    fn serialize_entry<K, V>(&mut self, key: &K, value: &V) -> Result<()>
+    where
+        K: ?Sized + Serialize,
+        V: ?Sized + Serialize,
+    {
+        SerializeMap::serialize_entry(&mut self.0, key, value)
+    }
+
+    fn end(self) -> Result<Node> {
+        Ok(node_from_value(SerializeMap::end(self.0)?))
+    }
+}
+
+struct RootStructSerializer(StructSerializer);
+
+impl SerializeStruct for RootStructSerializer {
+    type Ok = Node;
+    type Error = Error;
+
+    fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        SerializeStruct::serialize_field(&mut self.0, key, value)
+    }
+
+    fn end(self) -> Result<Node> {
+        Ok(node_from_value(SerializeStruct::end(self.0)?))
+    }
+}
+
+struct RootStructVariantSerializer(StructVariantSerializer);
+
+impl SerializeStructVariant for RootStructVariantSerializer {
+    type Ok = Node;
+    type Error = Error;
+
+    fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        SerializeStructVariant::serialize_field(&mut self.0, key, value)
+    }
+
+    fn end(self) -> Result<Node> {
+        Ok(node_from_value(SerializeStructVariant::end(self.0)?))
     }
 }
 

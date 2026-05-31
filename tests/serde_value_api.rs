@@ -310,6 +310,14 @@ enum SerializableAction {
 }
 
 #[derive(Debug, Serialize)]
+enum ByteCompatibleAction {
+    Unit,
+    Newtype(String),
+    Tuple(u8, u8),
+    Struct { run: String, shell: String },
+}
+
+#[derive(Debug, Serialize)]
 struct SerializableSingletonMapConfig {
     #[serde(with = "yaml::with::singleton_map")]
     action: SerializableAction,
@@ -1600,7 +1608,108 @@ fn serde_api_emit_options_structural_matches_default_writers() {
 }
 
 #[test]
-fn serde_api_future_emit_options_reject_without_structural_fallback() {
+fn serde_api_emit_options_byte_compatible_matches_serde_yaml_writer_corpus() {
+    fn assert_byte_compatible<T>(value: &T)
+    where
+        T: ?Sized + Serialize,
+    {
+        let reference = serde_yaml::to_string(value).expect("serde_yaml reference");
+        let emitted = yaml::to_string_with_options(value, yaml::EmitOptions::ByteCompatible)
+            .expect("byte compatible emit");
+        assert_eq!(emitted, reference);
+
+        let mut written = Vec::new();
+        yaml::to_writer_with_options(&mut written, value, yaml::EmitOptions::ByteCompatible)
+            .expect("byte compatible writer");
+        assert_eq!(String::from_utf8(written).expect("utf8 writer"), reference);
+
+        let mut streamed = Vec::new();
+        {
+            let mut serializer =
+                yaml::Serializer::with_options(&mut streamed, yaml::EmitOptions::ByteCompatible);
+            value
+                .serialize(&mut serializer)
+                .expect("byte compatible stream");
+            serializer.flush().expect("flush byte compatible stream");
+        }
+        assert_eq!(String::from_utf8(streamed).expect("utf8 stream"), reference);
+    }
+
+    let config = SerializableConfig {
+        name: "app".to_string(),
+        ports: vec![80, 443],
+        enabled: true,
+        env: BTreeMap::from([("RUST_LOG".to_string(), "info".to_string())]),
+        optional: None,
+    };
+
+    assert_byte_compatible("x");
+    assert_byte_compatible(&'x');
+    assert_byte_compatible(&vec![1_u16, 2]);
+    assert_byte_compatible(&BTreeMap::from([("k".to_string(), 107_u16)]));
+    assert_byte_compatible(&Option::<String>::None);
+    assert_byte_compatible(&Vec::<u8>::new());
+    assert_byte_compatible(&BTreeMap::<String, String>::new());
+    assert_byte_compatible("a\nb");
+    assert_byte_compatible("0123");
+    assert_byte_compatible("true");
+    assert_byte_compatible("a: b");
+    assert_byte_compatible(&ByteCompatibleAction::Unit);
+    assert_byte_compatible(&ByteCompatibleAction::Newtype("deploy".to_string()));
+    assert_byte_compatible(&ByteCompatibleAction::Tuple(1, 2));
+    assert_byte_compatible(&ByteCompatibleAction::Struct {
+        run: "cargo test".to_string(),
+        shell: "bash".to_string(),
+    });
+    assert_byte_compatible(&config);
+
+    let structural = yaml::to_string_with_options(&config, yaml::EmitOptions::Structural)
+        .expect("structural emit");
+    let byte_compatible = yaml::to_string_with_options(&config, yaml::EmitOptions::ByteCompatible)
+        .expect("byte compatible emit");
+    assert_ne!(byte_compatible, structural);
+    assert!(structural.contains("ports:\n  - 80\n  - 443\n"));
+    assert!(byte_compatible.contains("ports:\n- 80\n- 443\n"));
+}
+
+#[test]
+fn serde_api_emit_options_byte_compatible_streams_multiple_documents() {
+    let first = BTreeMap::from([("k".to_string(), 107_u16)]);
+    let second = BTreeMap::from([("J".to_string(), 74_u16), ("k".to_string(), 107_u16)]);
+
+    let mut buffer = Vec::new();
+    {
+        let mut serializer =
+            yaml::Serializer::with_options(&mut buffer, yaml::EmitOptions::ByteCompatible);
+        first
+            .serialize(&mut serializer)
+            .expect("serialize first document");
+        second
+            .serialize(&mut serializer)
+            .expect("serialize second document");
+        serializer.flush().expect("flush serializer");
+    }
+    let output = String::from_utf8(buffer).expect("utf8 output");
+
+    let mut reference_buffer = Vec::new();
+    {
+        let mut serializer = serde_yaml::Serializer::new(&mut reference_buffer);
+        first
+            .serialize(&mut serializer)
+            .expect("serialize reference first document");
+        second
+            .serialize(&mut serializer)
+            .expect("serialize reference second document");
+    }
+    assert_eq!(
+        output,
+        String::from_utf8(reference_buffer).expect("serde_yaml utf8 output")
+    );
+    assert_eq!(output, "k: 107\n---\nJ: 74\nk: 107\n");
+}
+
+#[test]
+fn serde_api_preserving_emit_option_rejects_without_structural_fallback() {
     let config = SerializableConfig {
         name: "app".to_string(),
         ports: vec![80],
@@ -1609,30 +1718,27 @@ fn serde_api_future_emit_options_reject_without_structural_fallback() {
         optional: None,
     };
 
-    for (tier, name) in [
-        (yaml::EmitOptions::ByteCompatible, "ByteCompatible"),
-        (yaml::EmitOptions::Preserving, "Preserving"),
-    ] {
-        let error =
-            yaml::to_string_with_options(&config, tier).expect_err("future tier must reject");
-        let message = error.to_string();
-        assert!(message.contains(name), "{message}");
-        assert!(message.contains("not implemented"), "{message}");
+    let error = yaml::to_string_with_options(&config, yaml::EmitOptions::Preserving)
+        .expect_err("preserving tier must reject");
+    let message = error.to_string();
+    assert!(message.contains("Preserving"), "{message}");
+    assert!(message.contains("not implemented"), "{message}");
 
-        let mut written = Vec::new();
-        let writer_error = yaml::to_writer_with_options(&mut written, &config, tier)
-            .expect_err("future writer tier must reject");
-        assert_eq!(writer_error.to_string(), message);
-        assert!(written.is_empty());
+    let mut written = Vec::new();
+    let writer_error =
+        yaml::to_writer_with_options(&mut written, &config, yaml::EmitOptions::Preserving)
+            .expect_err("preserving writer tier must reject");
+    assert_eq!(writer_error.to_string(), message);
+    assert!(written.is_empty());
 
-        let mut streamed = Vec::new();
-        let mut serializer = yaml::Serializer::with_options(&mut streamed, tier);
-        let stream_error = config
-            .serialize(&mut serializer)
-            .expect_err("future stream tier must reject");
-        assert_eq!(stream_error.to_string(), message);
-        assert!(streamed.is_empty());
-    }
+    let mut streamed = Vec::new();
+    let mut serializer =
+        yaml::Serializer::with_options(&mut streamed, yaml::EmitOptions::Preserving);
+    let stream_error = config
+        .serialize(&mut serializer)
+        .expect_err("preserving stream tier must reject");
+    assert_eq!(stream_error.to_string(), message);
+    assert!(streamed.is_empty());
 }
 
 #[test]
@@ -1642,10 +1748,18 @@ fn serde_api_document_writers_reject_bytes_like_serde_yaml() {
 
     let error = yaml::to_string(&bytes).expect_err("yaml to_string rejects bytes");
     assert_eq!(error.to_string(), reference.to_string());
+    let byte_error = yaml::to_string_with_options(&bytes, yaml::EmitOptions::ByteCompatible)
+        .expect_err("byte compatible to_string rejects bytes");
+    assert_eq!(byte_error.to_string(), reference.to_string());
 
     let mut written = Vec::new();
     let error = yaml::to_writer(&mut written, &bytes).expect_err("yaml to_writer rejects bytes");
     assert_eq!(error.to_string(), reference.to_string());
+    assert!(written.is_empty());
+    let byte_writer_error =
+        yaml::to_writer_with_options(&mut written, &bytes, yaml::EmitOptions::ByteCompatible)
+            .expect_err("byte compatible to_writer rejects bytes");
+    assert_eq!(byte_writer_error.to_string(), reference.to_string());
     assert!(written.is_empty());
 
     let nested = BTreeMap::from([("payload", bytes)]);
@@ -1661,6 +1775,14 @@ fn serde_api_document_writers_reject_bytes_like_serde_yaml() {
         .expect_err("yaml streaming serializer rejects bytes");
     assert_eq!(streaming_error.to_string(), reference.to_string());
     assert!(buffer.is_empty());
+    let mut byte_buffer = Vec::new();
+    let mut byte_serializer =
+        yaml::Serializer::with_options(&mut byte_buffer, yaml::EmitOptions::ByteCompatible);
+    let byte_streaming_error = bytes
+        .serialize(&mut byte_serializer)
+        .expect_err("byte compatible streaming serializer rejects bytes");
+    assert_eq!(byte_streaming_error.to_string(), reference.to_string());
+    assert!(byte_buffer.is_empty());
 
     let mut nested_buffer = Vec::new();
     let mut nested_serializer = yaml::Serializer::new(&mut nested_buffer);

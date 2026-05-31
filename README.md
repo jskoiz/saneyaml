@@ -61,9 +61,11 @@ The first milestone focuses on:
   emittable trees through the default `EmitOptions::Structural` tier;
   duplicate-effective mapping keys, untagged literal merge keys, over-depth
   trees, and directly nested tags are rejected before output.
-  `EmitOptions::ByteCompatible` and `EmitOptions::Preserving` are declared
-  future target tiers and return explicit not-implemented errors in this
-  preview instead of falling back silently.
+  `EmitOptions::ByteCompatible` is opt-in and matches `serde_yaml` bytes for a
+  supported structural writer corpus covering common scalars, maps, sequences,
+  Serde enum tags, document markers, typed real-world config shapes, and
+  bytes rejection. `EmitOptions::Preserving` remains a declared future tier and
+  returns an explicit not-implemented error instead of falling back silently.
 - Serde read support through `yaml::from_str` and a spanless
   `serde_yaml`-style `yaml::Value`, including source-backed string reads and
   typed `i128`/`u128` integer targets for large config identifiers, plus
@@ -130,9 +132,11 @@ Intentional first-milestone non-goals:
   selected cases, and 0 not-imported cases as explicit coverage debt. The
   dashboard is the current progress counter; Phase 1 parser-denominator
   classification is closed.
-- Byte-compatible `serde_yaml` output and arbitrary source-preserving emission
-  are not implemented yet. Their names are reserved as explicit target tiers
-  through `EmitOptions`, and selecting them currently returns an error.
+- Arbitrary `serde_yaml` byte parity for source-styled trees, comments,
+  anchors/aliases, directives, and lossless formatting remains outside the
+  first `EmitOptions::ByteCompatible` corpus; use `LosslessStream` for
+  source-preserving replay. `EmitOptions::Preserving` is still a reserved
+  future tier and selecting it currently returns an error.
 - Kubernetes schema validation or automated ecosystem migration tooling.
 
 ## Verification

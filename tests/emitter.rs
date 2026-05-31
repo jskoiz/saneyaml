@@ -60,19 +60,33 @@ fn emitter_options_default_to_structural_output() {
 }
 
 #[test]
-fn emitter_future_fidelity_tiers_are_explicit_targets() {
+fn emitter_byte_compatible_is_supported_for_structural_trees() {
+    let node = parse_str("name: api\n").expect("parse");
+    let emitted =
+        to_string_with_options(&node, EmitOptions::byte_compatible()).expect("byte compatible");
+    assert_eq!(emitted, "name: api\n");
+    assert!(parse_str(&emitted).expect("reparse").equivalent(&node));
+
+    let sequence_value = parse_str("ports:\n  - 80\n  - 443\n").expect("parse sequence value");
+    let byte_compatible = to_string_with_options(&sequence_value, EmitOptions::byte_compatible())
+        .expect("byte compatible sequence value");
+    assert_eq!(byte_compatible, "ports:\n- 80\n- 443\n");
+    assert!(
+        parse_str(&byte_compatible)
+            .expect("reparse sequence value")
+            .equivalent(&sequence_value)
+    );
+}
+
+#[test]
+fn emitter_preserving_tier_is_explicit_target() {
     let node = parse_str("name: api\n").expect("parse");
 
-    for (tier, name) in [
-        (EmitOptions::byte_compatible(), "ByteCompatible"),
-        (EmitOptions::preserving(), "Preserving"),
-    ] {
-        let error =
-            to_string_with_options(&node, tier).expect_err("future tier is not implemented");
-        let message = error.to_string();
-        assert!(message.contains(name), "{message}");
-        assert!(message.contains("not implemented"), "{message}");
-    }
+    let error = to_string_with_options(&node, EmitOptions::preserving())
+        .expect_err("preserving tier is not implemented");
+    let message = error.to_string();
+    assert!(message.contains("Preserving"), "{message}");
+    assert!(message.contains("not implemented"), "{message}");
 }
 
 fn permuted_mapping_key(first_order: bool) -> Node {

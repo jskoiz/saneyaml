@@ -2,7 +2,7 @@
 
 use libfuzzer_sys::fuzz_target;
 use serde::Serialize;
-use yaml::{Node, Value};
+use yaml::{EmitOptions, Node, Value};
 
 fuzz_target!(|input: &[u8]| {
     let Ok(node) = yaml::parse_bytes(input) else {
@@ -31,6 +31,17 @@ fn assert_emit_roundtrip_invariants(node: &Node) {
     let reparsed_value: Value = yaml::from_str(&value_emitted).expect("parse emitted value");
     assert!(reparsed_value.equivalent(&value));
 
+    let byte_value_emitted =
+        yaml::to_string_with_options(&value, EmitOptions::ByteCompatible)
+            .expect("emit parsed value in byte-compatible mode");
+    let mut byte_value_written = Vec::new();
+    yaml::to_writer_with_options(&mut byte_value_written, &value, EmitOptions::ByteCompatible)
+        .expect("write parsed value in byte-compatible mode");
+    assert_eq!(byte_value_written, byte_value_emitted.as_bytes());
+    let byte_reparsed_value: Value =
+        yaml::from_str(&byte_value_emitted).expect("parse byte-compatible emitted value");
+    assert!(byte_reparsed_value.equivalent(&value));
+
     let mut stream = yaml::Serializer::new(Vec::new());
     value.serialize(&mut stream).expect("stream first value");
     reparsed_value
@@ -43,4 +54,22 @@ fn assert_emit_roundtrip_invariants(node: &Node) {
     assert_eq!(stream_values.len(), 2);
     assert!(stream_values[0].equivalent(&value));
     assert!(stream_values[1].equivalent(&reparsed_value));
+
+    let mut byte_stream =
+        yaml::Serializer::with_options(Vec::new(), EmitOptions::ByteCompatible);
+    value
+        .serialize(&mut byte_stream)
+        .expect("byte-compatible stream first value");
+    byte_reparsed_value
+        .serialize(&mut byte_stream)
+        .expect("byte-compatible stream second value");
+    let byte_stream_output =
+        String::from_utf8(byte_stream.into_inner().expect("byte stream into inner"))
+            .expect("byte stream output is utf8");
+    let byte_stream_values =
+        yaml::from_documents_str::<Value>(&byte_stream_output)
+            .expect("parse byte-compatible streamed values");
+    assert_eq!(byte_stream_values.len(), 2);
+    assert!(byte_stream_values[0].equivalent(&value));
+    assert!(byte_stream_values[1].equivalent(&byte_reparsed_value));
 }

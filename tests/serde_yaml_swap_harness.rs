@@ -192,7 +192,7 @@ fn swap_harness_value_mapping_and_number_surface_covers_common_patches() {
 }
 
 #[test]
-fn swap_harness_writer_paths_are_structural_migration_surfaces() {
+fn swap_harness_writer_paths_cover_structural_and_byte_compatible_surfaces() {
     let config = expected_app_config();
     let value = yaml::to_value(&config).expect("yaml to_value");
     let reference = serde_yaml::to_value(&config).expect("serde_yaml to_value");
@@ -219,6 +219,28 @@ fn swap_harness_writer_paths_are_structural_migration_surfaces() {
     let reference_reparsed: AppConfig =
         serde_yaml::from_str(&reference_output).expect("serde_yaml output reparses");
     assert_eq!(reference_reparsed, config);
+
+    let byte_output = yaml::to_string_with_options(&config, yaml::EmitOptions::ByteCompatible)
+        .expect("yaml byte-compatible to_string");
+    assert_eq!(byte_output, reference_output);
+
+    let mut byte_buffer = Vec::new();
+    yaml::to_writer_with_options(&mut byte_buffer, &config, yaml::EmitOptions::ByteCompatible)
+        .expect("yaml byte-compatible to_writer");
+    assert_eq!(byte_buffer, reference_output.as_bytes());
+
+    let mut stream = Vec::new();
+    {
+        let mut serializer =
+            yaml::Serializer::with_options(&mut stream, yaml::EmitOptions::ByteCompatible);
+        config
+            .serialize(&mut serializer)
+            .expect("yaml byte-compatible stream");
+    }
+    assert_eq!(
+        String::from_utf8(stream).expect("utf8 stream"),
+        reference_output
+    );
 }
 
 #[test]

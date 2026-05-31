@@ -88,9 +88,9 @@ tests that exercise the actual downstream YAML files.
 | `serde_yaml::Number` | `yaml::Number` | Covered for helpers, parsing, display, direct deserialization, and widened integer targets |
 | `serde_yaml::value::to_value` | `yaml::value::to_value` | Covered for common config-shaped serialization |
 | `serde_yaml::value::Serializer` | `yaml::value::Serializer` | Covered for value-backed serialization, bytes, tags, and 128-bit integer policy |
-| `serde_yaml::to_string` | `yaml::to_string`; `yaml::to_string_with_options` | `EmitOptions::Structural` output covered; `ByteCompatible` and `Preserving` are declared target tiers that reject until implemented |
-| `serde_yaml::to_writer` | `yaml::to_writer`; `yaml::to_writer_with_options` | `EmitOptions::Structural` output covered; `ByteCompatible` and `Preserving` are declared target tiers that reject until implemented |
-| `serde_yaml::Serializer` | `yaml::Serializer` | Covered for multi-document writer usage and document marker policy; `Serializer::with_options(..., EmitOptions::Structural)` matches the default writer path |
+| `serde_yaml::to_string` | `yaml::to_string`; `yaml::to_string_with_options` | `EmitOptions::Structural` output covered as the default; `ByteCompatible` matches `serde_yaml` bytes for the supported structural writer corpus; `Preserving` rejects until implemented |
+| `serde_yaml::to_writer` | `yaml::to_writer`; `yaml::to_writer_with_options` | `EmitOptions::Structural` output covered as the default; `ByteCompatible` writer bytes covered for the supported structural writer corpus; `Preserving` rejects until implemented |
+| `serde_yaml::Serializer` | `yaml::Serializer` | Covered for multi-document writer usage and document marker policy; `Serializer::with_options(..., EmitOptions::Structural)` matches the default writer path, and `Serializer::with_options(..., EmitOptions::ByteCompatible)` matches `serde_yaml` for the supported structural stream corpus |
 | `serde_yaml::with::singleton_map` | `yaml::with::singleton_map` | Covered for read and write enum-field annotations |
 | `serde_yaml::with::singleton_map_recursive` | `yaml::with::singleton_map_recursive` | Covered for nested read and write enum-field annotations |
 
@@ -280,11 +280,14 @@ testing each adopter's own YAML corpus.
 - Replace `serde_yaml::Error` handling with `yaml::Error`. Parser and Serde
   errors expose line/column locations, but spanless `Value` and reader I/O
   errors cannot recover source spans.
-- Treat writer output as `EmitOptions::Structural` YAML by default. Do not
-  compare emitted bytes against `serde_yaml` formatting until
-  `EmitOptions::ByteCompatible` is implemented and proven; selecting
-  `ByteCompatible` or `Preserving` now returns an explicit not-implemented
-  error instead of silently falling back.
+- Treat writer output as `EmitOptions::Structural` YAML by default. Select
+  `EmitOptions::ByteCompatible` only for the proven `serde_yaml` byte corpus:
+  common scalars, maps, sequences, Serde enum tags, document markers, typed
+  real-world config writer shapes, and bytes rejection. Comments, original
+  source style, anchors/aliases, directives, and arbitrary lossless formatting
+  are not byte-compatible migration surfaces yet. Selecting
+  `EmitOptions::Preserving` still returns an explicit not-implemented error
+  instead of silently falling back.
 
 ## Known Migration Limits
 

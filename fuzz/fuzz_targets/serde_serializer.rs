@@ -3,7 +3,7 @@
 use libfuzzer_sys::fuzz_target;
 use serde::Serialize;
 use std::collections::BTreeMap;
-use yaml::Value;
+use yaml::{EmitOptions, Value};
 
 fuzz_target!(|input: &[u8]| {
     let Some((&selector, payload)) = input.split_first() else {
@@ -205,6 +205,16 @@ where
     );
 
     let reference = serde_yaml::to_string(value).expect("serde_yaml accepts shape");
+    let byte_emitted =
+        yaml::to_string_with_options(value, EmitOptions::ByteCompatible)
+            .expect("byte-compatible document writer accepts shape");
+    assert_eq!(byte_emitted, reference);
+
+    let mut byte_written = Vec::new();
+    yaml::to_writer_with_options(&mut byte_written, value, EmitOptions::ByteCompatible)
+        .expect("byte-compatible writer accepts shape");
+    assert_eq!(byte_written, reference.as_bytes());
+
     let reference_value: serde_yaml::Value =
         serde_yaml::from_str(&reference).expect("serde_yaml output reparses");
     let emitted_reference_value: serde_yaml::Value =
@@ -231,6 +241,29 @@ where
     assert_eq!(docs.len(), 2);
     assert!(docs[0].equivalent(&expected_first));
     assert!(docs[1].equivalent(&expected_second));
+
+    let mut byte_stream = yaml::Serializer::with_options(Vec::new(), EmitOptions::ByteCompatible);
+    first
+        .serialize(&mut byte_stream)
+        .expect("byte-compatible stream first document");
+    second
+        .serialize(&mut byte_stream)
+        .expect("byte-compatible stream second document");
+    let byte_output =
+        String::from_utf8(byte_stream.into_inner().expect("byte stream into inner"))
+            .expect("byte stream output is utf8");
+
+    let mut reference = Vec::new();
+    {
+        let mut serializer = serde_yaml::Serializer::new(&mut reference);
+        first
+            .serialize(&mut serializer)
+            .expect("serde_yaml stream first document");
+        second
+            .serialize(&mut serializer)
+            .expect("serde_yaml stream second document");
+    }
+    assert_eq!(byte_output.as_bytes(), reference.as_slice());
 }
 
 fn assert_bytes_rejection(input: &[u8]) {
@@ -239,10 +272,18 @@ fn assert_bytes_rejection(input: &[u8]) {
 
     let error = yaml::to_string(&payload).expect_err("document writer rejects bytes");
     assert_eq!(error.to_string(), reference.to_string());
+    let byte_error = yaml::to_string_with_options(&payload, EmitOptions::ByteCompatible)
+        .expect_err("byte-compatible document writer rejects bytes");
+    assert_eq!(byte_error.to_string(), reference.to_string());
 
     let mut written = Vec::new();
     let error = yaml::to_writer(&mut written, &payload).expect_err("writer rejects bytes");
     assert_eq!(error.to_string(), reference.to_string());
+    assert!(written.is_empty());
+    let byte_error =
+        yaml::to_writer_with_options(&mut written, &payload, EmitOptions::ByteCompatible)
+            .expect_err("byte-compatible writer rejects bytes");
+    assert_eq!(byte_error.to_string(), reference.to_string());
     assert!(written.is_empty());
 
     let mut stream = yaml::Serializer::new(Vec::new());
@@ -251,11 +292,25 @@ fn assert_bytes_rejection(input: &[u8]) {
         .expect_err("streaming writer rejects bytes");
     assert_eq!(error.to_string(), reference.to_string());
     assert!(stream.into_inner().expect("stream into inner").is_empty());
+    let mut byte_stream = yaml::Serializer::with_options(Vec::new(), EmitOptions::ByteCompatible);
+    let error = payload
+        .serialize(&mut byte_stream)
+        .expect_err("byte-compatible streaming writer rejects bytes");
+    assert_eq!(error.to_string(), reference.to_string());
+    assert!(
+        byte_stream
+            .into_inner()
+            .expect("byte stream into inner")
+            .is_empty()
+    );
 
     let nested = BTreeMap::from([("payload", payload)]);
     let nested_reference = serde_yaml::to_string(&nested).expect_err("serde_yaml rejects nested bytes");
     let nested_error = yaml::to_string(&nested).expect_err("document writer rejects nested bytes");
     assert_eq!(nested_error.to_string(), nested_reference.to_string());
+    let nested_byte_error = yaml::to_string_with_options(&nested, EmitOptions::ByteCompatible)
+        .expect_err("byte-compatible document writer rejects nested bytes");
+    assert_eq!(nested_byte_error.to_string(), nested_reference.to_string());
 }
 
 fn service_config(input: &[u8]) -> ServiceConfig {

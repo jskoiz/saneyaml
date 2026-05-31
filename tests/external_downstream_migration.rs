@@ -133,6 +133,7 @@ fn external_pingora_server_configs_match_serde_yaml() {
         let reparsed: PingoraServerConf =
             yaml::from_str(&output).expect("yaml pingora output reparses");
         assert_eq!(reparsed, parsed, "{path}");
+        assert_typed_byte_writer_matches_serde(path, &parsed);
     }
 }
 
@@ -492,6 +493,25 @@ fn assert_value_writer_replays(path: &str, value: &Value) {
         .unwrap_or_else(|error| panic!("yaml writes downstream value to writer {path}: {error}"));
     assert_eq!(written, emitted.as_bytes(), "{path}");
 
+    let byte_compatible = yaml::to_string_with_options(value, yaml::EmitOptions::ByteCompatible)
+        .unwrap_or_else(|error| {
+            panic!("yaml writes downstream value in byte-compatible mode {path}: {error}")
+        });
+    let byte_reparsed: Value = yaml::from_str(&byte_compatible).unwrap_or_else(|error| {
+        panic!("yaml reparses byte-compatible downstream value {path}: {error}")
+    });
+    assert!(
+        byte_reparsed.equivalent(value),
+        "byte-compatible downstream value must reparse equivalently for {path}"
+    );
+
+    let mut byte_written = Vec::new();
+    yaml::to_writer_with_options(&mut byte_written, value, yaml::EmitOptions::ByteCompatible)
+        .unwrap_or_else(|error| {
+            panic!("yaml writes byte-compatible downstream value to writer {path}: {error}")
+        });
+    assert_eq!(byte_written, byte_compatible.as_bytes(), "{path}");
+
     let mut stream = yaml::Serializer::new(Vec::new());
     value
         .serialize(&mut stream)
@@ -508,6 +528,60 @@ fn assert_value_writer_replays(path: &str, value: &Value) {
     assert_eq!(docs.len(), 2, "{path}");
     assert!(docs[0].equivalent(value), "{path}");
     assert!(docs[1].equivalent(value), "{path}");
+
+    let mut byte_stream =
+        yaml::Serializer::with_options(Vec::new(), yaml::EmitOptions::ByteCompatible);
+    value.serialize(&mut byte_stream).unwrap_or_else(|error| {
+        panic!("yaml streams first byte-compatible downstream value {path}: {error}")
+    });
+    value.serialize(&mut byte_stream).unwrap_or_else(|error| {
+        panic!("yaml streams second byte-compatible downstream value {path}: {error}")
+    });
+    let byte_stream_output =
+        String::from_utf8(byte_stream.into_inner().expect("byte stream into inner"))
+            .expect("byte-compatible serializer output is UTF-8");
+    let byte_docs = yaml::Deserializer::from_str(&byte_stream_output)
+        .map(Value::deserialize)
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap_or_else(|error| {
+            panic!("yaml reparses byte-compatible streamed downstream value {path}: {error}")
+        });
+    assert_eq!(byte_docs.len(), 2, "{path}");
+    assert!(byte_docs[0].equivalent(value), "{path}");
+    assert!(byte_docs[1].equivalent(value), "{path}");
+}
+
+fn assert_typed_byte_writer_matches_serde<T>(path: &str, value: &T)
+where
+    T: Serialize,
+{
+    let byte_compatible = yaml::to_string_with_options(value, yaml::EmitOptions::ByteCompatible)
+        .unwrap_or_else(|error| {
+            panic!("yaml writes typed value in byte-compatible mode {path}: {error}")
+        });
+    let reference = serde_yaml::to_string(value)
+        .unwrap_or_else(|error| panic!("serde_yaml writes typed value {path}: {error}"));
+    assert_eq!(byte_compatible, reference, "{path}");
+
+    let mut byte_written = Vec::new();
+    yaml::to_writer_with_options(&mut byte_written, value, yaml::EmitOptions::ByteCompatible)
+        .unwrap_or_else(|error| {
+            panic!("yaml writes typed byte-compatible value to writer {path}: {error}")
+        });
+    assert_eq!(byte_written, reference.as_bytes(), "{path}");
+
+    let mut byte_stream =
+        yaml::Serializer::with_options(Vec::new(), yaml::EmitOptions::ByteCompatible);
+    value
+        .serialize(&mut byte_stream)
+        .unwrap_or_else(|error| panic!("yaml streams typed byte-compatible value {path}: {error}"));
+    let byte_stream_output = String::from_utf8(
+        byte_stream
+            .into_inner()
+            .expect("typed byte stream into inner"),
+    )
+    .expect("typed byte-compatible stream is UTF-8");
+    assert_eq!(byte_stream_output, reference, "{path}");
 }
 
 impl Default for NaviColorWidth {

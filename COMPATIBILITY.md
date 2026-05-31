@@ -439,7 +439,13 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   accepted cases with 10 documented tree-shape deferrals, shared-reference
   acceptance for 253 accepted cases with 53 documented `serde_yaml`/libyaml
   divergence deferrals, and lossless graph identity parity for 34
-  graph-sensitive raw-event cases.
+  graph-sensitive raw-event cases. The remaining loaded-tree deferrals are
+  split into empty scalar anchor/non-specific tag reference-shape divergences
+  and explicit tag/schema loaded-tree deferrals for 2AUY, 33X3, 74H7, C4HZ,
+  F2C7, FH7J, and L94M, including a custom tag plus schema scalar divergence
+  in C4HZ and tags on empty scalar nodes in FH7J. Shared-reference deferrals
+  distinguish hard `serde_yaml`/libyaml rejections from the AVM7, 8G76, and
+  98YD empty/comment-only null-document API split.
   `tests/fixtures/yaml-test-suite/coverage.toml` also pins the full upstream
   denominator at 402 cases from the same upstream commit, with 402 selected
   cases and 0 not-imported cases partitioned explicitly by

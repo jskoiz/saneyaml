@@ -966,16 +966,43 @@ fn divergence_yaml_suite_final_parity_deferrals_record_is_present() {
         include_str!("fixtures/divergences/records/yaml-suite-final-parity-deferrals.toml");
     assert!(record.contains("yaml-suite-final-parity-deferrals"));
     for case in [
-        "5TYM", "7FWL", "Q9WF", "UGM3", "K54U", "2AUY", "33X3", "74H7", "C4HZ", "F2C7", "FH7J",
-        "L94M", "WZ62", "4ABK", "4MUZ/00", "4MUZ/01", "4MUZ/02", "7Z25", "8G76", "8XYN", "98YD",
-        "A2M4", "AVM7", "DBG4", "FRK4", "HM87/00", "HWV9", "K3WX", "NHX8", "NJ66", "NKF9", "QT73",
-        "SM9W/01", "VJP3/01", "W5VH",
+        "5TYM", "7FWL", "Q9WF", "UGM3", "K54U", "WZ62", "4ABK", "4MUZ/00", "4MUZ/01", "4MUZ/02",
+        "7Z25", "8XYN", "A2M4", "DBG4", "FRK4", "HM87/00", "HWV9", "K3WX", "NHX8", "NJ66", "NKF9",
+        "QT73", "SM9W/01", "VJP3/01", "W5VH",
     ] {
         assert!(record.contains(case));
     }
     assert!(record.contains("serde_yaml 0.9.34"));
     assert!(record.contains("yaml-rust2 0.11.0"));
     assert!(record.contains("saphyr 0.0.6"));
+    assert!(record.contains("decision"));
+}
+
+#[test]
+fn divergence_yaml_suite_tagged_tree_deferrals_record_is_present() {
+    let record = include_str!("fixtures/divergences/records/yaml-suite-tagged-tree-deferrals.toml");
+    assert!(record.contains("yaml-suite-tagged-tree-deferrals"));
+    for case in ["2AUY", "33X3", "74H7", "C4HZ", "F2C7", "FH7J", "L94M"] {
+        assert!(record.contains(case));
+    }
+    assert!(record.contains("retained tag"));
+    assert!(record.contains("yaml-rust2 0.11.0"));
+    assert!(record.contains("saphyr 0.0.6"));
+    assert!(record.contains("Psych 3.1.0/libyaml 0.2.1"));
+    assert!(record.contains("decision"));
+}
+
+#[test]
+fn divergence_yaml_suite_null_document_counts_record_is_present() {
+    let record = include_str!("fixtures/divergences/records/yaml-suite-null-document-counts.toml");
+    assert!(record.contains("yaml-suite-null-document-counts"));
+    for case in ["AVM7", "8G76", "98YD"] {
+        assert!(record.contains(case));
+    }
+    assert!(record.contains("one null document"));
+    assert!(record.contains("zero documents"));
+    assert!(record.contains("serde_yaml 0.9.34"));
+    assert!(record.contains("Psych 3.1.0/libyaml 0.2.1"));
     assert!(record.contains("decision"));
 }
 

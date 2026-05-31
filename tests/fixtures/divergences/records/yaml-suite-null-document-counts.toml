@@ -1,0 +1,8 @@
+case = "yaml-suite-null-document-counts"
+policy = "Keep empty and comment-only YAML-suite stream document-count splits explicit across parser and Serde-style APIs."
+prototype = "YAML-suite AVM7, 8G76, and 98YD parse as zero-document streams in this crate's document parser and align with yaml-rust2, saphyr, and Psych/libyaml document counts for these fixtures. The crate keeps that parser-level behavior separate from serde_yaml's higher-level empty-input convenience behavior."
+serde_yaml = "serde_yaml 0.9.34 treats empty and comment-only inputs as one null document through its stream deserializer and Value entrypoints, so these cases remain outside shared-reference acceptance even though parser-level references report zero documents."
+yaml_rust2_saphyr = "yaml-rust2 0.11.0 and saphyr 0.0.6 report zero parsed documents for these empty or comment-only YAML-suite streams."
+libyaml = "Ruby Psych 3.1.0/libyaml 0.2.1 reports zero documents for these parser-level empty or comment-only stream fixtures."
+decision = "Keep AVM7, 8G76, and 98YD as documented shared-reference deferrals unless the crate intentionally adopts serde_yaml's one-null-document API behavior for empty and comment-only streams."
+migration_impact = "Migration impact: callers porting serde_yaml code that depends on empty or comment-only input yielding a null document must handle that API split explicitly instead of treating YAML-suite parser document counts as shared-reference acceptance."

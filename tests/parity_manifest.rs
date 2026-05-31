@@ -36,6 +36,10 @@ const YAML_VERSION_DIRECTIVE_SCHEMA_RECORD: &str =
     include_str!("fixtures/divergences/records/yaml-version-directive-schema.toml");
 const YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD: &str =
     include_str!("fixtures/divergences/records/yaml-suite-final-parity-deferrals.toml");
+const YAML_SUITE_NULL_DOCUMENT_COUNTS_RECORD: &str =
+    include_str!("fixtures/divergences/records/yaml-suite-null-document-counts.toml");
+const YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD: &str =
+    include_str!("fixtures/divergences/records/yaml-suite-tagged-tree-deferrals.toml");
 const RUST_REFERENCE_DIVERGENCE_CASES: &[&str] = &[
     "M7A3", // serde_yaml rejects the full bare-document stream; Rust parser references accept.
     "UT92", // serde_yaml rejects directive-looking lines inside open flow content; Rust parser references accept.
@@ -59,38 +63,38 @@ const TREE_DEFERRED_DIVERGENCES: &[DeferredDivergenceCase] = &[
     },
     DeferredDivergenceCase {
         id: "2AUY",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-tagged-tree-deferrals",
+        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "33X3",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-tagged-tree-deferrals",
+        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "74H7",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-tagged-tree-deferrals",
+        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "C4HZ",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-tagged-tree-deferrals",
+        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "F2C7",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-tagged-tree-deferrals",
+        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "FH7J",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-tagged-tree-deferrals",
+        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "L94M",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-tagged-tree-deferrals",
+        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
     },
 ];
 const SHARED_REFERENCE_DIVERGENCES: &[DeferredDivergenceCase] = &[
@@ -276,8 +280,8 @@ const SHARED_REFERENCE_DIVERGENCES: &[DeferredDivergenceCase] = &[
     },
     DeferredDivergenceCase {
         id: "8G76",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-null-document-counts",
+        record_source: YAML_SUITE_NULL_DOCUMENT_COUNTS_RECORD,
     },
     DeferredDivergenceCase {
         id: "8XYN",
@@ -286,8 +290,8 @@ const SHARED_REFERENCE_DIVERGENCES: &[DeferredDivergenceCase] = &[
     },
     DeferredDivergenceCase {
         id: "98YD",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-null-document-counts",
+        record_source: YAML_SUITE_NULL_DOCUMENT_COUNTS_RECORD,
     },
     DeferredDivergenceCase {
         id: "A2M4",
@@ -296,8 +300,8 @@ const SHARED_REFERENCE_DIVERGENCES: &[DeferredDivergenceCase] = &[
     },
     DeferredDivergenceCase {
         id: "AVM7",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-null-document-counts",
+        record_source: YAML_SUITE_NULL_DOCUMENT_COUNTS_RECORD,
     },
     DeferredDivergenceCase {
         id: "DBG4",
@@ -378,6 +382,48 @@ const TREE_SHAPE_DIVERGENCE_CASES: &[TreeShapeDivergenceCase] = &[
         record_case: "explicit-non-specific-tag-shape",
         record_source: EXPLICIT_NON_SPECIFIC_TAG_SHAPE_RECORD,
         compatibility_terms: &["S4JQ", "explicit non-specific tag"],
+    },
+    TreeShapeDivergenceCase {
+        id: "2AUY",
+        record_case: "yaml-suite-tagged-tree-deferrals",
+        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
+        compatibility_terms: &["2AUY", "explicit tag/schema loaded-tree deferrals"],
+    },
+    TreeShapeDivergenceCase {
+        id: "33X3",
+        record_case: "yaml-suite-tagged-tree-deferrals",
+        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
+        compatibility_terms: &["33X3", "explicit tag/schema loaded-tree deferrals"],
+    },
+    TreeShapeDivergenceCase {
+        id: "74H7",
+        record_case: "yaml-suite-tagged-tree-deferrals",
+        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
+        compatibility_terms: &["74H7", "explicit tag/schema loaded-tree deferrals"],
+    },
+    TreeShapeDivergenceCase {
+        id: "C4HZ",
+        record_case: "yaml-suite-tagged-tree-deferrals",
+        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
+        compatibility_terms: &["C4HZ", "custom tag plus schema scalar divergence"],
+    },
+    TreeShapeDivergenceCase {
+        id: "F2C7",
+        record_case: "yaml-suite-tagged-tree-deferrals",
+        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
+        compatibility_terms: &["F2C7", "explicit tag/schema loaded-tree deferrals"],
+    },
+    TreeShapeDivergenceCase {
+        id: "FH7J",
+        record_case: "yaml-suite-tagged-tree-deferrals",
+        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
+        compatibility_terms: &["FH7J", "tags on empty scalar nodes"],
+    },
+    TreeShapeDivergenceCase {
+        id: "L94M",
+        record_case: "yaml-suite-tagged-tree-deferrals",
+        record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
+        compatibility_terms: &["L94M", "explicit tag/schema loaded-tree deferrals"],
     },
 ];
 

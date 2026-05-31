@@ -343,6 +343,224 @@ fn parser_spans_q9wf_flow_key_and_block_value_mapping() {
 }
 
 #[test]
+fn parser_spans_remaining_tree_deferral_properties() {
+    let pw8x = include_str!("fixtures/yaml-test-suite/data/PW8X/in.yaml");
+    let pw8x_events = yaml::parse_events(pw8x).expect("PW8X parses as raw events");
+    let anchors = pw8x_events
+        .iter()
+        .filter_map(|event| {
+            if let yaml::Event::Scalar { meta, .. } = event {
+                meta.anchor.as_ref()
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    for (anchor, expected) in [
+        (
+            "d",
+            ExpectedSpan {
+                line: 9,
+                column: 5,
+                source: "&d",
+            },
+        ),
+        (
+            "e",
+            ExpectedSpan {
+                line: 11,
+                column: 5,
+                source: "&e",
+            },
+        ),
+    ] {
+        let span = anchors
+            .iter()
+            .find(|anchor_meta| anchor_meta.name == anchor)
+            .unwrap_or_else(|| panic!("PW8X should emit anchor {anchor}"));
+        assert_exact_span(&span.span, pw8x, &expected, "PW8X", "parse_events");
+    }
+
+    let s4jq = include_str!("fixtures/yaml-test-suite/data/S4JQ/in.yaml");
+    let s4jq_events = yaml::parse_events(s4jq).expect("S4JQ parses as raw events");
+    let tagged = s4jq_events
+        .iter()
+        .find_map(|event| {
+            if let yaml::Event::Scalar {
+                value, span, meta, ..
+            } = event
+                && value == "12"
+                && meta
+                    .tag
+                    .as_ref()
+                    .is_some_and(|tag| tag.tag == yaml::Tag::new("!"))
+            {
+                Some((span, meta.tag.as_ref().expect("explicit tag")))
+            } else {
+                None
+            }
+        })
+        .expect("S4JQ should retain the explicit non-specific tag");
+    assert_exact_span(
+        tagged.0,
+        s4jq,
+        &ExpectedSpan {
+            line: 3,
+            column: 5,
+            source: "12",
+        },
+        "S4JQ",
+        "parse_events",
+    );
+    assert_exact_span(
+        &tagged.1.span,
+        s4jq,
+        &ExpectedSpan {
+            line: 3,
+            column: 3,
+            source: "!",
+        },
+        "S4JQ",
+        "parse_events",
+    );
+}
+
+#[test]
+fn parser_spans_tagged_tree_deferral_properties() {
+    let f2c7 = include_str!("fixtures/yaml-test-suite/data/F2C7/in.yaml");
+    let f2c7_events = yaml::parse_events(f2c7).expect("F2C7 parses as raw events");
+    let anchored_int = f2c7_events
+        .iter()
+        .find_map(|event| {
+            if let yaml::Event::Scalar {
+                value, span, meta, ..
+            } = event
+                && value == "4"
+                && meta
+                    .anchor
+                    .as_ref()
+                    .is_some_and(|anchor| anchor.name == "c")
+            {
+                Some((
+                    span,
+                    meta.tag.as_ref().expect("explicit int tag"),
+                    meta.anchor.as_ref().expect("anchor c"),
+                ))
+            } else {
+                None
+            }
+        })
+        .expect("F2C7 should emit the tagged anchored scalar");
+    assert_exact_span(
+        anchored_int.0,
+        f2c7,
+        &ExpectedSpan {
+            line: 3,
+            column: 13,
+            source: "4",
+        },
+        "F2C7",
+        "parse_events",
+    );
+    assert_exact_span(
+        &anchored_int.1.span,
+        f2c7,
+        &ExpectedSpan {
+            line: 3,
+            column: 4,
+            source: "!!int",
+        },
+        "F2C7",
+        "parse_events",
+    );
+    assert_exact_span(
+        &anchored_int.2.span,
+        f2c7,
+        &ExpectedSpan {
+            line: 3,
+            column: 10,
+            source: "&c",
+        },
+        "F2C7",
+        "parse_events",
+    );
+
+    let c4hz = include_str!("fixtures/yaml-test-suite/data/C4HZ/in.yaml");
+    let c4hz_events = yaml::parse_events(c4hz).expect("C4HZ parses as raw events");
+    let color = c4hz_events
+        .iter()
+        .find_map(|event| {
+            if let yaml::Event::Scalar { value, span, .. } = event
+                && value == "0xFFEEBB"
+            {
+                Some(span)
+            } else {
+                None
+            }
+        })
+        .expect("C4HZ should emit the color scalar");
+    assert_exact_span(
+        color,
+        c4hz,
+        &ExpectedSpan {
+            line: 13,
+            column: 10,
+            source: "0xFFEEBB",
+        },
+        "C4HZ",
+        "parse_events",
+    );
+}
+
+#[test]
+fn parser_spans_empty_and_comment_only_stream_deferrals() {
+    for (name, input, expected_docs) in [
+        (
+            "AVM7",
+            include_str!("fixtures/yaml-test-suite/data/AVM7/in.yaml"),
+            0usize,
+        ),
+        (
+            "8G76",
+            include_str!("fixtures/yaml-test-suite/data/8G76/in.yaml"),
+            0usize,
+        ),
+        (
+            "98YD",
+            include_str!("fixtures/yaml-test-suite/data/98YD/in.yaml"),
+            0usize,
+        ),
+    ] {
+        let docs = yaml::parse_documents(input).expect("document-count deferral parses locally");
+        assert_eq!(docs.len(), expected_docs, "{name} local document count");
+    }
+
+    let stream = include_str!("fixtures/yaml-test-suite/data/7Z25/in.yaml");
+    let events = yaml::parse_events(stream).expect("7Z25 parses as raw events");
+    let end = events
+        .iter()
+        .find_map(|event| {
+            if let yaml::Event::DocumentEnd { span, .. } = event {
+                Some(span)
+            } else {
+                None
+            }
+        })
+        .expect("7Z25 should emit a document-end marker");
+    assert_exact_span(
+        end,
+        stream,
+        &ExpectedSpan {
+            line: 3,
+            column: 1,
+            source: "...",
+        },
+        "7Z25",
+        "parse_events",
+    );
+}
+
+#[test]
 fn parser_diagnostics_have_exact_spans_across_entrypoints() {
     for case in [
         ParserDiagnosticCase {

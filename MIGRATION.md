@@ -378,7 +378,8 @@ testing each adopter's own YAML corpus.
   behavior and no tracked next-probe gaps; full arbitrary structural lossless formatting/emission beyond
   targeted block/flow mapping entry and sequence item helpers; and the
   long-term graph API contract before claiming full YAML compatibility.
-- Drive the next phase from the conformance dashboard parity ledgers: reduce the
-  remaining event, tree, shared-reference, and Psych/libyaml divergence
-  deferrals now that the pinned YAML-suite denominator is fully classified.
+- Drive the next phase from the conformance dashboard parity ledgers: event
+  parity is closed, while remaining loaded-tree and shared-reference deferrals
+  need either reference-policy changes or case-specific divergence records
+  before further promotion.
 - Choose the public package name and final license before publishing.

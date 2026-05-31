@@ -20,6 +20,9 @@ Notable completed release-candidate behavior:
 - The next Phase 2 tranche closes the remaining Q9WF event-shape deferral and
   moves FH7J into shared-reference document-count parity while adding named
   coverage for comment-only stream-count splits that stay deferred.
+- The latest Phase 2 tightening split the remaining broad parity deferral
+  record into tagged loaded-tree deferrals and null-document API splits, and
+  added named fuzz/span coverage for those still-deferred YAML-suite families.
 - Emission now has explicit fidelity tiers through `EmitOptions`:
   `Structural` is the implemented default, while `ByteCompatible` and
   `Preserving` are declared future target tiers that return not-implemented

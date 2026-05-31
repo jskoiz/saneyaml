@@ -1,0 +1,7 @@
+case = "scalar-comment-separation-rejections"
+policy = "YAML 1.2 comments require separation from preceding scalar or block indicator content"
+prototype = "Rejects YAML-suite SU5Z, where comment-looking text follows a double-quoted scalar without whitespace, and X4QW, where comment-looking text follows a block scalar indicator without required separation. parse_events rejects the same inputs because the malformed comment-looking suffix is syntax, not loader policy."
+serde_yaml = "serde_yaml 0.9.34 accepts YAML-suite SU5Z and X4QW through libyaml tolerance for adjacent comment-looking text."
+yaml_rust2_saphyr = "yaml-rust2 0.11.0 and saphyr 0.0.6 reject these YAML-suite error fixtures."
+decision = "Reject adjacent comment-looking text after scalars and block scalar indicators to follow YAML 1.2 conformance. Do not add a libyaml compatibility bridge for malformed comments."
+migration_impact = "Migration impact: callers migrating YAML with adjacent comment-looking text may see syntax errors and should insert separation whitespace or quote the intended scalar content."

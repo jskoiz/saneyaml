@@ -75,8 +75,8 @@ fn yaml_suite_coverage_matches_source_and_partitions_upstream() {
     let selected = unique_set("selected cases", &coverage.selected_cases);
     let not_imported = unique_set("not-imported cases", &coverage.not_imported_cases);
     assert_eq!(coverage.upstream_case_count, 402);
-    assert_eq!(coverage.selected_case_count, 163);
-    assert_eq!(coverage.not_imported_case_count, 239);
+    assert_eq!(coverage.selected_case_count, 402);
+    assert_eq!(coverage.not_imported_case_count, 0);
     assert_eq!(upstream.len(), coverage.upstream_case_count);
     assert_eq!(selected.len(), coverage.selected_case_count);
     assert_eq!(not_imported.len(), coverage.not_imported_case_count);
@@ -146,7 +146,7 @@ fn canonical_manifest_ids(
         assert_alias_fixture_hash(alias);
         canonical_ids.insert(alias.upstream_id.clone());
     }
-    assert_eq!(manifest_ids.len(), 163);
+    assert_eq!(manifest_ids.len(), 402);
     canonical_ids
 }
 

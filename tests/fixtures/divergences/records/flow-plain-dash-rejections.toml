@@ -1,0 +1,7 @@
+case = "flow-plain-dash-rejections"
+policy = "YAML 1.2 flow sequence entries cannot be bare plain dash indicators"
+prototype = "Rejects YAML-suite YJV2 and G5U8, where dash-only plain entries appear inside flow sequences. parse_events rejects the same inputs because the malformed dash token is syntax, not loader policy."
+serde_yaml = "serde_yaml 0.9.34 accepts YAML-suite G5U8 through libyaml tolerance, while rejecting the already-selected YJV2 form."
+yaml_rust2_saphyr = "yaml-rust2 0.11.0 and saphyr 0.0.6 reject these YAML-suite error fixtures."
+decision = "Reject dash-only flow entries to follow YAML 1.2 conformance and the Rust parser compatibility target. Do not add a serde_yaml/libyaml compatibility bridge for malformed flow sequence content."
+migration_impact = "Migration impact: migrations from permissive libyaml paths may surface syntax errors for malformed dash-only flow entries, and callers should repair the YAML rather than rely on tolerant parsing."

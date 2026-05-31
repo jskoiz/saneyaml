@@ -375,6 +375,11 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "yts_3rln_00_double_quoted_leading_tab",
+        input: include_str!("fixtures/yaml-test-suite/data/3RLN-00/in.yaml"),
+        docs: 1,
+    },
+    Case {
         name: "yts_3rln_001_double_quoted_leading_tab",
         input: include_str!("fixtures/yaml-test-suite/data/3RLN-001/in.yaml"),
         docs: 1,
@@ -382,6 +387,21 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
     Case {
         name: "yts_3rln_002_double_quoted_leading_tab",
         input: include_str!("fixtures/yaml-test-suite/data/3RLN-002/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_3rln_03_double_quoted_leading_tab",
+        input: include_str!("fixtures/yaml-test-suite/data/3RLN-03/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_3rln_04_double_quoted_escaped_leading_tab",
+        input: include_str!("fixtures/yaml-test-suite/data/3RLN-04/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_3rln_05_double_quoted_leading_tab_folded",
+        input: include_str!("fixtures/yaml-test-suite/data/3RLN-05/in.yaml"),
         docs: 1,
     },
     Case {
@@ -435,8 +455,38 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "yts_cpz3_double_quoted_scalar_starting_with_tab",
+        input: include_str!("fixtures/yaml-test-suite/data/CPZ3/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_dc7x_trailing_tabs",
+        input: include_str!("fixtures/yaml-test-suite/data/DC7X/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_nb6z_plain_scalar_tabs_on_empty_lines",
+        input: include_str!("fixtures/yaml-test-suite/data/NB6Z/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_uv7q_legal_tab_after_indentation",
+        input: include_str!("fixtures/yaml-test-suite/data/UV7Q/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_kh5v_00_double_quoted_inline_tab",
+        input: include_str!("fixtures/yaml-test-suite/data/KH5V-00/in.yaml"),
+        docs: 1,
+    },
+    Case {
         name: "yts_kh5v_001_double_quoted_inline_tab",
         input: include_str!("fixtures/yaml-test-suite/data/KH5V-001/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_kh5v_02_double_quoted_inline_escaped_tab",
+        input: include_str!("fixtures/yaml-test-suite/data/KH5V-02/in.yaml"),
         docs: 1,
     },
     Case {
@@ -636,6 +686,821 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
     Case {
         name: "ansible_upstream_lamp_simple_site",
         input: include_str!("fixtures/real-world/ansible/upstream-lamp-simple-site.yml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_229q_spec_example_2_4_sequence_of_mappings",
+        input: include_str!("fixtures/yaml-test-suite/data/229Q/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_2g84_02_literal_modifers",
+        input: include_str!("fixtures/yaml-test-suite/data/2G84-02/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_2g84_03_literal_modifers",
+        input: include_str!("fixtures/yaml-test-suite/data/2G84-03/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_3alj_block_sequence_in_block_sequence",
+        input: include_str!("fixtures/yaml-test-suite/data/3ALJ/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_3uys_escaped_slash_in_double_quotes",
+        input: include_str!("fixtures/yaml-test-suite/data/3UYS/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_4gc6_spec_example_7_7_single_quoted_characters",
+        input: include_str!("fixtures/yaml-test-suite/data/4GC6/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_4qfq_spec_example_8_2_block_indentation_indicator_1_3",
+        input: include_str!("fixtures/yaml-test-suite/data/4QFQ/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_4rwc_trailing_spaces_after_flow_collection",
+        input: include_str!("fixtures/yaml-test-suite/data/4RWC/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_4uyu_colon_in_double_quoted_string",
+        input: include_str!("fixtures/yaml-test-suite/data/4UYU/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_4v8u_plain_scalar_with_backslashes",
+        input: include_str!("fixtures/yaml-test-suite/data/4V8U/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_4wa9_literal_scalars",
+        input: include_str!("fixtures/yaml-test-suite/data/4WA9/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_4zym_spec_example_6_4_line_prefixes",
+        input: include_str!("fixtures/yaml-test-suite/data/4ZYM/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_54t7_flow_mapping",
+        input: include_str!("fixtures/yaml-test-suite/data/54T7/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_5bvj_spec_example_5_7_block_scalar_indicators",
+        input: include_str!("fixtures/yaml-test-suite/data/5BVJ/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_5c5m_spec_example_7_15_flow_mappings",
+        input: include_str!("fixtures/yaml-test-suite/data/5C5M/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_5kje_spec_example_7_13_flow_sequence",
+        input: include_str!("fixtures/yaml-test-suite/data/5KJE/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_5nyz_spec_example_6_9_separated_comment",
+        input: include_str!("fixtures/yaml-test-suite/data/5NYZ/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_65wh_single_entry_block_sequence",
+        input: include_str!("fixtures/yaml-test-suite/data/65WH/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_6h3v_backslashes_in_singlequotes",
+        input: include_str!("fixtures/yaml-test-suite/data/6H3V/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_6hb6_spec_example_6_1_indentation_spaces",
+        input: include_str!("fixtures/yaml-test-suite/data/6HB6/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_6jqw_spec_example_2_13_in_literals_newlines_are_preserved",
+        input: include_str!("fixtures/yaml-test-suite/data/6JQW/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_6xdy_two_document_start_markers",
+        input: include_str!("fixtures/yaml-test-suite/data/6XDY/in.yaml"),
+        docs: 2,
+    },
+    Case {
+        name: "yts_753e_block_scalar_strip_1_3",
+        input: include_str!("fixtures/yaml-test-suite/data/753E/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_7a4e_spec_example_7_6_double_quoted_lines",
+        input: include_str!("fixtures/yaml-test-suite/data/7A4E/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_7zz5_empty_flow_collections",
+        input: include_str!("fixtures/yaml-test-suite/data/7ZZ5/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_82an_three_dashes_and_content_without_space",
+        input: include_str!("fixtures/yaml-test-suite/data/82AN/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_87e4_spec_example_7_8_single_quoted_implicit_keys",
+        input: include_str!("fixtures/yaml-test-suite/data/87E4/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_8cwc_plain_mapping_key_ending_with_colon",
+        input: include_str!("fixtures/yaml-test-suite/data/8CWC/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_8qbe_block_sequence_in_block_mapping",
+        input: include_str!("fixtures/yaml-test-suite/data/8QBE/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_8udb_spec_example_7_14_flow_sequence_entries",
+        input: include_str!("fixtures/yaml-test-suite/data/8UDB/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_93jh_block_mappings_in_block_sequence",
+        input: include_str!("fixtures/yaml-test-suite/data/93JH/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_96l6_spec_example_2_14_in_the_folded_scalars_newlines_become_spaces",
+        input: include_str!("fixtures/yaml-test-suite/data/96L6/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_9bxh_multiline_doublequoted_flow_mapping_key_without_value",
+        input: include_str!("fixtures/yaml-test-suite/data/9BXH/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_9fmg_multi_level_mapping_indent",
+        input: include_str!("fixtures/yaml-test-suite/data/9FMG/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_9j7a_simple_mapping_indent",
+        input: include_str!("fixtures/yaml-test-suite/data/9J7A/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_9mqt_00_scalar_doc_with_in_content",
+        input: include_str!("fixtures/yaml-test-suite/data/9MQT-00/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_9shh_spec_example_5_8_quoted_scalar_indicators",
+        input: include_str!("fixtures/yaml-test-suite/data/9SHH/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_9tfx_spec_example_7_6_double_quoted_lines_1_3",
+        input: include_str!("fixtures/yaml-test-suite/data/9TFX/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_9u5k_spec_example_2_12_compact_nested_mapping",
+        input: include_str!("fixtures/yaml-test-suite/data/9U5K/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_9yrd_multiline_scalar_at_top_level",
+        input: include_str!("fixtures/yaml-test-suite/data/9YRD/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_a6f9_spec_example_8_4_chomping_final_line_break",
+        input: include_str!("fixtures/yaml-test-suite/data/A6F9/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_az63_sequence_with_same_indentation_as_parent_mapping",
+        input: include_str!("fixtures/yaml-test-suite/data/AZ63/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_26dv_whitespace_around_colon_in_mappings",
+        input: include_str!("fixtures/yaml-test-suite/data/26DV/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_3myt_plain_scalar_looking_like_key_comment_anchor_and_tag",
+        input: include_str!("fixtures/yaml-test-suite/data/3MYT/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_4fj6_nested_implicit_complex_keys",
+        input: include_str!("fixtures/yaml-test-suite/data/4FJ6/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_6sla_allowed_characters_in_quoted_mapping_key",
+        input: include_str!("fixtures/yaml-test-suite/data/6SLA/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_azw3_lookahead_test_cases",
+        input: include_str!("fixtures/yaml-test-suite/data/AZW3/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_b3hg_spec_example_8_9_folded_scalar_1_3",
+        input: include_str!("fixtures/yaml-test-suite/data/B3HG/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_d83l_block_scalar_indicator_order",
+        input: include_str!("fixtures/yaml-test-suite/data/D83L/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_d88j_flow_sequence_in_block_mapping",
+        input: include_str!("fixtures/yaml-test-suite/data/D88J/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_d9tu_single_pair_block_mapping",
+        input: include_str!("fixtures/yaml-test-suite/data/D9TU/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_dff7_spec_example_7_16_flow_mapping_entries",
+        input: include_str!("fixtures/yaml-test-suite/data/DFF7/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_dwx9_spec_example_8_8_literal_content",
+        input: include_str!("fixtures/yaml-test-suite/data/DWX9/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_ex5h_multiline_scalar_at_top_level_1_3",
+        input: include_str!("fixtures/yaml-test-suite/data/EX5H/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_exg3_three_dashes_and_content_without_space_1_3",
+        input: include_str!("fixtures/yaml-test-suite/data/EXG3/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_f3cp_nested_flow_collections_on_one_line",
+        input: include_str!("fixtures/yaml-test-suite/data/F3CP/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_fq7f_spec_example_2_1_sequence_of_scalars",
+        input: include_str!("fixtures/yaml-test-suite/data/FQ7F/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_fup4_flow_sequence_in_flow_sequence",
+        input: include_str!("fixtures/yaml-test-suite/data/FUP4/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_g4rs_spec_example_2_17_quoted_scalars",
+        input: include_str!("fixtures/yaml-test-suite/data/G4RS/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_g992_spec_example_8_9_folded_scalar",
+        input: include_str!("fixtures/yaml-test-suite/data/G992/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_gh63_mixed_block_mapping_explicit_to_implicit",
+        input: include_str!("fixtures/yaml-test-suite/data/GH63/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_h2rw_blank_lines",
+        input: include_str!("fixtures/yaml-test-suite/data/H2RW/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_h3z8_literal_unicode",
+        input: include_str!("fixtures/yaml-test-suite/data/H3Z8/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_hmk4_spec_example_2_16_indentation_determines_scope",
+        input: include_str!("fixtures/yaml-test-suite/data/HMK4/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_hs5t_spec_example_7_12_plain_lines",
+        input: include_str!("fixtures/yaml-test-suite/data/HS5T/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_j3bt_spec_example_5_12_tabs_and_spaces",
+        input: include_str!("fixtures/yaml-test-suite/data/J3BT/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_j5uc_multiple_pair_block_mapping",
+        input: include_str!("fixtures/yaml-test-suite/data/J5UC/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_j7vc_empty_lines_between_mapping_elements",
+        input: include_str!("fixtures/yaml-test-suite/data/J7VC/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_j9hz_spec_example_2_9_single_document_with_two_comments",
+        input: include_str!("fixtures/yaml-test-suite/data/J9HZ/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_jef9_00_trailing_whitespace_in_streams",
+        input: include_str!("fixtures/yaml-test-suite/data/JEF9-00/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_jef9_01_trailing_whitespace_in_streams",
+        input: include_str!("fixtures/yaml-test-suite/data/JEF9-01/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_jq4r_spec_example_8_14_block_sequence",
+        input: include_str!("fixtures/yaml-test-suite/data/JQ4R/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_js2j_spec_example_6_29_node_anchors",
+        input: include_str!("fixtures/yaml-test-suite/data/JS2J/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_jtv5_block_mapping_with_multiline_scalars",
+        input: include_str!("fixtures/yaml-test-suite/data/JTV5/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_k4su_multiple_entry_block_sequence",
+        input: include_str!("fixtures/yaml-test-suite/data/K4SU/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_kk5p_various_combinations_of_explicit_block_mappings",
+        input: include_str!("fixtures/yaml-test-suite/data/KK5P/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_kmk3_block_submapping",
+        input: include_str!("fixtures/yaml-test-suite/data/KMK3/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_l24t_00_trailing_line_of_spaces",
+        input: include_str!("fixtures/yaml-test-suite/data/L24T-00/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_l383_two_scalar_docs_with_trailing_comments",
+        input: include_str!("fixtures/yaml-test-suite/data/L383/in.yaml"),
+        docs: 2,
+    },
+    Case {
+        name: "yts_l9u5_spec_example_7_11_plain_implicit_keys",
+        input: include_str!("fixtures/yaml-test-suite/data/L9U5/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_lp6e_whitespace_after_scalars_in_flow",
+        input: include_str!("fixtures/yaml-test-suite/data/LP6E/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_lqz7_spec_example_7_4_double_quoted_implicit_keys",
+        input: include_str!("fixtures/yaml-test-suite/data/LQZ7/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_lx3p_implicit_flow_mapping_key_on_one_line",
+        input: include_str!("fixtures/yaml-test-suite/data/LX3P/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_m29m_literal_block_scalar",
+        input: include_str!("fixtures/yaml-test-suite/data/M29M/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_m2n8_01_question_mark_edge_cases",
+        input: include_str!("fixtures/yaml-test-suite/data/M2N8-01/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_m5dy_spec_example_2_11_mapping_between_sequences",
+        input: include_str!("fixtures/yaml-test-suite/data/M5DY/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_m6yh_block_sequence_indentation",
+        input: include_str!("fixtures/yaml-test-suite/data/M6YH/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_m7nx_nested_flow_collections",
+        input: include_str!("fixtures/yaml-test-suite/data/M7NX/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_m9b4_spec_example_8_7_literal_scalar",
+        input: include_str!("fixtures/yaml-test-suite/data/M9B4/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_mjs9_spec_example_6_7_block_folding",
+        input: include_str!("fixtures/yaml-test-suite/data/MJS9/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_mxs3_flow_mapping_in_block_sequence",
+        input: include_str!("fixtures/yaml-test-suite/data/MXS3/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_myw6_block_scalar_strip",
+        input: include_str!("fixtures/yaml-test-suite/data/MYW6/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_nat4_various_empty_or_newline_only_quoted_strings",
+        input: include_str!("fixtures/yaml-test-suite/data/NAT4/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_np9h_spec_example_7_5_double_quoted_line_breaks",
+        input: include_str!("fixtures/yaml-test-suite/data/NP9H/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_p94k_spec_example_6_11_multi_line_comments",
+        input: include_str!("fixtures/yaml-test-suite/data/P94K/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_pbj2_spec_example_2_3_mapping_scalars_to_sequences",
+        input: include_str!("fixtures/yaml-test-suite/data/PBJ2/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_prh3_spec_example_7_9_single_quoted_lines",
+        input: include_str!("fixtures/yaml-test-suite/data/PRH3/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_puw8_document_start_on_last_line",
+        input: include_str!("fixtures/yaml-test-suite/data/PUW8/in.yaml"),
+        docs: 2,
+    },
+    Case {
+        name: "yts_q88a_spec_example_7_23_flow_content",
+        input: include_str!("fixtures/yaml-test-suite/data/Q88A/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_q8ad_spec_example_7_5_double_quoted_line_breaks_1_3",
+        input: include_str!("fixtures/yaml-test-suite/data/Q8AD/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_r52l_nested_flow_mapping_sequence_and_mappings",
+        input: include_str!("fixtures/yaml-test-suite/data/R52L/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_rlu9_sequence_indent",
+        input: include_str!("fixtures/yaml-test-suite/data/RLU9/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_rr7f_mixed_block_mapping_implicit_to_explicit",
+        input: include_str!("fixtures/yaml-test-suite/data/RR7F/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_rzt7_spec_example_2_28_log_file",
+        input: include_str!("fixtures/yaml-test-suite/data/RZT7/in.yaml"),
+        docs: 3,
+    },
+    Case {
+        name: "yts_s4t7_document_with_footer",
+        input: include_str!("fixtures/yaml-test-suite/data/S4T7/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_s7bg_colon_followed_by_comma",
+        input: include_str!("fixtures/yaml-test-suite/data/S7BG/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_s9e8_spec_example_5_3_block_structure_indicators",
+        input: include_str!("fixtures/yaml-test-suite/data/S9E8/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_sbg9_flow_sequence_in_flow_mapping",
+        input: include_str!("fixtures/yaml-test-suite/data/SBG9/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_sm9w_00_single_character_streams",
+        input: include_str!("fixtures/yaml-test-suite/data/SM9W-00/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_ssw6_spec_example_7_7_single_quoted_characters_1_3",
+        input: include_str!("fixtures/yaml-test-suite/data/SSW6/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_syw4_spec_example_2_2_mapping_scalars_to_scalars",
+        input: include_str!("fixtures/yaml-test-suite/data/SYW4/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_t26h_spec_example_8_8_literal_content_1_3",
+        input: include_str!("fixtures/yaml-test-suite/data/T26H/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_t4yy_spec_example_7_9_single_quoted_lines_1_3",
+        input: include_str!("fixtures/yaml-test-suite/data/T4YY/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_t5n4_spec_example_8_7_literal_scalar_1_3",
+        input: include_str!("fixtures/yaml-test-suite/data/T5N4/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_te2a_spec_example_8_16_block_mappings",
+        input: include_str!("fixtures/yaml-test-suite/data/TE2A/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_tl85_spec_example_6_8_flow_folding",
+        input: include_str!("fixtures/yaml-test-suite/data/TL85/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_u9ns_spec_example_2_8_play_by_play_feed_from_a_game",
+        input: include_str!("fixtures/yaml-test-suite/data/U9NS/in.yaml"),
+        docs: 2,
+    },
+    Case {
+        name: "yts_udr7_spec_example_5_4_flow_collection_indicators",
+        input: include_str!("fixtures/yaml-test-suite/data/UDR7/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_ukk6_01_syntax_character_edge_cases",
+        input: include_str!("fixtures/yaml-test-suite/data/UKK6-01/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_v55r_aliases_in_block_sequence",
+        input: include_str!("fixtures/yaml-test-suite/data/V55R/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_w42u_spec_example_8_15_block_sequence_entry_types",
+        input: include_str!("fixtures/yaml-test-suite/data/W42U/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_x8dw_explicit_key_and_value_seperated_by_comment",
+        input: include_str!("fixtures/yaml-test-suite/data/X8DW/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_xv9v_spec_example_6_5_empty_lines_1_3",
+        input: include_str!("fixtures/yaml-test-suite/data/XV9V/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_yd5x_spec_example_2_5_sequence_of_sequences",
+        input: include_str!("fixtures/yaml-test-suite/data/YD5X/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_z67p_spec_example_8_21_block_scalar_nodes_1_3",
+        input: include_str!("fixtures/yaml-test-suite/data/Z67P/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_zf4x_spec_example_2_6_mapping_of_mappings",
+        input: include_str!("fixtures/yaml-test-suite/data/ZF4X/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_zh7c_anchors_in_mapping",
+        input: include_str!("fixtures/yaml-test-suite/data/ZH7C/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_zk9h_nested_top_level_flow_mapping",
+        input: include_str!("fixtures/yaml-test-suite/data/ZK9H/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_2auy",
+        input: include_str!("fixtures/yaml-test-suite/data/2AUY/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_2xxw",
+        input: include_str!("fixtures/yaml-test-suite/data/2XXW/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_33x3",
+        input: include_str!("fixtures/yaml-test-suite/data/33X3/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_35kp",
+        input: include_str!("fixtures/yaml-test-suite/data/35KP/in.yaml"),
+        docs: 3,
+    },
+    Case {
+        name: "yts_52dl",
+        input: include_str!("fixtures/yaml-test-suite/data/52DL/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_565n",
+        input: include_str!("fixtures/yaml-test-suite/data/565N/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_5tym",
+        input: include_str!("fixtures/yaml-test-suite/data/5TYM/in.yaml"),
+        docs: 2,
+    },
+    Case {
+        name: "yts_652z",
+        input: include_str!("fixtures/yaml-test-suite/data/652Z/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_6jwb",
+        input: include_str!("fixtures/yaml-test-suite/data/6JWB/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_6wlz",
+        input: include_str!("fixtures/yaml-test-suite/data/6WLZ/in.yaml"),
+        docs: 2,
+    },
+    Case {
+        name: "yts_735y",
+        input: include_str!("fixtures/yaml-test-suite/data/735Y/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_74h7",
+        input: include_str!("fixtures/yaml-test-suite/data/74H7/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_7fwl",
+        input: include_str!("fixtures/yaml-test-suite/data/7FWL/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_8mk2",
+        input: include_str!("fixtures/yaml-test-suite/data/8MK2/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_9wxw",
+        input: include_str!("fixtures/yaml-test-suite/data/9WXW/in.yaml"),
+        docs: 2,
+    },
+    Case {
+        name: "yts_c4hz",
+        input: include_str!("fixtures/yaml-test-suite/data/C4HZ/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_cc74",
+        input: include_str!("fixtures/yaml-test-suite/data/CC74/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_ehf6",
+        input: include_str!("fixtures/yaml-test-suite/data/EHF6/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_f2c7",
+        input: include_str!("fixtures/yaml-test-suite/data/F2C7/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_hm87_01",
+        input: include_str!("fixtures/yaml-test-suite/data/HM87-01/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_hmq5",
+        input: include_str!("fixtures/yaml-test-suite/data/HMQ5/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_j7pz",
+        input: include_str!("fixtures/yaml-test-suite/data/J7PZ/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_jef9_02",
+        input: include_str!("fixtures/yaml-test-suite/data/JEF9-02/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_jr7v",
+        input: include_str!("fixtures/yaml-test-suite/data/JR7V/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_k54u",
+        input: include_str!("fixtures/yaml-test-suite/data/K54U/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_l24t_01",
+        input: include_str!("fixtures/yaml-test-suite/data/L24T-01/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_l94m",
+        input: include_str!("fixtures/yaml-test-suite/data/L94M/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_le5a",
+        input: include_str!("fixtures/yaml-test-suite/data/LE5A/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_p76l",
+        input: include_str!("fixtures/yaml-test-suite/data/P76L/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_q9wf",
+        input: include_str!("fixtures/yaml-test-suite/data/Q9WF/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_rtp8",
+        input: include_str!("fixtures/yaml-test-suite/data/RTP8/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_udm2",
+        input: include_str!("fixtures/yaml-test-suite/data/UDM2/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_ugm3",
+        input: include_str!("fixtures/yaml-test-suite/data/UGM3/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_wz62",
+        input: include_str!("fixtures/yaml-test-suite/data/WZ62/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_z9m4",
+        input: include_str!("fixtures/yaml-test-suite/data/Z9M4/in.yaml"),
         docs: 1,
     },
 ];
@@ -1890,6 +2755,90 @@ fn compatibility_flow_plain_dash_rejections_match_reference_crates() {
             .unwrap_or_else(|error| panic!("yaml-rust2 accepts {valid:?}: {error}"));
         saphyr::Yaml::load_from_str(valid)
             .unwrap_or_else(|error| panic!("saphyr accepts {valid:?}: {error}"));
+    }
+
+    let strict = include_str!("fixtures/yaml-test-suite/data/G5U8/in.yaml");
+    parse_str(strict).expect_err("ours rejects YAML-suite G5U8 dash flow entries");
+    parse_events(strict).expect_err("event parser rejects YAML-suite G5U8");
+    yaml_rust2::YamlLoader::load_from_str(strict).expect_err("yaml-rust2 rejects G5U8");
+    saphyr::Yaml::load_from_str(strict).expect_err("saphyr rejects G5U8");
+    serde_yaml::from_str::<serde_yaml::Value>(strict)
+        .expect("serde_yaml/libyaml tolerates YAML-suite G5U8");
+}
+
+#[test]
+fn compatibility_block_scalar_indentation_rejections_match_reference_policy() {
+    for (name, input) in [
+        (
+            "S98Z",
+            include_str!("fixtures/yaml-test-suite/data/S98Z/in.yaml"),
+        ),
+        (
+            "W9L4",
+            include_str!("fixtures/yaml-test-suite/data/W9L4/in.yaml"),
+        ),
+    ] {
+        assert!(
+            parse_str(input).is_err(),
+            "ours rejects malformed block scalar indentation for {name}"
+        );
+        assert!(
+            parse_events(input).is_err(),
+            "event parser rejects malformed block scalar indentation for {name}"
+        );
+        assert!(
+            yaml_rust2::YamlLoader::load_from_str(input).is_err(),
+            "yaml-rust2 rejects malformed block scalar indentation for {name}"
+        );
+        assert!(
+            saphyr::Yaml::load_from_str(input).is_err(),
+            "saphyr rejects malformed block scalar indentation for {name}"
+        );
+    }
+
+    serde_yaml::from_str::<serde_yaml::Value>(include_str!(
+        "fixtures/yaml-test-suite/data/S98Z/in.yaml"
+    ))
+    .expect("serde_yaml/libyaml tolerates YAML-suite S98Z");
+    assert!(
+        serde_yaml::from_str::<serde_yaml::Value>(include_str!(
+            "fixtures/yaml-test-suite/data/W9L4/in.yaml"
+        ))
+        .is_err(),
+        "serde_yaml/libyaml rejects YAML-suite W9L4"
+    );
+}
+
+#[test]
+fn compatibility_scalar_comment_separation_rejections_match_reference_policy() {
+    for (name, input) in [
+        (
+            "SU5Z",
+            include_str!("fixtures/yaml-test-suite/data/SU5Z/in.yaml"),
+        ),
+        (
+            "X4QW",
+            include_str!("fixtures/yaml-test-suite/data/X4QW/in.yaml"),
+        ),
+    ] {
+        assert!(
+            parse_str(input).is_err(),
+            "ours rejects adjacent comment-looking text for {name}"
+        );
+        assert!(
+            parse_events(input).is_err(),
+            "event parser rejects adjacent comment-looking text for {name}"
+        );
+        assert!(
+            yaml_rust2::YamlLoader::load_from_str(input).is_err(),
+            "yaml-rust2 rejects adjacent comment-looking text for {name}"
+        );
+        assert!(
+            saphyr::Yaml::load_from_str(input).is_err(),
+            "saphyr rejects adjacent comment-looking text for {name}"
+        );
+        serde_yaml::from_str::<serde_yaml::Value>(input)
+            .unwrap_or_else(|error| panic!("serde_yaml/libyaml tolerates {name}: {error}"));
     }
 }
 

@@ -104,7 +104,7 @@ The first milestone focuses on:
   fuzz replay script, and real-world config benchmark command.
 - Clear diagnostics with line/column spans.
 - A live conformance dashboard test over the pinned YAML test-suite denominator:
-  163 selected/classified cases out of 402, with 239 unselected cases tracked
+  402 selected/classified cases out of 402, with 0 unselected cases tracked
   as coverage debt and documented divergence overlays kept separate from
   accepted/rejected outcome counts.
 - Property tests under `cargo test` plus optional `cargo-fuzz` targets.
@@ -122,10 +122,11 @@ Intentional first-milestone non-goals:
   Semantic `Node`/`Value` loaders intentionally stay value-oriented; use
   `LosslessStream` for alias graph identity and merge-effective source
   inspection.
-- Full upstream YAML test-suite coverage is not claimed yet; the pinned
-  coverage ledger records 402 upstream cases, 163 selected cases, and 239
-  not-imported cases as explicit coverage debt. The dashboard is the current
-  progress counter; Phase 1 is expected to drive unselected cases to zero.
+- Full reference-runtime parity across the upstream YAML test-suite is not
+  claimed yet; the pinned coverage ledger records 402 upstream cases, 402
+  selected cases, and 0 not-imported cases as explicit coverage debt. The
+  dashboard is the current progress counter; Phase 1 parser-denominator
+  classification is closed.
 - Byte-compatible `serde_yaml` output and arbitrary source-preserving emission
   are not implemented yet. Their names are reserved as explicit target tiers
   through `EmitOptions`, and selecting them currently returns an error.

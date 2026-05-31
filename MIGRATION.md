@@ -341,8 +341,8 @@ testing each adopter's own YAML corpus.
   `usize` indexes `Value` sequences and numeric mapping keys; direct
   `Mapping` indexing accepts string-like keys or `Value` keys, not sequence
   positions.
-- Full upstream YAML test-suite coverage is not claimed; the pinned coverage
-  ledger records 402 upstream cases, 163 selected cases, and 239 not-imported
+- Full upstream YAML test-suite coverage is now classified; the pinned coverage
+  ledger records 402 upstream cases, 402 selected cases, and 0 not-imported
   cases, while selected-suite scope and deferred parity cases remain documented
   in `BASELINE.md` and `COMPATIBILITY.md`. `cargo test --test
   conformance_dashboard -- --nocapture` prints the current 402-case dashboard
@@ -378,8 +378,7 @@ testing each adopter's own YAML corpus.
   behavior and no tracked next-probe gaps; full arbitrary structural lossless formatting/emission beyond
   targeted block/flow mapping entry and sequence item helpers; and the
   long-term graph API contract before claiming full YAML compatibility.
-- Drive Phase 1 from the conformance dashboard: close the remaining 239
-  unselected YAML test-suite cases in tranches, starting with tab handling,
-  exotic indentation, multiline indentation, adjacent flow mappings, and
-  malformed-tail diagnostics.
+- Drive the next phase from the conformance dashboard parity ledgers: reduce the
+  remaining event, tree, shared-reference, and Psych/libyaml divergence
+  deferrals now that the pinned YAML-suite denominator is fully classified.
 - Choose the public package name and final license before publishing.

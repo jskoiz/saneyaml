@@ -427,21 +427,22 @@ The compatibility harness checks shared acceptance across this crate,
 `serde_yaml`, `yaml-rust2`, and `saphyr`, plus dedicated Rust-reference
 parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
 
-- the pinned selected YAML test-suite manifest, currently 163 fixtures with
+- the pinned selected YAML test-suite manifest, currently 402 fixtures with
   explicit per-case `expected`, `source`, and parser/tree/Serde `policy`
-  fields: 108 normal accepts, 53 syntax/error rejects, and YAML-suite
+  fields: 306 normal accepts, 94 syntax/error rejects, and YAML-suite
   2JQS/X38W as intentional tree/Serde-only rejections while raw parser events
   remain available. The manifest also owns the selected-suite parity ledger:
   `parity.event`, `parity.tree`, `parity.shared_reference`, and
   `parity.lossless_graph` make the selected proof surfaces auditable. Current
-  selected-suite ledgers cover event parity for all 108 accepted cases with no
-  event-shape deferrals, loaded-tree value-shape parity for 105 accepted cases
-  with 3 documented tree-shape deferrals, shared-reference acceptance for 79
-  accepted cases with 29 documented `serde_yaml`/libyaml divergence deferrals,
-  and lossless graph identity parity for 23 graph-sensitive raw-event cases.
+  selected-suite ledgers cover event parity for 301 accepted cases with 5
+  documented event-shape deferrals, loaded-tree value-shape parity for 294
+  accepted cases with 12 documented tree-shape deferrals, shared-reference
+  acceptance for 252 accepted cases with 54 documented `serde_yaml`/libyaml
+  divergence deferrals, and lossless graph identity parity for 34
+  graph-sensitive raw-event cases.
   `tests/fixtures/yaml-test-suite/coverage.toml` also pins the full upstream
-  denominator at 402 cases from the same upstream commit, with 163 selected
-  cases and 239 not-imported cases partitioned explicitly by
+  denominator at 402 cases from the same upstream commit, with 402 selected
+  cases and 0 not-imported cases partitioned explicitly by
   `yaml_suite_coverage`; `conformance_dashboard` prints this 402-case
   denominator with selected outcomes, parity deferrals, and pinned
   Psych/libyaml divergence overlays in one auditable report.
@@ -481,8 +482,9 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   YAML-suite Y79Y/001
 - tabs used as token separation, blank-line content, and quoted-scalar content
   are accepted where YAML 1.2 permits them, including YAML-suite 6BCT, 6CA3,
-  Q5MG, Y79Y/002, Y79Y/010, and accepted DK95 variants, with recorded
-  `serde_yaml`/libyaml divergences for the libyaml-rejected tab cases
+  Q5MG, 3RLN, KH5V, 96NN, CPZ3, DC7X, NB6Z, UV7Q, Y79Y/002, Y79Y/010, and
+  accepted DK95 variants, with recorded `serde_yaml`/libyaml divergences for
+  the libyaml-rejected tab cases
 - block scalar trailing-line chomping, including literal keep chomping with a
   spaces-only content line from YAML-suite 6FWR and empty scalar chomping from
   YAML-suite K858, with empty block scalar event spelling normalized against
@@ -557,7 +559,11 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   duplicate anchor properties on one node, and 2G84 malformed block scalar
   indentation indicators, plus JY7Z/Q4CL trailing content after double-quoted
   mapping values, and QB6E/DK95/01/DK95/06 wrong-indented multiline
-  double-quoted or nested mapping values
+  double-quoted or nested mapping values, plus the remaining upstream `error`
+  fixtures covering invalid document markers, malformed flow collection
+  punctuation and indentation, bad tag/directive syntax, over-indented block
+  scalars, and malformed scalar/comment separation. G5U8, S98Z, SU5Z, and X4QW
+  are explicit strict-rejection records where libyaml tolerates invalid input
 - selected upstream YAML-suite double-quoted scalar fixtures, including
   3RLN-001/3RLN-002 escaped and indentation tabs, DK95/02 and DK95/08
   tab-containing folded continuations, KH5V-001 inline escaped tabs,

@@ -153,9 +153,9 @@ fn yts_manifest_selected_cases_have_fixture_inputs_and_unique_ids() {
         }
     }
 
-    assert_eq!(manifest.case.len(), 163);
-    assert_eq!(accepted, 108);
-    assert_eq!(error_cases, 53);
+    assert_eq!(manifest.case.len(), 402);
+    assert_eq!(accepted, 306);
+    assert_eq!(error_cases, 94);
     assert_eq!(tree_only_rejections, 2);
 }
 
@@ -250,8 +250,8 @@ fn yts_manifest_acceptance_policy_matches_parser_event_and_serde_entrypoints() {
         accepted += 1;
     }
 
-    assert_eq!(accepted, 108);
-    assert_eq!(syntax_rejections, 53);
+    assert_eq!(accepted, 306);
+    assert_eq!(syntax_rejections, 94);
     assert_eq!(tree_only_rejections, 2);
 }
 

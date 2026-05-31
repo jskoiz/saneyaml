@@ -3330,7 +3330,10 @@ fn tagged_node(tag: Tag, tag_span: Span, mut node: Node) -> Node {
         return non_specific_tagged_node(span, node);
     }
     if core_scalar_tag_preserves_source(&tag)
-        && let Some(source) = node.scalar_source().map(|source| source.raw().to_string())
+        && let Some(source) = node
+            .scalar_source()
+            .map(|source| source.raw().to_string())
+            .or_else(|| matches!(&node.value, Value::Null).then(String::new))
     {
         node = Node::new(Value::String(source.clone()), node.span).with_scalar_source(source);
     }

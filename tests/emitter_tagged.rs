@@ -136,6 +136,17 @@ root: {? !e!Th>ing key : tagged-v}
 }
 
 #[test]
+fn emitter_round_trips_explicit_core_tag_empty_scalars_in_flow_mapping() {
+    let input = include_str!("fixtures/yaml-test-suite/data/WZ62/in.yaml");
+    let node = parse_str(input).expect("parse tagged empty content");
+    let emitted = to_string(&node).expect("emit tagged empty content");
+    let reparsed = parse_str(&emitted).expect("parse emitted tagged empty content");
+
+    assert!(reparsed.equivalent(&node), "{emitted}");
+    assert_eq!(to_string(&reparsed).expect("emit again"), emitted);
+}
+
+#[test]
 fn emitter_round_trips_verbatim_tags_with_leading_less_than_suffix() {
     let input = "!<<abc> value\n";
     let node = parse_str(input).expect("parse verbatim tag");

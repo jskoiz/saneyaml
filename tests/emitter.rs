@@ -181,6 +181,31 @@ fn emitter_handles_block_strings() {
 }
 
 #[test]
+fn emitter_quotes_multiline_strings_with_literal_controls() {
+    let input = include_str!("fixtures/yaml-test-suite/data/G4RS/in.yaml");
+    let node = parse_str(input).expect("parse escaped control fixture");
+    let emitted = to_string(&node).expect("emit escaped control fixture");
+
+    assert!(!emitted.contains("control: |"), "{emitted}");
+    assert!(!emitted.contains("hex esc: |"), "{emitted}");
+    assert!(
+        emitted.contains("control: \"\\u00081998\\t1999\\t2000\\n\""),
+        "{emitted}"
+    );
+    assert!(
+        emitted.contains("hex esc: \"\\r\\n is \\r\\n\""),
+        "{emitted}"
+    );
+
+    let reparsed = parse_str(&emitted).expect("parse emitted escaped control fixture");
+    assert!(reparsed.equivalent(&node), "{emitted}");
+    assert_eq!(
+        to_string(&reparsed).expect("emit reparsed escaped control fixture"),
+        emitted
+    );
+}
+
+#[test]
 fn emitter_round_trips_root_block_strings() {
     for input in [
         "\"line\\n\"\n",

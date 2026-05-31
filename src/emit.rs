@@ -132,7 +132,7 @@ fn emit_node(node: &Node, indent: usize, context: Context, out: &mut String) {
     match &node.value {
         Value::Mapping(entries) => emit_mapping(entries, indent, context, out),
         Value::Sequence(items) => emit_sequence(items, indent, context, out),
-        Value::String(value) if value.contains('\n') => {
+        Value::String(value) if should_emit_block_string(value) => {
             emit_block_string(value, indent, context, out)
         }
         Value::Tagged(_) => out.push_str(&format_inline(node)),
@@ -213,7 +213,7 @@ fn emit_sequence(items: &[Node], indent: usize, context: Context, out: &mut Stri
             Value::Sequence(items) if !items.is_empty() => {
                 emit_node(item, indent + 2, Context::SequenceItem, out)
             }
-            Value::String(text) if text.contains('\n') => {
+            Value::String(text) if should_emit_block_string(text) => {
                 emit_node(item, indent + 2, Context::SequenceItem, out)
             }
             _ => {
@@ -232,7 +232,7 @@ fn emit_mapping_value(value: &Node, indent: usize, out: &mut String) {
         Value::Sequence(items) if !items.is_empty() => {
             emit_node(value, indent, Context::MappingValue, out)
         }
-        Value::String(text) if text.contains('\n') => {
+        Value::String(text) if should_emit_block_string(text) => {
             emit_node(value, indent, Context::MappingValue, out)
         }
         _ => {
@@ -245,7 +245,7 @@ fn emit_mapping_value(value: &Node, indent: usize, out: &mut String) {
 fn mapping_value_needs_block_indent(value: &Node) -> bool {
     matches!(&value.value, Value::Mapping(entries) if !entries.is_empty())
         || matches!(&value.value, Value::Sequence(items) if !items.is_empty())
-        || matches!(&value.value, Value::String(text) if text.contains('\n'))
+        || matches!(&value.value, Value::String(text) if should_emit_block_string(text))
 }
 
 fn mapping_needs_explicit_keys(entries: &[(Node, Node)]) -> bool {
@@ -284,6 +284,16 @@ fn emit_block_string(value: &str, indent: usize, context: Context, out: &mut Str
         out.push_str(&" ".repeat(content_indent));
         out.push_str(line);
     }
+}
+
+fn should_emit_block_string(value: &str) -> bool {
+    value.contains('\n') && block_string_can_represent_literal_content(value)
+}
+
+fn block_string_can_represent_literal_content(value: &str) -> bool {
+    value
+        .chars()
+        .all(|ch| !ch.is_control() || matches!(ch, '\n' | '\t'))
 }
 
 fn needs_explicit_block_indent(value: &str) -> bool {

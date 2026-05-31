@@ -712,6 +712,45 @@ fn divergence_flow_collection_comment_separation_record_is_present() {
 }
 
 #[test]
+fn divergence_flow_plain_dash_rejections_record_is_present() {
+    let record = include_str!("fixtures/divergences/records/flow-plain-dash-rejections.toml");
+    assert!(record.contains("flow-plain-dash-rejections"));
+    assert!(record.contains("YJV2"));
+    assert!(record.contains("G5U8"));
+    assert!(record.contains("serde_yaml 0.9.34"));
+    assert!(record.contains("yaml-rust2 0.11.0"));
+    assert!(record.contains("saphyr 0.0.6"));
+    assert!(record.contains("decision"));
+}
+
+#[test]
+fn divergence_block_scalar_indentation_rejections_record_is_present() {
+    let record =
+        include_str!("fixtures/divergences/records/block-scalar-indentation-rejections.toml");
+    assert!(record.contains("block-scalar-indentation-rejections"));
+    assert!(record.contains("5LLU"));
+    assert!(record.contains("S98Z"));
+    assert!(record.contains("W9L4"));
+    assert!(record.contains("serde_yaml 0.9.34"));
+    assert!(record.contains("yaml-rust2 0.11.0"));
+    assert!(record.contains("saphyr 0.0.6"));
+    assert!(record.contains("decision"));
+}
+
+#[test]
+fn divergence_scalar_comment_separation_rejections_record_is_present() {
+    let record =
+        include_str!("fixtures/divergences/records/scalar-comment-separation-rejections.toml");
+    assert!(record.contains("scalar-comment-separation-rejections"));
+    assert!(record.contains("SU5Z"));
+    assert!(record.contains("X4QW"));
+    assert!(record.contains("serde_yaml 0.9.34"));
+    assert!(record.contains("yaml-rust2 0.11.0"));
+    assert!(record.contains("saphyr 0.0.6"));
+    assert!(record.contains("decision"));
+}
+
+#[test]
 fn divergence_tab_token_separation_record_is_present() {
     let record = include_str!("fixtures/divergences/records/tab-token-separation.toml");
     assert!(record.contains("tab-token-separation"));
@@ -915,6 +954,25 @@ fn divergence_explicit_non_specific_tag_shape_record_is_present() {
     assert!(record.contains("explicit-non-specific-tag-shape"));
     assert!(record.contains("UKK6/02"));
     assert!(record.contains("S4JQ"));
+    assert!(record.contains("serde_yaml 0.9.34"));
+    assert!(record.contains("yaml-rust2 0.11.0"));
+    assert!(record.contains("saphyr 0.0.6"));
+    assert!(record.contains("decision"));
+}
+
+#[test]
+fn divergence_yaml_suite_final_parity_deferrals_record_is_present() {
+    let record =
+        include_str!("fixtures/divergences/records/yaml-suite-final-parity-deferrals.toml");
+    assert!(record.contains("yaml-suite-final-parity-deferrals"));
+    for case in [
+        "5TYM", "7FWL", "Q9WF", "UGM3", "K54U", "2AUY", "33X3", "74H7", "C4HZ", "F2C7", "FH7J",
+        "L94M", "WZ62", "4ABK", "4MUZ/00", "4MUZ/01", "4MUZ/02", "7Z25", "8G76", "8XYN", "98YD",
+        "A2M4", "AVM7", "DBG4", "FRK4", "HM87/00", "HWV9", "K3WX", "NHX8", "NJ66", "NKF9", "QT73",
+        "SM9W/01", "VJP3/01", "W5VH",
+    ] {
+        assert!(record.contains(case));
+    }
     assert!(record.contains("serde_yaml 0.9.34"));
     assert!(record.contains("yaml-rust2 0.11.0"));
     assert!(record.contains("saphyr 0.0.6"));

@@ -287,6 +287,14 @@ policy = "raw-events-tree-serde-accept"
 features = ["flow", "sequence", "tab", "separation"]
 
 [[case]]
+id = "Y79Y/003"
+name = "tab in flow sequence indentation is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "flow", "sequence", "indentation", "tab"]
+
+[[case]]
 id = "Y79Y/004"
 name = "tab after block sequence indicator is rejected"
 expected = "syntax-error"
@@ -311,12 +319,28 @@ policy = "raw-events-tree-serde-reject"
 features = ["error", "block", "mapping", "explicit", "indentation", "tab"]
 
 [[case]]
+id = "Y79Y/007"
+name = "tab after explicit mapping value indicator is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "block", "mapping", "indentation", "tab"]
+
+[[case]]
 id = "Y79Y/008"
 name = "tab after explicit key indicator before mapping key is rejected"
 expected = "syntax-error"
 source = "selected-yaml-test-suite-fixture"
 policy = "raw-events-tree-serde-reject"
 features = ["error", "block", "mapping", "explicit", "indentation", "tab"]
+
+[[case]]
+id = "Y79Y/009"
+name = "tab after explicit mapping value indicator before nested key is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "block", "mapping", "indentation", "tab"]
 
 [[case]]
 id = "Y79Y/010"
@@ -375,6 +399,14 @@ policy = "raw-events-tree-serde-reject"
 features = ["error", "flow", "sequence", "scalar"]
 
 [[case]]
+id = "3RLN/00"
+name = "leading tab content in double-quoted scalar"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["double-quoted", "scalar", "tab", "fold"]
+
+[[case]]
 id = "3RLN-001"
 name = "escaped tab after folded double-quoted line break"
 expected = "accept"
@@ -385,6 +417,30 @@ features = ["double-quoted", "scalar", "tab", "fold"]
 [[case]]
 id = "3RLN-002"
 name = "tab as double-quoted continuation indentation"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["double-quoted", "scalar", "tab", "fold"]
+
+[[case]]
+id = "3RLN/03"
+name = "leading tab with following spaces in double-quoted scalar"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["double-quoted", "scalar", "tab", "fold"]
+
+[[case]]
+id = "3RLN/04"
+name = "escaped leading tab with following spaces in double-quoted scalar"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["double-quoted", "scalar", "tab", "fold"]
+
+[[case]]
+id = "3RLN/05"
+name = "leading tab folded away in double-quoted scalar"
 expected = "accept"
 source = "selected-yaml-test-suite-fixture"
 policy = "raw-events-tree-serde-accept"
@@ -439,8 +495,24 @@ policy = "raw-events-tree-serde-accept"
 features = ["double-quoted", "scalar", "tab", "fold"]
 
 [[case]]
+id = "KH5V/00"
+name = "inline tab in double-quoted scalar"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["double-quoted", "scalar", "tab"]
+
+[[case]]
 id = "KH5V-001"
 name = "escaped inline tab in double-quoted scalar"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["double-quoted", "scalar", "tab", "escape"]
+
+[[case]]
+id = "KH5V/02"
+name = "inline escaped tab in double-quoted scalar"
 expected = "accept"
 source = "selected-yaml-test-suite-fixture"
 policy = "raw-events-tree-serde-accept"
@@ -573,6 +645,54 @@ expected = "accept"
 source = "selected-yaml-test-suite-fixture"
 policy = "raw-events-tree-serde-accept"
 features = ["double-quoted", "mapping", "scalar", "fold", "tab"]
+
+[[case]]
+id = "96NN/00"
+name = "leading tab content in literal scalar"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "mapping", "scalar", "literal", "tab"]
+
+[[case]]
+id = "96NN/01"
+name = "leading tab content in literal scalar"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "mapping", "scalar", "literal", "tab"]
+
+[[case]]
+id = "CPZ3"
+name = "double-quoted scalar starting with a tab"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["double-quoted", "mapping", "scalar", "tab"]
+
+[[case]]
+id = "DC7X"
+name = "trailing tabs around mapping and sequence content"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "mapping", "sequence", "scalar", "tab", "trailing"]
+
+[[case]]
+id = "NB6Z"
+name = "tabs on empty lines in multiline plain scalar"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "mapping", "scalar", "plain", "multiline", "blank-line", "tab"]
+
+[[case]]
+id = "UV7Q"
+name = "legal tab after indentation"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "sequence", "scalar", "indentation", "tab"]
 
 [[case]]
 id = "9JBA"
@@ -853,6 +973,310 @@ expected = "syntax-error"
 source = "selected-yaml-test-suite-fixture"
 policy = "raw-events-tree-serde-reject"
 features = ["error", "block", "scalar", "indentation"]
+
+[[case]]
+id = "3HFZ"
+name = "content after document end marker is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "4H7K"
+name = "extra flow sequence closing bracket is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "4HVU"
+name = "wrong-indented sequence is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "55WF"
+name = "invalid double-quoted escape is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "5TRB"
+name = "invalid document-start marker in double-quoted scalar is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "6S55"
+name = "invalid scalar after sequence is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "9MAG"
+name = "leading comma in flow sequence is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "9MQT/01"
+name = "document end marker inside scalar document is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "BD7L"
+name = "invalid mapping after sequence is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "CQ3W"
+name = "unclosed double-quoted string is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "DMG6"
+name = "wrong-indented mapping is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "EW3V"
+name = "wrong-indented mapping entry is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "G5U8"
+name = "plain dash entries in flow sequence are rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "GDY7"
+name = "comment-looking mapping key is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "H7J7"
+name = "unindented node anchor is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "H7TQ"
+name = "extra words on YAML directive are rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "HRE5"
+name = "invalid double-quoted single-quote escape is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "JKF3"
+name = "unindented multiline double-quoted block key is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "KS4U"
+name = "extra item after flow sequence end is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "LHL4"
+name = "invalid tag is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "N4JP"
+name = "bad mapping indentation is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "N782"
+name = "document markers inside flow style are rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "P2EQ"
+name = "same-line sequence item is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "QLJ7"
+name = "TAG handle used after document scope is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "RXY3"
+name = "document end marker in single-quoted scalar is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "S4GJ"
+name = "trailing text after block scalar indicator is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "S98Z"
+name = "over-indented first block scalar content line is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "SF5V"
+name = "duplicate YAML directive is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "SU5Z"
+name = "adjacent comment after double-quoted scalar is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "SU74"
+name = "anchor and alias mapping key is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "TD5N"
+name = "invalid scalar after sequence is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "U44R"
+name = "bad mapping indentation variant is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "U99R"
+name = "invalid comma in tag is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "VJP3/00"
+name = "wrong-indented multiline flow collection is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "W9L4"
+name = "over-indented literal scalar first line is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "X4QW"
+name = "adjacent comment after block scalar indicator is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "ZL4Z"
+name = "invalid nested mapping is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
+
+[[case]]
+id = "ZVH3"
+name = "wrong-indented sequence item is rejected"
+expected = "syntax-error"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-reject"
+features = ["error", "suite-invalid"]
 
 [[case]]
 id = "A984"
@@ -1302,6 +1726,1497 @@ source = "selected-yaml-test-suite-fixture"
 policy = "raw-events-tree-serde-accept"
 features = ["event", "document", "anchor", "sequence"]
 
+[[case]]
+id = "229Q"
+name = "Spec Example 2.4. Sequence of Mappings"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "sequence", "mapping"]
+
+[[case]]
+id = "2G84/02"
+name = "Literal modifers"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["literal"]
+
+[[case]]
+id = "2G84/03"
+name = "Literal modifers"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["literal"]
+
+[[case]]
+id = "3ALJ"
+name = "Block Sequence in Block Sequence"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "sequence"]
+
+[[case]]
+id = "3UYS"
+name = "Escaped slash in double quotes"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["suite-valid"]
+
+[[case]]
+id = "4GC6"
+name = "Spec Example 7.7. Single Quoted Characters"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "single-quoted"]
+
+[[case]]
+id = "4QFQ"
+name = "Spec Example 8.2. Block Indentation Indicator [1.3]"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "block", "indentation"]
+
+[[case]]
+id = "4RWC"
+name = "Trailing spaces after flow collection"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow"]
+
+[[case]]
+id = "4UYU"
+name = "Colon in Double Quoted String"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["double-quoted"]
+
+[[case]]
+id = "4V8U"
+name = "Plain scalar with backslashes"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["scalar", "plain"]
+
+[[case]]
+id = "4WA9"
+name = "Literal scalars"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["scalar", "literal"]
+
+[[case]]
+id = "4ZYM"
+name = "Spec Example 6.4. Line Prefixes"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec"]
+
+[[case]]
+id = "54T7"
+name = "Flow Mapping"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "mapping"]
+
+[[case]]
+id = "5BVJ"
+name = "Spec Example 5.7. Block Scalar Indicators"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "block", "scalar"]
+
+[[case]]
+id = "5C5M"
+name = "Spec Example 7.15. Flow Mappings"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "flow", "mapping"]
+
+[[case]]
+id = "5KJE"
+name = "Spec Example 7.13. Flow Sequence"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "flow", "sequence"]
+
+[[case]]
+id = "5NYZ"
+name = "Spec Example 6.9. Separated Comment"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "comment"]
+
+[[case]]
+id = "65WH"
+name = "Single Entry Block Sequence"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "sequence"]
+
+[[case]]
+id = "6H3V"
+name = "Backslashes in singlequotes"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["suite-valid"]
+
+[[case]]
+id = "6HB6"
+name = "Spec Example 6.1. Indentation Spaces"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "indentation"]
+
+[[case]]
+id = "6JQW"
+name = "Spec Example 2.13. In literals, newlines are preserved"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "literal"]
+
+[[case]]
+id = "6XDY"
+name = "Two document start markers"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["document"]
+
+[[case]]
+id = "753E"
+name = "Block Scalar Strip [1.3]"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "scalar"]
+
+[[case]]
+id = "7A4E"
+name = "Spec Example 7.6. Double Quoted Lines"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "double-quoted"]
+
+[[case]]
+id = "7ZZ5"
+name = "Empty flow collections"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "empty"]
+
+[[case]]
+id = "82AN"
+name = "Three dashes and content without space"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["suite-valid"]
+
+[[case]]
+id = "87E4"
+name = "Spec Example 7.8. Single Quoted Implicit Keys"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "single-quoted"]
+
+[[case]]
+id = "8CWC"
+name = "Plain mapping key ending with colon"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["mapping", "plain"]
+
+[[case]]
+id = "8QBE"
+name = "Block Sequence in Block Mapping"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "sequence", "mapping"]
+
+[[case]]
+id = "8UDB"
+name = "Spec Example 7.14. Flow Sequence Entries"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "flow", "sequence"]
+
+[[case]]
+id = "93JH"
+name = "Block Mappings in Block Sequence"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "sequence", "mapping"]
+
+[[case]]
+id = "96L6"
+name = "Spec Example 2.14. In the folded scalars, newlines become spaces"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "scalar", "folded"]
+
+[[case]]
+id = "9BXH"
+name = "Multiline doublequoted flow mapping key without value"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "mapping"]
+
+[[case]]
+id = "9FMG"
+name = "Multi-level Mapping Indent"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["mapping", "indentation"]
+
+[[case]]
+id = "9J7A"
+name = "Simple Mapping Indent"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["mapping", "indentation"]
+
+[[case]]
+id = "9MQT/00"
+name = "Scalar doc with '...' in content"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["scalar"]
+
+[[case]]
+id = "9SHH"
+name = "Spec Example 5.8. Quoted Scalar Indicators"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "scalar"]
+
+[[case]]
+id = "9TFX"
+name = "Spec Example 7.6. Double Quoted Lines [1.3]"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "double-quoted"]
+
+[[case]]
+id = "9U5K"
+name = "Spec Example 2.12. Compact Nested Mapping"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "mapping"]
+
+[[case]]
+id = "9YRD"
+name = "Multiline Scalar at Top Level"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["scalar"]
+
+[[case]]
+id = "A6F9"
+name = "Spec Example 8.4. Chomping Final Line Break"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec"]
+
+[[case]]
+id = "AZ63"
+name = "Sequence With Same Indentation as Parent Mapping"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["sequence", "mapping", "indentation"]
+
+
+[[case]]
+id = "26DV"
+name = "Whitespace around colon in mappings"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["mapping"]
+
+[[case]]
+id = "3MYT"
+name = "Plain Scalar looking like key, comment, anchor and tag"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["scalar", "plain", "tag", "anchor", "comment"]
+
+[[case]]
+id = "4FJ6"
+name = "Nested implicit complex keys"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["suite-valid"]
+
+[[case]]
+id = "6SLA"
+name = "Allowed characters in quoted mapping key"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["mapping"]
+
+[[case]]
+id = "AZW3"
+name = "Lookahead test cases"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["suite-valid"]
+
+[[case]]
+id = "B3HG"
+name = "Spec Example 8.9. Folded Scalar [1.3]"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "scalar", "folded"]
+
+[[case]]
+id = "D83L"
+name = "Block scalar indicator order"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "scalar"]
+
+[[case]]
+id = "D88J"
+name = "Flow Sequence in Block Mapping"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "block", "sequence", "mapping"]
+
+[[case]]
+id = "D9TU"
+name = "Single Pair Block Mapping"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "mapping"]
+
+[[case]]
+id = "DFF7"
+name = "Spec Example 7.16. Flow Mapping Entries"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "flow", "mapping"]
+
+[[case]]
+id = "DWX9"
+name = "Spec Example 8.8. Literal Content"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "literal"]
+
+[[case]]
+id = "EX5H"
+name = "Multiline Scalar at Top Level [1.3]"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["scalar"]
+
+[[case]]
+id = "EXG3"
+name = "Three dashes and content without space [1.3]"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["suite-valid"]
+
+[[case]]
+id = "F3CP"
+name = "Nested flow collections on one line"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow"]
+
+[[case]]
+id = "FQ7F"
+name = "Spec Example 2.1. Sequence of Scalars"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "sequence", "scalar"]
+
+[[case]]
+id = "FUP4"
+name = "Flow Sequence in Flow Sequence"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "sequence"]
+
+[[case]]
+id = "G4RS"
+name = "Spec Example 2.17. Quoted Scalars"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "scalar"]
+
+[[case]]
+id = "G992"
+name = "Spec Example 8.9. Folded Scalar"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "scalar", "folded"]
+
+[[case]]
+id = "GH63"
+name = "Mixed Block Mapping (explicit to implicit)"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "mapping"]
+
+[[case]]
+id = "H2RW"
+name = "Blank lines"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["suite-valid"]
+
+[[case]]
+id = "H3Z8"
+name = "Literal unicode"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["literal"]
+
+[[case]]
+id = "HMK4"
+name = "Spec Example 2.16. Indentation determines scope"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "indentation"]
+
+[[case]]
+id = "HS5T"
+name = "Spec Example 7.12. Plain Lines"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "plain"]
+
+[[case]]
+id = "J3BT"
+name = "Spec Example 5.12. Tabs and Spaces"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "tab"]
+
+[[case]]
+id = "J5UC"
+name = "Multiple Pair Block Mapping"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "mapping"]
+
+[[case]]
+id = "J7VC"
+name = "Empty Lines Between Mapping Elements"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["mapping", "empty"]
+
+[[case]]
+id = "J9HZ"
+name = "Spec Example 2.9. Single Document with Two Comments"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "document", "comment"]
+
+[[case]]
+id = "JEF9/00"
+name = "Trailing whitespace in streams"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["suite-valid"]
+
+[[case]]
+id = "JEF9/01"
+name = "Trailing whitespace in streams"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["suite-valid"]
+
+[[case]]
+id = "JQ4R"
+name = "Spec Example 8.14. Block Sequence"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "block", "sequence"]
+
+[[case]]
+id = "JS2J"
+name = "Spec Example 6.29. Node Anchors"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "anchor"]
+
+[[case]]
+id = "JTV5"
+name = "Block Mapping with Multiline Scalars"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "mapping", "scalar"]
+
+[[case]]
+id = "K4SU"
+name = "Multiple Entry Block Sequence"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "sequence"]
+
+[[case]]
+id = "KK5P"
+name = "Various combinations of explicit block mappings"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "mapping"]
+
+[[case]]
+id = "KMK3"
+name = "Block Submapping"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "mapping"]
+
+[[case]]
+id = "L24T/00"
+name = "Trailing line of spaces"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["suite-valid"]
+
+[[case]]
+id = "L383"
+name = "Two scalar docs with trailing comments"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["scalar", "comment"]
+
+[[case]]
+id = "L9U5"
+name = "Spec Example 7.11. Plain Implicit Keys"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "plain"]
+
+[[case]]
+id = "LP6E"
+name = "Whitespace After Scalars in Flow"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "scalar"]
+
+[[case]]
+id = "LQZ7"
+name = "Spec Example 7.4. Double Quoted Implicit Keys"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "double-quoted"]
+
+[[case]]
+id = "LX3P"
+name = "Implicit Flow Mapping Key on one line"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "mapping"]
+
+[[case]]
+id = "M29M"
+name = "Literal Block Scalar"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "scalar", "literal"]
+
+[[case]]
+id = "M2N8/01"
+name = "Question mark edge cases"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["suite-valid"]
+
+[[case]]
+id = "M5DY"
+name = "Spec Example 2.11. Mapping between Sequences"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "sequence", "mapping"]
+
+[[case]]
+id = "M6YH"
+name = "Block sequence indentation"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "sequence", "indentation"]
+
+[[case]]
+id = "M7NX"
+name = "Nested flow collections"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow"]
+
+[[case]]
+id = "M9B4"
+name = "Spec Example 8.7. Literal Scalar"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "scalar", "literal"]
+
+[[case]]
+id = "MJS9"
+name = "Spec Example 6.7. Block Folding"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "block"]
+
+[[case]]
+id = "MXS3"
+name = "Flow Mapping in Block Sequence"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "block", "sequence", "mapping"]
+
+[[case]]
+id = "MYW6"
+name = "Block Scalar Strip"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "scalar"]
+
+[[case]]
+id = "NAT4"
+name = "Various empty or newline only quoted strings"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["empty"]
+
+[[case]]
+id = "NP9H"
+name = "Spec Example 7.5. Double Quoted Line Breaks"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "double-quoted"]
+
+[[case]]
+id = "P94K"
+name = "Spec Example 6.11. Multi-Line Comments"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "comment"]
+
+[[case]]
+id = "PBJ2"
+name = "Spec Example 2.3. Mapping Scalars to Sequences"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "sequence", "mapping", "scalar"]
+
+[[case]]
+id = "PRH3"
+name = "Spec Example 7.9. Single Quoted Lines"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "single-quoted"]
+
+[[case]]
+id = "PUW8"
+name = "Document start on last line"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["document"]
+
+[[case]]
+id = "Q88A"
+name = "Spec Example 7.23. Flow Content"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "flow"]
+
+[[case]]
+id = "Q8AD"
+name = "Spec Example 7.5. Double Quoted Line Breaks [1.3]"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "double-quoted"]
+
+[[case]]
+id = "R52L"
+name = "Nested flow mapping sequence and mappings"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "sequence", "mapping"]
+
+[[case]]
+id = "RLU9"
+name = "Sequence Indent"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["sequence", "indentation"]
+
+[[case]]
+id = "RR7F"
+name = "Mixed Block Mapping (implicit to explicit)"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "mapping"]
+
+[[case]]
+id = "RZT7"
+name = "Spec Example 2.28. Log File"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec"]
+
+[[case]]
+id = "S4T7"
+name = "Document with footer"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["document"]
+
+[[case]]
+id = "S7BG"
+name = "Colon followed by comma"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["suite-valid"]
+
+[[case]]
+id = "S9E8"
+name = "Spec Example 5.3. Block Structure Indicators"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "block"]
+
+[[case]]
+id = "SBG9"
+name = "Flow Sequence in Flow Mapping"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "sequence", "mapping"]
+
+[[case]]
+id = "SM9W/00"
+name = "Single character streams"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["suite-valid"]
+
+[[case]]
+id = "SSW6"
+name = "Spec Example 7.7. Single Quoted Characters [1.3]"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "single-quoted"]
+
+[[case]]
+id = "SYW4"
+name = "Spec Example 2.2. Mapping Scalars to Scalars"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "mapping", "scalar"]
+
+[[case]]
+id = "T26H"
+name = "Spec Example 8.8. Literal Content [1.3]"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "literal"]
+
+[[case]]
+id = "T4YY"
+name = "Spec Example 7.9. Single Quoted Lines [1.3]"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "single-quoted"]
+
+[[case]]
+id = "T5N4"
+name = "Spec Example 8.7. Literal Scalar [1.3]"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "scalar", "literal"]
+
+[[case]]
+id = "TE2A"
+name = "Spec Example 8.16. Block Mappings"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "block", "mapping"]
+
+[[case]]
+id = "TL85"
+name = "Spec Example 6.8. Flow Folding"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "flow"]
+
+[[case]]
+id = "U9NS"
+name = "Spec Example 2.8. Play by Play Feed from a Game"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec"]
+
+[[case]]
+id = "UDR7"
+name = "Spec Example 5.4. Flow Collection Indicators"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "flow"]
+
+[[case]]
+id = "UKK6/01"
+name = "Syntax character edge cases"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["suite-valid"]
+
+[[case]]
+id = "V55R"
+name = "Aliases in Block Sequence"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["block", "sequence", "alias"]
+
+[[case]]
+id = "W42U"
+name = "Spec Example 8.15. Block Sequence Entry Types"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "block", "sequence"]
+
+[[case]]
+id = "X8DW"
+name = "Explicit key and value seperated by comment"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["comment"]
+
+[[case]]
+id = "XV9V"
+name = "Spec Example 6.5. Empty Lines [1.3]"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "empty"]
+
+[[case]]
+id = "YD5X"
+name = "Spec Example 2.5. Sequence of Sequences"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "sequence"]
+
+[[case]]
+id = "Z67P"
+name = "Spec Example 8.21. Block Scalar Nodes [1.3]"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "block", "scalar"]
+
+[[case]]
+id = "ZF4X"
+name = "Spec Example 2.6. Mapping of Mappings"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "mapping"]
+
+[[case]]
+id = "ZH7C"
+name = "Anchors in Mapping"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["mapping", "anchor"]
+
+[[case]]
+id = "ZK9H"
+name = "Nested top level flow mapping"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "mapping"]
+
+
+[[case]]
+id = "2AUY"
+name = "Tags in Block Sequence"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["sequence", "tag"]
+
+[[case]]
+id = "2XXW"
+name = "Spec Example 2.25. Unordered Sets"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "comment", "sequence", "tag"]
+
+[[case]]
+id = "33X3"
+name = "Three explicit integers in a block sequence"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["sequence", "tag"]
+
+[[case]]
+id = "35KP"
+name = "Tags for Root Objects"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["stream", "sequence", "mapping", "tag"]
+
+[[case]]
+id = "4ABK"
+name = "Flow Mapping Separate Values"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "mapping"]
+
+[[case]]
+id = "4MUZ/00"
+name = "Flow mapping colon on line after key"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "mapping"]
+
+[[case]]
+id = "4MUZ/01"
+name = "Flow mapping colon on line after key"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "mapping"]
+
+[[case]]
+id = "4MUZ/02"
+name = "Flow mapping colon on line after key"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "mapping"]
+
+[[case]]
+id = "52DL"
+name = "Explicit Non-Specific Tag [1.3]"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["sequence", "tag"]
+
+[[case]]
+id = "565N"
+name = "Construct Binary"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["mapping", "tag"]
+
+[[case]]
+id = "5TYM"
+name = "Spec Example 6.21. Local Tag Prefix"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "stream", "directive", "comment", "sequence", "tag"]
+
+[[case]]
+id = "652Z"
+name = "Question mark at start of flow key"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "mapping"]
+
+[[case]]
+id = "6JWB"
+name = "Tags for Block Objects"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["sequence", "mapping", "tag"]
+
+[[case]]
+id = "6WLZ"
+name = "Spec Example 6.18. Primary Tag Handle [1.3]"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "stream", "directive", "comment", "sequence", "mapping", "tag"]
+
+[[case]]
+id = "735Y"
+name = "Spec Example 8.20. Block Node Types"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "comment", "sequence", "mapping", "tag"]
+
+[[case]]
+id = "74H7"
+name = "Tags in Implicit Mapping"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["mapping", "tag"]
+
+[[case]]
+id = "7FWL"
+name = "Spec Example 6.24. Verbatim Tags"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "mapping", "tag"]
+
+[[case]]
+id = "7Z25"
+name = "Bare document after document end marker"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["stream", "sequence", "mapping"]
+
+[[case]]
+id = "8G76"
+name = "Spec Example 6.10. Comment Lines"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "stream", "comment"]
+
+[[case]]
+id = "8MK2"
+name = "Explicit Non-Specific Tag"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["tag"]
+
+[[case]]
+id = "8XYN"
+name = "Anchor with unicode character"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["sequence", "anchor"]
+
+[[case]]
+id = "98YD"
+name = "Spec Example 5.5. Comment Indicator"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "stream", "comment"]
+
+[[case]]
+id = "9WXW"
+name = "Spec Example 6.18. Primary Tag Handle"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "stream", "directive", "comment", "sequence", "mapping", "tag"]
+
+[[case]]
+id = "A2M4"
+name = "Spec Example 6.2. Indentation Indicators"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "sequence", "mapping"]
+
+[[case]]
+id = "AVM7"
+name = "Empty Stream"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["stream", "empty"]
+
+[[case]]
+id = "C4HZ"
+name = "Spec Example 2.24. Global Tags"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "directive", "comment", "flow", "sequence", "mapping", "tag", "anchor", "alias"]
+
+[[case]]
+id = "CC74"
+name = "Spec Example 6.20. Tag Handles"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "directive", "sequence", "mapping", "tag"]
+
+[[case]]
+id = "DBG4"
+name = "Spec Example 7.10. Plain Characters"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "comment", "flow", "sequence", "mapping", "tag"]
+
+[[case]]
+id = "EHF6"
+name = "Tags for Flow Objects"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "mapping", "tag"]
+
+[[case]]
+id = "F2C7"
+name = "Anchors and Tags"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["sequence", "tag", "anchor"]
+
+[[case]]
+id = "FH7J"
+name = "Tags on Empty Scalars"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["sequence", "mapping", "tag"]
+
+[[case]]
+id = "FRK4"
+name = "Spec Example 7.3. Completely Empty Flow Nodes"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "flow", "mapping"]
+
+[[case]]
+id = "HM87/00"
+name = "Scalars in flow start with syntax char"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "mapping"]
+
+[[case]]
+id = "HM87/01"
+name = "Scalars in flow start with syntax char"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow"]
+
+[[case]]
+id = "HMQ5"
+name = "Spec Example 6.23. Node Properties"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "mapping", "tag", "anchor", "alias"]
+
+[[case]]
+id = "HWV9"
+name = "Document-end marker"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["stream"]
+
+[[case]]
+id = "J7PZ"
+name = "Spec Example 2.26. Ordered Mappings"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "comment", "sequence", "mapping", "tag"]
+
+[[case]]
+id = "JEF9/02"
+name = "Trailing whitespace in streams"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["sequence"]
+
+[[case]]
+id = "JR7V"
+name = "Question marks in scalars"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "sequence", "mapping"]
+
+[[case]]
+id = "K3WX"
+name = "Colon and adjacent value after comment on next line"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["comment", "flow", "sequence", "mapping"]
+
+[[case]]
+id = "K54U"
+name = "Tab after document header"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["sequence"]
+
+[[case]]
+id = "L24T/01"
+name = "Trailing line of spaces"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["mapping"]
+
+[[case]]
+id = "L94M"
+name = "Tags in Explicit Mapping"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["mapping", "tag"]
+
+[[case]]
+id = "LE5A"
+name = "Spec Example 7.24. Flow Nodes"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "sequence", "tag", "anchor", "alias"]
+
+[[case]]
+id = "NHX8"
+name = "Empty Lines at End of Document"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["mapping"]
+
+[[case]]
+id = "NJ66"
+name = "Multiline plain flow mapping key"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "sequence", "mapping"]
+
+[[case]]
+id = "NKF9"
+name = "Empty keys in block and flow mapping"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["stream", "comment", "flow", "sequence", "mapping"]
+
+[[case]]
+id = "P76L"
+name = "Spec Example 6.19. Secondary Tag Handle"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "directive", "comment", "sequence", "mapping", "tag"]
+
+[[case]]
+id = "Q9WF"
+name = "Spec Example 6.12. Separation Spaces"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "comment", "flow", "mapping"]
+
+[[case]]
+id = "QT73"
+name = "Comment and document-end marker"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["stream", "comment"]
+
+[[case]]
+id = "RTP8"
+name = "Spec Example 9.2. Document Markers"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "directive", "comment", "sequence"]
+
+[[case]]
+id = "SM9W/01"
+name = "Single character streams"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["mapping"]
+
+[[case]]
+id = "UDM2"
+name = "Plain URL in flow mapping"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "sequence", "mapping"]
+
+[[case]]
+id = "UGM3"
+name = "Spec Example 2.27. Invoice"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "comment", "sequence", "mapping", "tag", "anchor", "alias"]
+
+[[case]]
+id = "VJP3/01"
+name = "Flow collections over many lines"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["flow", "mapping"]
+
+[[case]]
+id = "W5VH"
+name = "Allowed characters in alias"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["mapping", "anchor", "alias"]
+
+[[case]]
+id = "WZ62"
+name = "Spec Example 7.2. Empty Content"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "flow", "mapping", "tag"]
+
+[[case]]
+id = "Z9M4"
+name = "Spec Example 6.22. Global Tag Prefix"
+expected = "accept"
+source = "selected-yaml-test-suite-fixture"
+policy = "raw-events-tree-serde-accept"
+features = ["spec", "directive", "sequence", "mapping", "tag"]
+
+
 [parity]
 # These lists make selected-suite parity ownership manifest-driven. Each accepted
 # case must be either present in the corresponding source gate or explicitly
@@ -1375,8 +3290,12 @@ event = [
     "Y79Y/001",
     "Y79Y/002",
     "Y79Y/010",
+    "3RLN/00",
     "3RLN-001",
     "3RLN-002",
+    "3RLN/03",
+    "3RLN/04",
+    "3RLN/05",
     "DE56/00",
     "DE56/01",
     "DE56/02",
@@ -1390,7 +3309,15 @@ event = [
     "DK95/05",
     "DK95/07",
     "DK95/08",
+    "96NN/00",
+    "96NN/01",
+    "CPZ3",
+    "DC7X",
+    "NB6Z",
+    "UV7Q",
+    "KH5V/00",
     "KH5V-001",
+    "KH5V/02",
     "6WPF",
     "KSS4",
     "XW4D",
@@ -1415,9 +3342,197 @@ event = [
     "MUS6/05",
     "MUS6/06",
     "6CK3",
+    "229Q",
+    "2G84/02",
+    "2G84/03",
+    "3ALJ",
+    "3UYS",
+    "4GC6",
+    "4QFQ",
+    "4RWC",
+    "4UYU",
+    "4V8U",
+    "4WA9",
+    "4ZYM",
+    "54T7",
+    "5BVJ",
+    "5C5M",
+    "5KJE",
+    "5NYZ",
+    "65WH",
+    "6H3V",
+    "6HB6",
+    "6JQW",
+    "6XDY",
+    "753E",
+    "7A4E",
+    "7ZZ5",
+    "82AN",
+    "87E4",
+    "8CWC",
+    "8QBE",
+    "8UDB",
+    "93JH",
+    "96L6",
+    "9BXH",
+    "9FMG",
+    "9J7A",
+    "9MQT/00",
+    "9SHH",
+    "9TFX",
+    "9U5K",
+    "9YRD",
+    "A6F9",
+    "AZ63",
+    "26DV",
+    "3MYT",
+    "4FJ6",
+    "6SLA",
+    "AZW3",
+    "B3HG",
+    "D83L",
+    "D88J",
+    "D9TU",
+    "DFF7",
+    "DWX9",
+    "EX5H",
+    "EXG3",
+    "F3CP",
+    "FQ7F",
+    "FUP4",
+    "G4RS",
+    "G992",
+    "GH63",
+    "H2RW",
+    "H3Z8",
+    "HMK4",
+    "HS5T",
+    "J3BT",
+    "J5UC",
+    "J7VC",
+    "J9HZ",
+    "JEF9/00",
+    "JEF9/01",
+    "JQ4R",
+    "JS2J",
+    "JTV5",
+    "K4SU",
+    "KK5P",
+    "KMK3",
+    "L24T/00",
+    "L383",
+    "L9U5",
+    "LP6E",
+    "LQZ7",
+    "LX3P",
+    "M29M",
+    "M2N8/01",
+    "M5DY",
+    "M6YH",
+    "M7NX",
+    "M9B4",
+    "MJS9",
+    "MXS3",
+    "MYW6",
+    "NAT4",
+    "NP9H",
+    "P94K",
+    "PBJ2",
+    "PRH3",
+    "PUW8",
+    "Q88A",
+    "Q8AD",
+    "R52L",
+    "RLU9",
+    "RR7F",
+    "RZT7",
+    "S4T7",
+    "S7BG",
+    "S9E8",
+    "SBG9",
+    "SM9W/00",
+    "SSW6",
+    "SYW4",
+    "T26H",
+    "T4YY",
+    "T5N4",
+    "TE2A",
+    "TL85",
+    "U9NS",
+    "UDR7",
+    "UKK6/01",
+    "V55R",
+    "W42U",
+    "X8DW",
+    "XV9V",
+    "YD5X",
+    "Z67P",
+    "ZF4X",
+    "ZH7C",
+    "ZK9H",
+    "2AUY",
+    "2XXW",
+    "33X3",
+    "35KP",
+    "4ABK",
+    "4MUZ/00",
+    "4MUZ/01",
+    "4MUZ/02",
+    "52DL",
+    "565N",
+    "652Z",
+    "6JWB",
+    "6WLZ",
+    "735Y",
+    "74H7",
+    "7Z25",
+    "8G76",
+    "8MK2",
+    "8XYN",
+    "98YD",
+    "9WXW",
+    "A2M4",
+    "AVM7",
+    "C4HZ",
+    "CC74",
+    "DBG4",
+    "EHF6",
+    "F2C7",
+    "FH7J",
+    "FRK4",
+    "HM87/00",
+    "HM87/01",
+    "HMQ5",
+    "HWV9",
+    "J7PZ",
+    "JEF9/02",
+    "JR7V",
+    "K3WX",
+    "L24T/01",
+    "L94M",
+    "LE5A",
+    "NHX8",
+    "NJ66",
+    "NKF9",
+    "P76L",
+    "QT73",
+    "RTP8",
+    "SM9W/01",
+    "UDM2",
+    "VJP3/01",
+    "W5VH",
+    "WZ62",
+    "Z9M4",
+
 ]
 
-event_deferred = []
+event_deferred = [
+    "5TYM",
+    "7FWL",
+    "Q9WF",
+    "UGM3",
+    "K54U",
+]
 
 tree = [
     "BU8L",
@@ -1470,8 +3585,12 @@ tree = [
     "Y79Y/001",
     "Y79Y/002",
     "Y79Y/010",
+    "3RLN/00",
     "3RLN-001",
     "3RLN-002",
+    "3RLN/03",
+    "3RLN/04",
+    "3RLN/05",
     "DE56/00",
     "DE56/01",
     "DE56/02",
@@ -1485,7 +3604,15 @@ tree = [
     "DK95/05",
     "DK95/07",
     "DK95/08",
+    "96NN/00",
+    "96NN/01",
+    "CPZ3",
+    "DC7X",
+    "NB6Z",
+    "UV7Q",
+    "KH5V/00",
     "KH5V-001",
+    "KH5V/02",
     "6WPF",
     "KSS4",
     "XW4D",
@@ -1525,12 +3652,200 @@ tree = [
     "E76Z",
     "Y2GN",
     "ZWK4",
+    "229Q",
+    "2G84/02",
+    "2G84/03",
+    "3ALJ",
+    "3UYS",
+    "4GC6",
+    "4QFQ",
+    "4RWC",
+    "4UYU",
+    "4V8U",
+    "4WA9",
+    "4ZYM",
+    "54T7",
+    "5BVJ",
+    "5C5M",
+    "5KJE",
+    "5NYZ",
+    "65WH",
+    "6H3V",
+    "6HB6",
+    "6JQW",
+    "6XDY",
+    "753E",
+    "7A4E",
+    "7ZZ5",
+    "82AN",
+    "87E4",
+    "8CWC",
+    "8QBE",
+    "8UDB",
+    "93JH",
+    "96L6",
+    "9BXH",
+    "9FMG",
+    "9J7A",
+    "9MQT/00",
+    "9SHH",
+    "9TFX",
+    "9U5K",
+    "9YRD",
+    "A6F9",
+    "AZ63",
+    "26DV",
+    "3MYT",
+    "4FJ6",
+    "6SLA",
+    "AZW3",
+    "B3HG",
+    "D83L",
+    "D88J",
+    "D9TU",
+    "DFF7",
+    "DWX9",
+    "EX5H",
+    "EXG3",
+    "F3CP",
+    "FQ7F",
+    "FUP4",
+    "G4RS",
+    "G992",
+    "GH63",
+    "H2RW",
+    "H3Z8",
+    "HMK4",
+    "HS5T",
+    "J3BT",
+    "J5UC",
+    "J7VC",
+    "J9HZ",
+    "JEF9/00",
+    "JEF9/01",
+    "JQ4R",
+    "JS2J",
+    "JTV5",
+    "K4SU",
+    "KK5P",
+    "KMK3",
+    "L24T/00",
+    "L383",
+    "L9U5",
+    "LP6E",
+    "LQZ7",
+    "LX3P",
+    "M29M",
+    "M2N8/01",
+    "M5DY",
+    "M6YH",
+    "M7NX",
+    "M9B4",
+    "MJS9",
+    "MXS3",
+    "MYW6",
+    "NAT4",
+    "NP9H",
+    "P94K",
+    "PBJ2",
+    "PRH3",
+    "PUW8",
+    "Q88A",
+    "Q8AD",
+    "R52L",
+    "RLU9",
+    "RR7F",
+    "RZT7",
+    "S4T7",
+    "S7BG",
+    "S9E8",
+    "SBG9",
+    "SM9W/00",
+    "SSW6",
+    "SYW4",
+    "T26H",
+    "T4YY",
+    "T5N4",
+    "TE2A",
+    "TL85",
+    "U9NS",
+    "UDR7",
+    "UKK6/01",
+    "V55R",
+    "W42U",
+    "X8DW",
+    "XV9V",
+    "YD5X",
+    "Z67P",
+    "ZF4X",
+    "ZH7C",
+    "ZK9H",
+    "2XXW",
+    "35KP",
+    "4ABK",
+    "4MUZ/00",
+    "4MUZ/01",
+    "4MUZ/02",
+    "52DL",
+    "565N",
+    "5TYM",
+    "652Z",
+    "6JWB",
+    "6WLZ",
+    "735Y",
+    "7FWL",
+    "7Z25",
+    "8G76",
+    "8MK2",
+    "8XYN",
+    "98YD",
+    "9WXW",
+    "A2M4",
+    "AVM7",
+    "CC74",
+    "DBG4",
+    "EHF6",
+    "FRK4",
+    "HM87/00",
+    "HM87/01",
+    "HMQ5",
+    "HWV9",
+    "J7PZ",
+    "JEF9/02",
+    "JR7V",
+    "K3WX",
+    "L24T/01",
+    "LE5A",
+    "NHX8",
+    "NJ66",
+    "NKF9",
+    "P76L",
+    "Q9WF",
+    "QT73",
+    "RTP8",
+    "SM9W/01",
+    "UDM2",
+    "UGM3",
+    "VJP3/01",
+    "W5VH",
+    "Z9M4",
+
 ]
 
 tree_deferred = [
     "PW8X",
     "6KGN",
     "S4JQ",
+    "2AUY",
+    "33X3",
+    "74H7",
+    "C4HZ",
+    "F2C7",
+    "FH7J",
+    "L94M",
+    "WZ62",
+    "K54U",
+
 ]
 
 shared_reference = [
@@ -1579,8 +3894,12 @@ shared_reference = [
     "3GZX",
     "U3XV",
     "Y79Y/002",
+    "3RLN/00",
     "3RLN-001",
     "3RLN-002",
+    "3RLN/03",
+    "3RLN/04",
+    "3RLN/05",
     "DE56/00",
     "DE56/01",
     "DE56/02",
@@ -1591,7 +3910,13 @@ shared_reference = [
     "DK95/05",
     "DK95/07",
     "DK95/08",
+    "CPZ3",
+    "DC7X",
+    "NB6Z",
+    "UV7Q",
+    "KH5V/00",
     "KH5V-001",
+    "KH5V/02",
     "6WPF",
     "KSS4",
     "MZX3",
@@ -1613,6 +3938,170 @@ shared_reference = [
     "E76Z",
     "Y2GN",
     "ZWK4",
+    "229Q",
+    "2G84/02",
+    "2G84/03",
+    "3ALJ",
+    "3UYS",
+    "4GC6",
+    "4QFQ",
+    "4RWC",
+    "4UYU",
+    "4V8U",
+    "4WA9",
+    "4ZYM",
+    "54T7",
+    "5BVJ",
+    "5C5M",
+    "5KJE",
+    "5NYZ",
+    "65WH",
+    "6H3V",
+    "6HB6",
+    "6JQW",
+    "6XDY",
+    "753E",
+    "7A4E",
+    "7ZZ5",
+    "82AN",
+    "87E4",
+    "8CWC",
+    "8QBE",
+    "8UDB",
+    "93JH",
+    "96L6",
+    "9BXH",
+    "9FMG",
+    "9J7A",
+    "9MQT/00",
+    "9SHH",
+    "9TFX",
+    "9U5K",
+    "9YRD",
+    "A6F9",
+    "AZ63",
+    "26DV",
+    "3MYT",
+    "4FJ6",
+    "6SLA",
+    "AZW3",
+    "B3HG",
+    "D83L",
+    "D88J",
+    "D9TU",
+    "DFF7",
+    "DWX9",
+    "EX5H",
+    "EXG3",
+    "F3CP",
+    "FQ7F",
+    "FUP4",
+    "G4RS",
+    "G992",
+    "GH63",
+    "H2RW",
+    "H3Z8",
+    "HMK4",
+    "HS5T",
+    "J3BT",
+    "J5UC",
+    "J7VC",
+    "J9HZ",
+    "JEF9/00",
+    "JEF9/01",
+    "JQ4R",
+    "JS2J",
+    "JTV5",
+    "K4SU",
+    "KK5P",
+    "KMK3",
+    "L24T/00",
+    "L383",
+    "L9U5",
+    "LP6E",
+    "LQZ7",
+    "LX3P",
+    "M29M",
+    "M2N8/01",
+    "M5DY",
+    "M6YH",
+    "M7NX",
+    "M9B4",
+    "MJS9",
+    "MXS3",
+    "MYW6",
+    "NAT4",
+    "NP9H",
+    "P94K",
+    "PBJ2",
+    "PRH3",
+    "PUW8",
+    "Q88A",
+    "Q8AD",
+    "R52L",
+    "RLU9",
+    "RR7F",
+    "RZT7",
+    "S4T7",
+    "S7BG",
+    "S9E8",
+    "SBG9",
+    "SM9W/00",
+    "SSW6",
+    "SYW4",
+    "T26H",
+    "T4YY",
+    "T5N4",
+    "TE2A",
+    "TL85",
+    "U9NS",
+    "UDR7",
+    "UKK6/01",
+    "V55R",
+    "W42U",
+    "X8DW",
+    "XV9V",
+    "YD5X",
+    "Z67P",
+    "ZF4X",
+    "ZH7C",
+    "ZK9H",
+    "2AUY",
+    "2XXW",
+    "33X3",
+    "35KP",
+    "52DL",
+    "565N",
+    "5TYM",
+    "652Z",
+    "6JWB",
+    "6WLZ",
+    "735Y",
+    "74H7",
+    "7FWL",
+    "8MK2",
+    "9WXW",
+    "C4HZ",
+    "CC74",
+    "EHF6",
+    "F2C7",
+    "HM87/01",
+    "HMQ5",
+    "J7PZ",
+    "JEF9/02",
+    "JR7V",
+    "K54U",
+    "L24T/01",
+    "L94M",
+    "LE5A",
+    "P76L",
+    "Q9WF",
+    "RTP8",
+    "UDM2",
+    "UGM3",
+    "WZ62",
+    "Z9M4",
+
 ]
 
 shared_reference_deferred = [
@@ -1630,6 +4119,8 @@ shared_reference_deferred = [
     "DK95/00",
     "DK95/03",
     "DK95/04",
+    "96NN/00",
+    "96NN/01",
     "5MUD",
     "5T43",
     "58MP",
@@ -1645,6 +4136,30 @@ shared_reference_deferred = [
     "DK3J",
     "M7A3",
     "UT92",
+    "4ABK",
+    "4MUZ/00",
+    "4MUZ/01",
+    "4MUZ/02",
+    "7Z25",
+    "8G76",
+    "8XYN",
+    "98YD",
+    "A2M4",
+    "AVM7",
+    "DBG4",
+    "FH7J",
+    "FRK4",
+    "HM87/00",
+    "HWV9",
+    "K3WX",
+    "NHX8",
+    "NJ66",
+    "NKF9",
+    "QT73",
+    "SM9W/01",
+    "VJP3/01",
+    "W5VH",
+
 ]
 
 lossless_graph = [
@@ -1671,4 +4186,16 @@ lossless_graph = [
     "E76Z",
     "Y2GN",
     "ZWK4",
+    "3MYT",
+    "JS2J",
+    "V55R",
+    "ZH7C",
+    "8XYN",
+    "C4HZ",
+    "F2C7",
+    "HMQ5",
+    "LE5A",
+    "UGM3",
+    "W5VH",
+
 ]

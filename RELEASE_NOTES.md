@@ -9,8 +9,8 @@ and explicit user approval for a crates.io push.
 Notable completed release-candidate behavior:
 
 - Phase 0 campaign rails now include a live conformance dashboard test over the
-  pinned YAML test-suite denominator. It reports 402 upstream cases, 163
-  selected/classified, 239 unselected, 108 accepted, 55 rejected, and keeps
+  pinned YAML test-suite denominator. It reports 402 upstream cases, 402
+  selected/classified, 0 unselected, 306 accepted, 96 rejected, and keeps
   YAML-suite and Psych/libyaml divergence overlays separate from outcome
   buckets.
 - Emission now has explicit fidelity tiers through `EmitOptions`:
@@ -155,12 +155,15 @@ Notable completed release-candidate behavior:
   item replacement, insertion, and deletion, with source-preserving formatting
   plus direct lossless-edit fuzz/property replay seeds.
 - The YAML test-suite coverage ledger now pins the full upstream denominator at
-  402 cases, maps the 163 selected cases to canonical upstream IDs, and records
-  the 239 not-imported cases as explicit coverage debt. The selected set now
-  includes nine additional official graph/property cases covering block and
-  flow anchors, aliases, anchored mapping keys, colon-bearing anchor names,
-  node property indicators, comments near anchors, and missing explicit mapping
-  values.
+  402 cases, maps the 402 selected cases to canonical upstream IDs, and records
+  the 0 not-imported cases as explicit coverage debt. The selected set now
+  includes additional official graph/property cases covering block and flow
+  anchors, aliases, anchored mapping keys, colon-bearing anchor names, node
+  property indicators, comments near anchors, and missing explicit mapping
+  values, plus tab/exotic-indentation cases covering quoted tab content,
+  inline tabs, block scalar tab content, trailing tabs, and invalid tab
+  placement, plus the remaining upstream `error` fixtures as rejected-with-policy
+  conformance cases.
 - Fuzz release proof now has a manual `scripts/fuzz-release-sweep.sh` path that
   records checkout HEAD/status, target mode, target names, corpus counts, run
   counts, statuses, elapsed time, and artifact directories, while

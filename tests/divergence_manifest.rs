@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const EXPECTED_RECORDS: usize = 42;
+const EXPECTED_RECORDS: usize = 45;
 const REQUIRED_FIELDS: &[&str] = &[
     "case",
     "policy",

@@ -23,6 +23,10 @@ Notable completed release-candidate behavior:
 - The latest Phase 2 tightening split the remaining broad parity deferral
   record into tagged loaded-tree deferrals and null-document API splits, and
   added named fuzz/span coverage for those still-deferred YAML-suite families.
+- The follow-up parity-policy tranche removes the obsolete final catch-all
+  deferral record, splits the remaining shared-reference deferrals by
+  flow/stream/anchor/indentation families, and raises named fuzz/span coverage
+  before any loaded-tree or Serde policy promotion.
 - Emission now has explicit fidelity tiers through `EmitOptions`:
   `Structural` is the implemented default, while `ByteCompatible` and
   `Preserving` are declared future target tiers that return not-implemented

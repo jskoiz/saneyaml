@@ -380,6 +380,9 @@ testing each adopter's own YAML corpus.
   long-term graph API contract before claiming full YAML compatibility.
 - Drive the next phase from the conformance dashboard parity ledgers: event
   parity is closed, while remaining loaded-tree and shared-reference deferrals
-  need either reference-policy changes or case-specific divergence records
-  before further promotion.
+  need reference-policy changes before promotion. The broad shared-reference
+  catch-all has been split into case-family records for flow collection syntax,
+  stream-marker and empty-key document shapes, unusual anchor characters, and
+  A2M4 block indentation, so the remaining work is policy rather than missing
+  record ownership.
 - Choose the public package name and final license before publishing.

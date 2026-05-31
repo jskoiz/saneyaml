@@ -34,10 +34,16 @@ const TAB_TOKEN_SEPARATION_RECORD: &str =
     include_str!("fixtures/divergences/records/tab-token-separation.toml");
 const YAML_VERSION_DIRECTIVE_SCHEMA_RECORD: &str =
     include_str!("fixtures/divergences/records/yaml-version-directive-schema.toml");
-const YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD: &str =
-    include_str!("fixtures/divergences/records/yaml-suite-final-parity-deferrals.toml");
+const YAML_SUITE_ANCHOR_CHARACTER_SHARED_DEFERRALS_RECORD: &str =
+    include_str!("fixtures/divergences/records/yaml-suite-anchor-character-shared-deferrals.toml");
+const YAML_SUITE_BLOCK_INDENTATION_SHARED_DEFERRALS_RECORD: &str =
+    include_str!("fixtures/divergences/records/yaml-suite-block-indentation-shared-deferrals.toml");
+const YAML_SUITE_FLOW_COLLECTION_SHARED_DEFERRALS_RECORD: &str =
+    include_str!("fixtures/divergences/records/yaml-suite-flow-collection-shared-deferrals.toml");
 const YAML_SUITE_NULL_DOCUMENT_COUNTS_RECORD: &str =
     include_str!("fixtures/divergences/records/yaml-suite-null-document-counts.toml");
+const YAML_SUITE_STREAM_MARKER_SHARED_DEFERRALS_RECORD: &str =
+    include_str!("fixtures/divergences/records/yaml-suite-stream-marker-shared-deferrals.toml");
 const YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD: &str =
     include_str!("fixtures/divergences/records/yaml-suite-tagged-tree-deferrals.toml");
 const RUST_REFERENCE_DIVERGENCE_CASES: &[&str] = &[
@@ -255,28 +261,28 @@ const SHARED_REFERENCE_DIVERGENCES: &[DeferredDivergenceCase] = &[
     },
     DeferredDivergenceCase {
         id: "4ABK",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-flow-collection-shared-deferrals",
+        record_source: YAML_SUITE_FLOW_COLLECTION_SHARED_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "4MUZ/00",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-flow-collection-shared-deferrals",
+        record_source: YAML_SUITE_FLOW_COLLECTION_SHARED_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "4MUZ/01",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-flow-collection-shared-deferrals",
+        record_source: YAML_SUITE_FLOW_COLLECTION_SHARED_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "4MUZ/02",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-flow-collection-shared-deferrals",
+        record_source: YAML_SUITE_FLOW_COLLECTION_SHARED_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "7Z25",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-stream-marker-shared-deferrals",
+        record_source: YAML_SUITE_STREAM_MARKER_SHARED_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "8G76",
@@ -285,8 +291,8 @@ const SHARED_REFERENCE_DIVERGENCES: &[DeferredDivergenceCase] = &[
     },
     DeferredDivergenceCase {
         id: "8XYN",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-anchor-character-shared-deferrals",
+        record_source: YAML_SUITE_ANCHOR_CHARACTER_SHARED_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "98YD",
@@ -295,8 +301,8 @@ const SHARED_REFERENCE_DIVERGENCES: &[DeferredDivergenceCase] = &[
     },
     DeferredDivergenceCase {
         id: "A2M4",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-block-indentation-shared-deferrals",
+        record_source: YAML_SUITE_BLOCK_INDENTATION_SHARED_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "AVM7",
@@ -305,63 +311,63 @@ const SHARED_REFERENCE_DIVERGENCES: &[DeferredDivergenceCase] = &[
     },
     DeferredDivergenceCase {
         id: "DBG4",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-flow-collection-shared-deferrals",
+        record_source: YAML_SUITE_FLOW_COLLECTION_SHARED_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "FRK4",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-flow-collection-shared-deferrals",
+        record_source: YAML_SUITE_FLOW_COLLECTION_SHARED_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "HM87/00",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-flow-collection-shared-deferrals",
+        record_source: YAML_SUITE_FLOW_COLLECTION_SHARED_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "HWV9",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-stream-marker-shared-deferrals",
+        record_source: YAML_SUITE_STREAM_MARKER_SHARED_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "K3WX",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-flow-collection-shared-deferrals",
+        record_source: YAML_SUITE_FLOW_COLLECTION_SHARED_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "NHX8",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-stream-marker-shared-deferrals",
+        record_source: YAML_SUITE_STREAM_MARKER_SHARED_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "NJ66",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-flow-collection-shared-deferrals",
+        record_source: YAML_SUITE_FLOW_COLLECTION_SHARED_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "NKF9",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-flow-collection-shared-deferrals",
+        record_source: YAML_SUITE_FLOW_COLLECTION_SHARED_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "QT73",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-stream-marker-shared-deferrals",
+        record_source: YAML_SUITE_STREAM_MARKER_SHARED_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "SM9W/01",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-stream-marker-shared-deferrals",
+        record_source: YAML_SUITE_STREAM_MARKER_SHARED_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "VJP3/01",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-flow-collection-shared-deferrals",
+        record_source: YAML_SUITE_FLOW_COLLECTION_SHARED_DEFERRALS_RECORD,
     },
     DeferredDivergenceCase {
         id: "W5VH",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+        record_case: "yaml-suite-anchor-character-shared-deferrals",
+        record_source: YAML_SUITE_ANCHOR_CHARACTER_SHARED_DEFERRALS_RECORD,
     },
 ];
 const TREE_SHAPE_DIVERGENCE_CASES: &[TreeShapeDivergenceCase] = &[

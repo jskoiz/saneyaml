@@ -381,6 +381,51 @@ fn parser_spans_remaining_tree_deferral_properties() {
         assert_exact_span(&span.span, pw8x, &expected, "PW8X", "parse_events");
     }
 
+    let six_kgn = include_str!("fixtures/yaml-test-suite/data/6KGN/in.yaml");
+    let six_kgn_events = yaml::parse_events(six_kgn).expect("6KGN parses as raw events");
+    let six_kgn_anchor = six_kgn_events
+        .iter()
+        .find_map(|event| {
+            if let yaml::Event::Scalar { meta, .. } = event {
+                meta.anchor.as_ref()
+            } else {
+                None
+            }
+        })
+        .expect("6KGN should emit the empty scalar anchor");
+    assert_exact_span(
+        &six_kgn_anchor.span,
+        six_kgn,
+        &ExpectedSpan {
+            line: 2,
+            column: 4,
+            source: "&anchor",
+        },
+        "6KGN",
+        "parse_events",
+    );
+    let six_kgn_alias = six_kgn_events
+        .iter()
+        .find_map(|event| {
+            if let yaml::Event::Alias { anchor } = event {
+                Some(anchor)
+            } else {
+                None
+            }
+        })
+        .expect("6KGN should emit the alias");
+    assert_exact_span(
+        &six_kgn_alias.span,
+        six_kgn,
+        &ExpectedSpan {
+            line: 3,
+            column: 4,
+            source: "*anchor",
+        },
+        "6KGN",
+        "parse_events",
+    );
+
     let s4jq = include_str!("fixtures/yaml-test-suite/data/S4JQ/in.yaml");
     let s4jq_events = yaml::parse_events(s4jq).expect("S4JQ parses as raw events");
     let tagged = s4jq_events
@@ -485,6 +530,122 @@ fn parser_spans_tagged_tree_deferral_properties() {
         "parse_events",
     );
 
+    for case in [
+        (
+            "2AUY",
+            include_str!("fixtures/yaml-test-suite/data/2AUY/in.yaml"),
+            "42",
+            ExpectedSpan {
+                line: 3,
+                column: 10,
+                source: "42",
+            },
+            ExpectedSpan {
+                line: 3,
+                column: 4,
+                source: "!!int",
+            },
+        ),
+        (
+            "33X3",
+            include_str!("fixtures/yaml-test-suite/data/33X3/in.yaml"),
+            "-2",
+            ExpectedSpan {
+                line: 3,
+                column: 9,
+                source: "-2",
+            },
+            ExpectedSpan {
+                line: 3,
+                column: 3,
+                source: "!!int",
+            },
+        ),
+        (
+            "74H7",
+            include_str!("fixtures/yaml-test-suite/data/74H7/in.yaml"),
+            "false",
+            ExpectedSpan {
+                line: 5,
+                column: 18,
+                source: "false",
+            },
+            ExpectedSpan {
+                line: 5,
+                column: 11,
+                source: "!!bool",
+            },
+        ),
+        (
+            "L94M",
+            include_str!("fixtures/yaml-test-suite/data/L94M/in.yaml"),
+            "47",
+            ExpectedSpan {
+                line: 2,
+                column: 9,
+                source: "47",
+            },
+            ExpectedSpan {
+                line: 2,
+                column: 3,
+                source: "!!int",
+            },
+        ),
+    ] {
+        let (name, input, value, scalar_span, tag_span) = case;
+        let events = yaml::parse_events(input).unwrap_or_else(|_| panic!("{name} raw events"));
+        let tagged_scalar = events
+            .iter()
+            .find_map(|event| {
+                if let yaml::Event::Scalar {
+                    value: scalar_value,
+                    span,
+                    meta,
+                    ..
+                } = event
+                    && scalar_value == value
+                {
+                    Some((span, meta.tag.as_ref().expect("explicit tag")))
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| panic!("{name} should emit tagged scalar {value}"));
+        assert_exact_span(tagged_scalar.0, input, &scalar_span, name, "parse_events");
+        assert_exact_span(
+            &tagged_scalar.1.span,
+            input,
+            &tag_span,
+            name,
+            "parse_events",
+        );
+    }
+
+    let fh7j = include_str!("fixtures/yaml-test-suite/data/FH7J/in.yaml");
+    let fh7j_events = yaml::parse_events(fh7j).expect("FH7J parses as raw events");
+    let null_tag = fh7j_events
+        .iter()
+        .filter_map(|event| {
+            if let yaml::Event::Scalar { meta, .. } = event {
+                meta.tag.as_ref()
+            } else {
+                None
+            }
+        })
+        .find(|tag| &fh7j[tag.span.start..tag.span.end] == "!!null")
+        .expect("FH7J should retain explicit null tag metadata");
+    assert_exact_span(
+        &null_tag.span,
+        fh7j,
+        &ExpectedSpan {
+            line: 3,
+            column: 3,
+            source: "!!null",
+        },
+        "FH7J",
+        "parse_events",
+    );
+
     let c4hz = include_str!("fixtures/yaml-test-suite/data/C4HZ/in.yaml");
     let c4hz_events = yaml::parse_events(c4hz).expect("C4HZ parses as raw events");
     let color = c4hz_events
@@ -508,6 +669,120 @@ fn parser_spans_tagged_tree_deferral_properties() {
             source: "0xFFEEBB",
         },
         "C4HZ",
+        "parse_events",
+    );
+}
+
+#[test]
+fn parser_spans_remaining_shared_reference_deferral_properties() {
+    let hwv9 = include_str!("fixtures/yaml-test-suite/data/HWV9/in.yaml");
+    let hwv9_events = yaml::parse_events(hwv9).expect("HWV9 parses as raw events");
+    assert_eq!(
+        hwv9_events,
+        vec![yaml::Event::StreamStart, yaml::Event::StreamEnd],
+        "HWV9 document-end-only stream stays accepted without manufacturing a document event",
+    );
+
+    let qt73 = include_str!("fixtures/yaml-test-suite/data/QT73/in.yaml");
+    let qt73_events = yaml::parse_events(qt73).expect("QT73 parses as raw events");
+    assert_eq!(
+        qt73_events,
+        vec![yaml::Event::StreamStart, yaml::Event::StreamEnd],
+        "QT73 comment plus document-end marker stays accepted without manufacturing a document event",
+    );
+
+    let four_abk = include_str!("fixtures/yaml-test-suite/data/4ABK/in.yaml");
+    let four_abk_events = yaml::parse_events(four_abk).expect("4ABK parses as raw events");
+    let flow_uri = four_abk_events
+        .iter()
+        .find_map(|event| {
+            if let yaml::Event::Scalar { value, span, .. } = event
+                && value == "http://foo.com"
+            {
+                Some(span)
+            } else {
+                None
+            }
+        })
+        .expect("4ABK should emit the plain URI scalar");
+    assert_exact_span(
+        flow_uri,
+        four_abk,
+        &ExpectedSpan {
+            line: 3,
+            column: 1,
+            source: "http://foo.com",
+        },
+        "4ABK",
+        "parse_events",
+    );
+
+    let eight_xyn = include_str!("fixtures/yaml-test-suite/data/8XYN/in.yaml");
+    let eight_xyn_events = yaml::parse_events(eight_xyn).expect("8XYN parses as raw events");
+    let unicode_anchor = eight_xyn_events
+        .iter()
+        .find_map(|event| {
+            if let yaml::Event::Scalar { meta, .. } = event {
+                meta.anchor.as_ref()
+            } else {
+                None
+            }
+        })
+        .expect("8XYN should emit Unicode anchor metadata");
+    assert_exact_span(
+        &unicode_anchor.span,
+        eight_xyn,
+        &ExpectedSpan {
+            line: 2,
+            column: 3,
+            source: "&😁",
+        },
+        "8XYN",
+        "parse_events",
+    );
+
+    let w5vh = include_str!("fixtures/yaml-test-suite/data/W5VH/in.yaml");
+    let w5vh_events = yaml::parse_events(w5vh).expect("W5VH parses as raw events");
+    let w5vh_anchor = w5vh_events
+        .iter()
+        .find_map(|event| {
+            if let yaml::Event::Scalar { meta, .. } = event {
+                meta.anchor.as_ref()
+            } else {
+                None
+            }
+        })
+        .expect("W5VH should emit punctuation-heavy anchor metadata");
+    assert_exact_span(
+        &w5vh_anchor.span,
+        w5vh,
+        &ExpectedSpan {
+            line: 1,
+            column: 4,
+            source: "&:@*!$\"<foo>:",
+        },
+        "W5VH",
+        "parse_events",
+    );
+    let w5vh_alias = w5vh_events
+        .iter()
+        .find_map(|event| {
+            if let yaml::Event::Alias { anchor } = event {
+                Some(anchor)
+            } else {
+                None
+            }
+        })
+        .expect("W5VH should emit punctuation-heavy alias metadata");
+    assert_exact_span(
+        &w5vh_alias.span,
+        w5vh,
+        &ExpectedSpan {
+            line: 2,
+            column: 4,
+            source: "*:@*!$\"<foo>:",
+        },
+        "W5VH",
         "parse_events",
     );
 }

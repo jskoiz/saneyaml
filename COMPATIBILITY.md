@@ -445,7 +445,11 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   F2C7, FH7J, and L94M, including a custom tag plus schema scalar divergence
   in C4HZ and tags on empty scalar nodes in FH7J. Shared-reference deferrals
   distinguish hard `serde_yaml`/libyaml rejections from the AVM7, 8G76, and
-  98YD empty/comment-only null-document API split.
+  98YD empty/comment-only null-document API split. The remaining hard
+  shared-reference deferrals are no longer represented by a final catch-all:
+  flow collection cases, stream-marker and empty-key document shapes, unusual
+  anchor-character cases, and A2M4 block-indentation behavior each have
+  separate migration-impact records.
   `tests/fixtures/yaml-test-suite/coverage.toml` also pins the full upstream
   denominator at 402 cases from the same upstream commit, with 402 selected
   cases and 0 not-imported cases partitioned explicitly by

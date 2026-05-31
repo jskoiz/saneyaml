@@ -1,0 +1,7 @@
+case = "yaml-suite-block-indentation-shared-deferrals"
+policy = "Keep YAML-suite block indentation indicator acceptance separate from serde_yaml/libyaml shared-reference acceptance."
+prototype = "YAML-suite A2M4 is accepted by this crate as a selected YAML 1.2 indentation-indicator fixture and remains covered by event/tree/Serde gates, but serde_yaml/libyaml disagreement keeps it outside shared-reference acceptance."
+serde_yaml = "serde_yaml 0.9.34/libyaml rejects or diverges on this indentation-indicator fixture where this crate preserves the YAML-suite accepted structure."
+yaml_rust2_saphyr = "yaml-rust2 0.11.0 and saphyr 0.0.6 provide parser/tree comparison context for the selected fixture; this record only scopes the remaining shared-reference divergence."
+decision = "Keep A2M4 selected as accepted and defer shared-reference parity until the project intentionally changes the reference policy for this YAML-suite indentation-indicator shape."
+migration_impact = "Migration impact: callers migrating indentation-indicator-heavy YAML should validate this crate's accepted YAML 1.2 behavior directly instead of assuming serde_yaml/libyaml acceptance for A2M4-like inputs."

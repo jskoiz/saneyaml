@@ -2668,7 +2668,7 @@ fn push_preprocessed_line(out: &mut Vec<Line>, no: usize, start: usize, raw: Str
     let kind = match content.as_str() {
         "---" => LineKind::DocumentStart,
         "..." => LineKind::DocumentEnd,
-        _ if content.starts_with("--- ") => LineKind::DocumentStart,
+        _ if document_start_rest(&content).is_some() => LineKind::DocumentStart,
         _ if content.starts_with("... ") => {
             return Err(Error::new(
                 "document end markers cannot have trailing content",
@@ -2722,7 +2722,14 @@ pub(crate) fn comment_start(raw: &str) -> Option<usize> {
 }
 
 fn document_start_rest(content: &str) -> Option<(usize, &str)> {
-    content.strip_prefix("--- ").map(|rest| (4, rest))
+    let rest = content.strip_prefix("---")?;
+    if rest.is_empty() {
+        return None;
+    }
+    match rest.as_bytes().first() {
+        Some(b' ' | b'\t') => Some((3, rest)),
+        _ => None,
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -3400,9 +3407,18 @@ fn event_scalar_value(node: &Node) -> String {
     match &node.value {
         Value::Null => "null".to_string(),
         Value::Bool(value) => value.to_string(),
-        Value::Number(Number::Integer(value)) => value.to_string(),
-        Value::Number(Number::Unsigned(value)) => value.to_string(),
-        Value::Number(Number::Float(value)) => value.to_string(),
+        Value::Number(Number::Integer(value)) => node
+            .scalar_source()
+            .map(|source| source.raw().to_string())
+            .unwrap_or_else(|| value.to_string()),
+        Value::Number(Number::Unsigned(value)) => node
+            .scalar_source()
+            .map(|source| source.raw().to_string())
+            .unwrap_or_else(|| value.to_string()),
+        Value::Number(Number::Float(value)) => node
+            .scalar_source()
+            .map(|source| source.raw().to_string())
+            .unwrap_or_else(|| value.to_string()),
         Value::String(value) => value.clone(),
         Value::Tagged(tagged) => event_scalar_value(&tagged.value),
         Value::Sequence(_) | Value::Mapping(_) => String::new(),

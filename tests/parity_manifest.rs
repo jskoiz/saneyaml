@@ -40,33 +40,11 @@ const RUST_REFERENCE_DIVERGENCE_CASES: &[&str] = &[
     "M7A3", // serde_yaml rejects the full bare-document stream; Rust parser references accept.
     "UT92", // serde_yaml rejects directive-looking lines inside open flow content; Rust parser references accept.
 ];
-const EVENT_DEFERRED_DIVERGENCES: &[DeferredDivergenceCase] = &[
-    DeferredDivergenceCase {
-        id: "5TYM",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
-    },
-    DeferredDivergenceCase {
-        id: "7FWL",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
-    },
-    DeferredDivergenceCase {
-        id: "Q9WF",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
-    },
-    DeferredDivergenceCase {
-        id: "UGM3",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
-    },
-    DeferredDivergenceCase {
-        id: "K54U",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
-    },
-];
+const EVENT_DEFERRED_DIVERGENCES: &[DeferredDivergenceCase] = &[DeferredDivergenceCase {
+    id: "Q9WF",
+    record_case: "yaml-suite-final-parity-deferrals",
+    record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
+}];
 const TREE_DEFERRED_DIVERGENCES: &[DeferredDivergenceCase] = &[
     DeferredDivergenceCase {
         id: "PW8X",
@@ -115,16 +93,6 @@ const TREE_DEFERRED_DIVERGENCES: &[DeferredDivergenceCase] = &[
     },
     DeferredDivergenceCase {
         id: "L94M",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
-    },
-    DeferredDivergenceCase {
-        id: "WZ62",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
-    },
-    DeferredDivergenceCase {
-        id: "K54U",
         record_case: "yaml-suite-final-parity-deferrals",
         record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
     },

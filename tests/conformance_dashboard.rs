@@ -103,11 +103,11 @@ fn yaml_test_suite_conformance_dashboard_reports_current_denominator() {
     assert_eq!(syntax_rejected, 94);
     assert_eq!(tree_rejected, 2);
     assert_eq!(rejected, 96);
-    assert_eq!(documented_divergences.len(), 69);
-    assert_eq!(manifest.parity.event.len(), 301);
-    assert_eq!(manifest.parity.event_deferred.len(), 5);
-    assert_eq!(manifest.parity.tree.len(), 294);
-    assert_eq!(manifest.parity.tree_deferred.len(), 12);
+    assert_eq!(documented_divergences.len(), 64);
+    assert_eq!(manifest.parity.event.len(), 305);
+    assert_eq!(manifest.parity.event_deferred.len(), 1);
+    assert_eq!(manifest.parity.tree.len(), 296);
+    assert_eq!(manifest.parity.tree_deferred.len(), 10);
     assert_eq!(manifest.parity.shared_reference.len(), 252);
     assert_eq!(manifest.parity.shared_reference_deferred.len(), 54);
     assert_eq!(manifest.parity.lossless_graph.len(), 34);

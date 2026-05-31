@@ -1,6 +1,6 @@
 case = "explicit-non-specific-tag-shape"
 policy = "Explicit non-specific tags are preserved for parser/event surfaces and treated as transparent string-forcing scalar tags in semantic loaded trees."
-prototype = "Accepts YAML-suite UKK6/02 and S4JQ. UKK6/02 now loads a bare explicit non-specific tag as an empty string, matching yaml-rust2 and saphyr loaded-tree shape. S4JQ loads `! 12` as the string `12` while parser events retain the explicit `!` tag spelling."
+prototype = "Accepts YAML-suite UKK6/02 and S4JQ. UKK6/02 loads a bare explicit non-specific tag as an empty string, matching yaml-rust2 and saphyr loaded-tree shape. S4JQ loads `! 12` as the string `12` while parser events retain the explicit `!` tag spelling."
 serde_yaml = "serde_yaml 0.9.34 accepts UKK6/02 and S4JQ for document-count compatibility."
 yaml_rust2 = "yaml-rust2 0.11.0 matches the prototype for UKK6/02 and S4JQ after loaded-tree non-specific scalar resolution is treated as string-forcing."
 saphyr = "saphyr 0.0.6 matches UKK6/02 as an empty string, but resolves S4JQ `! 12` as integer 12 after dropping the explicit non-specific tag."

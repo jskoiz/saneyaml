@@ -3480,10 +3480,12 @@ event = [
     "4MUZ/02",
     "52DL",
     "565N",
+    "5TYM",
     "652Z",
     "6JWB",
     "6WLZ",
     "735Y",
+    "7FWL",
     "74H7",
     "7Z25",
     "8G76",
@@ -3507,6 +3509,7 @@ event = [
     "J7PZ",
     "JEF9/02",
     "JR7V",
+    "K54U",
     "K3WX",
     "L24T/01",
     "L94M",
@@ -3519,6 +3522,7 @@ event = [
     "RTP8",
     "SM9W/01",
     "UDM2",
+    "UGM3",
     "VJP3/01",
     "W5VH",
     "WZ62",
@@ -3527,11 +3531,7 @@ event = [
 ]
 
 event_deferred = [
-    "5TYM",
-    "7FWL",
     "Q9WF",
-    "UGM3",
-    "K54U",
 ]
 
 tree = [
@@ -3813,6 +3813,7 @@ tree = [
     "J7PZ",
     "JEF9/02",
     "JR7V",
+    "K54U",
     "K3WX",
     "L24T/01",
     "LE5A",
@@ -3828,6 +3829,7 @@ tree = [
     "UGM3",
     "VJP3/01",
     "W5VH",
+    "WZ62",
     "Z9M4",
 
 ]
@@ -3843,8 +3845,6 @@ tree_deferred = [
     "F2C7",
     "FH7J",
     "L94M",
-    "WZ62",
-    "K54U",
 
 ]
 

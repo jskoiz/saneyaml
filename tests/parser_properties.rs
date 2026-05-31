@@ -19,6 +19,7 @@ const PARSE_BYTES_REQUIRED_SEEDS: &[&str] = &[
     "yaml11-alias-key-collision",
     "yaml11-scalar-denominator",
     "yaml11-signed-zero-key-collision",
+    "yts-k54u-tab-after-document-header",
 ];
 const SERDE_ENTRYPOINTS_REQUIRED_SEEDS: &[&str] = &[
     "yaml11-alias-key-collision",
@@ -29,6 +30,7 @@ const SERDE_ENTRYPOINTS_REQUIRED_SEEDS: &[&str] = &[
     "yaml11-signed-zero-key-collision",
     "yaml11-value-duplicate-key",
     "yaml11-value-resolved-handle",
+    "yts-wz62-empty-tagged-flow-values",
 ];
 const SERDE_SERIALIZER_REQUIRED_SEEDS: &[&str] = &[
     "bytes-rejection",
@@ -45,12 +47,16 @@ const EVENT_STREAM_REQUIRED_SEEDS: &[&str] = &[
     "docker-compose-anchors",
     "directive-tag-handle",
     "yts-3r3p-root-sequence-anchor",
+    "yts-5tym-local-tag-prefix-stream",
     "yts-6kgn-empty-anchor-alias",
+    "yts-7fwl-verbatim-tags",
     "yts-7bmt-anchor-key-properties",
     "yts-7bub-commented-alias",
     "yts-cn3r-flow-anchor-properties",
     "yts-cup7-tagged-anchor-alias",
     "yts-e76z-anchor-alias-keys",
+    "yts-k54u-tab-after-document-header",
+    "yts-ugm3-invoice-tag-anchor-alias",
     "yts-y2gn-colon-anchor-name",
     "yts-zwk4-anchor-explicit-key",
     "yts-zxt5-implicit-key-adjacent-newline",
@@ -84,6 +90,7 @@ const SCHEMA_MODES_REQUIRED_SEEDS: &[&str] = &[
     "yaml11-value-duplicate-key",
     "yaml11-value-resolved-handle",
     "yaml12-config-words",
+    "yts-wz62-empty-tagged-flow-values",
 ];
 const LOSSLESS_GRAPH_REQUIRED_SEEDS: &[&str] = &[
     "comments_anchor.yml",
@@ -364,12 +371,12 @@ fn fuzz_corpora_cover_release_targets_and_named_safety_seeds() {
     let expected: BTreeMap<&str, (usize, &[&str])> = BTreeMap::from([
         ("apply_merge", (16, APPLY_MERGE_REQUIRED_SEEDS)),
         ("emit_roundtrip", (14, EMIT_ROUNDTRIP_REQUIRED_SEEDS)),
-        ("event_stream", (94, EVENT_STREAM_REQUIRED_SEEDS)),
+        ("event_stream", (98, EVENT_STREAM_REQUIRED_SEEDS)),
         ("lossless_edit", (28, LOSSLESS_EDIT_REQUIRED_SEEDS)),
         ("lossless_graph", (29, LOSSLESS_GRAPH_REQUIRED_SEEDS)),
-        ("parse_bytes", (881, PARSE_BYTES_REQUIRED_SEEDS)),
-        ("schema_modes", (22, SCHEMA_MODES_REQUIRED_SEEDS)),
-        ("serde_entrypoints", (290, SERDE_ENTRYPOINTS_REQUIRED_SEEDS)),
+        ("parse_bytes", (882, PARSE_BYTES_REQUIRED_SEEDS)),
+        ("schema_modes", (23, SCHEMA_MODES_REQUIRED_SEEDS)),
+        ("serde_entrypoints", (291, SERDE_ENTRYPOINTS_REQUIRED_SEEDS)),
         ("serde_serializer", (7, SERDE_SERIALIZER_REQUIRED_SEEDS)),
     ]);
     let expected_targets = expected.keys().copied().collect::<BTreeSet<_>>();

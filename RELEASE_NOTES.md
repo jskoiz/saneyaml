@@ -13,6 +13,10 @@ Notable completed release-candidate behavior:
   selected/classified, 0 unselected, 306 accepted, 96 rejected, and keeps
   YAML-suite and Psych/libyaml divergence overlays separate from outcome
   buckets.
+- Phase 2 parity-ledger work now promotes the K54U tab-separated document start,
+  local/verbatim tag event cases, UGM3 numeric source-spelling events, and
+  WZ62 empty tagged flow values, reducing event deferrals to 1 and tree
+  deferrals to 10.
 - Emission now has explicit fidelity tiers through `EmitOptions`:
   `Structural` is the implemented default, while `ByteCompatible` and
   `Preserving` are declared future target tiers that return not-implemented

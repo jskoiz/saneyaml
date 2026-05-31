@@ -747,6 +747,26 @@ const CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "yts_5tym_local_tag_prefix_stream",
+        input: include_str!("fixtures/yaml-test-suite/data/5TYM/in.yaml"),
+        docs: 2,
+    },
+    Case {
+        name: "yts_7fwl_verbatim_tags",
+        input: include_str!("fixtures/yaml-test-suite/data/7FWL/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_k54u_tab_after_document_header",
+        input: include_str!("fixtures/yaml-test-suite/data/K54U/in.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "yts_ugm3_invoice_tag_anchor_alias",
+        input: include_str!("fixtures/yaml-test-suite/data/UGM3/in.yaml"),
+        docs: 1,
+    },
+    Case {
         name: "yts_2auy",
         input: include_str!("fixtures/yaml-test-suite/data/2AUY/in.yaml"),
         docs: 1,
@@ -2472,7 +2492,7 @@ fn normalize_reference_tag(handle: &str, suffix: &str) -> String {
     match handle {
         "!!" | "tag:yaml.org,2002:" => format!("tag:yaml.org,2002:{suffix}"),
         "!" => {
-            if suffix.starts_with("tag:") {
+            if suffix.starts_with("tag:") || suffix.starts_with('!') {
                 suffix.to_string()
             } else {
                 format!("!{suffix}")

@@ -1075,6 +1075,10 @@ const VALUE_SHAPE_CASES: &[TreeCase] = &[
         input: include_str!("fixtures/yaml-test-suite/data/7FWL/in.yaml"),
     },
     TreeCase {
+        name: "yts_k54u_tab_after_document_header",
+        input: include_str!("fixtures/yaml-test-suite/data/K54U/in.yaml"),
+    },
+    TreeCase {
         name: "yts_7z25",
         input: include_str!("fixtures/yaml-test-suite/data/7Z25/in.yaml"),
     },
@@ -1209,6 +1213,10 @@ const VALUE_SHAPE_CASES: &[TreeCase] = &[
     TreeCase {
         name: "yts_w5vh",
         input: include_str!("fixtures/yaml-test-suite/data/W5VH/in.yaml"),
+    },
+    TreeCase {
+        name: "yts_wz62_empty_tagged_flow_values",
+        input: include_str!("fixtures/yaml-test-suite/data/WZ62/in.yaml"),
     },
     TreeCase {
         name: "yts_z9m4",

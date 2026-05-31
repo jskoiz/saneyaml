@@ -252,6 +252,50 @@ fn load_options_input_limit_allows_exact_bound_and_can_be_removed() {
 }
 
 #[test]
+fn parser_spans_tab_separated_document_start_inline_scalar() {
+    let input = include_str!("fixtures/yaml-test-suite/data/K54U/in.yaml");
+    let events = yaml::parse_events(input).expect("K54U parses as raw events");
+    let Some(yaml::Event::DocumentStart { explicit, span, .. }) = events.get(1) else {
+        panic!("K54U should emit an explicit document start event");
+    };
+    assert!(*explicit);
+    assert_exact_span(
+        span,
+        input,
+        &ExpectedSpan {
+            line: 1,
+            column: 1,
+            source: "---",
+        },
+        "K54U",
+        "parse_events",
+    );
+
+    let (value, span) = events
+        .iter()
+        .find_map(|event| {
+            if let yaml::Event::Scalar { value, span, .. } = event {
+                (value == "scalar").then_some((value, span))
+            } else {
+                None
+            }
+        })
+        .expect("K54U should emit the scalar after the tab separator");
+    assert_eq!(value, "scalar");
+    assert_exact_span(
+        span,
+        input,
+        &ExpectedSpan {
+            line: 1,
+            column: 5,
+            source: "scalar",
+        },
+        "K54U",
+        "parse_events",
+    );
+}
+
+#[test]
 fn parser_diagnostics_have_exact_spans_across_entrypoints() {
     for case in [
         ParserDiagnosticCase {

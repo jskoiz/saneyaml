@@ -40,11 +40,7 @@ const RUST_REFERENCE_DIVERGENCE_CASES: &[&str] = &[
     "M7A3", // serde_yaml rejects the full bare-document stream; Rust parser references accept.
     "UT92", // serde_yaml rejects directive-looking lines inside open flow content; Rust parser references accept.
 ];
-const EVENT_DEFERRED_DIVERGENCES: &[DeferredDivergenceCase] = &[DeferredDivergenceCase {
-    id: "Q9WF",
-    record_case: "yaml-suite-final-parity-deferrals",
-    record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
-}];
+const EVENT_DEFERRED_DIVERGENCES: &[DeferredDivergenceCase] = &[];
 const TREE_DEFERRED_DIVERGENCES: &[DeferredDivergenceCase] = &[
     DeferredDivergenceCase {
         id: "PW8X",
@@ -305,11 +301,6 @@ const SHARED_REFERENCE_DIVERGENCES: &[DeferredDivergenceCase] = &[
     },
     DeferredDivergenceCase {
         id: "DBG4",
-        record_case: "yaml-suite-final-parity-deferrals",
-        record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
-    },
-    DeferredDivergenceCase {
-        id: "FH7J",
         record_case: "yaml-suite-final-parity-deferrals",
         record_source: YAML_SUITE_FINAL_PARITY_DEFERRALS_RECORD,
     },

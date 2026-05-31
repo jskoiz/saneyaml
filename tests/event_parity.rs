@@ -992,6 +992,11 @@ const CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "yts_q9wf_separation_spaces_flow_mapping",
+        input: include_str!("fixtures/yaml-test-suite/data/Q9WF/in.yaml"),
+        docs: 1,
+    },
+    Case {
         name: "yts_qt73",
         input: include_str!("fixtures/yaml-test-suite/data/QT73/in.yaml"),
         docs: 0,
@@ -2349,23 +2354,40 @@ fn normalize_saphyr_parser(input: &str) -> Result<Vec<NormEvent>, saphyr_parser:
     let mut anchors = AnchorNormalizer::default();
     let mut events = Vec::new();
     let mut collections = Vec::<NormCollectionStyle>::new();
+    let mut collection_starts = Vec::<usize>::new();
+    let mut last_closed_collection_start = None;
+    let mut previous_was_collection_end = false;
     for result in saphyr_parser::Parser::new_from_str(input) {
         let (event, span) = result?;
         match event {
             saphyr_parser::Event::Nothing => {}
-            saphyr_parser::Event::StreamStart => events.push(NormEvent::StreamStart),
-            saphyr_parser::Event::StreamEnd => events.push(NormEvent::StreamEnd),
+            saphyr_parser::Event::StreamStart => {
+                previous_was_collection_end = false;
+                events.push(NormEvent::StreamStart);
+            }
+            saphyr_parser::Event::StreamEnd => {
+                previous_was_collection_end = false;
+                events.push(NormEvent::StreamEnd);
+            }
             saphyr_parser::Event::DocumentStart(explicit) => {
+                previous_was_collection_end = false;
                 anchors.reset();
                 events.push(NormEvent::DocumentStart {
                     explicit: Some(explicit),
                 });
             }
-            saphyr_parser::Event::DocumentEnd => events.push(NormEvent::DocumentEnd),
-            saphyr_parser::Event::Alias(anchor) => events.push(NormEvent::Alias {
-                anchor: anchors.alias_id(anchor),
-            }),
+            saphyr_parser::Event::DocumentEnd => {
+                previous_was_collection_end = false;
+                events.push(NormEvent::DocumentEnd);
+            }
+            saphyr_parser::Event::Alias(anchor) => {
+                previous_was_collection_end = false;
+                events.push(NormEvent::Alias {
+                    anchor: anchors.alias_id(anchor),
+                });
+            }
             saphyr_parser::Event::Scalar(value, style, anchor, tag) => {
+                previous_was_collection_end = false;
                 events.push(NormEvent::Scalar {
                     value: normalize_null_scalar(value.into_owned()),
                     style: normalize_saphyr_style(style),
@@ -2376,7 +2398,9 @@ fn normalize_saphyr_parser(input: &str) -> Result<Vec<NormEvent>, saphyr_parser:
                 });
             }
             saphyr_parser::Event::SequenceStart(anchor, tag) => {
-                let style = reference_sequence_style(input, span.start.index());
+                previous_was_collection_end = false;
+                let start = span.start.index();
+                let style = reference_sequence_style(input, start);
                 events.push(NormEvent::SequenceStart {
                     style,
                     anchor: anchors.define_id(anchor),
@@ -2385,13 +2409,31 @@ fn normalize_saphyr_parser(input: &str) -> Result<Vec<NormEvent>, saphyr_parser:
                         .map(|tag| normalize_reference_tag(&tag.handle, &tag.suffix)),
                 });
                 collections.push(style);
+                collection_starts.push(start);
             }
             saphyr_parser::Event::SequenceEnd => {
                 collections.pop();
+                last_closed_collection_start = collection_starts.pop();
+                previous_was_collection_end = true;
                 events.push(NormEvent::SequenceEnd);
             }
             saphyr_parser::Event::MappingStart(anchor, tag) => {
-                let style = reference_mapping_style(input, span.start.index(), &collections);
+                let start = span.start.index();
+                let mut style = reference_mapping_style(input, start, &collections);
+                if byte_at(input, start) == Some(b'{')
+                    && collections.last() != Some(&NormCollectionStyle::Flow)
+                    && collection_starts.last() != Some(&start)
+                    && flow_collection_token_is_mapping_key(input, start)
+                {
+                    style = NormCollectionStyle::Block;
+                }
+                if previous_was_collection_end
+                    && last_closed_collection_start == Some(start)
+                    && collections.last() != Some(&NormCollectionStyle::Flow)
+                {
+                    style = NormCollectionStyle::Block;
+                }
+                previous_was_collection_end = false;
                 events.push(NormEvent::MappingStart {
                     style,
                     anchor: anchors.define_id(anchor),
@@ -2400,9 +2442,12 @@ fn normalize_saphyr_parser(input: &str) -> Result<Vec<NormEvent>, saphyr_parser:
                         .map(|tag| normalize_reference_tag(&tag.handle, &tag.suffix)),
                 });
                 collections.push(style);
+                collection_starts.push(start);
             }
             saphyr_parser::Event::MappingEnd => {
                 collections.pop();
+                last_closed_collection_start = collection_starts.pop();
+                previous_was_collection_end = true;
                 events.push(NormEvent::MappingEnd);
             }
         }
@@ -2436,6 +2481,43 @@ fn reference_mapping_style(
     } else {
         NormCollectionStyle::Block
     }
+}
+
+fn flow_collection_token_is_mapping_key(input: &str, start: usize) -> bool {
+    let Some(open) = byte_at(input, start) else {
+        return false;
+    };
+    let close = match open {
+        b'{' => '}',
+        b'[' => ']',
+        _ => return false,
+    };
+    let open = char::from(open);
+    let mut depth = 0usize;
+    let mut single = false;
+    let mut double = false;
+    let mut escaped = false;
+    for (relative, ch) in input[start..].char_indices() {
+        if double && escaped {
+            escaped = false;
+            continue;
+        }
+        match ch {
+            '\\' if double => escaped = true,
+            '"' if !single => double = !double,
+            '\'' if !double => single = !single,
+            ch if !single && !double && ch == open => depth += 1,
+            ch if !single && !double && ch == close => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    let after = &input[start + relative + ch.len_utf8()..];
+                    return after.trim_start_matches([' ', '\t']).starts_with(':');
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 fn normalize_our_style(style: ScalarStyle) -> NormStyle {

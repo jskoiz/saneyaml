@@ -3518,6 +3518,7 @@ event = [
     "NJ66",
     "NKF9",
     "P76L",
+    "Q9WF",
     "QT73",
     "RTP8",
     "SM9W/01",
@@ -3530,9 +3531,7 @@ event = [
 
 ]
 
-event_deferred = [
-    "Q9WF",
-]
+event_deferred = []
 
 tree = [
     "BU8L",
@@ -4085,6 +4084,7 @@ shared_reference = [
     "CC74",
     "EHF6",
     "F2C7",
+    "FH7J",
     "HM87/01",
     "HMQ5",
     "J7PZ",
@@ -4147,7 +4147,6 @@ shared_reference_deferred = [
     "A2M4",
     "AVM7",
     "DBG4",
-    "FH7J",
     "FRK4",
     "HM87/00",
     "HWV9",

@@ -1424,6 +1424,11 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "yts_fh7j_tags_on_empty_scalars",
+        input: include_str!("fixtures/yaml-test-suite/data/FH7J/in.yaml"),
+        docs: 1,
+    },
+    Case {
         name: "yts_hm87_01",
         input: include_str!("fixtures/yaml-test-suite/data/HM87-01/in.yaml"),
         docs: 1,

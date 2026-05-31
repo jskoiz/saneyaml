@@ -17,6 +17,9 @@ Notable completed release-candidate behavior:
   local/verbatim tag event cases, UGM3 numeric source-spelling events, and
   WZ62 empty tagged flow values, reducing event deferrals to 1 and tree
   deferrals to 10.
+- The next Phase 2 tranche closes the remaining Q9WF event-shape deferral and
+  moves FH7J into shared-reference document-count parity while adding named
+  coverage for comment-only stream-count splits that stay deferred.
 - Emission now has explicit fidelity tiers through `EmitOptions`:
   `Structural` is the implemented default, while `ByteCompatible` and
   `Preserving` are declared future target tiers that return not-implemented

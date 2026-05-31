@@ -296,6 +296,53 @@ fn parser_spans_tab_separated_document_start_inline_scalar() {
 }
 
 #[test]
+fn parser_spans_q9wf_flow_key_and_block_value_mapping() {
+    let input = include_str!("fixtures/yaml-test-suite/data/Q9WF/in.yaml");
+    let events = yaml::parse_events(input).expect("Q9WF parses as raw events");
+    let mappings = events
+        .iter()
+        .filter_map(|event| {
+            if let yaml::Event::MappingStart { style, span, .. } = event {
+                Some((*style, span))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        mappings.iter().map(|(style, _)| *style).collect::<Vec<_>>(),
+        [
+            yaml::CollectionStyle::Block,
+            yaml::CollectionStyle::Flow,
+            yaml::CollectionStyle::Block,
+        ]
+    );
+    assert_exact_span(
+        mappings[1].1,
+        input,
+        &ExpectedSpan {
+            line: 1,
+            column: 1,
+            source: "{",
+        },
+        "Q9WF",
+        "parse_events",
+    );
+    assert_exact_span(
+        mappings[2].1,
+        input,
+        &ExpectedSpan {
+            line: 3,
+            column: 3,
+            source: "hr:",
+        },
+        "Q9WF",
+        "parse_events",
+    );
+}
+
+#[test]
 fn parser_diagnostics_have_exact_spans_across_entrypoints() {
     for case in [
         ParserDiagnosticCase {

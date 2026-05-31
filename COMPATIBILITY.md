@@ -434,10 +434,10 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   remain available. The manifest also owns the selected-suite parity ledger:
   `parity.event`, `parity.tree`, `parity.shared_reference`, and
   `parity.lossless_graph` make the selected proof surfaces auditable. Current
-  selected-suite ledgers cover event parity for 305 accepted cases with 1
-  documented event-shape deferral, loaded-tree value-shape parity for 296
+  selected-suite ledgers cover event parity for all 306 accepted cases with no
+  documented event-shape deferrals, loaded-tree value-shape parity for 296
   accepted cases with 10 documented tree-shape deferrals, shared-reference
-  acceptance for 252 accepted cases with 54 documented `serde_yaml`/libyaml
+  acceptance for 253 accepted cases with 53 documented `serde_yaml`/libyaml
   divergence deferrals, and lossless graph identity parity for 34
   graph-sensitive raw-event cases.
   `tests/fixtures/yaml-test-suite/coverage.toml` also pins the full upstream

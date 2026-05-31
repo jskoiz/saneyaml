@@ -88,9 +88,9 @@ tests that exercise the actual downstream YAML files.
 | `serde_yaml::Number` | `yaml::Number` | Covered for helpers, parsing, display, direct deserialization, and widened integer targets |
 | `serde_yaml::value::to_value` | `yaml::value::to_value` | Covered for common config-shaped serialization |
 | `serde_yaml::value::Serializer` | `yaml::value::Serializer` | Covered for value-backed serialization, bytes, tags, and 128-bit integer policy |
-| `serde_yaml::to_string` | `yaml::to_string` | Structural output covered; byte-for-byte formatting parity is out of scope |
-| `serde_yaml::to_writer` | `yaml::to_writer` | Structural output covered; byte-for-byte formatting parity is out of scope |
-| `serde_yaml::Serializer` | `yaml::Serializer` | Covered for multi-document writer usage and document marker policy |
+| `serde_yaml::to_string` | `yaml::to_string`; `yaml::to_string_with_options` | `EmitOptions::Structural` output covered; `ByteCompatible` and `Preserving` are declared target tiers that reject until implemented |
+| `serde_yaml::to_writer` | `yaml::to_writer`; `yaml::to_writer_with_options` | `EmitOptions::Structural` output covered; `ByteCompatible` and `Preserving` are declared target tiers that reject until implemented |
+| `serde_yaml::Serializer` | `yaml::Serializer` | Covered for multi-document writer usage and document marker policy; `Serializer::with_options(..., EmitOptions::Structural)` matches the default writer path |
 | `serde_yaml::with::singleton_map` | `yaml::with::singleton_map` | Covered for read and write enum-field annotations |
 | `serde_yaml::with::singleton_map_recursive` | `yaml::with::singleton_map_recursive` | Covered for nested read and write enum-field annotations |
 
@@ -271,8 +271,11 @@ testing each adopter's own YAML corpus.
 - Replace `serde_yaml::Error` handling with `yaml::Error`. Parser and Serde
   errors expose line/column locations, but spanless `Value` and reader I/O
   errors cannot recover source spans.
-- Treat writer output as structural YAML. Do not compare emitted bytes against
-  `serde_yaml` formatting.
+- Treat writer output as `EmitOptions::Structural` YAML by default. Do not
+  compare emitted bytes against `serde_yaml` formatting until
+  `EmitOptions::ByteCompatible` is implemented and proven; selecting
+  `ByteCompatible` or `Preserving` now returns an explicit not-implemented
+  error instead of silently falling back.
 
 ## Known Migration Limits
 
@@ -341,7 +344,10 @@ testing each adopter's own YAML corpus.
 - Full upstream YAML test-suite coverage is not claimed; the pinned coverage
   ledger records 402 upstream cases, 163 selected cases, and 239 not-imported
   cases, while selected-suite scope and deferred parity cases remain documented
-  in `BASELINE.md` and `COMPATIBILITY.md`.
+  in `BASELINE.md` and `COMPATIBILITY.md`. `cargo test --test
+  conformance_dashboard -- --nocapture` prints the current 402-case dashboard
+  and keeps documented divergence overlays separate from accepted/rejected
+  outcome counts.
 
 ## Migration Impact Ledger
 
@@ -372,4 +378,8 @@ testing each adopter's own YAML corpus.
   behavior and no tracked next-probe gaps; full arbitrary structural lossless formatting/emission beyond
   targeted block/flow mapping entry and sequence item helpers; and the
   long-term graph API contract before claiming full YAML compatibility.
+- Drive Phase 1 from the conformance dashboard: close the remaining 239
+  unselected YAML test-suite cases in tranches, starting with tab handling,
+  exotic indentation, multiline indentation, adjacent flow mappings, and
+  malformed-tail diagnostics.
 - Choose the public package name and final license before publishing.

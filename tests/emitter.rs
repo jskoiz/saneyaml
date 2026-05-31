@@ -1,4 +1,7 @@
-use yaml::{Node, NodeValue as Value, Number, Span, Tag, TaggedNode, parse_str, to_string};
+use yaml::{
+    EmitOptions, Node, NodeValue as Value, Number, Span, Tag, TaggedNode, parse_str, to_string,
+    to_string_with_options,
+};
 
 fn nested_sequence(depth: usize) -> Node {
     let mut node = Node::null(Span::default());
@@ -40,6 +43,36 @@ fn int_node(value: i128) -> Node {
 
 fn float_node(value: f64) -> Node {
     Node::new(Value::Number(Number::Float(value)), Span::default())
+}
+
+#[test]
+fn emitter_options_default_to_structural_output() {
+    assert_eq!(EmitOptions::default(), EmitOptions::Structural);
+    assert_eq!(EmitOptions::structural(), EmitOptions::Structural);
+
+    let node = parse_str("service:\n  image: app:v1\n  replicas: 2\n").expect("parse");
+    let default = to_string(&node).expect("default emit");
+    let structural =
+        to_string_with_options(&node, EmitOptions::Structural).expect("structural emit");
+
+    assert_eq!(structural, default);
+    assert!(parse_str(&structural).expect("reparse").equivalent(&node));
+}
+
+#[test]
+fn emitter_future_fidelity_tiers_are_explicit_targets() {
+    let node = parse_str("name: api\n").expect("parse");
+
+    for (tier, name) in [
+        (EmitOptions::byte_compatible(), "ByteCompatible"),
+        (EmitOptions::preserving(), "Preserving"),
+    ] {
+        let error =
+            to_string_with_options(&node, tier).expect_err("future tier is not implemented");
+        let message = error.to_string();
+        assert!(message.contains(name), "{message}");
+        assert!(message.contains("not implemented"), "{message}");
+    }
 }
 
 fn permuted_mapping_key(first_order: bool) -> Node {

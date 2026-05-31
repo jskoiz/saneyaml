@@ -5,7 +5,7 @@
 //! with default merge-key expansion, explicit and directive-driven YAML 1.1
 //! scalar construction options, `serde_yaml`-style
 //! `Value`/`Mapping`/`Number` workflows, typed Serde reads, structural writes,
-//! and line/column diagnostics. See `MIGRATION.md`,
+//! explicit emission fidelity tiers, and line/column diagnostics. See `MIGRATION.md`,
 //! `COMPATIBILITY.md`, and `DEVELOPER_PREVIEW.md` for the current adoption
 //! contract and intentional non-goals.
 //!
@@ -64,6 +64,7 @@ pub use de::{
     Deserializer, from_documents_reader, from_documents_slice, from_documents_str, from_node,
     from_reader, from_slice, from_str, from_value,
 };
+pub use emit::EmitOptions;
 pub use error::{Diagnostic, Error, Location, RelatedDiagnostic, Result, Span};
 pub use lossless::{
     AliasId, AnchorId, LosslessAlias, LosslessAnchor, LosslessDocument, LosslessEdit,
@@ -80,4 +81,6 @@ pub use schema::{
     DEFAULT_ALIAS_EXPANSION_FACTOR, DEFAULT_MAX_INPUT_BYTES, DEFAULT_MIN_ALIAS_EXPANSION_NODES,
     LoadOptions, Schema,
 };
-pub use ser::{Serializer, to_string, to_value, to_writer};
+pub use ser::{
+    Serializer, to_string, to_string_with_options, to_value, to_writer, to_writer_with_options,
+};

@@ -1,8 +1,8 @@
 //! Serde serialization entrypoints for YAML values and writers.
 
 use crate::{
-    Error, Mapping, Node, NodeValue, Number, Result, Span, Tag, TaggedNode, TaggedValue, Timestamp,
-    Value,
+    EmitOptions, Error, Mapping, Node, NodeValue, Number, Result, Span, Tag, TaggedNode,
+    TaggedValue, Timestamp, Value,
 };
 use serde::Serialize;
 use serde::ser::{
@@ -33,13 +33,36 @@ where
     crate::emit::to_string(&node)
 }
 
+/// Serializes a value into a YAML string using explicit emission options.
+///
+/// Only [`EmitOptions::Structural`] is implemented in this preview.
+pub fn to_string_with_options<T>(value: &T, options: EmitOptions) -> Result<String>
+where
+    T: ?Sized + Serialize,
+{
+    let node = serialized_node(value)?;
+    crate::emit::to_string_with_options(&node, options)
+}
+
 /// Serializes a value as YAML and writes it to an output sink.
 pub fn to_writer<W, T>(mut writer: W, value: &T) -> Result<()>
 where
     W: Write,
     T: ?Sized + Serialize,
 {
-    let output = to_string(value)?;
+    to_writer_with_options(&mut writer, value, EmitOptions::Structural)
+}
+
+/// Serializes a value as YAML using explicit emission options and writes it to
+/// an output sink.
+///
+/// Only [`EmitOptions::Structural`] is implemented in this preview.
+pub fn to_writer_with_options<W, T>(mut writer: W, value: &T, options: EmitOptions) -> Result<()>
+where
+    W: Write,
+    T: ?Sized + Serialize,
+{
+    let output = to_string_with_options(value, options)?;
     writer.write_all(output.as_bytes()).map_err(|error| {
         Error::new(
             format!("failed to write YAML output: {error}"),
@@ -60,6 +83,7 @@ where
 pub struct Serializer<W> {
     writer: W,
     document_written: bool,
+    emit_options: EmitOptions,
 }
 
 impl<W> Serializer<W>
@@ -68,9 +92,18 @@ where
 {
     /// Creates a serializer that writes YAML documents to `writer`.
     pub fn new(writer: W) -> Self {
+        Self::with_options(writer, EmitOptions::Structural)
+    }
+
+    /// Creates a serializer that writes YAML documents to `writer` using
+    /// explicit emission options.
+    ///
+    /// Only [`EmitOptions::Structural`] is implemented in this preview.
+    pub fn with_options(writer: W, emit_options: EmitOptions) -> Self {
         Self {
             writer,
             document_written: false,
+            emit_options,
         }
     }
 
@@ -90,10 +123,10 @@ where
         if self.document_written {
             output.push_str("---\n");
         }
-        output.push_str(&crate::emit::to_string(&Node::new(
-            value.into(),
-            Default::default(),
-        ))?);
+        output.push_str(&crate::emit::to_string_with_options(
+            &Node::new(value.into(), Default::default()),
+            self.emit_options,
+        )?);
         self.writer
             .write_all(output.as_bytes())
             .map_err(write_error)?;

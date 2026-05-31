@@ -8,6 +8,15 @@ and explicit user approval for a crates.io push.
 
 Notable completed release-candidate behavior:
 
+- Phase 0 campaign rails now include a live conformance dashboard test over the
+  pinned YAML test-suite denominator. It reports 402 upstream cases, 163
+  selected/classified, 239 unselected, 108 accepted, 55 rejected, and keeps
+  YAML-suite and Psych/libyaml divergence overlays separate from outcome
+  buckets.
+- Emission now has explicit fidelity tiers through `EmitOptions`:
+  `Structural` is the implemented default, while `ByteCompatible` and
+  `Preserving` are declared future target tiers that return not-implemented
+  errors instead of silently falling back to structural output.
 - `Cargo.toml` now has an explicit package include boundary for the developer
   preview: source, examples, and public docs are package contents, while
   repository-only fixtures, downstream reductions, fuzz corpora, CI files, and
@@ -160,7 +169,8 @@ Notable completed release-candidate behavior:
 
 Known release-candidate gaps remain tracked in `BASELINE.md`,
 `COMPATIBILITY.md`, and `MIGRATION.md`: complete YAML 1.1 ecosystem parity,
-full arbitrary structural lossless formatting beyond targeted block/flow
-mapping entry and sequence item helpers, final package metadata, and external
-publication. Semantic `Node`/`Value` loaders remain value-oriented by design;
-alias graph identity is the `LosslessStream` contract.
+`ByteCompatible` emission, full arbitrary structural lossless formatting beyond
+targeted block/flow mapping entry and sequence item helpers,
+`EmitOptions::Preserving`, final package metadata, and external publication.
+Semantic `Node`/`Value` loaders remain value-oriented by design; alias graph
+identity is the `LosslessStream` contract.

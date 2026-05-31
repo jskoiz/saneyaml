@@ -1,10 +1,63 @@
 use crate::{
-    Error, Node, NodeValue as Value, Number, Result, key_identity::check_duplicate_at_depth,
+    Error, Node, NodeValue as Value, Number, Result, Span, key_identity::check_duplicate_at_depth,
     parse::MAX_DEPTH,
 };
 use std::collections::HashMap;
 
+/// YAML emission fidelity tier.
+///
+/// `Structural` is the current implemented behavior. `ByteCompatible` and
+/// `Preserving` are declared Phase 0 target tiers and intentionally return an
+/// error until their fidelity contracts are implemented and verified.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum EmitOptions {
+    /// Deterministic structural YAML output whose parse tree is equivalent to
+    /// the input tree.
+    #[default]
+    Structural,
+    /// Target tier for byte-for-byte compatibility with `serde_yaml` output.
+    ByteCompatible,
+    /// Target tier for source-preserving output over lossless documents.
+    Preserving,
+}
+
+impl EmitOptions {
+    /// Returns the currently implemented structural emission tier.
+    pub fn structural() -> Self {
+        Self::Structural
+    }
+
+    /// Returns the declared byte-compatible target tier.
+    pub fn byte_compatible() -> Self {
+        Self::ByteCompatible
+    }
+
+    /// Returns the declared source-preserving target tier.
+    pub fn preserving() -> Self {
+        Self::Preserving
+    }
+
+    fn ensure_supported(self) -> Result<()> {
+        match self {
+            Self::Structural => Ok(()),
+            Self::ByteCompatible => Err(Error::new(
+                "`ByteCompatible` emission is declared as a target tier but is not implemented in this preview",
+                Span::default(),
+            )),
+            Self::Preserving => Err(Error::new(
+                "`Preserving` emission is declared as a target tier but is not implemented in this preview",
+                Span::default(),
+            )),
+        }
+    }
+}
+
 pub fn to_string(node: &Node) -> Result<String> {
+    to_string_with_options(node, EmitOptions::Structural)
+}
+
+pub fn to_string_with_options(node: &Node, options: EmitOptions) -> Result<String> {
+    options.ensure_supported()?;
     validate_emittable(node)?;
     let mut out = String::new();
     emit_node(node, 0, Context::Root, &mut out);

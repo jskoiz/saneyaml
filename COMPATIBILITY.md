@@ -6,9 +6,10 @@ developer configuration files, with parser/tree/event behavior compared against
 `yaml-rust2` and `saphyr`. It now includes a source-backed lossless graph view
 for retaining existing YAML text plus validated node/source-span edits,
 scalar-keyed block and flow mapping entry edits, block and flow sequence item
-edits, insertions, and deletions, but it is not claiming byte-for-byte emitter
-parity or an arbitrary structural lossless formatting engine beyond targeted
-mapping entry and sequence item helpers.
+edits, insertions, and deletions. Emission is split into explicit fidelity
+tiers: `EmitOptions::Structural` is implemented today, while
+`EmitOptions::ByteCompatible` and `EmitOptions::Preserving` are named target
+tiers that return explicit not-implemented errors until their proof exists.
 
 The compatibility target is intentionally split:
 
@@ -48,7 +49,7 @@ for intentional behavior splits that matter during migration.
 | Adjacent flow mapping values | Accept YAML 1.2 adjacent flow mapping values, including colon-prefixed adjacent plain scalars | Psych/libyaml accepts C2DT but rejects 5MUD, 5T43, and 58MP | yaml-rust2/saphyr accept all four selected cases | `serde_yaml` accepts C2DT but rejects 5MUD, 5T43, and 58MP |
 | Bare/explicit document streams | YAML 1.2 bare documents after `...` are supported, including root literal scalars whose content begins at column 1, and directive-looking lines inside open flow collections are parsed as content | Some libyaml-era paths reject these streams or treat percent-prefixed flow content as directive-sensitive | Accepted by yaml-rust2/saphyr | `serde_yaml` rejects the full M7A3 stream after the first document and rejects UT92 |
 | Comments/formatting | Semantic `Node`/`Value` loaders discard comments and formatting; `LosslessStream` retains the original source for byte-stable replay, exposes comments/blank lines as trivia, and validates node/source-span edits plus scalar-keyed block/flow mapping entry and block/flow sequence item value/insert/delete edits through `LosslessEdit` | Not semantic | Not semantic | Discarded |
-| Emission | Deterministic structural YAML for emittable trees; duplicate-effective mapping keys, over-depth trees including caller-built complex keys, and directly nested tags are rejected before output; public writers follow `serde_yaml` document-marker policy by omitting `---` for the first ordinary document and inserting `---` between stream documents; emitter round-trip fuzz now covers `to_string`, `to_writer`, and streaming `Serializer` output | Manual comparison only | Manual comparison only | Public writer document-marker policy is matched; byte-for-byte formatting parity remains out of scope |
+| Emission | `EmitOptions::Structural` produces deterministic structural YAML for emittable trees; duplicate-effective mapping keys, over-depth trees including caller-built complex keys, and directly nested tags are rejected before output; public writers follow `serde_yaml` document-marker policy by omitting `---` for the first ordinary document and inserting `---` between stream documents; emitter round-trip fuzz now covers `to_string`, `to_writer`, and streaming `Serializer` output. `EmitOptions::ByteCompatible` and `EmitOptions::Preserving` are explicit target tiers and reject until implemented. | Manual comparison only | Manual comparison only | Public writer document-marker policy is matched; byte-for-byte formatting parity is a declared future target, not current behavior |
 | Numeric, timestamp, and binary extensions | Decimal ints/floats plus underscores, YAML special floats, and decimal-looking leading-zero values such as `0123` are resolved by default; explicit YAML 1.1 construction also resolves leading-zero octal, hex, binary numeric, and two/three-part sexagesimal int/float forms that fit `Number`, retains timestamp-shaped plain scalars as `!!timestamp` tagged strings with `yaml::Timestamp` typed reads, and decodes explicit `!!binary` only for typed byte targets | YAML 1.1 has broad numeric/timestamp/binary typing, including sexagesimal and legacy radix forms in libyaml/Psych paths | YAML 1.2 core support varies by crate | Data-model dependent |
 | Directives | Numeric `%YAML` version directives and `%TAG` are accepted as syntax/event inputs; reserved unknown directives are ignored but still require an explicit document start; default loading does not switch scalar schema, while `LoadOptions::yaml_version_directive()` lets `%YAML 1.1` select legacy construction per document; directive metadata is exposed on `DocumentStart` events | Exposed and may affect version/schema handling | Exposed by parser layers | Usually not a Serde value |
 | Explicit core tags | Tree and `Value` loading preserve explicit `!!binary`, `!!str`, `!!bool`, `!!null`, `!!timestamp`, `!!int`, and `!!float` tags, including canonical `tag:yaml.org,2002:*` forms written verbatim or through `%TAG` handles; typed Serde reads coerce explicit `!!str`, `!!bool`, `!!null`, `!!int`, and `!!float` targets, including legacy boolean/null, radix, and sexagesimal spellings; retained `Value` numeric helpers parse explicit `!!int`/`!!float` spellings without erasing tag/source metadata; explicit `!!timestamp` is exposed as `yaml::Timestamp`, and explicit `!!binary` byte targets decode while preserving tags in retained values | YAML 1.1 typed binary/timestamp/string/bool/null/numeric support is common | Tag-aware behavior varies, including `BadValue` for some explicit core tags | Partial/lossy |
@@ -81,10 +82,15 @@ Current read APIs:
 - `yaml::to_string<T: serde::Serialize>(&T) -> Result<String>` and
   `yaml::to_writer<W: std::io::Write, T: serde::Serialize>(W, &T)` for
   deterministic structural emission from serializable config-shaped values
+- `yaml::to_string_with_options`, `yaml::to_writer_with_options`, and
+  `yaml::EmitOptions` for explicit emission fidelity. Only
+  `EmitOptions::Structural` is implemented in this preview; `ByteCompatible`
+  and `Preserving` reject with a not-implemented error.
 - `yaml::Serializer<W: std::io::Write>` with `new`, `flush`, and `into_inner`
   for `serde_yaml::Serializer`-style writer usage. Each top-level
   `Serialize::serialize(&mut serializer)` call writes one structural YAML
-  document.
+  document. `Serializer::with_options` accepts the same emission fidelity
+  tiers.
 - `yaml::value::Serializer` and `yaml::value::to_value` for
   `serde_yaml::value`-style value serialization paths
 - `yaml::with::singleton_map::serialize` and
@@ -112,7 +118,7 @@ Migration-facing API status is tracked by `MIGRATION.md` and the executable
 | `Deserializer::{from_str, from_slice, from_reader}` | `yaml::Deserializer::{from_str, from_slice, from_reader}` | Direct Serde use, stream iteration, and empty-stream behavior covered |
 | `Value`, `Mapping`, `Number` | `yaml::Value`, `yaml::Mapping`, `yaml::Number` | Common read, mutation, sealed indexing, helper, trait, and number conversion surfaces covered |
 | `value::to_value`, `value::Serializer` | `yaml::value::to_value`, `yaml::value::Serializer` | Value-backed serialization covered for common config shapes, tags, bytes, and 128-bit integer policy |
-| `to_string`, `to_writer`, `Serializer` | `yaml::to_string`, `yaml::to_writer`, `yaml::Serializer` | Structural writer support covered; byte-for-byte emitter formatting parity remains out of scope |
+| `to_string`, `to_writer`, `Serializer` | `yaml::to_string`, `yaml::to_writer`, `yaml::Serializer`, optioned writer paths | `EmitOptions::Structural` writer support covered; `ByteCompatible` and `Preserving` are declared target tiers and reject until implemented |
 | `with::singleton_map`, `with::singleton_map_recursive` | `yaml::with::singleton_map`, `yaml::with::singleton_map_recursive` | Read/write enum-field annotation paths covered, including singleton-map shape rejection of tag shorthand |
 
 The migration harness also contains a dedicated default-merge test showing the
@@ -434,7 +440,9 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   `tests/fixtures/yaml-test-suite/coverage.toml` also pins the full upstream
   denominator at 402 cases from the same upstream commit, with 163 selected
   cases and 239 not-imported cases partitioned explicitly by
-  `yaml_suite_coverage`
+  `yaml_suite_coverage`; `conformance_dashboard` prints this 402-case
+  denominator with selected outcomes, parity deferrals, and pinned
+  Psych/libyaml divergence overlays in one auditable report.
 - core scalars
 - explicit YAML 1.1 schema-mode scalars, including boolean aliases, retained
   timestamp tags, legacy radix and sexagesimal numeric forms, duplicate-key

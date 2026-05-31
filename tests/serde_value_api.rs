@@ -1570,6 +1570,72 @@ fn serde_api_to_string_and_to_writer_serialize_common_config_shapes() {
 }
 
 #[test]
+fn serde_api_emit_options_structural_matches_default_writers() {
+    let config = SerializableConfig {
+        name: "app".to_string(),
+        ports: vec![80, 443],
+        enabled: true,
+        env: BTreeMap::from([("RUST_LOG".to_string(), "info".to_string())]),
+        optional: None,
+    };
+
+    let default = yaml::to_string(&config).expect("default emit");
+    let structural = yaml::to_string_with_options(&config, yaml::EmitOptions::Structural)
+        .expect("structural emit");
+    assert_eq!(structural, default);
+
+    let mut written = Vec::new();
+    yaml::to_writer_with_options(&mut written, &config, yaml::EmitOptions::Structural)
+        .expect("structural writer");
+    assert_eq!(String::from_utf8(written).expect("utf8 writer"), default);
+
+    let mut streamed = Vec::new();
+    {
+        let mut serializer =
+            yaml::Serializer::with_options(&mut streamed, yaml::EmitOptions::Structural);
+        config.serialize(&mut serializer).expect("stream config");
+        serializer.flush().expect("flush stream");
+    }
+    assert_eq!(String::from_utf8(streamed).expect("utf8 stream"), default);
+}
+
+#[test]
+fn serde_api_future_emit_options_reject_without_structural_fallback() {
+    let config = SerializableConfig {
+        name: "app".to_string(),
+        ports: vec![80],
+        enabled: true,
+        env: BTreeMap::new(),
+        optional: None,
+    };
+
+    for (tier, name) in [
+        (yaml::EmitOptions::ByteCompatible, "ByteCompatible"),
+        (yaml::EmitOptions::Preserving, "Preserving"),
+    ] {
+        let error =
+            yaml::to_string_with_options(&config, tier).expect_err("future tier must reject");
+        let message = error.to_string();
+        assert!(message.contains(name), "{message}");
+        assert!(message.contains("not implemented"), "{message}");
+
+        let mut written = Vec::new();
+        let writer_error = yaml::to_writer_with_options(&mut written, &config, tier)
+            .expect_err("future writer tier must reject");
+        assert_eq!(writer_error.to_string(), message);
+        assert!(written.is_empty());
+
+        let mut streamed = Vec::new();
+        let mut serializer = yaml::Serializer::with_options(&mut streamed, tier);
+        let stream_error = config
+            .serialize(&mut serializer)
+            .expect_err("future stream tier must reject");
+        assert_eq!(stream_error.to_string(), message);
+        assert!(streamed.is_empty());
+    }
+}
+
+#[test]
 fn serde_api_document_writers_reject_bytes_like_serde_yaml() {
     let bytes = SerializableBytes(b"\0A\xff");
     let reference = serde_yaml::to_string(&bytes).expect_err("serde_yaml rejects bytes");

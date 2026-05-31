@@ -58,8 +58,12 @@ The first milestone focuses on:
   collections, Wrangler comments/flow flags, and Ansible/Kubernetes lossless
   replay cases are manifest-gated on this surface.
 - Deterministic structural emission with `parse(emit(tree)) == tree` for
-  emittable trees; duplicate-effective mapping keys, untagged literal merge
-  keys, over-depth trees, and directly nested tags are rejected before output.
+  emittable trees through the default `EmitOptions::Structural` tier;
+  duplicate-effective mapping keys, untagged literal merge keys, over-depth
+  trees, and directly nested tags are rejected before output.
+  `EmitOptions::ByteCompatible` and `EmitOptions::Preserving` are declared
+  future target tiers and return explicit not-implemented errors in this
+  preview instead of falling back silently.
 - Serde read support through `yaml::from_str` and a spanless
   `serde_yaml`-style `yaml::Value`, including source-backed string reads and
   typed `i128`/`u128` integer targets for large config identifiers, plus
@@ -99,6 +103,10 @@ The first milestone focuses on:
   Ubuntu-only CI workflow with all-target fuzz-smoke wiring, non-mutating
   fuzz replay script, and real-world config benchmark command.
 - Clear diagnostics with line/column spans.
+- A live conformance dashboard test over the pinned YAML test-suite denominator:
+  163 selected/classified cases out of 402, with 239 unselected cases tracked
+  as coverage debt and documented divergence overlays kept separate from
+  accepted/rejected outcome counts.
 - Property tests under `cargo test` plus optional `cargo-fuzz` targets.
 
 Intentional first-milestone non-goals:
@@ -116,7 +124,11 @@ Intentional first-milestone non-goals:
   inspection.
 - Full upstream YAML test-suite coverage is not claimed yet; the pinned
   coverage ledger records 402 upstream cases, 163 selected cases, and 239
-  not-imported cases as explicit coverage debt.
+  not-imported cases as explicit coverage debt. The dashboard is the current
+  progress counter; Phase 1 is expected to drive unselected cases to zero.
+- Byte-compatible `serde_yaml` output and arbitrary source-preserving emission
+  are not implemented yet. Their names are reserved as explicit target tiers
+  through `EmitOptions`, and selecting them currently returns an error.
 - Kubernetes schema validation or automated ecosystem migration tooling.
 
 ## Verification
@@ -128,6 +140,7 @@ cargo test --test external_downstream_migration
 cargo test --test libyaml_probe_manifest
 cargo test --test yaml11_conformance
 cargo test --test yaml_suite_coverage
+cargo test --test conformance_dashboard -- --nocapture
 cargo test --test lossless_roundtrip --test graph_identity --test real_world_lossless
 scripts/downstream-build-trials.sh smoke-only
 scripts/downstream-build-trials.sh pingora

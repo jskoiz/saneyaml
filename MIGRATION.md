@@ -187,9 +187,10 @@ from real `serde_yaml` users:
 `scripts/downstream-build-trials.sh pingora`,
 `scripts/downstream-build-trials.sh rust-i18n`,
 `scripts/downstream-build-trials.sh cfn-guard`,
-`scripts/downstream-build-trials.sh navi`, and
-`scripts/downstream-build-trials.sh stackable-operator` add real downstream
-build trials.
+`scripts/downstream-build-trials.sh navi`,
+`scripts/downstream-build-trials.sh stackable-operator`,
+`scripts/downstream-build-trials.sh figment`, and
+`scripts/downstream-build-trials.sh uaparser` add real downstream build trials.
 Each packages this crate, consumes the unpacked package from a clean smoke
 project under the `serde_yaml` dependency name, runs strict upstream-compatible
 expanded alias-surface assertions, parses representative checked-in real-world
@@ -202,7 +203,13 @@ macro, and extract crates; the cfn-guard trial checks the package that loads
 CloudFormation templates and rule-test specs; the navi trial checks the library
 and CLI binary that load typed YAML config through string and reader paths; the
 Stackable trial checks `stackable-shared` production serializer use plus
-`k8s-version` serde tests.
+`k8s-version` serde tests. The figment trial copies the crates.io 0.10.19
+package source, rewrites its optional table-style `serde_yaml` dependency to
+the packaged alias, checks the `yaml` provider feature, and runs the YAML enum
+provider test. The uaparser trial copies the crates.io 0.6.4 package source,
+rewrites its table-style `serde_yaml` dependency to the packaged alias, runs
+library tests over the bundled `regexes.yaml` database through slice and reader
+paths, and checks the examples that build parsers from that YAML file.
 
 Focused proof command:
 
@@ -216,6 +223,8 @@ scripts/downstream-build-trials.sh rust-i18n
 scripts/downstream-build-trials.sh cfn-guard
 scripts/downstream-build-trials.sh navi
 scripts/downstream-build-trials.sh stackable-operator
+scripts/downstream-build-trials.sh figment
+scripts/downstream-build-trials.sh uaparser
 ```
 
 Broader migration proof:
@@ -363,8 +372,8 @@ testing each adopter's own YAML corpus.
 ## Next Adoption Blockers
 
 - Continue expanding real external crate build trials beyond the current
-  Pingora, rust-i18n, cfn-guard, navi, and Stackable operator-rs package smoke
-  before claiming broad ecosystem replacement readiness.
+  Pingora, rust-i18n, cfn-guard, navi, Stackable operator-rs, figment, and
+  uaparser package smoke before claiming broad ecosystem replacement readiness.
 - Keep migration-impact wording current as new divergence records are added.
 - Keep growing default merge, `apply_merge`, emitter, and lossless graph
   coverage with sustained fuzz runs and minimized discoveries beyond the

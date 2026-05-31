@@ -13,20 +13,13 @@ Notable completed release-candidate behavior:
   selected/classified, 0 unselected, 306 accepted, 96 rejected, and keeps
   YAML-suite and Psych/libyaml divergence overlays separate from outcome
   buckets.
-- Phase 2 parity-ledger work now promotes the K54U tab-separated document start,
-  local/verbatim tag event cases, UGM3 numeric source-spelling events, and
-  WZ62 empty tagged flow values, reducing event deferrals to 1 and tree
-  deferrals to 10.
-- The next Phase 2 tranche closes the remaining Q9WF event-shape deferral and
-  moves FH7J into shared-reference document-count parity while adding named
-  coverage for comment-only stream-count splits that stay deferred.
-- The latest Phase 2 tightening split the remaining broad parity deferral
-  record into tagged loaded-tree deferrals and null-document API splits, and
-  added named fuzz/span coverage for those still-deferred YAML-suite families.
-- The follow-up parity-policy tranche removes the obsolete final catch-all
-  deferral record, splits the remaining shared-reference deferrals by
-  flow/stream/anchor/indentation families, and raises named fuzz/span coverage
-  before any loaded-tree or Serde policy promotion.
+- Phase 2 parity-ledger work has closed event parity across the selected YAML
+  test-suite denominator while leaving the remaining loaded-tree and
+  shared-reference deferrals as explicit policy records.
+- The latest parity-policy tranches split the former broad catch-all deferrals
+  into named loaded-tree, null-document, flow, stream, anchor-character, and
+  indentation families, with named fuzz/span coverage before any loaded-tree or
+  Serde policy promotion.
 - Emission now has explicit fidelity tiers through `EmitOptions`:
   `Structural` is the implemented default, while `ByteCompatible` and
   `Preserving` are declared future target tiers that return not-implemented
@@ -70,13 +63,16 @@ Notable completed release-candidate behavior:
   Helm values/dependencies, OpenAPI polymorphism, Wrangler durable object
   migrations, and Ansible vault/unsafe tags.
 - Pinned external downstream replay and package-alias build trials now include
-  Pingora, rust-i18n, cfn-guard, navi, and Stackable operator-rs. The package
-  smoke now also replays checked-in reductions from those downstreams through
-  the packaged crate under the `serde_yaml` dependency name, covering typed
-  Pingora config reads, locale trees, CloudFormation short-form tags, navi
-  string and reader config loads, and Stackable CRD/OpenAPI shapes before the
-  live checkout trials run. Stackable adds Kubernetes CRD/OpenAPI schema
-  fixture coverage plus serializer and scalar serde build checks.
+  Pingora, rust-i18n, cfn-guard, navi, Stackable operator-rs, figment, and
+  uaparser. The package smoke replays checked-in reductions from the fixture
+  downstreams through the packaged crate under the `serde_yaml` dependency
+  name, covering typed Pingora config reads, locale trees, CloudFormation
+  short-form tags, navi string and reader config loads, and Stackable
+  CRD/OpenAPI shapes before the live checkout trials run. Stackable adds
+  Kubernetes CRD/OpenAPI schema fixture coverage plus serializer and scalar
+  serde build checks; figment adds an optional table-style dependency and YAML
+  provider test, while uaparser adds a large bundled `regexes.yaml` corpus
+  through slice, reader, and example parser paths.
 - External downstream writer replay now covers cfn-guard tagged
   CloudFormation `Value` fixtures and every checked-in Stackable CRD through
   `to_string`, `to_writer`, and streaming `Serializer`, both in direct tests

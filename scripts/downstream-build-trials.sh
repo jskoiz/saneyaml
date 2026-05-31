@@ -87,12 +87,66 @@ run_external_downstream_package_alias_smoke() {
   cargo run --manifest-path "$smoke/Cargo.toml" --quiet
 }
 
+registry_source_dir() {
+  local crate="$1"
+  local version="$2"
+  local cargo_home="${CARGO_HOME:-$HOME/.cargo}"
+  local source
+
+  source="$(find "$cargo_home/registry/src" -maxdepth 2 -type d -name "$crate-$version" 2>/dev/null | sort | tail -n 1 || true)"
+  if [[ -z "$source" ]]; then
+    local fetch="$tmp/fetch-$crate"
+    mkdir -p "$fetch/src"
+    cat >"$fetch/Cargo.toml" <<EOF
+[package]
+name = "yaml-downstream-fetch-$crate"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+$crate = "=$version"
+EOF
+    : >"$fetch/src/lib.rs"
+    cargo fetch --manifest-path "$fetch/Cargo.toml" --quiet
+    source="$(find "$cargo_home/registry/src" -maxdepth 2 -type d -name "$crate-$version" 2>/dev/null | sort | tail -n 1 || true)"
+  fi
+
+  if [[ -z "$source" ]]; then
+    echo "could not find crates.io source for $crate $version" >&2
+    return 1
+  fi
+
+  printf '%s\n' "$source"
+}
+
+copy_crates_io_checkout() {
+  local crate="$1"
+  local version="$2"
+  local checkout="$3"
+  local source
+
+  source="$(registry_source_dir "$crate" "$version")"
+  rm -rf "$checkout"
+  cp -R "$source" "$checkout"
+  chmod -R u+w "$checkout"
+}
+
 patch_serde_yaml_dependency() {
   local manifest="$1"
   YAML_PACKAGE_DIR="$package_dir" perl -0pi -e \
-    's/^serde_yaml\s*=\s*"[^"]+"/serde_yaml = { package = "yaml", path = "$ENV{YAML_PACKAGE_DIR}" }/m' \
+    's{^(\[[^\]\n]*(?:dependencies|dev-dependencies|build-dependencies)(?:\.[^\]\n]+)?\.serde_yaml\]\n)(.*?)(?=^\[|\z)}{
+      my ($header, $body) = ($1, $2);
+      my $optional = $body =~ /^\s*optional\s*=\s*true\s*$/m ? qq{optional = true\n} : "";
+      qq{$header} . qq{package = "yaml"\npath = "$ENV{YAML_PACKAGE_DIR}"\n$optional\n}
+    }egmsx;
+    s{^([[:blank:]]*)serde_yaml[[:blank:]]*=[[:blank:]]*(?:"[^"]+"|\{[^\n]*\})}{
+      my ($indent, $entry) = ($1, $&);
+      my $optional = $entry =~ /optional\s*=\s*true/ ? ", optional = true" : "";
+      qq{${indent}serde_yaml = { package = "yaml", path = "$ENV{YAML_PACKAGE_DIR}"$optional }}
+    }egm' \
     "$manifest"
-  if ! grep -q 'serde_yaml = { package = "yaml"' "$manifest"; then
+  if ! grep -q 'serde_yaml = { package = "yaml"' "$manifest" \
+    && ! grep -q 'package = "yaml"' "$manifest"; then
     echo "failed to rewrite serde_yaml dependency in $manifest" >&2
     return 1
   fi
@@ -149,6 +203,27 @@ run_stackable_operator_trial() {
   cargo test --manifest-path "$checkout/Cargo.toml" -p k8s-version --features serde --lib
 }
 
+run_figment_trial() {
+  local checkout="$tmp/figment"
+  copy_crates_io_checkout figment 0.10.19 "$checkout"
+  patch_serde_yaml_dependency "$checkout/Cargo.toml"
+
+  cargo check --manifest-path "$checkout/Cargo.toml" --features yaml
+  cargo test --manifest-path "$checkout/Cargo.toml" --features yaml,test --test yaml-enum
+}
+
+run_uaparser_trial() {
+  local checkout="$tmp/uaparser"
+  copy_crates_io_checkout uaparser 0.6.4 "$checkout"
+  patch_serde_yaml_dependency "$checkout/Cargo.toml"
+
+  (
+    cd "$checkout"
+    cargo test --lib
+    cargo check --examples
+  )
+}
+
 package_current_crate
 run_packaged_smoke
 run_strict_package_alias_smoke
@@ -171,11 +246,17 @@ case "$trial" in
   stackable-operator)
     run_stackable_operator_trial
     ;;
+  figment)
+    run_figment_trial
+    ;;
+  uaparser)
+    run_uaparser_trial
+    ;;
   smoke-only)
     ;;
   *)
     echo "unknown downstream build trial: $trial" >&2
-    echo "available trials: pingora, rust-i18n, cfn-guard, navi, stackable-operator, smoke-only" >&2
+    echo "available trials: pingora, rust-i18n, cfn-guard, navi, stackable-operator, figment, uaparser, smoke-only" >&2
     exit 2
     ;;
 esac

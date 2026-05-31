@@ -84,21 +84,24 @@ The first milestone focuses on:
   and Stackable operator-rs that compare real downstream YAML inputs against
   `serde_yaml`, including CLI configs and Kubernetes CRD/OpenAPI schema
   documents.
-- Packaged downstream smoke, Pingora, rust-i18n, cfn-guard, navi, and
-  Stackable operator-rs build trials that consume this crate under the `serde_yaml`
-  dependency name from clean temporary checkouts, including a strict checked-in
-  smoke fixture that runs upstream-compatible `serde_yaml::...` API paths
-  against both `serde_yaml 0.9.34` and this package, including exact
-  `with::singleton_map` helper shape behavior, plus an expanded package-alias
-  smoke for explicit `LoadOptions`, bounded large-reader behavior,
-  document-stream, merge, mapping/index, lossless graph, and diagnostic-location paths, plus a
+- Packaged downstream smoke, Pingora, rust-i18n, cfn-guard, navi, Stackable
+  operator-rs, figment, and uaparser build trials that consume this crate under
+  the `serde_yaml` dependency name from clean temporary checkouts, including a
+  strict checked-in smoke fixture that runs upstream-compatible
+  `serde_yaml::...` API paths against both `serde_yaml 0.9.34` and this
+  package, including exact `with::singleton_map` helper shape behavior, plus an
+  expanded package-alias smoke for explicit `LoadOptions`, bounded large-reader
+  behavior, document-stream, merge, mapping/index, lossless graph, and diagnostic-location paths, plus a
   packaged real-world alias smoke that copies the fixture registry into a clean
   downstream crate and parses GitHub Actions, Docker Compose, Kubernetes, Helm,
   OpenAPI, Wrangler, and Ansible files through `serde_yaml::...` imports, plus
   an external downstream package-alias smoke over checked-in Pingora,
   rust-i18n, cfn-guard, navi, and Stackable operator fixtures, including
   tagged CloudFormation and Stackable CRD writer replay through `to_string`,
-  `to_writer`, and streaming `Serializer`.
+  `to_writer`, and streaming `Serializer`. The figment trial covers an optional
+  table-style `serde_yaml` dependency plus YAML provider tests; the uaparser
+  trial covers large bundled `regexes.yaml` data through slice, reader, and
+  example parser paths.
 - A downstream-shaped migration harness, compileable migration example,
   Ubuntu-only CI workflow with all-target fuzz-smoke wiring, non-mutating
   fuzz replay script, and real-world config benchmark command.
@@ -149,6 +152,8 @@ scripts/downstream-build-trials.sh rust-i18n
 scripts/downstream-build-trials.sh cfn-guard
 scripts/downstream-build-trials.sh navi
 scripts/downstream-build-trials.sh stackable-operator
+scripts/downstream-build-trials.sh figment
+scripts/downstream-build-trials.sh uaparser
 cargo test --test baseline_audit
 RUSTDOCFLAGS='-D missing_docs' cargo doc --no-deps
 cargo test

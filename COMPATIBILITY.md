@@ -270,8 +270,10 @@ Parser-backed `yaml::Value` reads still retain widened `i128`/`u128` numbers.
 `yaml::to_string`, `yaml::to_writer`, and
 `yaml::Serializer<W>` omit an explicit `---` for the first ordinary document and
 insert `---` before later stream documents, matching `serde_yaml`'s public writer
-boundary policy; byte-for-byte emitter parity with `serde_yaml` remains outside
-the current replacement target. Reader
+boundary policy. The former blanket non-goal that byte-for-byte emitter
+formatting parity remains out of scope is now narrowed to explicit fidelity
+tiers: `EmitOptions::ByteCompatible` is a target tier that rejects until
+implemented, while `EmitOptions::Structural` remains the default. Reader
 and document-vector helpers still require `DeserializeOwned` because they
 cannot return borrows from consumed readers or temporary document vectors.
 `yaml::Deserializer::from_reader` is likewise owned-only for borrowed `&str`

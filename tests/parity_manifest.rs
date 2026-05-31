@@ -374,7 +374,7 @@ const TREE_SHAPE_DIVERGENCE_CASES: &[TreeShapeDivergenceCase] = &[
         id: "FH7J",
         record_case: "yaml-suite-tagged-tree-deferrals",
         record_source: YAML_SUITE_TAGGED_TREE_DEFERRALS_RECORD,
-        compatibility_terms: &["FH7J", "tags on empty scalar nodes"],
+        compatibility_terms: &["FH7J", "tags on empty scalar", "nodes"],
     },
 ];
 

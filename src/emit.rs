@@ -1,8 +1,8 @@
 use crate::{
-    Error, Node, NodeValue as Value, Number, Result, Span, TaggedNode,
+    Error, Node, NodeValue as Value, Number, Result, Span, Tag, TaggedNode,
     key_identity::check_duplicate_at_depth, parse::MAX_DEPTH,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Write as _};
 
 pub(crate) const BYTE_COMPATIBLE_SINGLE_QUOTED_SOURCE: &str =
     "\0yaml-byte-compatible-single-quoted";
@@ -135,8 +135,14 @@ fn emit_node(node: &Node, indent: usize, context: Context, options: EmitOptions,
         Value::String(value) if should_emit_block_string(value) => {
             emit_block_string(value, indent, context, out)
         }
+        Value::Tagged(tagged)
+            if tagged_value_needs_block_indent(&tagged.value)
+                && matches!(context, Context::Root | Context::SequenceItem) =>
+        {
+            emit_tagged_structured(tagged, indent, context, options, out)
+        }
         Value::Tagged(tagged) if matches!(options, EmitOptions::ByteCompatible) => {
-            emit_tagged_byte_compatible(tagged, indent, context, options, out)
+            emit_tagged_structured(tagged, indent, context, options, out)
         }
         Value::Tagged(_) => out.push_str(&format_inline(node, options)),
         _ => out.push_str(&format_inline(node, options)),
@@ -231,12 +237,9 @@ fn emit_sequence(
             Value::String(text) if should_emit_block_string(text) => {
                 emit_node(item, indent + 2, Context::SequenceItem, options, out)
             }
-            Value::Tagged(tagged)
-                if matches!(options, EmitOptions::ByteCompatible)
-                    && tagged_value_needs_block_indent(&tagged.value) =>
-            {
+            Value::Tagged(tagged) if tagged_value_needs_block_indent(&tagged.value) => {
                 out.push(' ');
-                emit_node(item, indent + 2, Context::SequenceItem, options, out);
+                emit_tagged_structured(tagged, indent + 2, Context::SequenceItem, options, out);
             }
             _ => {
                 out.push(' ');
@@ -295,14 +298,14 @@ fn needs_explicit_key(key: &Node) -> bool {
     )
 }
 
-fn emit_tagged_byte_compatible(
+fn emit_tagged_structured(
     tagged: &TaggedNode,
     indent: usize,
     context: Context,
     options: EmitOptions,
     out: &mut String,
 ) {
-    out.push_str(&tagged.tag.to_string());
+    out.push_str(&format_tag(&tagged.tag));
     if let Value::String(text) = &tagged.value.value
         && should_emit_block_string(text)
     {
@@ -439,10 +442,48 @@ fn format_inline(node: &Node, options: EmitOptions) -> String {
             out
         }
         Value::Tagged(tagged) => {
-            let mut out = tagged.tag.to_string();
+            let mut out = format_tag(&tagged.tag);
             out.push(' ');
             out.push_str(&format_inline(&tagged.value, options));
             out
+        }
+    }
+}
+
+fn format_tag(tag: &Tag) -> String {
+    let mut out = String::new();
+    if tag.handle == "!" && emitted_tag_suffix_needs_verbatim(&tag.suffix) {
+        out.push_str("!<");
+        push_uri_escaped_tag_suffix(&mut out, &tag.suffix);
+        out.push('>');
+    } else {
+        out.push_str(&tag.handle);
+        push_uri_escaped_tag_suffix(&mut out, &tag.suffix);
+    }
+    out
+}
+
+fn emitted_tag_suffix_needs_verbatim(suffix: &str) -> bool {
+    !suffix.is_empty()
+        && (suffix.starts_with("tag:")
+            || suffix.starts_with(':')
+            || suffix.starts_with('<')
+            || suffix.ends_with(':')
+            || suffix.contains('!')
+            || suffix
+                .chars()
+                .any(|ch| ch.is_whitespace() || matches!(ch, ',' | '[' | ']' | '{' | '}')))
+}
+
+fn push_uri_escaped_tag_suffix(out: &mut String, suffix: &str) {
+    for ch in suffix.chars() {
+        if ch == '%' || ch.is_control() {
+            let mut bytes = [0; 4];
+            for byte in ch.encode_utf8(&mut bytes).as_bytes() {
+                write!(out, "%{byte:02X}").expect("writing to String cannot fail");
+            }
+        } else {
+            out.push(ch);
         }
     }
 }

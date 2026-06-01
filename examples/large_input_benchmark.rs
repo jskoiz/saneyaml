@@ -36,7 +36,69 @@ struct BenchResult {
     docs_per_iteration: usize,
     elapsed: Duration,
     peak_retained_bytes: usize,
+    peak_retained_objects: usize,
     checksum: usize,
+}
+
+#[derive(Clone, Copy, Default)]
+struct Retained {
+    bytes: usize,
+    objects: usize,
+}
+
+impl Retained {
+    fn heap_bytes(bytes: usize) -> Self {
+        Self {
+            bytes,
+            objects: usize::from(bytes > 0),
+        }
+    }
+
+    fn vec_capacity<T>(capacity: usize) -> Self {
+        Self {
+            bytes: capacity * mem::size_of::<T>(),
+            objects: usize::from(capacity > 0),
+        }
+    }
+
+    fn map_entries<T>(len: usize) -> Self {
+        Self {
+            bytes: len * mem::size_of::<T>(),
+            objects: usize::from(len > 0),
+        }
+    }
+
+    fn boxed<T>() -> Self {
+        Self {
+            bytes: mem::size_of::<T>(),
+            objects: 1,
+        }
+    }
+
+    fn peak(self, other: Self) -> Self {
+        Self {
+            bytes: self.bytes.max(other.bytes),
+            objects: self.objects.max(other.objects),
+        }
+    }
+}
+
+impl std::ops::Add for Retained {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            bytes: self.bytes + rhs.bytes,
+            objects: self.objects + rhs.objects,
+        }
+    }
+}
+
+impl std::ops::AddAssign for Retained {
+    fn add_assign(&mut self, rhs: Self) {
+        self.bytes += rhs.bytes;
+        self.objects += rhs.objects;
+    }
 }
 
 const DOWNSTREAM_FIXTURES: &[Fixture<'static>] = &[
@@ -237,9 +299,9 @@ fn main() {
         validate_corpus(corpus);
         println!("\n## {}", corpus.label);
         println!(
-            "| parser/load path | iterations | bytes per iteration | docs per iteration | elapsed ms | ns/byte | peak retained bytes |"
+            "| parser/load path | iterations | bytes per iteration | docs per iteration | elapsed ms | ns/byte | peak retained bytes | peak retained heap objects |"
         );
-        println!("|---|---:|---:|---:|---:|---:|---:|");
+        println!("|---|---:|---:|---:|---:|---:|---:|---:|");
         for result in [
             measure_yaml_parse_documents(corpus, iterations),
             measure_yaml_value(corpus, iterations),
@@ -249,14 +311,15 @@ fn main() {
         ] {
             black_box(result.checksum);
             println!(
-                "| {} | {} | {} | {} | {:.3} | {:.2} | {} |",
+                "| {} | {} | {} | {} | {:.3} | {:.2} | {} | {} |",
                 result.label,
                 result.iterations,
                 result.bytes_per_iteration,
                 result.docs_per_iteration,
                 result.elapsed.as_secs_f64() * 1000.0,
                 ns_per_byte(&result),
-                result.peak_retained_bytes
+                result.peak_retained_bytes,
+                result.peak_retained_objects
             );
         }
     }
@@ -377,7 +440,7 @@ fn measure<R, M>(
 ) -> BenchResult
 where
     R: FnMut(&str, &str) -> usize,
-    M: FnMut(&str, &str) -> usize,
+    M: FnMut(&str, &str) -> Retained,
 {
     let start = Instant::now();
     let mut checksum = 0usize;
@@ -387,12 +450,11 @@ where
         }
     }
     let elapsed = start.elapsed();
-    let peak_retained_bytes = corpus
+    let peak_retained = corpus
         .fixtures
         .iter()
         .map(|fixture| retained(&fixture.input, fixture.path))
-        .max()
-        .unwrap_or(0);
+        .fold(Retained::default(), Retained::peak);
 
     BenchResult {
         label,
@@ -400,7 +462,8 @@ where
         bytes_per_iteration: corpus.bytes_per_iteration(),
         docs_per_iteration: corpus.docs_per_iteration(),
         elapsed,
-        peak_retained_bytes,
+        peak_retained_bytes: peak_retained.bytes,
+        peak_retained_objects: peak_retained.objects,
         checksum,
     }
 }
@@ -443,179 +506,227 @@ fn generated_wide_mapping(target_bytes: usize) -> String {
     input
 }
 
-fn retained_yaml_node_docs(docs: &Vec<yaml::Node>) -> usize {
-    docs.capacity() * mem::size_of::<yaml::Node>()
-        + docs.iter().map(retained_yaml_node).sum::<usize>()
+fn retained_yaml_node_docs(docs: &Vec<yaml::Node>) -> Retained {
+    let mut retained = Retained::vec_capacity::<yaml::Node>(docs.capacity());
+    for doc in docs {
+        retained += retained_yaml_node(doc);
+    }
+    retained
 }
 
-fn retained_yaml_node(node: &yaml::Node) -> usize {
-    node.scalar_source()
-        .map(|source| source.raw().len())
-        .unwrap_or(0)
-        + match &node.value {
-            yaml::NodeValue::Null | yaml::NodeValue::Bool(_) | yaml::NodeValue::Number(_) => 0,
-            yaml::NodeValue::String(value) => value.capacity(),
-            yaml::NodeValue::Sequence(items) => {
-                items.capacity() * mem::size_of::<yaml::Node>()
-                    + items.iter().map(retained_yaml_node).sum::<usize>()
-            }
-            yaml::NodeValue::Mapping(entries) => {
-                entries.capacity() * mem::size_of::<(yaml::Node, yaml::Node)>()
-                    + entries
-                        .iter()
-                        .map(|(key, value)| retained_yaml_node(key) + retained_yaml_node(value))
-                        .sum::<usize>()
-            }
-            yaml::NodeValue::Tagged(tagged) => {
-                mem::size_of::<yaml::TaggedNode>()
-                    + retained_yaml_tag(&tagged.tag)
-                    + retained_yaml_node(&tagged.value)
-            }
+fn retained_yaml_node(node: &yaml::Node) -> Retained {
+    let mut retained = node
+        .scalar_source()
+        .map(|source| Retained::heap_bytes(source.raw().len()))
+        .unwrap_or_default();
+    retained += match &node.value {
+        yaml::NodeValue::Null | yaml::NodeValue::Bool(_) | yaml::NodeValue::Number(_) => {
+            Retained::default()
         }
+        yaml::NodeValue::String(value) => Retained::heap_bytes(value.capacity()),
+        yaml::NodeValue::Sequence(items) => {
+            let mut retained = Retained::vec_capacity::<yaml::Node>(items.capacity());
+            for item in items {
+                retained += retained_yaml_node(item);
+            }
+            retained
+        }
+        yaml::NodeValue::Mapping(entries) => {
+            let mut retained =
+                Retained::vec_capacity::<(yaml::Node, yaml::Node)>(entries.capacity());
+            for (key, value) in entries {
+                retained += retained_yaml_node(key) + retained_yaml_node(value);
+            }
+            retained
+        }
+        yaml::NodeValue::Tagged(tagged) => {
+            Retained::boxed::<yaml::TaggedNode>()
+                + retained_yaml_tag(&tagged.tag)
+                + retained_yaml_node(&tagged.value)
+        }
+    };
+    retained
 }
 
-fn retained_yaml_value_docs(docs: &Vec<yaml::Value>) -> usize {
-    docs.capacity() * mem::size_of::<yaml::Value>()
-        + docs.iter().map(retained_yaml_value).sum::<usize>()
+fn retained_yaml_value_docs(docs: &Vec<yaml::Value>) -> Retained {
+    let mut retained = Retained::vec_capacity::<yaml::Value>(docs.capacity());
+    for doc in docs {
+        retained += retained_yaml_value(doc);
+    }
+    retained
 }
 
-fn retained_yaml_value(value: &yaml::Value) -> usize {
+fn retained_yaml_value(value: &yaml::Value) -> Retained {
     match value {
-        yaml::Value::Null | yaml::Value::Bool(_) | yaml::Value::Number(_) => 0,
-        yaml::Value::String(value) => value.capacity(),
+        yaml::Value::Null | yaml::Value::Bool(_) | yaml::Value::Number(_) => Retained::default(),
+        yaml::Value::String(value) => Retained::heap_bytes(value.capacity()),
         yaml::Value::Sequence(items) => {
-            items.capacity() * mem::size_of::<yaml::Value>()
-                + items.iter().map(retained_yaml_value).sum::<usize>()
+            let mut retained = Retained::vec_capacity::<yaml::Value>(items.capacity());
+            for item in items {
+                retained += retained_yaml_value(item);
+            }
+            retained
         }
         yaml::Value::Mapping(mapping) => {
-            mapping.capacity() * mem::size_of::<(yaml::Value, yaml::Value)>()
-                + mapping
-                    .iter()
-                    .map(|(key, value)| retained_yaml_value(key) + retained_yaml_value(value))
-                    .sum::<usize>()
+            let mut retained =
+                Retained::vec_capacity::<(yaml::Value, yaml::Value)>(mapping.capacity());
+            for (key, value) in mapping {
+                retained += retained_yaml_value(key) + retained_yaml_value(value);
+            }
+            retained
         }
         yaml::Value::Tagged(tagged) => {
-            mem::size_of::<yaml::TaggedValue>()
+            Retained::boxed::<yaml::TaggedValue>()
                 + retained_yaml_tag(&tagged.tag)
                 + retained_yaml_value(&tagged.value)
         }
     }
 }
 
-fn retained_yaml_tag(tag: &yaml::Tag) -> usize {
-    tag.handle.capacity() + tag.suffix.capacity()
+fn retained_yaml_tag(tag: &yaml::Tag) -> Retained {
+    Retained::heap_bytes(tag.handle.capacity()) + Retained::heap_bytes(tag.suffix.capacity())
 }
 
-fn retained_serde_yaml_docs(docs: &Vec<serde_yaml::Value>) -> usize {
-    docs.capacity() * mem::size_of::<serde_yaml::Value>()
-        + docs.iter().map(retained_serde_yaml_value).sum::<usize>()
+fn retained_serde_yaml_docs(docs: &Vec<serde_yaml::Value>) -> Retained {
+    let mut retained = Retained::vec_capacity::<serde_yaml::Value>(docs.capacity());
+    for doc in docs {
+        retained += retained_serde_yaml_value(doc);
+    }
+    retained
 }
 
-fn retained_serde_yaml_value(value: &serde_yaml::Value) -> usize {
+fn retained_serde_yaml_value(value: &serde_yaml::Value) -> Retained {
     match value {
-        serde_yaml::Value::Null | serde_yaml::Value::Bool(_) | serde_yaml::Value::Number(_) => 0,
-        serde_yaml::Value::String(value) => value.capacity(),
+        serde_yaml::Value::Null | serde_yaml::Value::Bool(_) | serde_yaml::Value::Number(_) => {
+            Retained::default()
+        }
+        serde_yaml::Value::String(value) => Retained::heap_bytes(value.capacity()),
         serde_yaml::Value::Sequence(items) => {
-            items.capacity() * mem::size_of::<serde_yaml::Value>()
-                + items.iter().map(retained_serde_yaml_value).sum::<usize>()
+            let mut retained = Retained::vec_capacity::<serde_yaml::Value>(items.capacity());
+            for item in items {
+                retained += retained_serde_yaml_value(item);
+            }
+            retained
         }
         serde_yaml::Value::Mapping(mapping) => {
-            mapping.len() * mem::size_of::<(serde_yaml::Value, serde_yaml::Value)>()
-                + mapping
-                    .iter()
-                    .map(|(key, value)| {
-                        retained_serde_yaml_value(key) + retained_serde_yaml_value(value)
-                    })
-                    .sum::<usize>()
+            let mut retained =
+                Retained::map_entries::<(serde_yaml::Value, serde_yaml::Value)>(mapping.len());
+            for (key, value) in mapping {
+                retained += retained_serde_yaml_value(key) + retained_serde_yaml_value(value);
+            }
+            retained
         }
         serde_yaml::Value::Tagged(tagged) => {
-            mem::size_of::<serde_yaml::value::TaggedValue>()
-                + tagged.tag.to_string().len()
+            let tag_len = tagged.tag.to_string().len();
+            Retained::boxed::<serde_yaml::value::TaggedValue>()
+                + Retained::heap_bytes(tag_len)
                 + retained_serde_yaml_value(&tagged.value)
         }
     }
 }
 
-fn retained_yaml_rust2_docs(docs: &Vec<yaml_rust2::Yaml>) -> usize {
-    docs.capacity() * mem::size_of::<yaml_rust2::Yaml>()
-        + docs.iter().map(retained_yaml_rust2).sum::<usize>()
+fn retained_yaml_rust2_docs(docs: &Vec<yaml_rust2::Yaml>) -> Retained {
+    let mut retained = Retained::vec_capacity::<yaml_rust2::Yaml>(docs.capacity());
+    for doc in docs {
+        retained += retained_yaml_rust2(doc);
+    }
+    retained
 }
 
-fn retained_yaml_rust2(value: &yaml_rust2::Yaml) -> usize {
+fn retained_yaml_rust2(value: &yaml_rust2::Yaml) -> Retained {
     match value {
-        yaml_rust2::Yaml::Real(value) | yaml_rust2::Yaml::String(value) => value.capacity(),
+        yaml_rust2::Yaml::Real(value) | yaml_rust2::Yaml::String(value) => {
+            Retained::heap_bytes(value.capacity())
+        }
         yaml_rust2::Yaml::Array(items) => {
-            items.capacity() * mem::size_of::<yaml_rust2::Yaml>()
-                + items.iter().map(retained_yaml_rust2).sum::<usize>()
+            let mut retained = Retained::vec_capacity::<yaml_rust2::Yaml>(items.capacity());
+            for item in items {
+                retained += retained_yaml_rust2(item);
+            }
+            retained
         }
         yaml_rust2::Yaml::Hash(mapping) => {
-            mapping.len() * mem::size_of::<(yaml_rust2::Yaml, yaml_rust2::Yaml)>()
-                + mapping
-                    .iter()
-                    .map(|(key, value)| retained_yaml_rust2(key) + retained_yaml_rust2(value))
-                    .sum::<usize>()
+            let mut retained =
+                Retained::map_entries::<(yaml_rust2::Yaml, yaml_rust2::Yaml)>(mapping.len());
+            for (key, value) in mapping {
+                retained += retained_yaml_rust2(key) + retained_yaml_rust2(value);
+            }
+            retained
         }
         yaml_rust2::Yaml::Integer(_)
         | yaml_rust2::Yaml::Boolean(_)
         | yaml_rust2::Yaml::Alias(_)
         | yaml_rust2::Yaml::Null
-        | yaml_rust2::Yaml::BadValue => 0,
+        | yaml_rust2::Yaml::BadValue => Retained::default(),
     }
 }
 
-fn retained_saphyr_docs(docs: &Vec<saphyr::Yaml<'_>>) -> usize {
-    docs.capacity() * mem::size_of::<saphyr::Yaml<'_>>()
-        + docs.iter().map(retained_saphyr).sum::<usize>()
+fn retained_saphyr_docs(docs: &Vec<saphyr::Yaml<'_>>) -> Retained {
+    let mut retained = Retained::vec_capacity::<saphyr::Yaml<'_>>(docs.capacity());
+    for doc in docs {
+        retained += retained_saphyr(doc);
+    }
+    retained
 }
 
-fn retained_saphyr(value: &saphyr::Yaml<'_>) -> usize {
+fn retained_saphyr(value: &saphyr::Yaml<'_>) -> Retained {
     match value {
         saphyr::Yaml::Representation(text, _, tag) => {
-            let text_bytes = match text {
-                Cow::Borrowed(_) => 0,
-                Cow::Owned(value) => value.capacity(),
+            let text_retained = match text {
+                Cow::Borrowed(_) => Retained::default(),
+                Cow::Owned(value) => Retained::heap_bytes(value.capacity()),
             };
-            let tag_bytes = tag
+            let tag_retained = tag
                 .as_ref()
                 .map(|tag| match tag {
-                    Cow::Borrowed(_) => 0,
-                    Cow::Owned(tag) => tag.handle.capacity() + tag.suffix.capacity(),
+                    Cow::Borrowed(_) => Retained::default(),
+                    Cow::Owned(tag) => {
+                        Retained::heap_bytes(tag.handle.capacity())
+                            + Retained::heap_bytes(tag.suffix.capacity())
+                    }
                 })
-                .unwrap_or(0);
-            text_bytes + tag_bytes
+                .unwrap_or_default();
+            text_retained + tag_retained
         }
         saphyr::Yaml::Value(scalar) => retained_saphyr_scalar(scalar),
         saphyr::Yaml::Sequence(items) => {
-            items.capacity() * mem::size_of::<saphyr::Yaml<'_>>()
-                + items.iter().map(retained_saphyr).sum::<usize>()
+            let mut retained = Retained::vec_capacity::<saphyr::Yaml<'_>>(items.capacity());
+            for item in items {
+                retained += retained_saphyr(item);
+            }
+            retained
         }
         saphyr::Yaml::Mapping(mapping) => {
-            mapping.len() * mem::size_of::<(saphyr::Yaml<'_>, saphyr::Yaml<'_>)>()
-                + mapping
-                    .iter()
-                    .map(|(key, value)| retained_saphyr(key) + retained_saphyr(value))
-                    .sum::<usize>()
+            let mut retained =
+                Retained::map_entries::<(saphyr::Yaml<'_>, saphyr::Yaml<'_>)>(mapping.len());
+            for (key, value) in mapping {
+                retained += retained_saphyr(key) + retained_saphyr(value);
+            }
+            retained
         }
         saphyr::Yaml::Tagged(tag, value) => {
-            let tag_bytes = match tag {
-                Cow::Borrowed(_) => 0,
-                Cow::Owned(tag) => tag.handle.capacity() + tag.suffix.capacity(),
+            let tag_retained = match tag {
+                Cow::Borrowed(_) => Retained::default(),
+                Cow::Owned(tag) => {
+                    Retained::heap_bytes(tag.handle.capacity())
+                        + Retained::heap_bytes(tag.suffix.capacity())
+                }
             };
-            mem::size_of::<saphyr::Yaml<'_>>() + tag_bytes + retained_saphyr(value)
+            Retained::boxed::<saphyr::Yaml<'_>>() + tag_retained + retained_saphyr(value)
         }
-        saphyr::Yaml::Alias(_) | saphyr::Yaml::BadValue => 0,
+        saphyr::Yaml::Alias(_) | saphyr::Yaml::BadValue => Retained::default(),
     }
 }
 
-fn retained_saphyr_scalar(scalar: &saphyr::Scalar<'_>) -> usize {
+fn retained_saphyr_scalar(scalar: &saphyr::Scalar<'_>) -> Retained {
     match scalar {
         saphyr::Scalar::String(value) => match value {
-            Cow::Borrowed(_) => 0,
-            Cow::Owned(value) => value.capacity(),
+            Cow::Borrowed(_) => Retained::default(),
+            Cow::Owned(value) => Retained::heap_bytes(value.capacity()),
         },
         saphyr::Scalar::Null
         | saphyr::Scalar::Boolean(_)
         | saphyr::Scalar::Integer(_)
-        | saphyr::Scalar::FloatingPoint(_) => 0,
+        | saphyr::Scalar::FloatingPoint(_) => Retained::default(),
     }
 }

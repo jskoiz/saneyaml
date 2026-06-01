@@ -14,6 +14,7 @@ use std::{
     collections::{HashMap, VecDeque},
     io::Read,
     mem,
+    ops::Deref,
     rc::Rc,
 };
 
@@ -184,13 +185,38 @@ enum LineKind {
 }
 
 #[derive(Clone, Debug)]
+struct LineText {
+    source: Rc<str>,
+    start: usize,
+    end: usize,
+}
+
+impl LineText {
+    fn new(source: &Rc<str>, start: usize, end: usize) -> Self {
+        Self {
+            source: Rc::clone(source),
+            start,
+            end,
+        }
+    }
+}
+
+impl Deref for LineText {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.source[self.start..self.end]
+    }
+}
+
+#[derive(Clone, Debug)]
 struct Line {
     no: usize,
     start: usize,
-    raw: Rc<str>,
+    raw: LineText,
     indent: usize,
     content_start: usize,
-    content: Rc<str>,
+    content: LineText,
     kind: LineKind,
     had_comment: bool,
 }
@@ -215,21 +241,19 @@ impl Line {
     }
 
     fn raw_from(&self, indent: usize) -> &str {
-        let raw = self.raw.as_ref();
-        if indent >= raw.len() {
+        if indent >= self.raw.len() {
             ""
         } else {
-            &raw[indent..]
+            &self.raw[indent..]
         }
     }
 
     fn raw_content_from(&self, local_start: usize) -> &str {
-        let raw = self.raw.as_ref();
         let start = self.content_start + local_start;
-        if start >= raw.len() {
+        if start >= self.raw.len() {
             ""
         } else {
-            &raw[start..]
+            &self.raw[start..]
         }
     }
 }
@@ -2872,14 +2896,12 @@ fn block_scalar_line_is_more_indented(line: &str) -> bool {
 }
 
 fn preprocess(input: &str) -> Result<Vec<Line>> {
+    let source = Rc::<str>::from(input);
     let mut out = Vec::new();
     let mut offset = 0;
     for (idx, chunk) in input.split_inclusive('\n').enumerate() {
-        let raw = chunk
-            .trim_end_matches('\n')
-            .trim_end_matches('\r')
-            .to_string();
-        push_preprocessed_line(&mut out, idx + 1, offset, raw)?;
+        let raw_len = chunk.trim_end_matches('\n').trim_end_matches('\r').len();
+        push_preprocessed_line(&mut out, &source, idx + 1, offset, raw_len)?;
         offset += chunk.len();
     }
     if !input.is_empty() && !input.ends_with('\n') {
@@ -2890,7 +2912,14 @@ fn preprocess(input: &str) -> Result<Vec<Line>> {
     Ok(out)
 }
 
-fn push_preprocessed_line(out: &mut Vec<Line>, no: usize, start: usize, raw: String) -> Result<()> {
+fn push_preprocessed_line(
+    out: &mut Vec<Line>,
+    source: &Rc<str>,
+    no: usize,
+    start: usize,
+    raw_len: usize,
+) -> Result<()> {
+    let raw = &source[start..start + raw_len];
     let bom_len = if start == 0 && raw.starts_with('\u{feff}') {
         '\u{feff}'.len_utf8()
     } else {
@@ -2899,14 +2928,17 @@ fn push_preprocessed_line(out: &mut Vec<Line>, no: usize, start: usize, raw: Str
     let raw_body = &raw[bom_len..];
     let raw_indent = raw_body.bytes().take_while(|byte| *byte == b' ').count();
     if raw_body.trim().is_empty() {
-        let raw = Rc::<str>::from(raw);
         out.push(Line {
             no,
             start,
-            raw,
+            raw: LineText::new(source, start, start + raw.len()),
             indent: raw_indent,
             content_start: bom_len + raw_indent,
-            content: Rc::from(""),
+            content: LineText::new(
+                source,
+                start + bom_len + raw_indent,
+                start + bom_len + raw_indent,
+            ),
             kind: LineKind::Blank,
             had_comment: false,
         });
@@ -2918,7 +2950,8 @@ fn push_preprocessed_line(out: &mut Vec<Line>, no: usize, start: usize, raw: Str
     let no_comment = raw[bom_len..end].trim_end();
     let indent = no_comment.bytes().take_while(|byte| *byte == b' ').count();
     let content_start = bom_len + indent;
-    let content = Rc::<str>::from(&no_comment[indent..]);
+    let content_end = bom_len + no_comment.len();
+    let content = &raw[content_start..content_end];
     if let Some(tab_offset) =
         block_indicator_tab_separation_offset(&no_comment.as_bytes()[indent..])
     {
@@ -2932,23 +2965,26 @@ fn push_preprocessed_line(out: &mut Vec<Line>, no: usize, start: usize, raw: Str
         ));
     }
     if content.trim().is_empty() {
-        let raw = Rc::<str>::from(raw);
         out.push(Line {
             no,
             start,
-            raw,
+            raw: LineText::new(source, start, start + raw.len()),
             indent: raw_indent,
             content_start: bom_len + raw_indent,
-            content: Rc::from(""),
+            content: LineText::new(
+                source,
+                start + bom_len + raw_indent,
+                start + bom_len + raw_indent,
+            ),
             kind: LineKind::Blank,
             had_comment,
         });
         return Ok(());
     }
-    let kind = match content.as_ref() {
+    let kind = match content {
         "---" => LineKind::DocumentStart,
         "..." => LineKind::DocumentEnd,
-        _ if document_start_rest(&content).is_some() => LineKind::DocumentStart,
+        _ if document_start_rest(content).is_some() => LineKind::DocumentStart,
         _ if content.starts_with("... ") => {
             return Err(Error::new(
                 "document end markers cannot have trailing content",
@@ -2963,14 +2999,13 @@ fn push_preprocessed_line(out: &mut Vec<Line>, no: usize, start: usize, raw: Str
         _ if content.starts_with('%') => LineKind::Directive,
         _ => LineKind::Content,
     };
-    let raw = Rc::<str>::from(raw);
     out.push(Line {
         no,
         start,
-        raw,
+        raw: LineText::new(source, start, start + raw.len()),
         indent,
         content_start,
-        content,
+        content: LineText::new(source, start + content_start, start + content_end),
         kind,
         had_comment,
     });

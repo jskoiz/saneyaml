@@ -1,4 +1,4 @@
-use yaml::{Node, NodeValue, Span, Tag, TaggedNode, parse_str, to_string};
+use yaml::{Node, NodeValue, Span, Tag, TaggedNode, parse_bytes, parse_str, to_string};
 
 fn string_node(value: &str) -> Node {
     Node::new(NodeValue::String(value.to_string()), Span::default())
@@ -109,6 +109,20 @@ fn emitter_round_trips_tagged_quoted_scalar_with_colon() {
         assert!(reparsed.equivalent(&node), "{emitted}");
         assert_eq!(to_string(&reparsed).expect("emit again"), emitted);
     }
+}
+
+#[test]
+fn emitter_round_trips_tags_with_literal_control_bytes() {
+    let input = b"!R\0\0\0\"items:\n  - !Thing {name:\x14first, avl, value: 2}\n";
+    let node = parse_bytes(input).expect("parse fuzz-discovered tagged input");
+    let emitted = to_string(&node).expect("emit fuzz-discovered tagged input");
+    assert!(emitted.contains("R%00%00%00"), "{emitted:?}");
+    assert!(!emitted.as_bytes().contains(&0), "{emitted:?}");
+    let reparsed = parse_str(&emitted)
+        .unwrap_or_else(|error| panic!("parse emitted tagged input: {error:?}\n{emitted:?}"));
+
+    assert!(reparsed.equivalent(&node), "{emitted:?}");
+    assert_eq!(to_string(&reparsed).expect("emit again"), emitted);
 }
 
 #[test]

@@ -8,6 +8,11 @@ and explicit user approval for a crates.io push.
 
 Notable completed release-candidate behavior:
 
+- Diagnostics now expose additive structured metadata while keeping the default
+  `Display` string unchanged: broad `ErrorCategory`, Serde/YAML key paths such
+  as `server.port` and `ports[1]`, zero-based document indices for stream
+  failures, and explicit source-context caret rendering through
+  `render_source(...)`.
 - Phase 0 campaign rails now include a live conformance dashboard test over the
   pinned YAML test-suite denominator. It reports 402 upstream cases, 402
   selected/classified, 0 unselected, 306 accepted, 96 rejected, and keeps

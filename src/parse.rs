@@ -274,7 +274,7 @@ fn quoted_line_text(line: &Line, local_start: usize, trimmed_text: &str, quote: 
 }
 
 fn tab_indentation_error(line: &Line) -> Error {
-    Error::new(
+    Error::syntax(
         "tabs are not allowed for indentation",
         Span::point(line.start + line.indent, line.no, line.indent + 1),
     )
@@ -289,7 +289,7 @@ pub(crate) fn parse_bytes_with_options(input: &[u8], options: LoadOptions) -> Re
     options.check_input_len(input.len())?;
     match std::str::from_utf8(input) {
         Ok(input) => parse_str_with_options(input, options),
-        Err(err) => Err(Error::new(
+        Err(err) => Err(Error::encoding(
             "input is not valid UTF-8",
             utf8_error_span(input, err),
         )),
@@ -477,8 +477,9 @@ impl EventStream {
     /// Creates an event stream from UTF-8 YAML bytes with explicit load options.
     pub fn from_slice_with_options(input: &[u8], options: LoadOptions) -> Result<Self> {
         options.check_input_len(input.len())?;
-        let input = std::str::from_utf8(input)
-            .map_err(|err| Error::new("input is not valid UTF-8", utf8_error_span(input, err)))?;
+        let input = std::str::from_utf8(input).map_err(|err| {
+            Error::encoding("input is not valid UTF-8", utf8_error_span(input, err))
+        })?;
         Self::from_str_with_options(input, options)
     }
 
@@ -569,8 +570,9 @@ impl DocumentStream {
     /// Creates a document stream from UTF-8 YAML bytes with explicit load options.
     pub fn from_slice_with_options(input: &[u8], options: LoadOptions) -> Result<Self> {
         options.check_input_len(input.len())?;
-        let input = std::str::from_utf8(input)
-            .map_err(|err| Error::new("input is not valid UTF-8", utf8_error_span(input, err)))?;
+        let input = std::str::from_utf8(input).map_err(|err| {
+            Error::encoding("input is not valid UTF-8", utf8_error_span(input, err))
+        })?;
         Self::from_str_with_options(input, options)
     }
 
@@ -833,29 +835,30 @@ impl AnchorRegistry {
             Some(AnchorEntry::InProgress {
                 span: anchor_span, ..
             }) => {
-                return Err(Error::with_related(
+                return Err(Error::with_related_category(
                     format!("recursive alias `{name}` is not supported"),
                     span,
                     "anchor is still being parsed here",
                     *anchor_span,
+                    crate::ErrorCategory::Reference,
                 ));
             }
             None => {
-                return Err(Error::new(format!("unknown anchor `{name}`"), span));
+                return Err(Error::reference(format!("unknown anchor `{name}`"), span));
             }
         };
 
         let node_count = count_nodes(target);
         self.expanded_nodes = self.expanded_nodes.saturating_add(node_count);
         if self.expanded_nodes > self.expansion_budget {
-            return Err(Error::new("alias expansion limit exceeded", span));
+            return Err(Error::limit("alias expansion limit exceeded", span));
         }
         if self
             .options
             .selected_max_nesting_depth()
             .is_some_and(|max| depth.saturating_add(node_depth(target)) > max)
         {
-            return Err(Error::new(
+            return Err(Error::limit(
                 "maximum YAML nesting depth exceeded while expanding alias",
                 span,
             ));
@@ -870,7 +873,7 @@ impl AnchorRegistry {
         if self.entries.contains_key(name) {
             return Ok(());
         }
-        Err(Error::new(format!("unknown anchor `{name}`"), span))
+        Err(Error::reference(format!("unknown anchor `{name}`"), span))
     }
 }
 
@@ -5216,7 +5219,7 @@ impl<'a> FlowParser<'a> {
         if raw_has_content_after_line_break(raw)
             && !matches!(first, '"' | '\'' | '[' | '{' | '&' | '*' | '!')
         {
-            return Err(Error::new(
+            return Err(Error::syntax(
                 "expected `,` between flow sequence entries",
                 self.span(end, end),
             ));
@@ -5280,7 +5283,7 @@ impl<'a> FlowParser<'a> {
     fn parse_plain_flow_scalar(&self, start: usize, end: usize) -> Result<Node> {
         let raw = &self.buffer.text[start..end];
         if let Some(colon) = self.plain_flow_scalar_mapping_value_colon(start, end) {
-            return Err(Error::new(
+            return Err(Error::syntax(
                 "expected `,` between flow mapping entries",
                 self.span(colon, colon + ':'.len_utf8()),
             ));
@@ -5288,13 +5291,13 @@ impl<'a> FlowParser<'a> {
         let leading_trim = raw.len() - raw.trim_start().len();
         let scalar_text = raw.trim();
         if scalar_text.starts_with('#') {
-            return Err(Error::new(
+            return Err(Error::syntax(
                 "comments must be separated from other tokens by whitespace",
                 self.span(start + leading_trim, start + leading_trim + '#'.len_utf8()),
             ));
         }
         if scalar_text == "-" {
-            return Err(Error::new(
+            return Err(Error::syntax(
                 "plain scalar cannot start with '-' followed by flow punctuation",
                 self.span(start + leading_trim, start + leading_trim + '-'.len_utf8()),
             ));

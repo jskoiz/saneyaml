@@ -1,5 +1,6 @@
 use crate::{
-    Error, Node, NodeValue as Value, Number, Result, Span, schema::DEFAULT_MAX_NESTING_DEPTH,
+    Error, ErrorCategory, Node, NodeValue as Value, Number, Result, Span,
+    schema::DEFAULT_MAX_NESTING_DEPTH,
 };
 use std::collections::HashMap;
 
@@ -67,11 +68,12 @@ pub(crate) fn check_duplicate_at_depth_limit(
     };
     if let Some(previous) = seen.insert(key_identity.clone(), key.span) {
         let key_text = key_identity.label();
-        return Err(Error::with_related(
+        return Err(Error::with_related_category(
             format!("duplicate mapping key `{key_text}`"),
             key.span,
             "previous key is here",
             previous,
+            ErrorCategory::DuplicateKey,
         ));
     }
     Ok(())
@@ -87,7 +89,10 @@ fn duplicate_key_identity_with_limit(
     max_depth: Option<usize>,
 ) -> Result<Option<DuplicateKey>> {
     if max_depth.is_some_and(|max| depth > max) {
-        return Err(Error::new("maximum YAML nesting depth exceeded", key.span));
+        return Err(Error::limit(
+            "maximum YAML nesting depth exceeded",
+            key.span,
+        ));
     }
 
     Ok(match &key.value {

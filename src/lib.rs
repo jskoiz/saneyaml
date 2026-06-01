@@ -71,7 +71,10 @@ pub use de::{
     from_reader, from_slice, from_str, from_value,
 };
 pub use emit::EmitOptions;
-pub use error::{Diagnostic, Error, Location, RelatedDiagnostic, Result, Span};
+pub use error::{
+    Diagnostic, Error, ErrorCategory, ErrorPath, ErrorPathSegment, Location, RelatedDiagnostic,
+    Result, SourceDiagnostic, SourceRenderOptions, Span,
+};
 pub use lossless::{
     AliasId, AnchorId, LosslessAlias, LosslessAnchor, LosslessDocument, LosslessEdit,
     LosslessEffectiveMappingEntry, LosslessEffectiveMappingSource, LosslessNode, LosslessNodeKind,

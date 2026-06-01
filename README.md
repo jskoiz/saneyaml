@@ -122,7 +122,11 @@ The first milestone focuses on:
 - A downstream-shaped migration harness, compileable migration example,
   Ubuntu-only CI workflow with all-target fuzz-smoke wiring, non-mutating
   fuzz replay script, and real-world config benchmark command.
-- Clear diagnostics with line/column spans.
+- Clear diagnostics with line/column spans. The default `Display` remains the
+  compact `message at line L, column C` string, while `Error` also exposes a
+  broad `ErrorCategory`, optional in-document `ErrorPath`, optional
+  zero-based document index for stream failures, and explicit
+  `render_source(...)` caret rendering over caller-provided source text.
 - A live conformance dashboard test over the pinned YAML test-suite denominator:
   402 selected/classified cases out of 402, with 0 unselected cases tracked
   as coverage debt and documented divergence overlays kept separate from

@@ -3,8 +3,8 @@
 
 use crate::parse::parse_document_results_with_options;
 use crate::{
-    Error, Mapping, Node, NodeValue, Number, Span, Tag, TaggedValue, Value, error::utf8_error_span,
-    schema::LoadOptions, yaml11,
+    Error, ErrorPathSegment, Mapping, Node, NodeValue, Number, Span, Tag, TaggedValue, Value,
+    error::utf8_error_span, schema::LoadOptions, yaml11,
 };
 use serde::de::{
     self, DeserializeOwned, EnumAccess, IntoDeserializer, MapAccess, SeqAccess, VariantAccess,
@@ -49,7 +49,7 @@ where
 {
     options.check_input_len(input.len())?;
     let input = std::str::from_utf8(input)
-        .map_err(|err| Error::new("input is not valid UTF-8", utf8_error_span(input, err)))?;
+        .map_err(|err| Error::encoding("input is not valid UTF-8", utf8_error_span(input, err)))?;
     from_str_with_options(input, options)
 }
 
@@ -109,11 +109,16 @@ pub(crate) fn from_documents_str_with_options<T>(
 where
     T: DeserializeOwned,
 {
-    options
-        .parse_documents(input)?
-        .iter()
-        .map(from_node)
-        .collect::<crate::Result<Vec<T>>>()
+    options.check_input_len(input.len())?;
+    let results = parse_document_results_with_options(input, options);
+    let mut documents = Vec::with_capacity(results.len());
+    for (index, result) in results.into_iter().enumerate() {
+        let node = result.map_err(|error| error.with_document_index(index))?;
+        let value =
+            from_input_node(&node, input).map_err(|error| error.with_document_index(index))?;
+        documents.push(value);
+    }
+    Ok(documents)
 }
 
 /// Deserializes every document in a UTF-8 YAML stream from bytes.
@@ -133,7 +138,7 @@ where
 {
     options.check_input_len(input.len())?;
     let input = std::str::from_utf8(input)
-        .map_err(|err| Error::new("input is not valid UTF-8", utf8_error_span(input, err)))?;
+        .map_err(|err| Error::encoding("input is not valid UTF-8", utf8_error_span(input, err)))?;
     from_documents_str_with_options(input, options)
 }
 
@@ -178,7 +183,7 @@ where
 }
 
 fn read_error(err: std::io::Error) -> Error {
-    Error::new(format!("failed to read YAML input: {err}"), Span::default())
+    Error::io(format!("failed to read YAML input: {err}"), Span::default())
 }
 
 /// Streaming Serde deserializer over one or more YAML documents.
@@ -214,7 +219,7 @@ impl<'de> Deserializer<'de> {
         }
         match std::str::from_utf8(input) {
             Ok(input) => Self::from_str_with_options(input, options),
-            Err(err) => Self::from_parse_result(Err(Error::new(
+            Err(err) => Self::from_parse_result(Err(Error::encoding(
                 "input is not valid UTF-8",
                 utf8_error_span(input, err),
             ))),
@@ -240,7 +245,7 @@ impl<'de> Deserializer<'de> {
                     parse_document_results_with_options(input, options),
                     None,
                 ),
-                Err(err) => Self::from_parse_result(Err(Error::new(
+                Err(err) => Self::from_parse_result(Err(Error::encoding(
                     "input is not valid UTF-8",
                     utf8_error_span(&input, err),
                 ))),
@@ -253,14 +258,17 @@ impl<'de> Deserializer<'de> {
         let documents = match result {
             Ok(documents) => documents
                 .into_iter()
-                .map(|node| Document {
+                .enumerate()
+                .map(|(index, node)| Document {
                     node: Ok(node),
                     input: None,
+                    index,
                 })
                 .collect(),
             Err(error) => vec![Document {
-                node: Err(error),
+                node: Err(error.with_document_index(0)),
                 input: None,
+                index: 0,
             }],
         };
         Self {
@@ -274,6 +282,7 @@ impl<'de> Deserializer<'de> {
                 documents: vec![Document {
                     node: Ok(Node::null(Span::point(0, 1, 1))),
                     input,
+                    index: 0,
                 }]
                 .into_iter(),
             };
@@ -282,7 +291,12 @@ impl<'de> Deserializer<'de> {
         Self {
             documents: results
                 .into_iter()
-                .map(|node| Document { node, input })
+                .enumerate()
+                .map(|(index, node)| Document {
+                    node: node.map_err(|error| error.with_document_index(index)),
+                    input,
+                    index,
+                })
                 .collect::<Vec<_>>()
                 .into_iter(),
         }
@@ -293,6 +307,7 @@ impl<'de> Deserializer<'de> {
             return Ok(Document {
                 node: Ok(Node::null(Span::point(0, 1, 1))),
                 input: None,
+                index: 0,
             });
         };
         if let Some(extra) = self.documents.next() {
@@ -304,7 +319,8 @@ impl<'de> Deserializer<'de> {
             return Err(Error::new(
                 "expected a single YAML document; use the iterator API for streams",
                 Some(span),
-            ));
+            )
+            .with_document_index(extra.index));
         }
         Ok(document)
     }
@@ -324,20 +340,26 @@ impl<'de> Iterator for Deserializer<'de> {
 struct Document<'de> {
     node: crate::Result<Node>,
     input: Option<&'de str>,
+    index: usize,
 }
 
 impl<'de> Document<'de> {
     fn as_node(&self) -> Result<&Node, Error> {
-        self.node.as_ref().map_err(Clone::clone)
+        self.node
+            .as_ref()
+            .map_err(Clone::clone)
+            .map_err(|error| error.with_document_index(self.index))
     }
 
     fn into_node(self) -> Result<Node, Error> {
         self.node
+            .map_err(|error| error.with_document_index(self.index))
     }
 
-    fn into_node_and_input(self) -> Result<(Node, Option<&'de str>), Error> {
+    fn into_node_and_input(self) -> Result<(Node, Option<&'de str>, usize), Error> {
         let input = self.input;
-        self.into_node().map(|node| (node, input))
+        let index = self.index;
+        self.into_node().map(|node| (node, input, index))
     }
 }
 
@@ -345,10 +367,36 @@ fn with_span<T>(result: Result<T, Error>, span: Span) -> Result<T, Error> {
     result.map_err(|error| error.with_span_if_missing(span))
 }
 
+fn with_index<T>(result: Result<T, Error>, index: usize) -> Result<T, Error> {
+    result.map_err(|error| error.prepend_path_segment(ErrorPathSegment::Index(index)))
+}
+
+fn with_key_path<T>(result: Result<T, Error>, segment: ErrorPathSegment) -> Result<T, Error> {
+    result.map_err(|error| error.with_path_segment_if_empty(segment))
+}
+
+fn with_value_path<T>(result: Result<T, Error>, segment: ErrorPathSegment) -> Result<T, Error> {
+    result.map_err(|error| error.prepend_path_segment(segment))
+}
+
 fn with_optional_span<T>(result: Result<T, Error>, span: Option<Span>) -> Result<T, Error> {
     match span {
         Some(span) => with_span(result, span),
         None => result,
+    }
+}
+
+fn node_path_segment(node: &Node) -> ErrorPathSegment {
+    value_path_segment(&node.value.clone().into())
+}
+
+fn value_path_segment(value: &Value) -> ErrorPathSegment {
+    match untag_value(value) {
+        Value::String(value) => ErrorPathSegment::Key(value.clone()),
+        Value::Bool(value) => ErrorPathSegment::ScalarKey(value.to_string()),
+        Value::Number(number) => ErrorPathSegment::ScalarKey(number.to_string()),
+        Value::Null => ErrorPathSegment::ScalarKey("null".to_string()),
+        Value::Sequence(_) | Value::Mapping(_) | Value::Tagged(_) => ErrorPathSegment::ComplexKey,
     }
 }
 
@@ -2207,6 +2255,7 @@ impl<'de> de::Deserializer<'de> for Node {
             NodeValue::String(value) => visitor.visit_string(value),
             NodeValue::Sequence(items) => visitor.visit_seq(OwnedSeqDeserializer {
                 items: items.into_iter(),
+                index: 0,
             }),
             NodeValue::Mapping(entries) => visitor.visit_map(OwnedMapDeserializer {
                 entries: entries.into_iter(),
@@ -2564,11 +2613,13 @@ impl<'de> de::Deserializer<'de> for Node {
         if is_empty_null_node(&node) {
             return visitor.visit_seq(OwnedSeqDeserializer {
                 items: Vec::<Node>::new().into_iter(),
+                index: 0,
             });
         }
         match node.value {
             NodeValue::Sequence(items) => visitor.visit_seq(OwnedSeqDeserializer {
                 items: items.into_iter(),
+                index: 0,
             }),
             other => Err(type_error_owned("sequence", &other, node.span)),
         }
@@ -2692,6 +2743,7 @@ impl<'de> de::Deserializer<'de> for Value {
             Value::String(value) => visitor.visit_string(value),
             Value::Sequence(items) => visitor.visit_seq(ValueSeqDeserializer {
                 items: items.into_iter(),
+                index: 0,
             }),
             Value::Mapping(entries) => visitor.visit_map(ValueMapDeserializer {
                 entries: entries.into_iter(),
@@ -2994,9 +3046,11 @@ impl<'de> de::Deserializer<'de> for Value {
         match untag_value_owned(value) {
             Value::Null => visitor.visit_seq(ValueSeqDeserializer {
                 items: Vec::new().into_iter(),
+                index: 0,
             }),
             Value::Sequence(items) => visitor.visit_seq(ValueSeqDeserializer {
                 items: items.into_iter(),
+                index: 0,
             }),
             other => Err(type_error_value("sequence", &other)),
         }
@@ -3106,6 +3160,7 @@ impl<'de> de::Deserializer<'de> for Value {
 
 struct ValueSeqDeserializer {
     items: std::vec::IntoIter<Value>,
+    index: usize,
 }
 
 impl<'de> SeqAccess<'de> for ValueSeqDeserializer {
@@ -3118,13 +3173,15 @@ impl<'de> SeqAccess<'de> for ValueSeqDeserializer {
         let Some(item) = self.items.next() else {
             return Ok(None);
         };
-        seed.deserialize(item).map(Some)
+        let index = self.index;
+        self.index += 1;
+        with_index(seed.deserialize(item), index).map(Some)
     }
 }
 
 struct ValueMapDeserializer {
     entries: crate::ast::IntoIter,
-    value: Option<Value>,
+    value: Option<(Value, ErrorPathSegment)>,
 }
 
 impl<'de> MapAccess<'de> for ValueMapDeserializer {
@@ -3137,19 +3194,20 @@ impl<'de> MapAccess<'de> for ValueMapDeserializer {
         let Some((key, value)) = self.entries.next() else {
             return Ok(None);
         };
-        self.value = Some(value);
-        seed.deserialize(key).map(Some)
+        let segment = value_path_segment(&key);
+        self.value = Some((value, segment.clone()));
+        with_key_path(seed.deserialize(key), segment).map(Some)
     }
 
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
     where
         V: de::DeserializeSeed<'de>,
     {
-        let value = self
+        let (value, segment) = self
             .value
             .take()
             .ok_or_else(|| Error::new("value requested before key", None))?;
-        seed.deserialize(value)
+        with_value_path(seed.deserialize(value), segment)
     }
 }
 
@@ -3219,6 +3277,7 @@ impl<'de> VariantAccess<'de> for ValueEnumDeserializer {
 
 struct OwnedSeqDeserializer {
     items: std::vec::IntoIter<Node>,
+    index: usize,
 }
 
 impl<'de> SeqAccess<'de> for OwnedSeqDeserializer {
@@ -3231,8 +3290,10 @@ impl<'de> SeqAccess<'de> for OwnedSeqDeserializer {
         let Some(item) = self.items.next() else {
             return Ok(None);
         };
+        let index = self.index;
+        self.index += 1;
         let span = item.span;
-        seed.deserialize(item)
+        with_index(seed.deserialize(item), index)
             .map(Some)
             .map_err(|error| error.with_span_if_missing(span))
     }
@@ -3240,7 +3301,7 @@ impl<'de> SeqAccess<'de> for OwnedSeqDeserializer {
 
 struct OwnedMapDeserializer {
     entries: std::vec::IntoIter<(Node, Node)>,
-    value: Option<Node>,
+    value: Option<(Node, ErrorPathSegment)>,
 }
 
 impl<'de> MapAccess<'de> for OwnedMapDeserializer {
@@ -3254,8 +3315,9 @@ impl<'de> MapAccess<'de> for OwnedMapDeserializer {
             return Ok(None);
         };
         let key_span = key.span;
-        self.value = Some(value);
-        seed.deserialize(key)
+        let segment = node_path_segment(&key);
+        self.value = Some((value, segment.clone()));
+        with_key_path(seed.deserialize(key), segment)
             .map(Some)
             .map_err(|error| error.with_span_if_missing(key_span))
     }
@@ -3264,12 +3326,12 @@ impl<'de> MapAccess<'de> for OwnedMapDeserializer {
     where
         V: de::DeserializeSeed<'de>,
     {
-        let value = self
+        let (value, segment) = self
             .value
             .take()
             .ok_or_else(|| Error::new("value requested before key", None))?;
         let span = value.span;
-        seed.deserialize(value)
+        with_value_path(seed.deserialize(value), segment)
             .map_err(|error| error.with_span_if_missing(span))
     }
 }
@@ -3602,7 +3664,7 @@ macro_rules! document_forward {
         where
             V: Visitor<'de>,
         {
-            let (node, input) = self.into_node_and_input()?;
+            let (node, input, document_index) = self.into_node_and_input()?;
             match input {
                 Some(input) => {
                     let span = node.span;
@@ -3614,9 +3676,10 @@ macro_rules! document_forward {
                         $($arg,)*
                         $visitor,
                     )
-                    .map_err(|error| error.with_span_if_missing(span))
+                    .map_err(|error| error.with_span_if_missing(span).with_document_index(document_index))
                 }
-                None => de::Deserializer::$method(node, $($arg,)* $visitor),
+                None => de::Deserializer::$method(node, $($arg,)* $visitor)
+                    .map_err(|error| error.with_document_index(document_index)),
             }
         }
     };
@@ -4545,15 +4608,16 @@ impl<'de> SeqAccess<'de> for ValueRefSeqDeserializer<'de> {
         let Some(item) = self.items.get(self.index) else {
             return Ok(None);
         };
+        let index = self.index;
         self.index += 1;
-        seed.deserialize(item).map(Some)
+        with_index(seed.deserialize(item), index).map(Some)
     }
 }
 
 struct ValueRefMapDeserializer<'a> {
     entries: &'a [(Value, Value)],
     index: usize,
-    value: Option<&'a Value>,
+    value: Option<(&'a Value, ErrorPathSegment)>,
 }
 
 impl<'de> MapAccess<'de> for ValueRefMapDeserializer<'de> {
@@ -4567,26 +4631,27 @@ impl<'de> MapAccess<'de> for ValueRefMapDeserializer<'de> {
             return Ok(None);
         };
         self.index += 1;
-        self.value = Some(value);
-        seed.deserialize(key).map(Some)
+        let segment = value_path_segment(key);
+        self.value = Some((value, segment.clone()));
+        with_key_path(seed.deserialize(key), segment).map(Some)
     }
 
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
     where
         V: de::DeserializeSeed<'de>,
     {
-        let value = self
+        let (value, segment) = self
             .value
             .take()
             .ok_or_else(|| Error::new("value requested before key", None))?;
-        seed.deserialize(value)
+        with_value_path(seed.deserialize(value), segment)
     }
 }
 
 struct ValueRefMergedMapDeserializer<'a> {
     entries: Vec<(&'a Value, &'a Value)>,
     index: usize,
-    value: Option<&'a Value>,
+    value: Option<(&'a Value, ErrorPathSegment)>,
 }
 
 impl<'de> MapAccess<'de> for ValueRefMergedMapDeserializer<'de> {
@@ -4600,19 +4665,20 @@ impl<'de> MapAccess<'de> for ValueRefMergedMapDeserializer<'de> {
             return Ok(None);
         };
         self.index += 1;
-        self.value = Some(value);
-        seed.deserialize(*key).map(Some)
+        let segment = value_path_segment(key);
+        self.value = Some((value, segment.clone()));
+        with_key_path(seed.deserialize(*key), segment).map(Some)
     }
 
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
     where
         V: de::DeserializeSeed<'de>,
     {
-        let value = self
+        let (value, segment) = self
             .value
             .take()
             .ok_or_else(|| Error::new("value requested before key", None))?;
-        seed.deserialize(value)
+        with_value_path(seed.deserialize(value), segment)
     }
 }
 
@@ -5007,11 +5073,15 @@ impl<'de, 'tree> SeqAccess<'de> for InputSeqDeserializer<'tree, 'de> {
         let Some(item) = self.items.get(self.index) else {
             return Ok(None);
         };
+        let index = self.index;
         self.index += 1;
-        seed.deserialize(InputNode {
-            node: item,
-            input: self.input,
-        })
+        with_index(
+            seed.deserialize(InputNode {
+                node: item,
+                input: self.input,
+            }),
+            index,
+        )
         .map(Some)
         .map_err(|error| error.with_span_if_missing(item.span))
     }
@@ -5031,8 +5101,9 @@ impl<'de> SeqAccess<'de> for SeqDeserializer<'de> {
         let Some(item) = self.items.get(self.index) else {
             return Ok(None);
         };
+        let index = self.index;
         self.index += 1;
-        seed.deserialize(item)
+        with_index(seed.deserialize(item), index)
             .map(Some)
             .map_err(|error| error.with_span_if_missing(item.span))
     }
@@ -5509,14 +5580,14 @@ impl<'de> SeqAccess<'de> for ValueRefYaml11PairAccess<'de> {
 struct MapDeserializer<'a> {
     entries: &'a [(Node, Node)],
     index: usize,
-    value: Option<&'a Node>,
+    value: Option<(&'a Node, ErrorPathSegment)>,
 }
 
 struct InputMapDeserializer<'tree, 'de> {
     entries: &'tree [(Node, Node)],
     input: &'de str,
     index: usize,
-    value: Option<InputNode<'tree, 'de>>,
+    value: Option<(InputNode<'tree, 'de>, ErrorPathSegment)>,
 }
 
 impl<'de, 'tree> MapAccess<'de> for InputMapDeserializer<'tree, 'de> {
@@ -5530,14 +5601,21 @@ impl<'de, 'tree> MapAccess<'de> for InputMapDeserializer<'tree, 'de> {
             return Ok(None);
         };
         self.index += 1;
-        self.value = Some(InputNode {
-            node: value,
-            input: self.input,
-        });
-        seed.deserialize(InputNode {
-            node: key,
-            input: self.input,
-        })
+        let segment = node_path_segment(key);
+        self.value = Some((
+            InputNode {
+                node: value,
+                input: self.input,
+            },
+            segment.clone(),
+        ));
+        with_key_path(
+            seed.deserialize(InputNode {
+                node: key,
+                input: self.input,
+            }),
+            segment,
+        )
         .map(Some)
         .map_err(|error| error.with_span_if_missing(key.span))
     }
@@ -5546,11 +5624,11 @@ impl<'de, 'tree> MapAccess<'de> for InputMapDeserializer<'tree, 'de> {
     where
         V: de::DeserializeSeed<'de>,
     {
-        let value = self
+        let (value, segment) = self
             .value
             .take()
             .ok_or_else(|| Error::new("value requested before key", None))?;
-        seed.deserialize(value)
+        with_value_path(seed.deserialize(value), segment)
             .map_err(|error| error.with_span_if_missing(value.node.span))
     }
 
@@ -5570,8 +5648,9 @@ impl<'de> MapAccess<'de> for MapDeserializer<'de> {
             return Ok(None);
         };
         self.index += 1;
-        self.value = Some(value);
-        seed.deserialize(key)
+        let segment = node_path_segment(key);
+        self.value = Some((value, segment.clone()));
+        with_key_path(seed.deserialize(key), segment)
             .map(Some)
             .map_err(|error| error.with_span_if_missing(key.span))
     }
@@ -5580,11 +5659,11 @@ impl<'de> MapAccess<'de> for MapDeserializer<'de> {
     where
         V: de::DeserializeSeed<'de>,
     {
-        let value = self
+        let (value, segment) = self
             .value
             .take()
             .ok_or_else(|| Error::new("value requested before key", None))?;
-        seed.deserialize(value)
+        with_value_path(seed.deserialize(value), segment)
             .map_err(|error| error.with_span_if_missing(value.span))
     }
 
@@ -6083,14 +6162,14 @@ fn untag_value_owned(value: Value) -> Value {
 }
 
 fn type_error(expected: &'static str, node: &Node) -> Error {
-    Error::new(
+    Error::data(
         format!("expected {expected}, found {}", kind_name(&node.value)),
         Some(node.span),
     )
 }
 
 fn type_error_owned(expected: &'static str, value: &NodeValue, span: Span) -> Error {
-    Error::new(
+    Error::data(
         format!("expected {expected}, found {}", kind_name(value)),
         Some(span),
     )
@@ -6111,7 +6190,7 @@ fn kind_name(value: &NodeValue) -> &'static str {
 }
 
 fn type_error_value(expected: &'static str, value: &Value) -> Error {
-    Error::new(
+    Error::data(
         format!("expected {expected}, found {}", kind_name_value(value)),
         None,
     )

@@ -280,7 +280,7 @@ impl LoadOptions {
         let max = self
             .max_input_bytes
             .expect("input_limit_error requires a configured limit");
-        Error::new(
+        Error::limit(
             format!("YAML input exceeds configured limit of {max} bytes"),
             Span::default(),
         )
@@ -288,7 +288,7 @@ impl LoadOptions {
 
     pub(crate) fn check_nesting_depth(self, depth: usize, span: Span) -> Result<()> {
         if self.max_nesting_depth.is_some_and(|max| depth > max) {
-            return Err(Error::new("maximum YAML nesting depth exceeded", span));
+            return Err(Error::limit("maximum YAML nesting depth exceeded", span));
         }
         Ok(())
     }
@@ -296,7 +296,7 @@ impl LoadOptions {
     pub(crate) fn check_scalar_bytes(self, len: usize, span: Span) -> Result<()> {
         if let Some(max) = self.max_scalar_bytes {
             if len > max {
-                return Err(Error::new(
+                return Err(Error::limit(
                     format!("YAML scalar exceeds configured limit of {max} bytes"),
                     span,
                 ));
@@ -308,7 +308,7 @@ impl LoadOptions {
     pub(crate) fn check_collection_items(self, len: usize, span: Span) -> Result<()> {
         if let Some(max) = self.max_collection_items {
             if len > max {
-                return Err(Error::new(
+                return Err(Error::limit(
                     format!("YAML collection exceeds configured limit of {max} entries"),
                     span,
                 ));

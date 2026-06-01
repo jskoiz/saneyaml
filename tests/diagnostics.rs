@@ -69,6 +69,22 @@ struct PortMatrixConfig {
     port: u16,
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct NestedServerConfig {
+    server: ServerConfig,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct ServerConfig {
+    port: u16,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct RootServersConfig(Vec<ServerConfig>);
+
 #[test]
 fn successful_tree_spans_are_in_bounds() {
     let input = include_str!("fixtures/real-world/helm/values.yaml");
@@ -973,6 +989,160 @@ fn serde_diagnostics_have_exact_spans_across_entrypoints() {
 }
 
 #[test]
+fn diagnostics_expose_category_path_and_rendered_source_context() {
+    let alias_input = "service: *missing\n";
+    let alias_error = parse_str(alias_input).expect_err("undefined alias");
+    assert_eq!(alias_error.category(), yaml::ErrorCategory::Reference);
+    assert_eq!(
+        alias_error.to_string(),
+        "unknown anchor `missing` at line 1, column 10"
+    );
+    assert_eq!(
+        alias_error.render_source(alias_input).to_string(),
+        "unknown anchor `missing` at line 1, column 10\n  |\n1 | service: *missing\n  |          ^^^^^^^^"
+    );
+
+    let duplicate_input = "root:\n  true: first\n  true: second\n";
+    let duplicate_error = parse_str(duplicate_input).expect_err("duplicate key");
+    assert_eq!(
+        duplicate_error.category(),
+        yaml::ErrorCategory::DuplicateKey
+    );
+    assert_eq!(
+        duplicate_error.render_source(duplicate_input).to_string(),
+        "duplicate mapping key `true` at line 3, column 3\n  |\n3 |   true: second\n  |   ^^^^\nprevious key is here\n  |\n2 |   true: first\n  |   ^^^^"
+    );
+
+    let input_limit = LoadOptions::new()
+        .max_input_bytes(4)
+        .parse_str("name: app\n")
+        .expect_err("input limit");
+    assert_eq!(input_limit.category(), yaml::ErrorCategory::Limit);
+    assert_eq!(
+        input_limit.render_source("name: app\n").to_string(),
+        input_limit.to_string()
+    );
+
+    let utf8 = yaml::from_slice::<Value>(b"bad: \xFF").expect_err("invalid UTF-8");
+    assert_eq!(utf8.category(), yaml::ErrorCategory::Encoding);
+
+    let reader = yaml::from_reader::<_, Value>(FailingReader).expect_err("reader error");
+    assert_eq!(reader.category(), yaml::ErrorCategory::Io);
+
+    let syntax = parse_str("\tbad: true\n").expect_err("tab indentation");
+    assert_eq!(syntax.category(), yaml::ErrorCategory::Syntax);
+}
+
+#[test]
+fn serde_diagnostics_include_key_paths_across_entrypoints() {
+    for (shape, input, expected_path, expected_source) in [
+        (
+            SerdeShape::NestedServer,
+            "server:\n  port: nope\n",
+            "server.port",
+            "nope",
+        ),
+        (
+            SerdeShape::Ports,
+            "ports:\n  - 80\n  - nope\n",
+            "ports[1]",
+            "nope",
+        ),
+        (
+            SerdeShape::RootServers,
+            "- port: 80\n- port: nope\n",
+            "[1].port",
+            "nope",
+        ),
+        (
+            SerdeShape::Strict,
+            "name: app\nextra: true\n",
+            "extra",
+            "extra",
+        ),
+    ] {
+        let mut root_previous = None;
+        let mut direct_previous = None;
+        for entrypoint in SerdeEntrypoint::ALL {
+            let error = entrypoint.error(shape, input);
+            assert_eq!(error.category(), yaml::ErrorCategory::Data);
+            assert_eq!(
+                error.path().map(ToString::to_string).as_deref(),
+                Some(expected_path),
+                "{} path",
+                entrypoint.name()
+            );
+            assert_eq!(
+                &input[error.span().start..error.span().end],
+                expected_source
+            );
+            let record = diagnostic_record(&error, input);
+            let previous = if entrypoint.is_direct_deserializer() {
+                &mut direct_previous
+            } else {
+                &mut root_previous
+            };
+            if let Some(previous) = previous {
+                assert_eq!(previous, &record, "{} parity", entrypoint.name());
+            }
+            *previous = Some(record);
+        }
+    }
+}
+
+#[test]
+fn value_deserialization_paths_do_not_require_source_locations() {
+    let value = yaml::from_str::<Value>("ports:\n  - 80\n  - nope\n").expect("value parses");
+    let owned_error =
+        yaml::from_value::<PortsMatrixConfig>(value.clone()).expect_err("owned value");
+    assert_eq!(owned_error.location(), None);
+    assert_eq!(
+        owned_error.path().map(ToString::to_string).as_deref(),
+        Some("ports[1]")
+    );
+
+    let borrowed_error =
+        PortsMatrixConfig::deserialize(&value).expect_err("borrowed value deserialization");
+    assert_eq!(borrowed_error.location(), None);
+    assert_eq!(
+        borrowed_error.path().map(ToString::to_string).as_deref(),
+        Some("ports[1]")
+    );
+}
+
+#[test]
+fn document_diagnostics_include_zero_based_document_index() {
+    let input = "---\nports: [80]\n---\nports: no\n";
+    let errors = [
+        yaml::from_documents_str::<PortsMatrixConfig>(input).expect_err("documents str"),
+        yaml::from_documents_slice::<PortsMatrixConfig>(input.as_bytes())
+            .expect_err("documents slice"),
+        yaml::from_documents_reader::<PortsMatrixConfig, _>(Cursor::new(input.as_bytes()))
+            .expect_err("documents reader"),
+    ];
+    let first = diagnostic_record(&errors[0], input);
+    for error in &errors {
+        assert_eq!(error.document_index(), Some(1));
+        assert_eq!(
+            error.path().map(ToString::to_string).as_deref(),
+            Some("ports")
+        );
+        assert_eq!(diagnostic_record(error, input), first);
+    }
+
+    let streamed_error = yaml::Deserializer::from_str(input)
+        .enumerate()
+        .find_map(|(index, document)| {
+            PortsMatrixConfig::deserialize(document)
+                .err()
+                .map(|error| (index, error))
+        })
+        .expect("streamed document error");
+    assert_eq!(streamed_error.0, 1);
+    assert_eq!(streamed_error.1.document_index(), Some(1));
+}
+
+#[test]
 fn invalid_utf8_after_non_ascii_reports_line_and_byte_column() {
     let input = b"emoji: \xF0\x9F\x98\x80\nbad: \xFF";
     let error = parse_bytes(input).expect_err("invalid UTF-8 after non-ASCII");
@@ -1476,6 +1646,8 @@ enum SerdeShape {
     Strict,
     Ports,
     Port,
+    NestedServer,
+    RootServers,
 }
 
 struct SerdeDiagnosticCase {
@@ -1517,6 +1689,15 @@ impl SerdeEntrypoint {
         }
     }
 
+    fn is_direct_deserializer(self) -> bool {
+        matches!(
+            self,
+            Self::DirectDeserializerStr
+                | Self::DirectDeserializerSlice
+                | Self::DirectDeserializerReader
+        )
+    }
+
     fn error(self, shape: SerdeShape, input: &str) -> yaml::Error {
         match (self, shape) {
             (Self::FromStr, SerdeShape::Strict) => {
@@ -1528,6 +1709,12 @@ impl SerdeEntrypoint {
             (Self::FromStr, SerdeShape::Port) => {
                 yaml::from_str::<PortMatrixConfig>(input).expect_err("from_str should reject")
             }
+            (Self::FromStr, SerdeShape::NestedServer) => {
+                yaml::from_str::<NestedServerConfig>(input).expect_err("from_str should reject")
+            }
+            (Self::FromStr, SerdeShape::RootServers) => {
+                yaml::from_str::<RootServersConfig>(input).expect_err("from_str should reject")
+            }
             (Self::FromSlice, SerdeShape::Strict) => {
                 yaml::from_slice::<StrictMatrixConfig>(input.as_bytes())
                     .expect_err("from_slice should reject")
@@ -1538,6 +1725,14 @@ impl SerdeEntrypoint {
             }
             (Self::FromSlice, SerdeShape::Port) => {
                 yaml::from_slice::<PortMatrixConfig>(input.as_bytes())
+                    .expect_err("from_slice should reject")
+            }
+            (Self::FromSlice, SerdeShape::NestedServer) => {
+                yaml::from_slice::<NestedServerConfig>(input.as_bytes())
+                    .expect_err("from_slice should reject")
+            }
+            (Self::FromSlice, SerdeShape::RootServers) => {
+                yaml::from_slice::<RootServersConfig>(input.as_bytes())
                     .expect_err("from_slice should reject")
             }
             (Self::FromReader, SerdeShape::Strict) => {
@@ -1552,6 +1747,14 @@ impl SerdeEntrypoint {
                 yaml::from_reader::<_, PortMatrixConfig>(Cursor::new(input.as_bytes()))
                     .expect_err("from_reader should reject")
             }
+            (Self::FromReader, SerdeShape::NestedServer) => {
+                yaml::from_reader::<_, NestedServerConfig>(Cursor::new(input.as_bytes()))
+                    .expect_err("from_reader should reject")
+            }
+            (Self::FromReader, SerdeShape::RootServers) => {
+                yaml::from_reader::<_, RootServersConfig>(Cursor::new(input.as_bytes()))
+                    .expect_err("from_reader should reject")
+            }
             (Self::DirectDeserializerStr, SerdeShape::Strict) => {
                 StrictMatrixConfig::deserialize(yaml::Deserializer::from_str(input))
                     .expect_err("direct string deserializer should reject")
@@ -1564,6 +1767,14 @@ impl SerdeEntrypoint {
                 PortMatrixConfig::deserialize(yaml::Deserializer::from_str(input))
                     .expect_err("direct string deserializer should reject")
             }
+            (Self::DirectDeserializerStr, SerdeShape::NestedServer) => {
+                NestedServerConfig::deserialize(yaml::Deserializer::from_str(input))
+                    .expect_err("direct string deserializer should reject")
+            }
+            (Self::DirectDeserializerStr, SerdeShape::RootServers) => {
+                RootServersConfig::deserialize(yaml::Deserializer::from_str(input))
+                    .expect_err("direct string deserializer should reject")
+            }
             (Self::DirectDeserializerSlice, SerdeShape::Strict) => {
                 StrictMatrixConfig::deserialize(yaml::Deserializer::from_slice(input.as_bytes()))
                     .expect_err("direct slice deserializer should reject")
@@ -1574,6 +1785,14 @@ impl SerdeEntrypoint {
             }
             (Self::DirectDeserializerSlice, SerdeShape::Port) => {
                 PortMatrixConfig::deserialize(yaml::Deserializer::from_slice(input.as_bytes()))
+                    .expect_err("direct slice deserializer should reject")
+            }
+            (Self::DirectDeserializerSlice, SerdeShape::NestedServer) => {
+                NestedServerConfig::deserialize(yaml::Deserializer::from_slice(input.as_bytes()))
+                    .expect_err("direct slice deserializer should reject")
+            }
+            (Self::DirectDeserializerSlice, SerdeShape::RootServers) => {
+                RootServersConfig::deserialize(yaml::Deserializer::from_slice(input.as_bytes()))
                     .expect_err("direct slice deserializer should reject")
             }
             (Self::DirectDeserializerReader, SerdeShape::Strict) => {
@@ -1590,8 +1809,41 @@ impl SerdeEntrypoint {
                 yaml::Deserializer::from_reader(Cursor::new(input.as_bytes())),
             )
             .expect_err("direct reader deserializer should reject"),
+            (Self::DirectDeserializerReader, SerdeShape::NestedServer) => {
+                NestedServerConfig::deserialize(yaml::Deserializer::from_reader(Cursor::new(
+                    input.as_bytes(),
+                )))
+                .expect_err("direct reader deserializer should reject")
+            }
+            (Self::DirectDeserializerReader, SerdeShape::RootServers) => {
+                RootServersConfig::deserialize(yaml::Deserializer::from_reader(Cursor::new(
+                    input.as_bytes(),
+                )))
+                .expect_err("direct reader deserializer should reject")
+            }
         }
     }
+}
+
+fn diagnostic_record(error: &yaml::Error, input: &str) -> String {
+    format!(
+        "category={:?}\ndisplay={}\nspan={}:{}:{}:{}\nsource={:?}\npath={}\ndocument={:?}\nrendered={}",
+        error.category(),
+        error,
+        error.span().start,
+        error.span().end,
+        error.span().line,
+        error.span().column,
+        input
+            .get(error.span().start..error.span().end)
+            .unwrap_or(""),
+        error
+            .path()
+            .map(ToString::to_string)
+            .unwrap_or_else(|| "<none>".to_string()),
+        error.document_index(),
+        error.render_source(input),
+    )
 }
 
 fn assert_exact_diagnostic(

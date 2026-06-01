@@ -36,7 +36,7 @@ pub fn parse_lossless_bytes_with_options(
     options.check_input_len(input.len())?;
     match std::str::from_utf8(input) {
         Ok(input) => parse_lossless_with_options(input, options),
-        Err(err) => Err(Error::new(
+        Err(err) => Err(Error::encoding(
             "input is not valid UTF-8",
             utf8_error_span(input, err),
         )),

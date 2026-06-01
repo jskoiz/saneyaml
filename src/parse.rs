@@ -2330,7 +2330,7 @@ impl Parser {
         let first_trimmed = first_text.trim();
         let first_ws = first_text.len() - first_text.trim_start().len();
         let first_start = first_start + first_ws;
-        let mut out = first_trimmed.to_string();
+        let mut out = None::<String>;
         let mut end = first_line.start + first_line.indent + first_start + first_trimmed.len();
         let mut continued = false;
         let mut comment_terminated = first_line.had_comment;
@@ -2374,6 +2374,7 @@ impl Parser {
             comment_terminated = next.had_comment;
             let trimmed = next.content.trim();
             if !trimmed.is_empty() {
+                let out = out.get_or_insert_with(|| first_trimmed.to_string());
                 if blank_breaks > 0 {
                     for _ in 0..blank_breaks {
                         out.push('\n');
@@ -2396,6 +2397,7 @@ impl Parser {
             );
         }
 
+        let out = out.unwrap_or_else(|| first_trimmed.to_string());
         let node = Node::new(
             Value::String(out),
             Span::new(

@@ -39,6 +39,14 @@ from 24.86 to 24.89 ns/byte. Retained output estimates are unchanged because
 the returned tree shape is unchanged; the removed work is transient
 per-document merge scanning and its scratch stack.
 
+The 2026-06-01 plain-scalar continuation slice delays `String` allocation until
+a plain scalar is proven to span multiple lines. In the next same-session target
+capture, `generated_multi_doc_stream_1mib` `yaml::parse_documents` moved from
+23.98 to 21.87 ns/byte while `saphyr` measured 24.42 ns/byte. Retained output
+estimates are unchanged because single-line scalar output is identical; the
+removed work is transient short `String` allocation before the scalar falls back
+to the inline parse path.
+
 ## Real-World Config Corpus
 
 Same-turn pre-optimization baseline, captured before this milestone with the
@@ -69,16 +77,16 @@ same-run capture (18.01 ns/byte vs `saphyr` at 20.42 and `yaml_rust2` at
 22.01). The owning `Value` path also remains ahead of the `serde_yaml` `Value`
 stream and roughly ties `yaml_rust2` on this corpus.
 
-Post no-merge fast-path re-capture with the default 200 iterations
+Post no-merge and plain-scalar fast-path re-capture with the default 200 iterations
 (independent run, 2026-06-01):
 
 | parser/load path | iterations | bytes per iteration | docs per iteration | elapsed ms | ns/byte |
 |---|---:|---:|---:|---:|---:|
-| `yaml::parse_documents` | 200 | 19,727 | 33 | 72.136 | 18.28 |
-| `yaml::from_documents_str::<Value>` | 200 | 19,727 | 33 | 84.028 | 21.30 |
-| `serde_yaml::Value` stream | 200 | 19,727 | 33 | 103.945 | 26.35 |
-| `yaml_rust2::YamlLoader` | 200 | 19,727 | 33 | 85.682 | 21.72 |
-| `saphyr::Yaml::load_from_str` | 200 | 19,727 | 33 | 79.723 | 20.21 |
+| `yaml::parse_documents` | 200 | 19,727 | 33 | 70.310 | 17.82 |
+| `yaml::from_documents_str::<Value>` | 200 | 19,727 | 33 | 80.490 | 20.40 |
+| `serde_yaml::Value` stream | 200 | 19,727 | 33 | 102.217 | 25.91 |
+| `yaml_rust2::YamlLoader` | 200 | 19,727 | 33 | 83.610 | 21.19 |
+| `saphyr::Yaml::load_from_str` | 200 | 19,727 | 33 | 77.720 | 19.70 |
 
 Methodology caveat: the pre-optimization table above was captured at 200
 iterations and the post-optimization table at 1,000, so part of the across-table
@@ -102,11 +110,11 @@ Default iterations: 20, controlled by `YAML_LARGE_BENCH_ITERS`.
 
 | parser/load path | iterations | bytes per iteration | docs per iteration | elapsed ms | ns/byte | peak retained bytes | peak retained heap objects |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| `yaml::parse_documents` | 20 | 245,062 | 20 | 39.130 | 7.98 | 703,340 | 3,983 |
-| `yaml::from_documents_str::<Value>` | 20 | 245,062 | 20 | 44.597 | 9.10 | 217,579 | 3,780 |
-| `serde_yaml::Value` stream | 20 | 245,062 | 20 | 55.035 | 11.23 | 396,987 | 3,780 |
-| `yaml_rust2::YamlLoader` | 20 | 245,062 | 20 | 42.009 | 8.57 | 382,497 | 3,796 |
-| `saphyr::Yaml::load_from_str` | 20 | 245,062 | 20 | 40.579 | 8.28 | 534,786 | 3,780 |
+| `yaml::parse_documents` | 20 | 245,062 | 20 | 37.430 | 7.64 | 703,340 | 3,983 |
+| `yaml::from_documents_str::<Value>` | 20 | 245,062 | 20 | 42.274 | 8.63 | 217,579 | 3,780 |
+| `serde_yaml::Value` stream | 20 | 245,062 | 20 | 54.976 | 11.22 | 396,987 | 3,780 |
+| `yaml_rust2::YamlLoader` | 20 | 245,062 | 20 | 41.420 | 8.45 | 382,497 | 3,796 |
+| `saphyr::Yaml::load_from_str` | 20 | 245,062 | 20 | 38.974 | 7.95 | 534,786 | 3,780 |
 
 ### stackable_dummy_cluster
 
@@ -114,11 +122,11 @@ One pinned Stackable CRD / 177,556 bytes / 1 YAML document.
 
 | parser/load path | iterations | bytes per iteration | docs per iteration | elapsed ms | ns/byte | peak retained bytes | peak retained heap objects |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| `yaml::parse_documents` | 20 | 177,556 | 1 | 24.375 | 6.86 | 703,340 | 3,983 |
-| `yaml::from_documents_str::<Value>` | 20 | 177,556 | 1 | 27.735 | 7.81 | 217,579 | 3,780 |
-| `serde_yaml::Value` stream | 20 | 177,556 | 1 | 35.637 | 10.04 | 396,987 | 3,780 |
-| `yaml_rust2::YamlLoader` | 20 | 177,556 | 1 | 26.718 | 7.52 | 382,497 | 3,796 |
-| `saphyr::Yaml::load_from_str` | 20 | 177,556 | 1 | 25.821 | 7.27 | 534,786 | 3,780 |
+| `yaml::parse_documents` | 20 | 177,556 | 1 | 23.499 | 6.62 | 703,340 | 3,983 |
+| `yaml::from_documents_str::<Value>` | 20 | 177,556 | 1 | 25.621 | 7.21 | 217,579 | 3,780 |
+| `serde_yaml::Value` stream | 20 | 177,556 | 1 | 35.163 | 9.90 | 396,987 | 3,780 |
+| `yaml_rust2::YamlLoader` | 20 | 177,556 | 1 | 26.216 | 7.38 | 382,497 | 3,796 |
+| `saphyr::Yaml::load_from_str` | 20 | 177,556 | 1 | 25.069 | 7.06 | 534,786 | 3,780 |
 
 ### generated_multi_doc_stream_1mib
 
@@ -127,11 +135,11 @@ documents.
 
 | parser/load path | iterations | bytes per iteration | docs per iteration | elapsed ms | ns/byte | peak retained bytes | peak retained heap objects |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| `yaml::parse_documents` | 20 | 1,048,680 | 8,020 | 502.904 | 23.98 | 23,031,972 | 128,321 |
-| `yaml::from_documents_str::<Value>` | 20 | 1,048,680 | 8,020 | 571.076 | 27.23 | 4,735,364 | 112,281 |
-| `serde_yaml::Value` stream | 20 | 1,048,680 | 8,020 | 730.933 | 34.85 | 11,607,364 | 112,281 |
-| `yaml_rust2::YamlLoader` | 20 | 1,048,680 | 8,020 | 561.270 | 26.76 | 10,386,948 | 112,281 |
-| `saphyr::Yaml::load_from_str` | 20 | 1,048,680 | 8,020 | 521.988 | 24.89 | 14,770,560 | 112,281 |
+| `yaml::parse_documents` | 20 | 1,048,680 | 8,020 | 458.747 | 21.87 | 23,031,972 | 128,321 |
+| `yaml::from_documents_str::<Value>` | 20 | 1,048,680 | 8,020 | 530.467 | 25.29 | 4,735,364 | 112,281 |
+| `serde_yaml::Value` stream | 20 | 1,048,680 | 8,020 | 720.784 | 34.37 | 11,607,364 | 112,281 |
+| `yaml_rust2::YamlLoader` | 20 | 1,048,680 | 8,020 | 565.036 | 26.94 | 10,386,948 | 112,281 |
+| `saphyr::Yaml::load_from_str` | 20 | 1,048,680 | 8,020 | 512.208 | 24.42 | 14,770,560 | 112,281 |
 
 ### generated_wide_mapping_256kib
 
@@ -139,11 +147,11 @@ Generated one-document wide service mapping / 262,176 bytes.
 
 | parser/load path | iterations | bytes per iteration | docs per iteration | elapsed ms | ns/byte | peak retained bytes | peak retained heap objects |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| `yaml::parse_documents` | 20 | 262,176 | 1 | 91.745 | 17.50 | 3,272,071 | 23,932 |
-| `yaml::from_documents_str::<Value>` | 20 | 262,176 | 1 | 105.599 | 20.14 | 938,332 | 17,950 |
-| `serde_yaml::Value` stream | 20 | 262,176 | 1 | 123.969 | 23.64 | 1,895,692 | 17,950 |
-| `yaml_rust2::YamlLoader` | 20 | 262,176 | 1 | 104.617 | 19.95 | 1,704,220 | 17,950 |
-| `saphyr::Yaml::load_from_str` | 20 | 262,176 | 1 | 94.489 | 18.02 | 2,393,312 | 17,950 |
+| `yaml::parse_documents` | 20 | 262,176 | 1 | 85.692 | 16.34 | 3,272,071 | 23,932 |
+| `yaml::from_documents_str::<Value>` | 20 | 262,176 | 1 | 98.199 | 18.73 | 938,332 | 17,950 |
+| `serde_yaml::Value` stream | 20 | 262,176 | 1 | 124.974 | 23.83 | 1,895,692 | 17,950 |
+| `yaml_rust2::YamlLoader` | 20 | 262,176 | 1 | 107.656 | 20.53 | 1,704,220 | 17,950 |
+| `saphyr::Yaml::load_from_str` | 20 | 262,176 | 1 | 93.863 | 17.90 | 2,393,312 | 17,950 |
 
 ### generated_wide_mapping_1mib
 
@@ -151,20 +159,22 @@ Generated one-document wide service mapping / 1,048,661 bytes.
 
 | parser/load path | iterations | bytes per iteration | docs per iteration | elapsed ms | ns/byte | peak retained bytes | peak retained heap objects |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| `yaml::parse_documents` | 20 | 1,048,661 | 1 | 374.298 | 17.85 | 13,040,211 | 95,236 |
-| `yaml::from_documents_str::<Value>` | 20 | 1,048,661 | 1 | 434.528 | 20.72 | 3,739,155 | 71,428 |
-| `serde_yaml::Value` stream | 20 | 1,048,661 | 1 | 528.179 | 25.18 | 7,548,675 | 71,428 |
-| `yaml_rust2::YamlLoader` | 20 | 1,048,661 | 1 | 433.680 | 20.68 | 6,786,771 | 71,428 |
-| `saphyr::Yaml::load_from_str` | 20 | 1,048,661 | 1 | 384.807 | 18.35 | 9,523,712 | 71,428 |
+| `yaml::parse_documents` | 20 | 1,048,661 | 1 | 342.532 | 16.33 | 13,040,211 | 95,236 |
+| `yaml::from_documents_str::<Value>` | 20 | 1,048,661 | 1 | 403.599 | 19.24 | 3,739,155 | 71,428 |
+| `serde_yaml::Value` stream | 20 | 1,048,661 | 1 | 520.812 | 24.83 | 7,548,675 | 71,428 |
+| `yaml_rust2::YamlLoader` | 20 | 1,048,661 | 1 | 421.095 | 20.08 | 6,786,771 | 71,428 |
+| `saphyr::Yaml::load_from_str` | 20 | 1,048,661 | 1 | 372.352 | 17.75 | 9,523,712 | 71,428 |
 
-Large-input story: after zero-copy line storage and the no-merge fast path,
-`yaml::parse_documents` beats `yaml_rust2` on every large parser path in the
-latest capture and closes the prior many-document `saphyr` gap
-(23.98 vs 24.89 ns/byte). The same-run parser rows are 5-of-5 faster than
-`saphyr`, though `external_downstream_all` and `generated_wide_mapping_1mib`
-remain close enough to treat as noise-level wins until repeated samples quantify
-variance. The durable allocation story is split: line storage avoids transient
-per-line raw/content heap text, the no-merge fast path avoids transient
-per-document merge traversal for documents without semantic merge keys, and the
-owning `Value` path still retains materially less parsed output than the
-reference loaders on large load-path comparisons.
+Large-input story: after zero-copy line storage, the no-merge fast path, and
+delayed plain-scalar continuation allocation, `yaml::parse_documents` beats
+`yaml_rust2` on every large parser path in the latest capture and closes the
+prior many-document `saphyr` gap decisively (21.87 vs 24.42 ns/byte). The
+same-run parser rows are 5-of-5 faster than `saphyr`, though
+`external_downstream_all` remains close enough to treat as a noise-level win
+until repeated samples quantify variance. The durable allocation story is
+split: line storage avoids transient per-line raw/content heap text, the
+no-merge fast path avoids transient per-document merge traversal for documents
+without semantic merge keys, delayed plain-scalar allocation avoids short-lived
+strings on single-line plain scalars, and the owning `Value` path still retains
+materially less parsed output than the reference loaders on large load-path
+comparisons.

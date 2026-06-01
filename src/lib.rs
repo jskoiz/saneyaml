@@ -62,8 +62,9 @@ pub mod value {
 }
 
 pub use ast::{
-    Date, Entry, Index, Mapping, Node, NodeValue, Number, OccupiedEntry, ScalarSource, Sequence,
-    Tag, TaggedNode, TaggedValue, Time, TimeZoneOffset, Timestamp, VacantEntry, Value,
+    BorrowedNode, BorrowedNodeValue, BorrowedTaggedNode, Date, Entry, Index, Mapping, Node,
+    NodeValue, Number, OccupiedEntry, ScalarSource, Sequence, Tag, TaggedNode, TaggedValue, Time,
+    TimeZoneOffset, Timestamp, VacantEntry, Value,
 };
 pub use de::{
     Deserializer, from_documents_reader, from_documents_slice, from_documents_str, from_node,
@@ -79,9 +80,10 @@ pub use lossless::{
 };
 pub use parse::{
     CollectionStyle, DocumentStream, Event, EventAnchor, EventDocumentDirectives, EventMeta,
-    EventStream, EventTag, EventTagDirective, EventYamlVersion, ScalarStyle, parse_bytes,
-    parse_documents, parse_events, parse_str, stream_documents, stream_documents_reader,
-    stream_documents_slice, stream_events, stream_events_reader, stream_events_slice,
+    EventStream, EventTag, EventTagDirective, EventYamlVersion, ScalarStyle,
+    parse_borrowed_documents, parse_bytes, parse_documents, parse_events, parse_str,
+    stream_documents, stream_documents_reader, stream_documents_slice, stream_events,
+    stream_events_reader, stream_events_slice,
 };
 pub use schema::{
     DEFAULT_ALIAS_EXPANSION_FACTOR, DEFAULT_MAX_INPUT_BYTES, DEFAULT_MIN_ALIAS_EXPANSION_NODES,

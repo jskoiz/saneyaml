@@ -304,6 +304,7 @@ fn main() {
         println!("|---|---:|---:|---:|---:|---:|---:|---:|");
         for result in [
             measure_yaml_parse_documents(corpus, iterations),
+            measure_yaml_parse_borrowed_documents(corpus, iterations),
             measure_yaml_value(corpus, iterations),
             measure_serde_yaml_value(corpus, iterations),
             measure_yaml_rust2(corpus, iterations),
@@ -338,14 +339,24 @@ fn downstream_fixtures() -> Vec<Fixture<'static>> {
 
 fn validate_corpus(corpus: &Corpus<'_>) {
     for fixture in &corpus.fixtures {
+        let owned = yaml::parse_documents(&fixture.input).expect(fixture.path);
+        let borrowed = yaml::parse_borrowed_documents(&fixture.input).expect(fixture.path);
+        assert_eq!(owned.len(), fixture.docs, "{} document count", fixture.path);
         assert_eq!(
-            yaml::parse_documents(&fixture.input)
-                .expect(fixture.path)
-                .len(),
+            borrowed.len(),
             fixture.docs,
-            "{} document count",
+            "{} borrowed document count",
             fixture.path
         );
+        for (index, (owned, borrowed)) in owned.iter().zip(&borrowed).enumerate() {
+            let owned_value = yaml::Value::from(owned);
+            let borrowed_value = borrowed.clone().into_owned_value();
+            assert!(
+                borrowed_value.equivalent(&owned_value),
+                "{} borrowed document {index} differs from parse_documents",
+                fixture.path
+            );
+        }
     }
 }
 
@@ -358,6 +369,19 @@ fn measure_yaml_parse_documents(corpus: &Corpus<'_>, iterations: usize) -> Bench
         |input, path| {
             let docs = yaml::parse_documents(input).expect(path);
             retained_yaml_node_docs(&docs)
+        },
+    )
+}
+
+fn measure_yaml_parse_borrowed_documents(corpus: &Corpus<'_>, iterations: usize) -> BenchResult {
+    measure(
+        "yaml::parse_borrowed_documents",
+        corpus,
+        iterations,
+        |input, path| yaml::parse_borrowed_documents(input).expect(path).len(),
+        |input, path| {
+            let docs = yaml::parse_borrowed_documents(input).expect(path);
+            retained_yaml_borrowed_node_docs(&docs)
         },
     )
 }
@@ -546,6 +570,48 @@ fn retained_yaml_node(node: &yaml::Node) -> Retained {
         }
     };
     retained
+}
+
+fn retained_yaml_borrowed_node_docs(docs: &Vec<yaml::BorrowedNode<'_>>) -> Retained {
+    let mut retained = Retained::vec_capacity::<yaml::BorrowedNode<'_>>(docs.capacity());
+    for doc in docs {
+        retained += retained_yaml_borrowed_node(doc);
+    }
+    retained
+}
+
+fn retained_yaml_borrowed_node(node: &yaml::BorrowedNode<'_>) -> Retained {
+    match &node.value {
+        yaml::BorrowedNodeValue::Null
+        | yaml::BorrowedNodeValue::Bool(_)
+        | yaml::BorrowedNodeValue::Number(_) => Retained::default(),
+        yaml::BorrowedNodeValue::String(value) => match value {
+            Cow::Borrowed(_) => Retained::default(),
+            Cow::Owned(value) => Retained::heap_bytes(value.capacity()),
+        },
+        yaml::BorrowedNodeValue::Sequence(items) => {
+            let mut retained = Retained::vec_capacity::<yaml::BorrowedNode<'_>>(items.capacity());
+            for item in items {
+                retained += retained_yaml_borrowed_node(item);
+            }
+            retained
+        }
+        yaml::BorrowedNodeValue::Mapping(entries) => {
+            let mut retained = Retained::vec_capacity::<(
+                yaml::BorrowedNode<'_>,
+                yaml::BorrowedNode<'_>,
+            )>(entries.capacity());
+            for (key, value) in entries {
+                retained += retained_yaml_borrowed_node(key) + retained_yaml_borrowed_node(value);
+            }
+            retained
+        }
+        yaml::BorrowedNodeValue::Tagged(tagged) => {
+            Retained::boxed::<yaml::BorrowedTaggedNode<'_>>()
+                + retained_yaml_tag(&tagged.tag)
+                + retained_yaml_borrowed_node(&tagged.value)
+        }
+    }
 }
 
 fn retained_yaml_value_docs(docs: &Vec<yaml::Value>) -> Retained {

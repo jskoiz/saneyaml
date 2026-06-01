@@ -760,6 +760,185 @@ pub struct TaggedNode {
     pub value: Node,
 }
 
+/// Spanless YAML document tree that can borrow scalar strings from the input.
+///
+/// Borrowed nodes are an additive retained-output path for callers that keep
+/// the source YAML buffer alive. They preserve semantic values, merge-key
+/// expansion, tags, and duplicate-key validation from the owning parser, but do
+/// not retain source spans or raw scalar spellings.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BorrowedNode<'de> {
+    /// Parsed node payload.
+    pub value: BorrowedNodeValue<'de>,
+}
+
+impl<'de> BorrowedNode<'de> {
+    pub(crate) fn from_node(input: &'de str, node: Node) -> Self {
+        let Node {
+            value,
+            span,
+            source: _,
+        } = node;
+        Self {
+            value: BorrowedNodeValue::from_node_value(input, value, span),
+        }
+    }
+
+    /// Returns the scalar string value, following transparent tags.
+    pub fn as_str(&self) -> Option<&str> {
+        self.value.as_str()
+    }
+
+    /// Converts this borrowed node into an owned spanless [`Value`].
+    pub fn into_owned_value(self) -> Value {
+        self.value.into_owned_value()
+    }
+}
+
+impl From<BorrowedNode<'_>> for Value {
+    fn from(node: BorrowedNode<'_>) -> Self {
+        node.into_owned_value()
+    }
+}
+
+/// Spanless borrowed YAML node payload.
+#[derive(Clone, Debug, PartialEq)]
+pub enum BorrowedNodeValue<'de> {
+    /// YAML null.
+    Null,
+    /// YAML boolean.
+    Bool(bool),
+    /// YAML number.
+    Number(Number),
+    /// YAML string, borrowed from the input when the scalar needs no decoding.
+    String(Cow<'de, str>),
+    /// YAML sequence.
+    Sequence(Vec<BorrowedNode<'de>>),
+    /// YAML mapping represented as ordered key/value nodes.
+    Mapping(Vec<(BorrowedNode<'de>, BorrowedNode<'de>)>),
+    /// Tagged YAML node.
+    Tagged(Box<BorrowedTaggedNode<'de>>),
+}
+
+impl<'de> BorrowedNodeValue<'de> {
+    fn from_node_value(input: &'de str, value: NodeValue, span: Span) -> Self {
+        match value {
+            NodeValue::Null => Self::Null,
+            NodeValue::Bool(value) => Self::Bool(value),
+            NodeValue::Number(value) => Self::Number(value),
+            NodeValue::String(value) => Self::String(borrowed_scalar_value(input, value, span)),
+            NodeValue::Sequence(items) => {
+                let mut items = items
+                    .into_iter()
+                    .map(|item| BorrowedNode::from_node(input, item))
+                    .collect::<Vec<_>>();
+                items.shrink_to_fit();
+                Self::Sequence(items)
+            }
+            NodeValue::Mapping(entries) => {
+                let mut entries = entries
+                    .into_iter()
+                    .map(|(key, value)| {
+                        (
+                            BorrowedNode::from_node(input, key),
+                            BorrowedNode::from_node(input, value),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                entries.shrink_to_fit();
+                Self::Mapping(entries)
+            }
+            NodeValue::Tagged(tagged) => {
+                let TaggedNode {
+                    tag,
+                    tag_span: _,
+                    value,
+                } = *tagged;
+                Self::Tagged(Box::new(BorrowedTaggedNode {
+                    tag,
+                    value: BorrowedNode::from_node(input, value),
+                }))
+            }
+        }
+    }
+
+    /// Returns the scalar string value, following transparent tags.
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            Self::String(value) => Some(value),
+            Self::Tagged(tagged) => tagged.value.as_str(),
+            _ => None,
+        }
+    }
+
+    /// Converts this borrowed payload into an owned spanless [`Value`].
+    pub fn into_owned_value(self) -> Value {
+        match self {
+            Self::Null => Value::Null,
+            Self::Bool(value) => Value::Bool(value),
+            Self::Number(value) => Value::Number(value),
+            Self::String(value) => Value::String(value.into_owned()),
+            Self::Sequence(items) => Value::Sequence(
+                items
+                    .into_iter()
+                    .map(BorrowedNode::into_owned_value)
+                    .collect(),
+            ),
+            Self::Mapping(entries) => Value::Mapping(
+                entries
+                    .into_iter()
+                    .map(|(key, value)| (key.into_owned_value(), value.into_owned_value()))
+                    .collect(),
+            ),
+            Self::Tagged(tagged) => Value::Tagged(Box::new(TaggedValue {
+                tag: tagged.tag,
+                value: tagged.value.into_owned_value(),
+            })),
+        }
+    }
+}
+
+impl From<BorrowedNodeValue<'_>> for Value {
+    fn from(value: BorrowedNodeValue<'_>) -> Self {
+        value.into_owned_value()
+    }
+}
+
+/// Spanless borrowed YAML tagged node.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BorrowedTaggedNode<'de> {
+    /// YAML tag.
+    pub tag: Tag,
+    /// Tagged node value.
+    pub value: BorrowedNode<'de>,
+}
+
+fn borrowed_scalar_value<'de>(input: &'de str, value: String, span: Span) -> Cow<'de, str> {
+    if let Some(source) = input.get(span.start..span.end) {
+        if source == value {
+            return Cow::Borrowed(source);
+        }
+        if let Some(inner) = unescaped_quoted_inner(source, &value) {
+            return Cow::Borrowed(inner);
+        }
+    }
+    Cow::Owned(value)
+}
+
+fn unescaped_quoted_inner<'de>(source: &'de str, value: &str) -> Option<&'de str> {
+    if source.len() < 2 {
+        return None;
+    }
+
+    let quote = source.as_bytes()[0];
+    if !matches!(quote, b'\'' | b'"') || source.as_bytes().last() != Some(&quote) {
+        return None;
+    }
+
+    let inner = &source[1..source.len() - 1];
+    (inner == value).then_some(inner)
+}
+
 impl NodeValue {
     /// Returns the scalar string value, following transparent tags.
     pub fn as_str(&self) -> Option<&str> {

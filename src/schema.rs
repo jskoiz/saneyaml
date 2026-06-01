@@ -1,6 +1,6 @@
 //! Load options and schema selection for constructed YAML document trees.
 
-use crate::{Error, Node, Result, Span, de, parse};
+use crate::{BorrowedNode, Error, Node, Result, Span, de, parse};
 use serde::de::DeserializeOwned;
 use std::io::Read;
 
@@ -159,6 +159,11 @@ impl LoadOptions {
     /// Parses all documents in a YAML stream using these options.
     pub fn parse_documents(self, input: &str) -> Result<Vec<Node>> {
         parse::parse_documents_with_options(input, self)
+    }
+
+    /// Parses all documents into spanless trees that can borrow scalar strings from `input`.
+    pub fn parse_borrowed_documents<'de>(self, input: &'de str) -> Result<Vec<BorrowedNode<'de>>> {
+        parse::parse_borrowed_documents_with_options(input, self)
     }
 
     /// Creates a pull-based raw event stream using these options.

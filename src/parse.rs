@@ -1,7 +1,8 @@
 //! YAML parser entrypoints and raw event types.
 
 use crate::{
-    Error, Node, NodeValue as Value, Number, Result, Span, Tag, TaggedNode, Timestamp,
+    BorrowedNode, Error, Node, NodeValue as Value, Number, Result, Span, Tag, TaggedNode,
+    Timestamp,
     ast::MergePolicy,
     de::read_to_end_with_options,
     error::utf8_error_span,
@@ -325,6 +326,28 @@ pub(crate) fn parse_documents_with_options(input: &str, options: LoadOptions) ->
         .collect()
 }
 
+/// Parses all documents into spanless trees that can borrow scalar strings from `input`.
+///
+/// This additive retained-output path keeps semantic loading behavior aligned
+/// with [`parse_documents`], including merge-key expansion, duplicate-key
+/// checks, alias budgets, and schema selection. Unlike [`Node`], returned
+/// [`BorrowedNode`] values do not retain spans or raw scalar source spellings.
+pub fn parse_borrowed_documents(input: &str) -> Result<Vec<BorrowedNode<'_>>> {
+    parse_borrowed_documents_with_options(input, LoadOptions::new())
+}
+
+pub(crate) fn parse_borrowed_documents_with_options(
+    input: &str,
+    options: LoadOptions,
+) -> Result<Vec<BorrowedNode<'_>>> {
+    let mut docs = parse_documents_with_options(input, options)?
+        .into_iter()
+        .map(|doc| BorrowedNode::from_node(input, doc))
+        .collect::<Vec<_>>();
+    docs.shrink_to_fit();
+    Ok(docs)
+}
+
 pub(crate) fn parse_document_results_with_options(
     input: &str,
     options: LoadOptions,
@@ -359,6 +382,16 @@ fn apply_merge_keys_to_document_results(
             })
         })
         .collect()
+}
+
+fn sequence_node(mut items: Vec<Node>, span: Span) -> Node {
+    items.shrink_to_fit();
+    Node::new(Value::Sequence(items), span)
+}
+
+fn mapping_node(mut entries: Vec<(Node, Node)>, span: Span) -> Node {
+    entries.shrink_to_fit();
+    Node::new(Value::Mapping(entries), span)
 }
 
 /// Parses a YAML stream and returns raw structural events.
@@ -986,6 +1019,7 @@ impl Parser {
         while let Some(result) = self.parse_next_document_result(&mut state) {
             docs.push(result);
         }
+        docs.shrink_to_fit();
         docs
     }
 
@@ -1490,7 +1524,7 @@ impl Parser {
         let end = items.last().map(|item| item.span.end).unwrap_or(start.end);
         let span = Span::new(start.start, end, start.line, start.column);
         self.emit_sequence_end(span);
-        Ok(Node::new(Value::Sequence(items), span))
+        Ok(sequence_node(items, span))
     }
 
     fn parse_mapping(&mut self, indent: usize, depth: usize) -> Result<Node> {
@@ -1563,7 +1597,7 @@ impl Parser {
             .unwrap_or(start.end);
         let span = Span::new(start.start, end, start.line, start.column);
         self.emit_mapping_end(span);
-        Ok(Node::new(Value::Mapping(entries), span))
+        Ok(mapping_node(entries, span))
     }
 
     fn parse_inline_mapping_item(
@@ -1615,7 +1649,7 @@ impl Parser {
             line.indent + rest_start + 1,
         );
         self.emit_mapping_end(span);
-        Ok(Node::new(Value::Mapping(entries), span))
+        Ok(mapping_node(entries, span))
     }
 
     fn parse_explicit_block_key(
@@ -1780,7 +1814,7 @@ impl Parser {
             line.indent + sequence_start + 1,
         );
         self.emit_sequence_end(span);
-        Ok(Node::new(Value::Sequence(items), span))
+        Ok(sequence_node(items, span))
     }
 
     fn parse_sequence_value_from_line(
@@ -1898,7 +1932,7 @@ impl Parser {
         );
         self.emit_mapping_end(span);
         self.record_merge_key(&key);
-        Ok(Node::new(Value::Mapping(vec![(key, value)]), span))
+        Ok(mapping_node(vec![(key, value)], span))
     }
 
     fn parse_compact_mapping_node(
@@ -1925,7 +1959,7 @@ impl Parser {
             key.span.column,
         );
         self.emit_mapping_end(span);
-        Ok(Node::new(Value::Mapping(vec![(key, value)]), span))
+        Ok(mapping_node(vec![(key, value)], span))
     }
 
     fn parse_plain_or_inline_scalar(
@@ -4448,7 +4482,7 @@ impl<'a> FlowParser<'a> {
             if self.consume(']') {
                 let span = self.span(start, self.pos);
                 self.emit_sequence_end(span);
-                return Ok(Node::new(Value::Sequence(items), span));
+                return Ok(sequence_node(items, span));
             }
             if self.peek() == Some(',') {
                 return Err(Error::new(
@@ -4466,7 +4500,7 @@ impl<'a> FlowParser<'a> {
                 if self.consume(']') {
                     let span = self.span(start, self.pos);
                     self.emit_sequence_end(span);
-                    return Ok(Node::new(Value::Sequence(items), span));
+                    return Ok(sequence_node(items, span));
                 }
                 if self.peek() == Some(',') {
                     return Err(Error::new(
@@ -4481,7 +4515,7 @@ impl<'a> FlowParser<'a> {
             self.expect(']')?;
             let span = self.span(start, self.pos);
             self.emit_sequence_end(span);
-            return Ok(Node::new(Value::Sequence(items), span));
+            return Ok(sequence_node(items, span));
         }
     }
 
@@ -4565,7 +4599,7 @@ impl<'a> FlowParser<'a> {
             if self.consume('}') {
                 let span = self.span(start, self.pos);
                 self.emit_mapping_end(span);
-                return Ok(Node::new(Value::Mapping(entries), span));
+                return Ok(mapping_node(entries, span));
             }
             if self.peek() == Some(',') {
                 return Err(Error::new(
@@ -4582,7 +4616,7 @@ impl<'a> FlowParser<'a> {
                 if self.consume('}') {
                     let span = self.span(start, self.pos);
                     self.emit_mapping_end(span);
-                    return Ok(Node::new(Value::Mapping(entries), span));
+                    return Ok(mapping_node(entries, span));
                 }
                 if self.peek() == Some(',') {
                     return Err(Error::new(
@@ -4595,7 +4629,7 @@ impl<'a> FlowParser<'a> {
             self.expect('}')?;
             let span = self.span(start, self.pos);
             self.emit_mapping_end(span);
-            return Ok(Node::new(Value::Mapping(entries), span));
+            return Ok(mapping_node(entries, span));
         }
     }
 
@@ -4637,7 +4671,7 @@ impl<'a> FlowParser<'a> {
         );
         self.emit_mapping_end(span);
         self.record_merge_key(&key);
-        Ok(Node::new(Value::Mapping(vec![(key, value)]), span))
+        Ok(mapping_node(vec![(key, value)], span))
     }
 
     fn parse_flow_mapping_entry(&mut self) -> Result<(Node, Node)> {

@@ -37,20 +37,32 @@ default 200 iterations:
 | `yaml_rust2::YamlLoader` | 200 | 19,727 | 33 | 100.959 | 25.59 |
 | `saphyr::Yaml::load_from_str` | 200 | 19,727 | 33 | 92.393 | 23.42 |
 
-Post-optimization capture with 1,000 iterations:
+Post-optimization re-capture with 1,000 iterations (independent run,
+2026-06-01):
 
 | parser/load path | iterations | bytes per iteration | docs per iteration | elapsed ms | ns/byte |
 |---|---:|---:|---:|---:|---:|
-| `yaml::parse_documents` | 1,000 | 19,727 | 33 | 431.262 | 21.86 |
-| `yaml::from_documents_str::<Value>` | 1,000 | 19,727 | 33 | 506.879 | 25.69 |
-| `serde_yaml::Value` stream | 1,000 | 19,727 | 33 | 564.256 | 28.60 |
-| `yaml_rust2::YamlLoader` | 1,000 | 19,727 | 33 | 454.845 | 23.06 |
-| `saphyr::Yaml::load_from_str` | 1,000 | 19,727 | 33 | 453.165 | 22.97 |
+| `yaml::parse_documents` | 1,000 | 19,727 | 33 | 419.014 | 21.24 |
+| `yaml::from_documents_str::<Value>` | 1,000 | 19,727 | 33 | 494.226 | 25.05 |
+| `serde_yaml::Value` stream | 1,000 | 19,727 | 33 | 514.426 | 26.08 |
+| `yaml_rust2::YamlLoader` | 1,000 | 19,727 | 33 | 429.931 | 21.79 |
+| `saphyr::Yaml::load_from_str` | 1,000 | 19,727 | 33 | 395.819 | 20.06 |
 
-Result: `yaml::parse_documents` moved from 32.03 ns/byte to 21.86 ns/byte on
-the existing config corpus and is faster than both pinned reference loaders in
-the latest 1,000-iteration capture. `Value` loading also moved ahead of
-`serde_yaml` on this corpus.
+Result: the optimizations moved `yaml::parse_documents` from 32.03 ns/byte to
+about 21 ns/byte on this corpus — a real ~30% improvement over this crate's own
+prior baseline. On a same-run comparison it is competitive with `yaml_rust2`
+(21.24 vs 21.79) and beats the `serde_yaml` `Value` stream (yaml `Value` 25.05
+vs 26.08), but `saphyr` remains faster here (20.06). Treat the small-corpus
+loader ranking as noise-level: at equal iteration counts the gap between `yaml`,
+`yaml_rust2`, and `saphyr` is only a few percent and can reorder between runs,
+so this corpus does not by itself establish a "faster than the references"
+headline.
+
+Methodology caveat: the pre-optimization table above was captured at 200
+iterations and the post-optimization table at 1,000, so part of the across-table
+ns/byte drop reflects warm-up rather than optimization. The trustworthy signal
+is the same-run cross-loader comparison within each table, plus the larger,
+lower-noise inputs below — not the across-table delta.
 
 ## Large Inputs
 
@@ -123,12 +135,16 @@ Generated one-document wide service mapping / 1,048,661 bytes.
 | `yaml_rust2::YamlLoader` | 20 | 1,048,661 | 1 | 492.104 | 23.46 | 6,786,771 |
 | `saphyr::Yaml::load_from_str` | 20 | 1,048,661 | 1 | 426.032 | 20.31 | 9,523,712 |
 
-Large-input story: the parser is competitive on pinned downstream real-world
-YAML and beats `yaml-rust2` on the 1 MiB generated wide-mapping path. The
-Serde-facing `Value` path now avoids quadratic map construction on wide
-mappings, beats `serde_yaml` on the large real corpus and generated wide maps,
-and retains materially less parsed output than the reference loaders on those
-load-path comparisons. `saphyr` remains the fastest large-input parser/load
-reference, especially for many-document streams, so future work should focus on
-reducing document-vector and per-line parser retention if that path becomes the
-next performance target.
+Large-input story (independently reproduced 2026-06-01, within ~3% of the table
+above): `saphyr` is the fastest parser/load reference on every large path
+measured, so this crate does not hold a raw-speed headline. Versus `yaml-rust2`
+the parser is genuinely mixed — it wins or ties on the wide-mapping paths and
+trails on the many-document stream and pinned downstream files — i.e.
+competitive, not ahead. The durable, reproducible wins are elsewhere: the
+Serde-facing `Value` path now avoids quadratic map construction on wide mappings,
+beats the `serde_yaml` `Value` stream on the large real corpus and generated wide
+maps, and retains materially less parsed output than every reference loader on
+those load-path comparisons (e.g. 217 KB vs `serde_yaml` 397 KB and `saphyr`
+535 KB on the downstream corpus). To actually beat `saphyr` on raw speed, future
+work must reduce per-line parser retention and document-vector growth and shorten
+the scalar/number hot path; see `FEATURE_GOALS.md`.

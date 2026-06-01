@@ -423,6 +423,117 @@ fn lossless_in_place_edit_updates_compose_db_service_with_minimal_diff() {
     );
 }
 
+#[test]
+fn lossless_in_place_edit_extends_wrangler_flow_and_block_sequences() {
+    let input = include_str!("fixtures/real-world/cloudflare/wrangler.yaml");
+    let stream = parse_lossless(input).expect("lossless parse wrangler config");
+    let root = stream.documents()[0].root().expect("root mapping");
+    let flags = mapping_value_by_scalar_key(&stream, root, "compatibility_flags");
+    let routes = mapping_value_by_scalar_key(&stream, root, "routes");
+
+    let mut edit = stream.edit();
+    edit.insert_flow_sequence_item_source(flags, 1, "nodejs_als")
+        .expect("append compatibility flag");
+    edit.insert_block_sequence_item_source(
+        routes,
+        1,
+        "pattern: api.example.com/*\nzone_name: example.com",
+    )
+    .expect("append route");
+    let edited = edit.finish().expect("edited wrangler config re-parses");
+
+    // The runtime-settings comment and every untouched key stay byte-stable;
+    // only the flow flag line changes in place and the new block route appears.
+    assert_line_changes(
+        input,
+        &edited,
+        &["compatibility_flags: [nodejs_compat]"],
+        &[
+            "compatibility_flags: [nodejs_compat, nodejs_als]",
+            "  - pattern: api.example.com/*",
+            "    zone_name: example.com",
+        ],
+    );
+}
+
+#[test]
+fn lossless_in_place_delete_keeps_compose_service_comments() {
+    let input = include_str!("fixtures/real-world/docker-compose/awesome-nginx-flask-mysql.yaml");
+    let stream = parse_lossless(input).expect("lossless parse Compose stack");
+    let root = stream.documents()[0].root().expect("root mapping");
+    let services = mapping_value_by_scalar_key(&stream, root, "services");
+    let db = mapping_value_by_scalar_key(&stream, services, "db");
+
+    let edited = stream
+        .delete_block_mapping_entry_source(db, "expose")
+        .expect("delete db expose entry");
+
+    // Only the three `expose` lines are removed; the db service's leading
+    // comments (which are attached to other entries) survive untouched.
+    assert_line_changes(
+        input,
+        &edited,
+        &["    expose:", "      - 3306", "      - 33060"],
+        &[],
+    );
+    assert!(
+        edited.contains("# We use a mariadb image which supports both amd64 & arm64 architecture"),
+        "image comment preserved after deleting a sibling entry"
+    );
+    assert!(
+        edited.contains("#image: mysql:8"),
+        "commented-out alternative image preserved after deletion"
+    );
+}
+
+/// Asserts the line-level diff between `original` and `edited` consists of exactly
+/// the given removed and added lines (each in document order). Because it is built
+/// on a longest-common-subsequence diff, every line not listed here — comments,
+/// blank lines, sibling entries — is proven byte-stable.
+fn assert_line_changes(
+    original: &str,
+    edited: &str,
+    expected_removed: &[&str],
+    expected_added: &[&str],
+) {
+    let before: Vec<&str> = original.lines().collect();
+    let after: Vec<&str> = edited.lines().collect();
+    let (n, m) = (before.len(), after.len());
+
+    // Longest-common-subsequence length table over whole lines.
+    let mut lcs = vec![vec![0usize; m + 1]; n + 1];
+    for i in (0..n).rev() {
+        for j in (0..m).rev() {
+            lcs[i][j] = if before[i] == after[j] {
+                lcs[i + 1][j + 1] + 1
+            } else {
+                lcs[i + 1][j].max(lcs[i][j + 1])
+            };
+        }
+    }
+
+    let (mut i, mut j) = (0usize, 0usize);
+    let mut removed = Vec::new();
+    let mut added = Vec::new();
+    while i < n && j < m {
+        if before[i] == after[j] {
+            i += 1;
+            j += 1;
+        } else if lcs[i + 1][j] >= lcs[i][j + 1] {
+            removed.push(before[i]);
+            i += 1;
+        } else {
+            added.push(after[j]);
+            j += 1;
+        }
+    }
+    removed.extend_from_slice(&before[i..]);
+    added.extend_from_slice(&after[j..]);
+
+    assert_eq!(removed, expected_removed, "unexpected removed lines");
+    assert_eq!(added, expected_added, "unexpected added lines");
+}
+
 /// Asserts the edit changed only the intended lines: line count is preserved and
 /// the ordered set of `(before, after)` line replacements matches `expected`,
 /// proving every untouched line is byte-stable.

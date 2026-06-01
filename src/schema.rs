@@ -14,19 +14,39 @@ pub const DEFAULT_ALIAS_EXPANSION_FACTOR: usize = 64;
 pub const DEFAULT_MIN_ALIAS_EXPANSION_NODES: usize = 1024;
 
 /// Scalar construction schema used by tree and Serde loading.
+///
+/// `Yaml12` is the default-compatible spelling and uses the same YAML
+/// 1.2-oriented config behavior as [`Schema::Core`]. `Yaml11` is the legacy
+/// spelling for [`Schema::LegacySerdeYaml`]. The retained versioned names keep
+/// existing call sites working while the named modes make scalar resolution
+/// choices explicit.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum Schema {
     /// YAML 1.2-oriented core schema used by the default entrypoints.
     #[default]
     Yaml12,
+    /// Explicit YAML 1.2 Core-compatible construction.
+    Core,
+    /// YAML 1.2 JSON schema construction.
+    Json,
+    /// YAML Failsafe construction, leaving every scalar as a string.
+    Failsafe,
     /// Explicit YAML 1.1 compatibility schema for legacy configuration files.
     Yaml11,
+    /// Legacy libyaml/serde_yaml-era construction for migration call sites.
+    LegacySerdeYaml,
     /// Selects scalar construction from each document's `%YAML` version directive.
     ///
-    /// Documents with `%YAML 1.1` use [`Schema::Yaml11`]. Documents without a
-    /// version directive, with `%YAML 1.2`, or with newer numeric versions use
-    /// [`Schema::Yaml12`].
+    /// Documents with `%YAML 1.1` use [`Schema::LegacySerdeYaml`]. Documents
+    /// without a version directive, with `%YAML 1.2`, or with newer numeric
+    /// versions use [`Schema::Yaml12`].
     YamlVersionDirective,
+}
+
+impl Schema {
+    pub(crate) const fn is_legacy_compatible(self) -> bool {
+        matches!(self, Self::Yaml11 | Self::LegacySerdeYaml)
+    }
 }
 
 /// Options for loading YAML into constructed trees or Serde values.
@@ -53,10 +73,46 @@ impl LoadOptions {
         }
     }
 
+    /// Creates load options using explicit YAML 1.2 Core-compatible construction.
+    pub const fn core() -> Self {
+        Self {
+            schema: Schema::Core,
+            max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
+            max_alias_expansion_nodes: None,
+        }
+    }
+
+    /// Creates load options using YAML 1.2 JSON schema construction.
+    pub const fn json() -> Self {
+        Self {
+            schema: Schema::Json,
+            max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
+            max_alias_expansion_nodes: None,
+        }
+    }
+
+    /// Creates load options using YAML Failsafe construction.
+    pub const fn failsafe() -> Self {
+        Self {
+            schema: Schema::Failsafe,
+            max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
+            max_alias_expansion_nodes: None,
+        }
+    }
+
     /// Creates load options using explicit YAML 1.1 compatibility construction.
     pub const fn yaml_1_1() -> Self {
         Self {
             schema: Schema::Yaml11,
+            max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
+            max_alias_expansion_nodes: None,
+        }
+    }
+
+    /// Creates load options using legacy libyaml/serde_yaml-era construction.
+    pub const fn legacy_serde_yaml() -> Self {
+        Self {
+            schema: Schema::LegacySerdeYaml,
             max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
             max_alias_expansion_nodes: None,
         }

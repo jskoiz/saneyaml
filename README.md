@@ -18,7 +18,11 @@ The first milestone focuses on:
 - Raw parser events preserve scalar values, style, tags, anchors, and directive
   metadata; constructed document trees use YAML 1.2 core scalar resolution by
   default.
-- Explicit `LoadOptions::yaml_1_1()` construction for legacy YAML 1.1
+- Explicit schema modes through `LoadOptions::{core, json, failsafe,
+  legacy_serde_yaml}` and `Schema::{Core, Json, Failsafe,
+  LegacySerdeYaml}`. Default loading stays YAML 1.2-oriented through the
+  retained `Schema::Yaml12` spelling; `Schema::Yaml11` remains the retained
+  spelling for the legacy mode. Legacy construction covers YAML 1.1
   booleans/nulls, `yaml::Timestamp` typed reads for timestamp-shaped scalars,
   and numeric forms that fit the current value model, plus
   `LoadOptions::yaml_version_directive()` for callers that want `%YAML 1.1`

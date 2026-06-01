@@ -6,7 +6,11 @@ use yaml::{Error, LoadOptions, Node, NodeValue, Schema, Span, Value};
 fuzz_target!(|input: &[u8]| {
     for options in [
         LoadOptions::new(),
+        LoadOptions::core(),
+        LoadOptions::json(),
+        LoadOptions::failsafe(),
         LoadOptions::new().schema(Schema::Yaml11),
+        LoadOptions::legacy_serde_yaml(),
         LoadOptions::yaml_version_directive(),
     ] {
         assert_parse_invariants(input, options);

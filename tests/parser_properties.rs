@@ -991,7 +991,11 @@ fn assert_serde_entrypoint_invariants(input: &[u8]) {
 fn assert_schema_mode_invariants(input: &[u8]) {
     for options in [
         LoadOptions::new(),
+        LoadOptions::core(),
+        LoadOptions::json(),
+        LoadOptions::failsafe(),
         LoadOptions::new().schema(Schema::Yaml11),
+        LoadOptions::legacy_serde_yaml(),
         LoadOptions::yaml_version_directive(),
     ] {
         match options.parse_bytes(input) {

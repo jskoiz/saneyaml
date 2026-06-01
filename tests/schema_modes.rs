@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
+use std::io::Cursor;
 use yaml::{Date, LoadOptions, Schema, Tag, Time, TimeZoneOffset, Timestamp, Value};
 
 #[test]
@@ -17,11 +18,31 @@ fn schema_mode_defaults_to_yaml_12_config_behavior() {
     assert!(value["date"].as_tagged().is_none());
 }
 
+#[derive(Clone, Copy)]
+enum ExpectedScalar<'a> {
+    Null,
+    Bool(bool),
+    I64(i64),
+    F64(f64),
+    Nan,
+    Str(&'a str),
+    Timestamp(&'a str),
+}
+
 #[test]
 fn load_options_default_carries_schema_and_input_limit_defaults() {
     assert_eq!(LoadOptions::default(), LoadOptions::new());
     assert_eq!(yaml::DEFAULT_ALIAS_EXPANSION_FACTOR, 64);
     assert_eq!(yaml::DEFAULT_MIN_ALIAS_EXPANSION_NODES, 1024);
+    assert_eq!(LoadOptions::new().selected_schema(), Schema::Yaml12);
+    assert_eq!(LoadOptions::core().selected_schema(), Schema::Core);
+    assert_eq!(LoadOptions::json().selected_schema(), Schema::Json);
+    assert_eq!(LoadOptions::failsafe().selected_schema(), Schema::Failsafe);
+    assert_eq!(LoadOptions::yaml_1_1().selected_schema(), Schema::Yaml11);
+    assert_eq!(
+        LoadOptions::legacy_serde_yaml().selected_schema(),
+        Schema::LegacySerdeYaml
+    );
     assert_eq!(
         LoadOptions::new().selected_max_input_bytes(),
         Some(yaml::DEFAULT_MAX_INPUT_BYTES)
@@ -64,6 +85,236 @@ fn load_options_default_carries_schema_and_input_limit_defaults() {
             .selected_max_alias_expansion_nodes(),
         Some(32)
     );
+}
+
+#[test]
+fn named_schema_modes_resolve_scalars_from_authoritative_table() {
+    let rows = [
+        (
+            "",
+            ExpectedScalar::Null,
+            ExpectedScalar::Null,
+            ExpectedScalar::Null,
+            ExpectedScalar::Null,
+        ),
+        (
+            "~",
+            ExpectedScalar::Null,
+            ExpectedScalar::Str("~"),
+            ExpectedScalar::Str("~"),
+            ExpectedScalar::Null,
+        ),
+        (
+            "null",
+            ExpectedScalar::Null,
+            ExpectedScalar::Null,
+            ExpectedScalar::Str("null"),
+            ExpectedScalar::Null,
+        ),
+        (
+            "Null",
+            ExpectedScalar::Null,
+            ExpectedScalar::Str("Null"),
+            ExpectedScalar::Str("Null"),
+            ExpectedScalar::Null,
+        ),
+        (
+            "true",
+            ExpectedScalar::Bool(true),
+            ExpectedScalar::Bool(true),
+            ExpectedScalar::Str("true"),
+            ExpectedScalar::Bool(true),
+        ),
+        (
+            "True",
+            ExpectedScalar::Bool(true),
+            ExpectedScalar::Str("True"),
+            ExpectedScalar::Str("True"),
+            ExpectedScalar::Bool(true),
+        ),
+        (
+            "false",
+            ExpectedScalar::Bool(false),
+            ExpectedScalar::Bool(false),
+            ExpectedScalar::Str("false"),
+            ExpectedScalar::Bool(false),
+        ),
+        (
+            "FALSE",
+            ExpectedScalar::Bool(false),
+            ExpectedScalar::Str("FALSE"),
+            ExpectedScalar::Str("FALSE"),
+            ExpectedScalar::Bool(false),
+        ),
+        (
+            "yes",
+            ExpectedScalar::Str("yes"),
+            ExpectedScalar::Str("yes"),
+            ExpectedScalar::Str("yes"),
+            ExpectedScalar::Bool(true),
+        ),
+        (
+            "NO",
+            ExpectedScalar::Str("NO"),
+            ExpectedScalar::Str("NO"),
+            ExpectedScalar::Str("NO"),
+            ExpectedScalar::Bool(false),
+        ),
+        (
+            "on",
+            ExpectedScalar::Str("on"),
+            ExpectedScalar::Str("on"),
+            ExpectedScalar::Str("on"),
+            ExpectedScalar::Bool(true),
+        ),
+        (
+            "Off",
+            ExpectedScalar::Str("Off"),
+            ExpectedScalar::Str("Off"),
+            ExpectedScalar::Str("Off"),
+            ExpectedScalar::Bool(false),
+        ),
+        (
+            "123",
+            ExpectedScalar::I64(123),
+            ExpectedScalar::I64(123),
+            ExpectedScalar::Str("123"),
+            ExpectedScalar::I64(123),
+        ),
+        (
+            "+12",
+            ExpectedScalar::I64(12),
+            ExpectedScalar::Str("+12"),
+            ExpectedScalar::Str("+12"),
+            ExpectedScalar::I64(12),
+        ),
+        (
+            "0123",
+            ExpectedScalar::I64(123),
+            ExpectedScalar::Str("0123"),
+            ExpectedScalar::Str("0123"),
+            ExpectedScalar::I64(83),
+        ),
+        (
+            "0x7B",
+            ExpectedScalar::Str("0x7B"),
+            ExpectedScalar::Str("0x7B"),
+            ExpectedScalar::Str("0x7B"),
+            ExpectedScalar::I64(123),
+        ),
+        (
+            "0b1010",
+            ExpectedScalar::Str("0b1010"),
+            ExpectedScalar::Str("0b1010"),
+            ExpectedScalar::Str("0b1010"),
+            ExpectedScalar::I64(10),
+        ),
+        (
+            "0o77",
+            ExpectedScalar::Str("0o77"),
+            ExpectedScalar::Str("0o77"),
+            ExpectedScalar::Str("0o77"),
+            ExpectedScalar::Str("0o77"),
+        ),
+        (
+            "1_000",
+            ExpectedScalar::I64(1000),
+            ExpectedScalar::Str("1_000"),
+            ExpectedScalar::Str("1_000"),
+            ExpectedScalar::I64(1000),
+        ),
+        (
+            "1:20",
+            ExpectedScalar::Str("1:20"),
+            ExpectedScalar::Str("1:20"),
+            ExpectedScalar::Str("1:20"),
+            ExpectedScalar::I64(4800),
+        ),
+        (
+            "1.5",
+            ExpectedScalar::F64(1.5),
+            ExpectedScalar::F64(1.5),
+            ExpectedScalar::Str("1.5"),
+            ExpectedScalar::F64(1.5),
+        ),
+        (
+            ".inf",
+            ExpectedScalar::F64(f64::INFINITY),
+            ExpectedScalar::Str(".inf"),
+            ExpectedScalar::Str(".inf"),
+            ExpectedScalar::F64(f64::INFINITY),
+        ),
+        (
+            "-.Inf",
+            ExpectedScalar::F64(f64::NEG_INFINITY),
+            ExpectedScalar::Str("-.Inf"),
+            ExpectedScalar::Str("-.Inf"),
+            ExpectedScalar::F64(f64::NEG_INFINITY),
+        ),
+        (
+            ".NAN",
+            ExpectedScalar::Nan,
+            ExpectedScalar::Str(".NAN"),
+            ExpectedScalar::Str(".NAN"),
+            ExpectedScalar::Nan,
+        ),
+        (
+            "2026-05-24",
+            ExpectedScalar::Str("2026-05-24"),
+            ExpectedScalar::Str("2026-05-24"),
+            ExpectedScalar::Str("2026-05-24"),
+            ExpectedScalar::Timestamp("2026-05-24"),
+        ),
+    ];
+
+    for (scalar, core, json, failsafe, legacy) in rows {
+        assert_scalar(LoadOptions::core(), scalar, core);
+        assert_scalar(LoadOptions::json(), scalar, json);
+        assert_scalar(LoadOptions::failsafe(), scalar, failsafe);
+        assert_scalar(LoadOptions::legacy_serde_yaml(), scalar, legacy);
+    }
+}
+
+#[test]
+fn retained_schema_names_match_named_modes() {
+    let input = "flag: ON\nhex: 0x10\noctal: 0123\nclock: 1:20\ndate: 2026-05-24\n";
+    let yaml12: Value = LoadOptions::new()
+        .schema(Schema::Yaml12)
+        .from_str(input)
+        .expect("YAML 1.2 spelling parses");
+    let core: Value = LoadOptions::core()
+        .from_str(input)
+        .expect("Core spelling parses");
+    assert_eq!(yaml12, core);
+
+    let yaml11: Value = LoadOptions::new()
+        .schema(Schema::Yaml11)
+        .from_str(input)
+        .expect("YAML 1.1 spelling parses");
+    let legacy: Value = LoadOptions::legacy_serde_yaml()
+        .from_str(input)
+        .expect("Legacy spelling parses");
+    assert_eq!(yaml11, legacy);
+}
+
+#[test]
+fn schema_modes_keep_input_limit_before_resolution() {
+    for options in [
+        LoadOptions::core(),
+        LoadOptions::json(),
+        LoadOptions::failsafe(),
+        LoadOptions::legacy_serde_yaml(),
+    ] {
+        let error = options
+            .max_input_bytes(4)
+            .from_reader::<_, Value>(Cursor::new("value: 123\n"))
+            .expect_err("input limit applies before schema resolution");
+        assert!(
+            error
+                .to_string()
+                .contains("YAML input exceeds configured limit")
+        );
+    }
 }
 
 #[test]
@@ -476,6 +727,39 @@ fn yaml_11_schema_preserves_source_spelling_for_string_targets() {
     assert_eq!(config.flag, "ON");
     assert_eq!(config.count, "0x10");
     assert_eq!(config.date, "2026-05-24");
+}
+
+fn assert_scalar(options: LoadOptions, scalar: &str, expected: ExpectedScalar<'_>) {
+    let input = if scalar.is_empty() {
+        "value:\n".to_string()
+    } else {
+        format!("value: {scalar}\n")
+    };
+    let value: Value = options.from_str(&input).expect("schema scalar parses");
+    let value = &value["value"];
+    match expected {
+        ExpectedScalar::Null => assert!(value.is_null(), "{scalar:?} should be null"),
+        ExpectedScalar::Bool(expected) => assert_eq!(value.as_bool(), Some(expected), "{scalar:?}"),
+        ExpectedScalar::I64(expected) => assert_eq!(value.as_i64(), Some(expected), "{scalar:?}"),
+        ExpectedScalar::F64(expected) => {
+            assert_eq!(value.as_f64(), Some(expected), "{scalar:?}");
+        }
+        ExpectedScalar::Nan => {
+            assert!(
+                value.as_f64().is_some_and(f64::is_nan),
+                "{scalar:?} should be NaN"
+            );
+        }
+        ExpectedScalar::Str(expected) => assert_eq!(value.as_str(), Some(expected), "{scalar:?}"),
+        ExpectedScalar::Timestamp(expected) => {
+            assert_eq!(value.as_str(), Some(expected), "{scalar:?}");
+            assert_eq!(
+                value.as_timestamp(),
+                Timestamp::parse_yaml_1_1(expected),
+                "{scalar:?}"
+            );
+        }
+    }
 }
 
 fn assert_yaml11_timestamp(value: &Value, expected: &str, timestamp: Timestamp) {

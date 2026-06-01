@@ -56,6 +56,11 @@ Notable completed release-candidate behavior:
 - The migration harness records YAML 1.1 scalar construction as an explicit
   call-site choice, including the default decimal treatment of `0123` versus
   YAML 1.1 octal interpretation under `LoadOptions`.
+- `LoadOptions` now exposes named schema resolution modes:
+  `core`, `json`, `failsafe`, and `legacy_serde_yaml`, backed by public
+  `Schema::{Core, Json, Failsafe, LegacySerdeYaml}` variants. The retained
+  `Yaml12` and `Yaml11` spellings keep existing call sites working, and
+  `COMPATIBILITY.md` carries the tested scalar table.
 - YAML 1.1 loading now recovers Psych/libyaml merge edges for repeated real
   merge keys and non-mergeable merge payloads while default YAML 1.2-oriented
   loading keeps those cases strict.

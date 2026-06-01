@@ -57,6 +57,31 @@ for intentional behavior splits that matter during migration.
 | Explicit core tags | Tree and `Value` loading preserve explicit `!!binary`, `!!str`, `!!bool`, `!!null`, `!!timestamp`, `!!int`, and `!!float` tags, including canonical `tag:yaml.org,2002:*` forms written verbatim or through `%TAG` handles; typed Serde reads coerce explicit `!!str`, `!!bool`, `!!null`, `!!int`, and `!!float` targets, including legacy boolean/null, radix, and sexagesimal spellings; retained `Value` numeric helpers parse explicit `!!int`/`!!float` spellings without erasing tag/source metadata; explicit `!!timestamp` is exposed as `yaml::Timestamp`, and explicit `!!binary` byte targets decode while preserving tags in retained values | YAML 1.1 typed binary/timestamp/string/bool/null/numeric support is common | Tag-aware behavior varies, including `BadValue` for some explicit core tags | Partial/lossy |
 | YAML 1.1 collection and structural tags | Tree and `Value` loading preserve explicit `!!set`, `!!omap`, `!!pairs`, `!!seq`, `!!map`, and `!!value` as tagged payloads, including canonical `tag:yaml.org,2002:*` spellings and custom `%TAG` handles that resolve to those core tags. Typed Serde reads expose `!!set` as set-like sequence targets from null-valued mapping keys, `!!omap` as pair sequences or map targets, `!!pairs` as pair sequences that preserve duplicates, `!!seq` as sequence targets, `!!map` as map/struct targets, and `!!value` as the scalar value. Malformed typed collection payloads are rejected with spans instead of following Psych's lossy recovery. | Psych/libyaml constructs `Psych::Set`, `Psych::Omap`, pair arrays, arrays, hashes, and `!!value =` as a string, and can recover malformed collection-tag payloads by retaining or reshaping them | Parser/event tag information is available, but loaded-tree and typed-Serde contracts differ | Tag metadata is not retained |
 
+## Scalar Resolution Modes
+
+`Schema::Yaml12` is the retained default-compatible spelling for the same
+YAML 1.2-oriented behavior exposed as `Schema::Core`; `Schema::Yaml11` is the
+retained spelling for `Schema::LegacySerdeYaml`. `Schema::Json` resolves only
+JSON lowercase booleans/null and JSON numbers, then keeps other scalar text as
+strings rather than rejecting an already parsed YAML document. `Schema::Failsafe`
+keeps scalar text as strings. Missing mapping values and empty documents are
+parser empty nodes before scalar text resolution and remain null in every mode.
+
+| Plain scalar | Core / Yaml12 | Json | Failsafe | LegacySerdeYaml / Yaml11 |
+|---|---|---|---|---|
+| missing value | null | null | null | null |
+| `~` | null | string | string | null |
+| `null`, `Null`, `NULL` | null | `null` only is null; other spellings string | string | null |
+| `true`, `false` | bool | bool | string | bool |
+| `True`, `TRUE`, `False`, `FALSE` | bool | string | string | bool |
+| `yes`, `no`, `on`, `off`, `y`, `n`, `NO` | string | string | string | bool |
+| `123`, `+12`, `0123`, `1_000` | decimal number | JSON number only; `+12`, `0123`, and underscores string | string | number; `0123` is octal |
+| `0x7B`, `0b1010`, `0o77` | string | string | string | hex and binary numbers; `0o77` string |
+| `1:20`, `1:20:30.5` | string | string | string | sexagesimal number |
+| `1.5` | float | JSON float | string | float |
+| `.inf`, `-.Inf`, `.NAN` | float | string | string | float |
+| `2026-05-24`, timestamp datetimes | string | string | string | retained `!!timestamp` string with `Timestamp` typed reads |
+
 ## Public API Compatibility Surface
 
 Current read APIs:
@@ -110,9 +135,10 @@ Current read APIs:
   block/flow sequence item value/insert/delete edits, and anchor/alias graph
   identity reference-checked against parser anchor events from `yaml-rust2` and
   `saphyr`
-- `yaml::LoadOptions::{new, yaml_1_1, yaml_version_directive, schema,
-  max_input_bytes, without_input_limit, max_alias_expansion_nodes,
-  stream_events, stream_events_slice, stream_events_reader, stream_documents,
+- `yaml::LoadOptions::{new, core, json, failsafe, yaml_1_1,
+  legacy_serde_yaml, yaml_version_directive, schema, max_input_bytes,
+  without_input_limit, max_alias_expansion_nodes, stream_events,
+  stream_events_slice, stream_events_reader, stream_documents,
   stream_documents_slice, stream_documents_reader}` and `yaml::Schema` for
   explicit construction-schema selection, input-size policy, and alias
   expansion policy across parser, streaming, and Serde read entrypoints
@@ -164,8 +190,13 @@ real merge keys are cumulative merges where later repeated merge keys override
 duplicate merged entries while explicit target keys still override all merged
 keys.
 Default scalar construction remains YAML 1.2-oriented even when a stream has
-`%YAML 1.1`. Callers that need legacy YAML 1.1 scalar behavior can opt in with
-`yaml::LoadOptions::yaml_1_1()` or `yaml::LoadOptions::new().schema(Schema::Yaml11)`.
+`%YAML 1.1`. Callers can choose named schema modes with
+`LoadOptions::{core, json, failsafe, legacy_serde_yaml}` or
+`Schema::{Core, Json, Failsafe, LegacySerdeYaml}`. Callers that need legacy
+YAML 1.1 scalar behavior can opt in with `yaml::LoadOptions::yaml_1_1()`,
+`yaml::LoadOptions::legacy_serde_yaml()`, or
+`yaml::LoadOptions::new().schema(Schema::LegacySerdeYaml)`; the retained
+`Schema::Yaml11` spelling is behavior-equivalent.
 Callers that want document headers to select scalar construction can use
 `yaml::LoadOptions::yaml_version_directive()` or
 `Schema::YamlVersionDirective`; in that mode `%YAML 1.1` selects the legacy

@@ -3172,8 +3172,8 @@ fn parse_yaml_version(text: &str) -> Option<(u8, u8)> {
 
 fn default_construction_schema(schema: Schema) -> Schema {
     match schema {
-        Schema::Yaml11 => Schema::Yaml11,
-        Schema::Yaml12 | Schema::YamlVersionDirective => Schema::Yaml12,
+        Schema::YamlVersionDirective => Schema::Yaml12,
+        schema => schema,
     }
 }
 
@@ -3185,18 +3185,18 @@ fn schema_for_directives(schema: Schema, directives: &EventDocumentDirectives) -
                 .as_ref()
                 .is_some_and(|version| version.major == 1 && version.minor == 1) =>
         {
-            Schema::Yaml11
+            Schema::LegacySerdeYaml
         }
         Schema::YamlVersionDirective => Schema::Yaml12,
-        Schema::Yaml11 => Schema::Yaml11,
-        Schema::Yaml12 => Schema::Yaml12,
+        schema => schema,
     }
 }
 
 fn merge_policy_for_schema(schema: Schema) -> MergePolicy {
-    match schema {
-        Schema::Yaml11 => MergePolicy::Yaml11Compatible,
-        Schema::Yaml12 | Schema::YamlVersionDirective => MergePolicy::Strict,
+    if schema.is_legacy_compatible() {
+        MergePolicy::Yaml11Compatible
+    } else {
+        MergePolicy::Strict
     }
 }
 
@@ -3206,7 +3206,7 @@ fn check_duplicate_for_schema(
     seen: &mut HashMap<DuplicateKey, Span>,
     key: &Node,
 ) -> Result<()> {
-    if recording_events || (schema == Schema::Yaml11 && node_is_merge_key(key)) {
+    if recording_events || (schema.is_legacy_compatible() && node_is_merge_key(key)) {
         return Ok(());
     }
     check_duplicate(seen, key)
@@ -3821,10 +3821,16 @@ fn parse_scalar_with_span(text: &str, span: Span) -> Result<Node> {
 }
 
 fn parse_scalar_with_schema(text: &str, span: Span, schema: Schema) -> Result<Node> {
+    if schema == Schema::Failsafe {
+        return parse_failsafe_scalar(text, span);
+    }
+    if schema == Schema::Json {
+        return parse_json_scalar(text, span);
+    }
     if text.is_empty() || text == "~" || text.eq_ignore_ascii_case("null") {
         return Ok(Node::new(Value::Null, span).with_scalar_source(text));
     }
-    if schema == Schema::Yaml11
+    if schema.is_legacy_compatible()
         && let Some(value) = parse_yaml11_bool(text)
     {
         return Ok(Node::new(Value::Bool(value), span).with_scalar_source(text));
@@ -3841,15 +3847,15 @@ fn parse_scalar_with_schema(text: &str, span: Span, schema: Schema) -> Result<No
     if text.starts_with('\'') {
         return parse_single_quoted(text, span);
     }
-    if schema == Schema::Yaml11 && is_yaml11_timestamp(text) {
+    if schema.is_legacy_compatible() && is_yaml11_timestamp(text) {
         return Ok(yaml11_timestamp_node(text, span));
     }
-    if schema == Schema::Yaml11
+    if schema.is_legacy_compatible()
         && let Some(number) = parse_yaml11_number(text)?
     {
         return Ok(Node::new(Value::Number(number), span).with_scalar_source(text));
     }
-    if schema == Schema::Yaml11 && is_yaml11_invalid_octal(text) {
+    if schema.is_legacy_compatible() && is_yaml11_invalid_octal(text) {
         return Ok(Node::new(Value::String(text.to_string()), span).with_scalar_source(text));
     }
     match parse_number(text)? {
@@ -3862,6 +3868,40 @@ fn parse_scalar_with_schema(text: &str, span: Span, schema: Schema) -> Result<No
         NumberParse::PlainScalar => {}
     }
     Ok(Node::new(Value::String(text.to_string()), span))
+}
+
+fn parse_failsafe_scalar(text: &str, span: Span) -> Result<Node> {
+    if text.starts_with('"') {
+        return parse_double_quoted(text, span);
+    }
+    if text.starts_with('\'') {
+        return parse_single_quoted(text, span);
+    }
+    Ok(Node::new(Value::String(text.to_string()), span).with_scalar_source(text))
+}
+
+fn parse_json_scalar(text: &str, span: Span) -> Result<Node> {
+    if text == "null" {
+        return Ok(Node::new(Value::Null, span).with_scalar_source(text));
+    }
+    if text == "true" {
+        return Ok(Node::new(Value::Bool(true), span).with_scalar_source(text));
+    }
+    if text == "false" {
+        return Ok(Node::new(Value::Bool(false), span).with_scalar_source(text));
+    }
+    if text.starts_with('"') {
+        return parse_double_quoted(text, span);
+    }
+    if text.starts_with('\'') {
+        return parse_single_quoted(text, span);
+    }
+    if is_json_number(text)
+        && let NumberParse::Number(number) = parse_number(text)?
+    {
+        return Ok(Node::new(Value::Number(number), span).with_scalar_source(text));
+    }
+    Ok(Node::new(Value::String(text.to_string()), span).with_scalar_source(text))
 }
 
 fn parse_yaml11_bool(text: &str) -> Option<bool> {
@@ -4057,6 +4097,57 @@ fn parse_number(text: &str) -> Result<NumberParse> {
         }
     }
     Ok(NumberParse::PlainScalar)
+}
+
+fn is_json_number(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    let mut idx = usize::from(matches!(bytes.first(), Some(b'-')));
+    if idx >= bytes.len() {
+        return false;
+    }
+
+    match bytes[idx] {
+        b'0' => {
+            idx += 1;
+            if matches!(bytes.get(idx), Some(b'0'..=b'9')) {
+                return false;
+            }
+        }
+        b'1'..=b'9' => {
+            idx += 1;
+            while matches!(bytes.get(idx), Some(b'0'..=b'9')) {
+                idx += 1;
+            }
+        }
+        _ => return false,
+    }
+
+    if matches!(bytes.get(idx), Some(b'.')) {
+        idx += 1;
+        let fraction_start = idx;
+        while matches!(bytes.get(idx), Some(b'0'..=b'9')) {
+            idx += 1;
+        }
+        if idx == fraction_start {
+            return false;
+        }
+    }
+
+    if matches!(bytes.get(idx), Some(b'e' | b'E')) {
+        idx += 1;
+        if matches!(bytes.get(idx), Some(b'+' | b'-')) {
+            idx += 1;
+        }
+        let exponent_start = idx;
+        while matches!(bytes.get(idx), Some(b'0'..=b'9')) {
+            idx += 1;
+        }
+        if idx == exponent_start {
+            return false;
+        }
+    }
+
+    idx == bytes.len()
 }
 
 fn could_be_number(text: &str) -> bool {
@@ -5292,7 +5383,7 @@ mod tests {
                 "streaming parser must not retain per-document merge-key history"
             );
             let expected_schema = if documents % 2 == 1 {
-                Schema::Yaml11
+                Schema::LegacySerdeYaml
             } else {
                 Schema::Yaml12
             };

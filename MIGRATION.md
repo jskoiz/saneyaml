@@ -97,10 +97,15 @@ tests that exercise the actual downstream YAML files.
 
 Additional crate surfaces useful during migration:
 
-- `yaml::LoadOptions::yaml_1_1()` and `yaml::Schema::Yaml11` opt into legacy
-  YAML 1.1 boolean/null and numeric scalar construction, including legacy
-  radix and sexagesimal numeric spellings, for callers that know their corpus
-  depends on those rules. `yaml::LoadOptions::yaml_version_directive()` and
+- `yaml::LoadOptions::{core, json, failsafe, legacy_serde_yaml}` and
+  `yaml::Schema::{Core, Json, Failsafe, LegacySerdeYaml}` expose named scalar
+  resolution modes. `yaml::Schema::Yaml12` remains the default-compatible
+  spelling for YAML 1.2-oriented Core behavior, and
+  `yaml::LoadOptions::yaml_1_1()` / `yaml::Schema::Yaml11` remain retained
+  spellings for the broad legacy YAML 1.1/libyaml-era mode. Legacy construction
+  resolves boolean/null aliases, timestamp-shaped plain scalars, legacy radix
+  and sexagesimal numeric spellings for callers that know their corpus depends
+  on those rules. `yaml::LoadOptions::yaml_version_directive()` and
   `yaml::Schema::YamlVersionDirective` apply that legacy construction per
   document only when the document declares `%YAML 1.1`. Default entrypoints
   remain YAML 1.2-oriented.
@@ -297,6 +302,14 @@ testing each adopter's own YAML corpus.
 
 ## Known Migration Limits
 
+- Schema resolution is explicit. `LoadOptions::core()` follows the default
+  YAML 1.2-oriented scalar table, `LoadOptions::json()` resolves only JSON
+  lowercase booleans/null and JSON numbers while leaving other scalar text as
+  strings, `LoadOptions::failsafe()` leaves scalar text as strings, and
+  `LoadOptions::legacy_serde_yaml()` follows the existing broad legacy
+  YAML 1.1/libyaml-era table. Missing mapping values remain parser empty nodes
+  before schema resolution and therefore stay null. The full table is in
+  `COMPATIBILITY.md`.
 - YAML 1.1 scalar construction is explicit. `LoadOptions` can resolve legacy
   boolean/null aliases plus timestamp-shaped plain scalars, signed and
   underscored leading-zero octal, hex, binary numeric, two/three-part

@@ -431,7 +431,7 @@ fn assert_value_writer_replays(path: &str, value: &serde_yaml::Value) {
     assert_eq!(written, emitted.as_bytes(), "{path}");
 
     let byte_emitted =
-        serde_yaml::to_string_with_options(value, serde_yaml::EmitOptions::ByteCompatible)
+        serde_yaml::to_string_with_options(value, serde_yaml::EmitOptions::byte_compatible())
             .unwrap_or_else(|error| {
                 panic!("package alias writes byte-compatible value {path}: {error}")
             });
@@ -447,7 +447,7 @@ fn assert_value_writer_replays(path: &str, value: &serde_yaml::Value) {
     serde_yaml::to_writer_with_options(
         &mut byte_written,
         value,
-        serde_yaml::EmitOptions::ByteCompatible,
+        serde_yaml::EmitOptions::byte_compatible(),
     )
     .unwrap_or_else(|error| {
         panic!("package alias writes byte-compatible value to writer {path}: {error}")
@@ -472,7 +472,7 @@ fn assert_value_writer_replays(path: &str, value: &serde_yaml::Value) {
     assert!(docs[1].equivalent(value), "{path}");
 
     let mut byte_stream =
-        serde_yaml::Serializer::with_options(Vec::new(), serde_yaml::EmitOptions::ByteCompatible);
+        serde_yaml::Serializer::with_options(Vec::new(), serde_yaml::EmitOptions::byte_compatible());
     value
         .serialize(&mut byte_stream)
         .unwrap_or_else(|error| panic!("package alias streams first byte-compatible value {path}: {error}"));

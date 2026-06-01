@@ -3,7 +3,7 @@
 use libfuzzer_sys::fuzz_target;
 use serde::Serialize;
 use std::collections::BTreeMap;
-use yaml::{EmitOptions, Value};
+use yaml::{BlockScalarStyle, EmitCollectionStyle, EmitOptions, ScalarQuoteStyle, Value};
 
 fuzz_target!(|input: &[u8]| {
     let Some((&selector, payload)) = input.split_first() else {
@@ -203,15 +203,18 @@ where
         reparsed.equivalent(&expected),
         "document writer output changed value shape: {emitted}"
     );
+    for options in emit_option_roundtrip_matrix() {
+        assert_optioned_writer_roundtrip(value, &expected, options);
+    }
 
     let reference = serde_yaml::to_string(value).expect("serde_yaml accepts shape");
     let byte_emitted =
-        yaml::to_string_with_options(value, EmitOptions::ByteCompatible)
+        yaml::to_string_with_options(value, EmitOptions::byte_compatible())
             .expect("byte-compatible document writer accepts shape");
     assert_eq!(byte_emitted, reference);
 
     let mut byte_written = Vec::new();
-    yaml::to_writer_with_options(&mut byte_written, value, EmitOptions::ByteCompatible)
+    yaml::to_writer_with_options(&mut byte_written, value, EmitOptions::byte_compatible())
         .expect("byte-compatible writer accepts shape");
     assert_eq!(byte_written, reference.as_bytes());
 
@@ -222,6 +225,33 @@ where
     assert_eq!(emitted_reference_value, reference_value);
 
     assert_streaming_pair(value, value);
+}
+
+fn emit_option_roundtrip_matrix() -> [EmitOptions; 4] {
+    [
+        EmitOptions::structural().with_scalar_quote_style(ScalarQuoteStyle::SingleQuoted),
+        EmitOptions::structural().with_scalar_quote_style(ScalarQuoteStyle::DoubleQuoted),
+        EmitOptions::structural().with_block_scalar_style(BlockScalarStyle::Folded),
+        EmitOptions::structural().with_collection_style(EmitCollectionStyle::Flow),
+    ]
+}
+
+fn assert_optioned_writer_roundtrip<T>(value: &T, expected: &Value, options: EmitOptions)
+where
+    T: Serialize,
+{
+    let emitted =
+        yaml::to_string_with_options(value, options).expect("optioned document writer accepts shape");
+    let mut written = Vec::new();
+    yaml::to_writer_with_options(&mut written, value, options)
+        .expect("optioned writer accepts shape");
+    assert_eq!(written, emitted.as_bytes());
+    let reparsed: Value =
+        yaml::from_str(&emitted).expect("optioned document writer output reparses");
+    assert!(
+        reparsed.equivalent(expected),
+        "optioned document writer output changed value shape: {emitted}"
+    );
 }
 
 fn assert_streaming_pair<A, B>(first: &A, second: &B)
@@ -242,7 +272,7 @@ where
     assert!(docs[0].equivalent(&expected_first));
     assert!(docs[1].equivalent(&expected_second));
 
-    let mut byte_stream = yaml::Serializer::with_options(Vec::new(), EmitOptions::ByteCompatible);
+    let mut byte_stream = yaml::Serializer::with_options(Vec::new(), EmitOptions::byte_compatible());
     first
         .serialize(&mut byte_stream)
         .expect("byte-compatible stream first document");
@@ -272,7 +302,7 @@ fn assert_bytes_rejection(input: &[u8]) {
 
     let error = yaml::to_string(&payload).expect_err("document writer rejects bytes");
     assert_eq!(error.to_string(), reference.to_string());
-    let byte_error = yaml::to_string_with_options(&payload, EmitOptions::ByteCompatible)
+    let byte_error = yaml::to_string_with_options(&payload, EmitOptions::byte_compatible())
         .expect_err("byte-compatible document writer rejects bytes");
     assert_eq!(byte_error.to_string(), reference.to_string());
 
@@ -281,7 +311,7 @@ fn assert_bytes_rejection(input: &[u8]) {
     assert_eq!(error.to_string(), reference.to_string());
     assert!(written.is_empty());
     let byte_error =
-        yaml::to_writer_with_options(&mut written, &payload, EmitOptions::ByteCompatible)
+        yaml::to_writer_with_options(&mut written, &payload, EmitOptions::byte_compatible())
             .expect_err("byte-compatible writer rejects bytes");
     assert_eq!(byte_error.to_string(), reference.to_string());
     assert!(written.is_empty());
@@ -292,7 +322,7 @@ fn assert_bytes_rejection(input: &[u8]) {
         .expect_err("streaming writer rejects bytes");
     assert_eq!(error.to_string(), reference.to_string());
     assert!(stream.into_inner().expect("stream into inner").is_empty());
-    let mut byte_stream = yaml::Serializer::with_options(Vec::new(), EmitOptions::ByteCompatible);
+    let mut byte_stream = yaml::Serializer::with_options(Vec::new(), EmitOptions::byte_compatible());
     let error = payload
         .serialize(&mut byte_stream)
         .expect_err("byte-compatible streaming writer rejects bytes");
@@ -308,7 +338,7 @@ fn assert_bytes_rejection(input: &[u8]) {
     let nested_reference = serde_yaml::to_string(&nested).expect_err("serde_yaml rejects nested bytes");
     let nested_error = yaml::to_string(&nested).expect_err("document writer rejects nested bytes");
     assert_eq!(nested_error.to_string(), nested_reference.to_string());
-    let nested_byte_error = yaml::to_string_with_options(&nested, EmitOptions::ByteCompatible)
+    let nested_byte_error = yaml::to_string_with_options(&nested, EmitOptions::byte_compatible())
         .expect_err("byte-compatible document writer rejects nested bytes");
     assert_eq!(nested_byte_error.to_string(), nested_reference.to_string());
 }

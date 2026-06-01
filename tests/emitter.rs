@@ -1,6 +1,6 @@
 use yaml::{
-    EmitOptions, Node, NodeValue as Value, Number, Span, Tag, TaggedNode, parse_str, to_string,
-    to_string_with_options,
+    BlockScalarStyle, EmitCollectionStyle, EmitOptions, KeyOrder, Node, NodeValue as Value, Number,
+    ScalarQuoteStyle, Span, Tag, TaggedNode, parse_str, to_string, to_string_with_options,
 };
 
 fn nested_sequence(depth: usize) -> Node {
@@ -47,13 +47,12 @@ fn float_node(value: f64) -> Node {
 
 #[test]
 fn emitter_options_default_to_structural_output() {
-    assert_eq!(EmitOptions::default(), EmitOptions::Structural);
-    assert_eq!(EmitOptions::structural(), EmitOptions::Structural);
+    assert_eq!(EmitOptions::default(), EmitOptions::structural());
 
     let node = parse_str("service:\n  image: app:v1\n  replicas: 2\n").expect("parse");
     let default = to_string(&node).expect("default emit");
     let structural =
-        to_string_with_options(&node, EmitOptions::Structural).expect("structural emit");
+        to_string_with_options(&node, EmitOptions::structural()).expect("structural emit");
 
     assert_eq!(structural, default);
     assert!(parse_str(&structural).expect("reparse").equivalent(&node));
@@ -79,14 +78,154 @@ fn emitter_byte_compatible_is_supported_for_structural_trees() {
 }
 
 #[test]
-fn emitter_preserving_tier_is_explicit_target() {
-    let node = parse_str("name: api\n").expect("parse");
+fn emitter_options_sort_keys_without_changing_structural_default() {
+    let node = parse_str("z: 1\na: 2\nm: 3\n").expect("parse");
+    let default = to_string(&node).expect("default emit");
+    assert_eq!(default, "z: 1\na: 2\nm: 3\n");
 
-    let error = to_string_with_options(&node, EmitOptions::preserving())
-        .expect_err("preserving tier is not implemented");
-    let message = error.to_string();
-    assert!(message.contains("Preserving"), "{message}");
-    assert!(message.contains("not implemented"), "{message}");
+    let sorted = to_string_with_options(
+        &node,
+        EmitOptions::structural().with_key_order(KeyOrder::Sort),
+    )
+    .expect("sorted emit");
+
+    assert_eq!(sorted, "a: 2\nm: 3\nz: 1\n");
+    let reparsed = parse_str(&sorted).expect("reparse");
+    assert_eq!(
+        to_string_with_options(
+            &reparsed,
+            EmitOptions::structural().with_key_order(KeyOrder::Sort)
+        )
+        .expect("sorted re-emit"),
+        sorted
+    );
+}
+
+#[test]
+fn emitter_options_control_scalar_quote_style_safely() {
+    let node = parse_str(
+        "plain: value\nambiguous: \"true\"\napostrophe: \"it's\"\ncontrol: \"a\\u0000b\"\n",
+    )
+    .expect("parse");
+    let single = to_string_with_options(
+        &node,
+        EmitOptions::structural().with_scalar_quote_style(ScalarQuoteStyle::SingleQuoted),
+    )
+    .expect("single quote emit");
+    assert!(single.contains("'plain': 'value'"), "{single}");
+    assert!(single.contains("'ambiguous': 'true'"), "{single}");
+    assert!(single.contains("'apostrophe': \"it's\""), "{single}");
+    assert!(
+        single.contains("'control': \"a\\0b\"") || single.contains("'control': \"a\\u0000b\""),
+        "{single}"
+    );
+    assert!(
+        parse_str(&single)
+            .expect("reparse single")
+            .equivalent(&node)
+    );
+
+    let double = to_string_with_options(
+        &node,
+        EmitOptions::structural().with_scalar_quote_style(ScalarQuoteStyle::DoubleQuoted),
+    )
+    .expect("double quote emit");
+    assert!(double.contains("\"plain\": \"value\""), "{double}");
+    assert!(double.contains("\"apostrophe\": \"it's\""), "{double}");
+    assert!(
+        parse_str(&double)
+            .expect("reparse double")
+            .equivalent(&node)
+    );
+
+    let unicode_break = Node::new(
+        Value::String("before\u{2028}after".to_string()),
+        Span::default(),
+    );
+    let emitted = to_string_with_options(
+        &unicode_break,
+        EmitOptions::structural().with_scalar_quote_style(ScalarQuoteStyle::SingleQuoted),
+    )
+    .expect("unicode line break emit");
+    assert_eq!(emitted, "\"before\\u2028after\"\n");
+    assert!(
+        parse_str(&emitted)
+            .expect("reparse unicode break")
+            .equivalent(&unicode_break)
+    );
+
+    let trailing_apostrophe_key = Node::new(
+        Value::Mapping(vec![(
+            string_node("0{'"),
+            Node::new(Value::String("a".to_string()), Span::default()),
+        )]),
+        Span::default(),
+    );
+    let emitted = to_string_with_options(
+        &trailing_apostrophe_key,
+        EmitOptions::structural().with_scalar_quote_style(ScalarQuoteStyle::SingleQuoted),
+    )
+    .expect("trailing apostrophe key emit");
+    assert_eq!(emitted, "\"0{'\": 'a'\n");
+    assert!(
+        parse_str(&emitted)
+            .expect("reparse trailing apostrophe key")
+            .equivalent(&trailing_apostrophe_key)
+    );
+}
+
+#[test]
+fn emitter_options_control_block_scalar_style_where_representable() {
+    let literal_node = parse_str("body: \"first\\nsecond\\n\"\n").expect("parse literal candidate");
+    let literal = to_string_with_options(
+        &literal_node,
+        EmitOptions::structural().with_block_scalar_style(BlockScalarStyle::Literal),
+    )
+    .expect("literal emit");
+    assert!(literal.contains("body: |"), "{literal}");
+    assert!(
+        parse_str(&literal)
+            .expect("reparse literal")
+            .equivalent(&literal_node)
+    );
+
+    let folded_node = parse_str("body: \"first\\n  second\\n\"\n").expect("parse folded candidate");
+    let folded = to_string_with_options(
+        &folded_node,
+        EmitOptions::structural().with_block_scalar_style(BlockScalarStyle::Folded),
+    )
+    .expect("folded emit");
+    assert!(folded.contains("body: >"), "{folded}");
+    assert!(
+        parse_str(&folded)
+            .expect("reparse folded")
+            .equivalent(&folded_node)
+    );
+
+    let fallback = to_string_with_options(
+        &literal_node,
+        EmitOptions::structural().with_block_scalar_style(BlockScalarStyle::Folded),
+    )
+    .expect("folded fallback emit");
+    assert!(fallback.contains("body: |"), "{fallback}");
+    assert!(
+        parse_str(&fallback)
+            .expect("reparse fallback")
+            .equivalent(&literal_node)
+    );
+}
+
+#[test]
+fn emitter_options_control_flow_collection_style() {
+    let node = parse_str("service:\n  image: app\n  ports:\n    - 80\n    - 443\n").expect("parse");
+    let flow = to_string_with_options(
+        &node,
+        EmitOptions::structural().with_collection_style(EmitCollectionStyle::Flow),
+    )
+    .expect("flow emit");
+
+    assert_eq!(flow, "{service: {image: app, ports: [80, 443]}}\n");
+    assert!(parse_str(&flow).expect("reparse").equivalent(&node));
 }
 
 fn permuted_mapping_key(first_order: bool) -> Node {

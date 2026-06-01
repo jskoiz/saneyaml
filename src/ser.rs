@@ -35,7 +35,7 @@ where
 
 /// Serializes a value into a YAML string using explicit emission options.
 ///
-/// [`EmitOptions::Structural`] is the default. [`EmitOptions::ByteCompatible`]
+/// [`EmitOptions::structural`] is the default. [`EmitOptions::byte_compatible`]
 /// is opt-in for the supported `serde_yaml` writer-byte corpus.
 pub fn to_string_with_options<T>(value: &T, options: EmitOptions) -> Result<String>
 where
@@ -51,13 +51,13 @@ where
     W: Write,
     T: ?Sized + Serialize,
 {
-    to_writer_with_options(&mut writer, value, EmitOptions::Structural)
+    to_writer_with_options(&mut writer, value, EmitOptions::structural())
 }
 
 /// Serializes a value as YAML using explicit emission options and writes it to
 /// an output sink.
 ///
-/// [`EmitOptions::Structural`] is the default. [`EmitOptions::ByteCompatible`]
+/// [`EmitOptions::structural`] is the default. [`EmitOptions::byte_compatible`]
 /// is opt-in for the supported `serde_yaml` writer-byte corpus.
 pub fn to_writer_with_options<W, T>(mut writer: W, value: &T, options: EmitOptions) -> Result<()>
 where
@@ -85,7 +85,7 @@ fn serialized_node_with_options<T>(value: &T, options: EmitOptions) -> Result<No
 where
     T: ?Sized + Serialize,
 {
-    if matches!(options, EmitOptions::ByteCompatible) {
+    if options.is_byte_compatible() {
         value.serialize(ByteCompatibleRootSerializer)
     } else {
         serialized_node(value)
@@ -114,13 +114,13 @@ where
 {
     /// Creates a serializer that writes YAML documents to `writer`.
     pub fn new(writer: W) -> Self {
-        Self::with_options(writer, EmitOptions::Structural)
+        Self::with_options(writer, EmitOptions::structural())
     }
 
     /// Creates a serializer that writes YAML documents to `writer` using
     /// explicit emission options.
     ///
-    /// [`EmitOptions::Structural`] is the default. [`EmitOptions::ByteCompatible`]
+    /// [`EmitOptions::structural`] is the default. [`EmitOptions::byte_compatible`]
     /// is opt-in for the supported `serde_yaml` writer-byte corpus.
     pub fn with_options(writer: W, emit_options: EmitOptions) -> Self {
         Self {
@@ -229,7 +229,7 @@ where
     }
 
     fn serialize_char(self, value: char) -> Result<()> {
-        if matches!(self.emit_options, EmitOptions::ByteCompatible) {
+        if self.emit_options.is_byte_compatible() {
             return self.write_node(byte_compatible_single_quoted_node(value.to_string()));
         }
         self.write_value(Value::String(value.to_string()))

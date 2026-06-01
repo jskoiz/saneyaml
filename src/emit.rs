@@ -1,5 +1,5 @@
 use crate::{
-    Error, Node, NodeValue as Value, Number, Result, Span, Tag, TaggedNode,
+    Error, Node, NodeValue as Value, Number, Result, Tag, TaggedNode,
     key_identity::check_duplicate_at_depth, schema::DEFAULT_MAX_NESTING_DEPTH,
 };
 use std::{collections::HashMap, fmt::Write as _};
@@ -7,57 +7,147 @@ use std::{collections::HashMap, fmt::Write as _};
 pub(crate) const BYTE_COMPATIBLE_SINGLE_QUOTED_SOURCE: &str =
     "\0yaml-byte-compatible-single-quoted";
 
-/// YAML emission fidelity tier.
+/// YAML emission options.
 ///
-/// `Structural` is the default deterministic behavior. `ByteCompatible`
-/// matches `serde_yaml` bytes for the documented structural writer corpus, and
-/// `Preserving` remains a declared target tier for future lossless output.
+/// The default is deterministic structural output: insertion-order mappings,
+/// plain-where-safe scalars, literal block scalars, and block collections.
+/// `ByteCompatible` remains an opt-in fidelity mode for the documented
+/// `serde_yaml` writer corpus.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EmitOptions {
+    fidelity: EmitFidelity,
+    key_order: KeyOrder,
+    scalar_quote_style: ScalarQuoteStyle,
+    block_scalar_style: BlockScalarStyle,
+    collection_style: EmitCollectionStyle,
+}
+
+/// Emission fidelity mode.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum EmitOptions {
-    /// Deterministic structural YAML output whose parse tree is equivalent to
-    /// the input tree.
+pub enum EmitFidelity {
+    /// Deterministic structural YAML whose parse tree is equivalent to the
+    /// input tree.
     #[default]
     Structural,
-    /// Opt-in tier for byte-for-byte compatibility with `serde_yaml` output
-    /// across the supported structural writer corpus.
+    /// Opt-in byte compatibility with `serde_yaml` for the supported
+    /// structural writer corpus.
     ByteCompatible,
-    /// Target tier for source-preserving output over lossless documents.
-    Preserving,
+}
+
+/// Mapping key ordering policy.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum KeyOrder {
+    /// Keep mapping entries in their source or serialization order.
+    #[default]
+    Preserve,
+    /// Sort mapping entries by their emitted key text.
+    Sort,
+}
+
+/// Scalar quote policy for inline string scalars.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ScalarQuoteStyle {
+    /// Emit plain scalars where YAML 1.2 can round-trip them safely, otherwise
+    /// use a quoted style.
+    #[default]
+    PlainWhereSafe,
+    /// Prefer single quotes where this crate can round-trip them safely,
+    /// falling back to double quotes for controls, apostrophes, and multiline
+    /// values.
+    SingleQuoted,
+    /// Emit inline string scalars with double quotes.
+    DoubleQuoted,
+}
+
+/// Block scalar style policy for multiline string scalars.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum BlockScalarStyle {
+    /// Emit multiline strings as literal block scalars where representable.
+    #[default]
+    Literal,
+    /// Prefer folded block scalars where folding can preserve the value,
+    /// otherwise fall back to literal block scalars.
+    Folded,
+}
+
+/// Collection layout policy.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum EmitCollectionStyle {
+    /// Emit non-empty collections in block layout.
+    #[default]
+    Block,
+    /// Emit collections in flow layout.
+    Flow,
+}
+
+impl Default for EmitOptions {
+    fn default() -> Self {
+        Self::structural()
+    }
 }
 
 impl EmitOptions {
     /// Returns the currently implemented structural emission tier.
     pub fn structural() -> Self {
-        Self::Structural
-    }
-
-    /// Returns the declared byte-compatible target tier.
-    pub fn byte_compatible() -> Self {
-        Self::ByteCompatible
-    }
-
-    /// Returns the declared source-preserving target tier.
-    pub fn preserving() -> Self {
-        Self::Preserving
-    }
-
-    fn ensure_supported(self) -> Result<()> {
-        match self {
-            Self::Structural | Self::ByteCompatible => Ok(()),
-            Self::Preserving => Err(Error::new(
-                "`Preserving` emission is declared as a target tier but is not implemented in this preview",
-                Span::default(),
-            )),
+        Self {
+            fidelity: EmitFidelity::Structural,
+            key_order: KeyOrder::Preserve,
+            scalar_quote_style: ScalarQuoteStyle::PlainWhereSafe,
+            block_scalar_style: BlockScalarStyle::Literal,
+            collection_style: EmitCollectionStyle::Block,
         }
+    }
+
+    /// Returns the byte-compatible target tier.
+    pub fn byte_compatible() -> Self {
+        Self {
+            fidelity: EmitFidelity::ByteCompatible,
+            ..Self::structural()
+        }
+    }
+
+    /// Returns these options with an updated mapping key ordering policy.
+    pub fn with_key_order(mut self, key_order: KeyOrder) -> Self {
+        self.key_order = key_order;
+        self
+    }
+
+    /// Returns these options with an updated inline scalar quote policy.
+    pub fn with_scalar_quote_style(mut self, scalar_quote_style: ScalarQuoteStyle) -> Self {
+        self.scalar_quote_style = scalar_quote_style;
+        self
+    }
+
+    /// Returns these options with an updated block scalar style policy.
+    pub fn with_block_scalar_style(mut self, block_scalar_style: BlockScalarStyle) -> Self {
+        self.block_scalar_style = block_scalar_style;
+        self
+    }
+
+    /// Returns these options with an updated collection layout policy.
+    pub fn with_collection_style(mut self, collection_style: EmitCollectionStyle) -> Self {
+        self.collection_style = collection_style;
+        self
+    }
+
+    pub(crate) fn is_byte_compatible(self) -> bool {
+        matches!(self.fidelity, EmitFidelity::ByteCompatible)
+    }
+
+    fn uses_flow_collections(self) -> bool {
+        matches!(self.collection_style, EmitCollectionStyle::Flow)
+    }
+
+    fn sorts_keys(self) -> bool {
+        matches!(self.key_order, KeyOrder::Sort)
     }
 }
 
 pub fn to_string(node: &Node) -> Result<String> {
-    to_string_with_options(node, EmitOptions::Structural)
+    to_string_with_options(node, EmitOptions::structural())
 }
 
 pub fn to_string_with_options(node: &Node, options: EmitOptions) -> Result<String> {
-    options.ensure_supported()?;
     validate_emittable(node)?;
     let mut out = String::new();
     emit_node(node, 0, Context::Root, options, &mut out);
@@ -130,18 +220,21 @@ enum Context {
 
 fn emit_node(node: &Node, indent: usize, context: Context, options: EmitOptions, out: &mut String) {
     match &node.value {
+        Value::Mapping(_) | Value::Sequence(_) if options.uses_flow_collections() => {
+            out.push_str(&format_inline(node, options))
+        }
         Value::Mapping(entries) => emit_mapping(entries, indent, context, options, out),
         Value::Sequence(items) => emit_sequence(items, indent, context, options, out),
-        Value::String(value) if should_emit_block_string(value) => {
-            emit_block_string(value, indent, context, out)
+        Value::String(value) if should_emit_block_string(value, options) => {
+            emit_block_string(value, indent, context, options, out)
         }
         Value::Tagged(tagged)
-            if tagged_value_needs_block_indent(&tagged.value)
+            if tagged_value_needs_block_indent(&tagged.value, options)
                 && matches!(context, Context::Root | Context::SequenceItem) =>
         {
             emit_tagged_structured(tagged, indent, context, options, out)
         }
-        Value::Tagged(tagged) if matches!(options, EmitOptions::ByteCompatible) => {
+        Value::Tagged(tagged) if options.is_byte_compatible() => {
             emit_tagged_structured(tagged, indent, context, options, out)
         }
         Value::Tagged(_) => out.push_str(&format_inline(node, options)),
@@ -163,7 +256,8 @@ fn emit_mapping(
     if matches!(context, Context::MappingValue | Context::SequenceItem) {
         out.push('\n');
     }
-    for (idx, (key, value)) in entries.iter().enumerate() {
+    let ordered = ordered_entries(entries, options);
+    for (idx, (key, value)) in ordered.into_iter().enumerate() {
         if idx > 0 {
             out.push('\n');
         }
@@ -234,10 +328,10 @@ fn emit_sequence(
             Value::Sequence(items) if !items.is_empty() => {
                 emit_node(item, indent + 2, Context::SequenceItem, options, out)
             }
-            Value::String(text) if should_emit_block_string(text) => {
+            Value::String(text) if should_emit_block_string(text, options) => {
                 emit_node(item, indent + 2, Context::SequenceItem, options, out)
             }
-            Value::Tagged(tagged) if tagged_value_needs_block_indent(&tagged.value) => {
+            Value::Tagged(tagged) if tagged_value_needs_block_indent(&tagged.value, options) => {
                 out.push(' ');
                 emit_tagged_structured(tagged, indent + 2, Context::SequenceItem, options, out);
             }
@@ -255,19 +349,19 @@ fn emit_mapping_value(value: &Node, indent: usize, options: EmitOptions, out: &m
             emit_node(value, indent, Context::MappingValue, options, out)
         }
         Value::Sequence(items) if !items.is_empty() => {
-            let sequence_indent = if matches!(options, EmitOptions::ByteCompatible) {
+            let sequence_indent = if options.is_byte_compatible() {
                 indent.saturating_sub(2)
             } else {
                 indent
             };
             emit_node(value, sequence_indent, Context::MappingValue, options, out)
         }
-        Value::String(text) if should_emit_block_string(text) => {
+        Value::String(text) if should_emit_block_string(text, options) => {
             emit_node(value, indent, Context::MappingValue, options, out)
         }
         Value::Tagged(tagged)
-            if matches!(options, EmitOptions::ByteCompatible)
-                && tagged_value_needs_block_indent(&tagged.value) =>
+            if options.is_byte_compatible()
+                && tagged_value_needs_block_indent(&tagged.value, options) =>
         {
             out.push(' ');
             emit_node(value, indent, Context::MappingValue, options, out);
@@ -282,9 +376,9 @@ fn emit_mapping_value(value: &Node, indent: usize, options: EmitOptions, out: &m
 fn mapping_value_needs_block_indent(value: &Node, options: EmitOptions) -> bool {
     matches!(&value.value, Value::Mapping(entries) if !entries.is_empty())
         || matches!(&value.value, Value::Sequence(items) if !items.is_empty())
-        || matches!(&value.value, Value::String(text) if should_emit_block_string(text))
-        || (matches!(options, EmitOptions::ByteCompatible)
-            && matches!(&value.value, Value::Tagged(tagged) if tagged_value_needs_block_indent(&tagged.value)))
+        || matches!(&value.value, Value::String(text) if should_emit_block_string(text, options))
+        || (options.is_byte_compatible()
+            && matches!(&value.value, Value::Tagged(tagged) if tagged_value_needs_block_indent(&tagged.value, options)))
 }
 
 fn mapping_needs_explicit_keys(entries: &[(Node, Node)]) -> bool {
@@ -307,7 +401,7 @@ fn emit_tagged_structured(
 ) {
     out.push_str(&format_tag(&tagged.tag));
     if let Value::String(text) = &tagged.value.value
-        && should_emit_block_string(text)
+        && should_emit_block_string(text, options)
     {
         out.push(' ');
         let content_indent = if matches!(context, Context::Root) {
@@ -315,8 +409,8 @@ fn emit_tagged_structured(
         } else {
             indent
         };
-        emit_block_string_indicator_and_content(text, content_indent, out);
-    } else if tagged_value_needs_block_indent(&tagged.value) {
+        emit_block_string_indicator_and_content(text, content_indent, options, out);
+    } else if tagged_value_needs_block_indent(&tagged.value, options) {
         out.push('\n');
         let child_indent = match &tagged.value.value {
             Value::Sequence(items)
@@ -333,13 +427,19 @@ fn emit_tagged_structured(
     }
 }
 
-fn tagged_value_needs_block_indent(value: &Node) -> bool {
+fn tagged_value_needs_block_indent(value: &Node, options: EmitOptions) -> bool {
     matches!(&value.value, Value::Mapping(entries) if !entries.is_empty())
         || matches!(&value.value, Value::Sequence(items) if !items.is_empty())
-        || matches!(&value.value, Value::String(text) if should_emit_block_string(text))
+        || matches!(&value.value, Value::String(text) if should_emit_block_string(text, options))
 }
 
-fn emit_block_string(value: &str, indent: usize, context: Context, out: &mut String) {
+fn emit_block_string(
+    value: &str,
+    indent: usize,
+    context: Context,
+    options: EmitOptions,
+    out: &mut String,
+) {
     if !matches!(context, Context::Root) {
         out.push(' ');
     }
@@ -348,11 +448,18 @@ fn emit_block_string(value: &str, indent: usize, context: Context, out: &mut Str
     } else {
         indent
     };
-    emit_block_string_indicator_and_content(value, content_indent, out);
+    emit_block_string_indicator_and_content(value, content_indent, options, out);
 }
 
-fn emit_block_string_indicator_and_content(value: &str, content_indent: usize, out: &mut String) {
-    out.push('|');
+fn emit_block_string_indicator_and_content(
+    value: &str,
+    content_indent: usize,
+    options: EmitOptions,
+    out: &mut String,
+) {
+    let folded = matches!(options.block_scalar_style, BlockScalarStyle::Folded)
+        && folded_block_can_represent_literal_content(value);
+    out.push(if folded { '>' } else { '|' });
     if needs_explicit_block_indent(value) {
         out.push('2');
     }
@@ -370,14 +477,17 @@ fn emit_block_string_indicator_and_content(value: &str, content_indent: usize, o
     }
 }
 
-fn should_emit_block_string(value: &str) -> bool {
-    value.contains('\n') && block_string_can_represent_literal_content(value)
+fn should_emit_block_string(value: &str, options: EmitOptions) -> bool {
+    !options.uses_flow_collections()
+        && value.contains('\n')
+        && block_string_can_represent_literal_content(value)
 }
 
 fn block_string_can_represent_literal_content(value: &str) -> bool {
     value
         .chars()
         .all(|ch| !ch.is_control() || matches!(ch, '\n' | '\t'))
+        && !value.chars().any(|ch| is_yaml_line_break(ch) && ch != '\n')
 }
 
 fn needs_explicit_block_indent(value: &str) -> bool {
@@ -385,6 +495,30 @@ fn needs_explicit_block_indent(value: &str) -> bool {
         .split('\n')
         .find(|line| !line.is_empty())
         .is_some_and(|line| line.starts_with(' '))
+}
+
+fn folded_block_can_represent_literal_content(value: &str) -> bool {
+    if !block_string_can_represent_literal_content(value) {
+        return false;
+    }
+    if value.ends_with("\n\n") || value.contains("\n\n") {
+        return false;
+    }
+    let mut lines = value.strip_suffix('\n').unwrap_or(value).split('\n');
+    let Some(_) = lines.next() else {
+        return false;
+    };
+    lines.all(|line| line.is_empty() || line.starts_with([' ', '\t']))
+}
+
+fn ordered_entries(entries: &[(Node, Node)], options: EmitOptions) -> Vec<&(Node, Node)> {
+    let mut ordered = entries.iter().collect::<Vec<_>>();
+    if options.sorts_keys() {
+        ordered.sort_by(|(left, _), (right, _)| {
+            format_inline(left, options).cmp(&format_inline(right, options))
+        });
+    }
+    ordered
 }
 
 fn format_key(node: &Node, options: EmitOptions) -> String {
@@ -430,7 +564,8 @@ fn format_inline(node: &Node, options: EmitOptions) -> String {
         }
         Value::Mapping(entries) => {
             let mut out = String::from("{");
-            for (idx, (key, value)) in entries.iter().enumerate() {
+            let ordered = ordered_entries(entries, options);
+            for (idx, (key, value)) in ordered.into_iter().enumerate() {
                 if idx > 0 {
                     out.push_str(", ");
                 }
@@ -489,17 +624,22 @@ fn push_uri_escaped_tag_suffix(out: &mut String, suffix: &str) {
 }
 
 fn force_byte_compatible_single_quote(node: &Node, options: EmitOptions) -> bool {
-    matches!(options, EmitOptions::ByteCompatible)
+    options.is_byte_compatible()
         && node
             .scalar_source()
             .is_some_and(|source| source.raw() == BYTE_COMPATIBLE_SINGLE_QUOTED_SOURCE)
 }
 
 fn quote_if_needed(value: &str, options: EmitOptions) -> String {
-    if matches!(options, EmitOptions::ByteCompatible) {
+    if options.is_byte_compatible() {
         return quote_byte_compatible_if_needed(value);
     }
-    quote_structural_if_needed(value)
+    match options.scalar_quote_style {
+        ScalarQuoteStyle::PlainWhereSafe => quote_structural_if_needed(value),
+        ScalarQuoteStyle::SingleQuoted if single_quote_can_represent(value) => single_quote(value),
+        ScalarQuoteStyle::SingleQuoted => double_quote(value),
+        ScalarQuoteStyle::DoubleQuoted => double_quote(value),
+    }
 }
 
 fn quote_structural_if_needed(value: &str) -> String {
@@ -530,6 +670,7 @@ fn double_quote(value: &str) -> String {
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
             '\0' => out.push_str("\\0"),
+            ch if is_yaml_line_break(ch) => out.push_str(&format!("\\u{:04X}", ch as u32)),
             ch if ch.is_control() => out.push_str(&format!("\\u{:04X}", ch as u32)),
             ch => out.push(ch),
         }
@@ -552,6 +693,12 @@ fn single_quote(value: &str) -> String {
     out
 }
 
+fn single_quote_can_represent(value: &str) -> bool {
+    !value.contains('\'')
+        && !value.chars().any(is_yaml_line_break)
+        && value.chars().all(|ch| !ch.is_control() || ch == '\t')
+}
+
 fn is_structural_plain_safe(value: &str) -> bool {
     if value.is_empty() || value.trim() != value {
         return false;
@@ -567,7 +714,10 @@ fn is_structural_plain_safe(value: &str) -> bool {
     if value == "..." || value.starts_with("... ") || value.starts_with('%') {
         return false;
     }
-    if value.chars().any(char::is_control) {
+    if value
+        .chars()
+        .any(|ch| ch.is_control() || is_yaml_line_break(ch))
+    {
         return false;
     }
     if value.ends_with(':')
@@ -601,7 +751,10 @@ fn is_byte_compatible_plain_safe(value: &str) -> bool {
     if value == "..." || value.starts_with("... ") || value.starts_with('%') {
         return false;
     }
-    if value.chars().any(char::is_control) {
+    if value
+        .chars()
+        .any(|ch| ch.is_control() || is_yaml_line_break(ch))
+    {
         return false;
     }
     if has_colon_followed_by_whitespace(value) || has_hash_preceded_by_whitespace(value) {
@@ -625,6 +778,10 @@ fn is_byte_compatible_plain_safe(value: &str) -> bool {
         return false;
     }
     true
+}
+
+fn is_yaml_line_break(ch: char) -> bool {
+    matches!(ch, '\n' | '\r' | '\u{0085}' | '\u{2028}' | '\u{2029}')
 }
 
 fn starts_with_indicator_and_whitespace(value: &str, indicator: char) -> bool {

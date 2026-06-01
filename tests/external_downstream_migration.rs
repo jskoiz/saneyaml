@@ -493,7 +493,7 @@ fn assert_value_writer_replays(path: &str, value: &Value) {
         .unwrap_or_else(|error| panic!("yaml writes downstream value to writer {path}: {error}"));
     assert_eq!(written, emitted.as_bytes(), "{path}");
 
-    let byte_compatible = yaml::to_string_with_options(value, yaml::EmitOptions::ByteCompatible)
+    let byte_compatible = yaml::to_string_with_options(value, yaml::EmitOptions::byte_compatible())
         .unwrap_or_else(|error| {
             panic!("yaml writes downstream value in byte-compatible mode {path}: {error}")
         });
@@ -506,10 +506,14 @@ fn assert_value_writer_replays(path: &str, value: &Value) {
     );
 
     let mut byte_written = Vec::new();
-    yaml::to_writer_with_options(&mut byte_written, value, yaml::EmitOptions::ByteCompatible)
-        .unwrap_or_else(|error| {
-            panic!("yaml writes byte-compatible downstream value to writer {path}: {error}")
-        });
+    yaml::to_writer_with_options(
+        &mut byte_written,
+        value,
+        yaml::EmitOptions::byte_compatible(),
+    )
+    .unwrap_or_else(|error| {
+        panic!("yaml writes byte-compatible downstream value to writer {path}: {error}")
+    });
     assert_eq!(byte_written, byte_compatible.as_bytes(), "{path}");
 
     let mut stream = yaml::Serializer::new(Vec::new());
@@ -530,7 +534,7 @@ fn assert_value_writer_replays(path: &str, value: &Value) {
     assert!(docs[1].equivalent(value), "{path}");
 
     let mut byte_stream =
-        yaml::Serializer::with_options(Vec::new(), yaml::EmitOptions::ByteCompatible);
+        yaml::Serializer::with_options(Vec::new(), yaml::EmitOptions::byte_compatible());
     value.serialize(&mut byte_stream).unwrap_or_else(|error| {
         panic!("yaml streams first byte-compatible downstream value {path}: {error}")
     });
@@ -555,7 +559,7 @@ fn assert_typed_byte_writer_matches_serde<T>(path: &str, value: &T)
 where
     T: Serialize,
 {
-    let byte_compatible = yaml::to_string_with_options(value, yaml::EmitOptions::ByteCompatible)
+    let byte_compatible = yaml::to_string_with_options(value, yaml::EmitOptions::byte_compatible())
         .unwrap_or_else(|error| {
             panic!("yaml writes typed value in byte-compatible mode {path}: {error}")
         });
@@ -564,14 +568,18 @@ where
     assert_eq!(byte_compatible, reference, "{path}");
 
     let mut byte_written = Vec::new();
-    yaml::to_writer_with_options(&mut byte_written, value, yaml::EmitOptions::ByteCompatible)
-        .unwrap_or_else(|error| {
-            panic!("yaml writes typed byte-compatible value to writer {path}: {error}")
-        });
+    yaml::to_writer_with_options(
+        &mut byte_written,
+        value,
+        yaml::EmitOptions::byte_compatible(),
+    )
+    .unwrap_or_else(|error| {
+        panic!("yaml writes typed byte-compatible value to writer {path}: {error}")
+    });
     assert_eq!(byte_written, reference.as_bytes(), "{path}");
 
     let mut byte_stream =
-        yaml::Serializer::with_options(Vec::new(), yaml::EmitOptions::ByteCompatible);
+        yaml::Serializer::with_options(Vec::new(), yaml::EmitOptions::byte_compatible());
     value
         .serialize(&mut byte_stream)
         .unwrap_or_else(|error| panic!("yaml streams typed byte-compatible value {path}: {error}"));

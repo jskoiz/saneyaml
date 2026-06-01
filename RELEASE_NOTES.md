@@ -30,11 +30,12 @@ Notable completed release-candidate behavior:
   explicit-core projection, while retained `Node`/`Value` trees still preserve
   tag metadata and source spellings. `C4HZ` and `FH7J` remain the tagged
   loaded-tree deferrals.
-- Emission now has explicit fidelity tiers through `EmitOptions`:
-  `Structural` is the implemented default, `ByteCompatible` is opt-in
-  `serde_yaml` writer-byte parity for the supported structural corpus, and
-  `Preserving` remains a declared future target tier that returns a
-  not-implemented error instead of silently falling back to structural output.
+- Emission now has explicit `EmitOptions` controls:
+  `EmitOptions::structural()` is the implemented default,
+  `EmitOptions::byte_compatible()` is opt-in `serde_yaml` writer-byte parity
+  for the supported structural corpus, and structural writers can opt into
+  sorted mapping keys, scalar quote style, literal/folded block scalar style,
+  and block/flow collection style without changing default bytes.
 - `Cargo.toml` now has an explicit package include boundary for the developer
   preview: source, examples, and public docs are package contents, while
   repository-only fixtures, downstream reductions, fuzz corpora, CI files, and
@@ -207,6 +208,6 @@ Known release-candidate gaps remain tracked in `BASELINE.md`,
 arbitrary `serde_yaml` byte parity outside the supported `ByteCompatible`
 structural writer corpus, full arbitrary structural lossless formatting beyond
 targeted block/flow mapping entry and sequence item helpers,
-`EmitOptions::Preserving`, final package metadata, and external publication.
+source-preserving emitter output, final package metadata, and external publication.
 Semantic `Node`/`Value` loaders remain value-oriented by design; alias graph
 identity is the `LosslessStream` contract.

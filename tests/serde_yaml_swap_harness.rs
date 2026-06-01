@@ -220,19 +220,23 @@ fn swap_harness_writer_paths_cover_structural_and_byte_compatible_surfaces() {
         serde_yaml::from_str(&reference_output).expect("serde_yaml output reparses");
     assert_eq!(reference_reparsed, config);
 
-    let byte_output = yaml::to_string_with_options(&config, yaml::EmitOptions::ByteCompatible)
+    let byte_output = yaml::to_string_with_options(&config, yaml::EmitOptions::byte_compatible())
         .expect("yaml byte-compatible to_string");
     assert_eq!(byte_output, reference_output);
 
     let mut byte_buffer = Vec::new();
-    yaml::to_writer_with_options(&mut byte_buffer, &config, yaml::EmitOptions::ByteCompatible)
-        .expect("yaml byte-compatible to_writer");
+    yaml::to_writer_with_options(
+        &mut byte_buffer,
+        &config,
+        yaml::EmitOptions::byte_compatible(),
+    )
+    .expect("yaml byte-compatible to_writer");
     assert_eq!(byte_buffer, reference_output.as_bytes());
 
     let mut stream = Vec::new();
     {
         let mut serializer =
-            yaml::Serializer::with_options(&mut stream, yaml::EmitOptions::ByteCompatible);
+            yaml::Serializer::with_options(&mut stream, yaml::EmitOptions::byte_compatible());
         config
             .serialize(&mut serializer)
             .expect("yaml byte-compatible stream");

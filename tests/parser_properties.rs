@@ -2164,6 +2164,9 @@ fn assert_emit_roundtrip_invariants(node: &Node) {
 
     let reparsed_value: Value = yaml::from_str(&value_emitted).expect("parse emitted value");
     assert!(reparsed_value.equivalent(&value));
+    for options in emit_option_roundtrip_matrix() {
+        assert_optioned_value_roundtrip(&value, options);
+    }
 
     let mut stream = yaml::Serializer::new(Vec::new());
     value.serialize(&mut stream).expect("stream first value");
@@ -2177,6 +2180,33 @@ fn assert_emit_roundtrip_invariants(node: &Node) {
     assert_eq!(stream_values.len(), 2);
     assert!(stream_values[0].equivalent(&value));
     assert!(stream_values[1].equivalent(&reparsed_value));
+}
+
+fn emit_option_roundtrip_matrix() -> [yaml::EmitOptions; 4] {
+    [
+        yaml::EmitOptions::structural()
+            .with_scalar_quote_style(yaml::ScalarQuoteStyle::SingleQuoted),
+        yaml::EmitOptions::structural()
+            .with_scalar_quote_style(yaml::ScalarQuoteStyle::DoubleQuoted),
+        yaml::EmitOptions::structural().with_block_scalar_style(yaml::BlockScalarStyle::Folded),
+        yaml::EmitOptions::structural().with_collection_style(yaml::EmitCollectionStyle::Flow),
+    ]
+}
+
+fn assert_optioned_value_roundtrip(value: &Value, options: yaml::EmitOptions) {
+    let emitted = yaml::to_string_with_options(value, options).expect("optioned value emit");
+    let mut written = Vec::new();
+    yaml::to_writer_with_options(&mut written, value, options).expect("optioned value write");
+    assert_eq!(written, emitted.as_bytes());
+
+    let reparsed: Value = yaml::from_str(&emitted).expect("parse optioned emitted value");
+    assert!(
+        reparsed.equivalent(value),
+        "optioned output changed value for {options:?}: {emitted}"
+    );
+    let emitted_again =
+        yaml::to_string_with_options(&reparsed, options).expect("optioned re-emit value");
+    assert_eq!(emitted_again, emitted);
 }
 
 fn assert_node_invariants(input: &[u8], node: &Node) {

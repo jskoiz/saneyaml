@@ -72,14 +72,15 @@ The first milestone focuses on:
   collections, Wrangler comments/flow flags, and Ansible/Kubernetes lossless
   replay cases are manifest-gated on this surface.
 - Deterministic structural emission with `parse(emit(tree)) == tree` for
-  emittable trees through the default `EmitOptions::Structural` tier;
+  emittable trees through the default `EmitOptions::structural()` settings;
   duplicate-effective mapping keys, untagged literal merge keys, over-depth
-  trees, and directly nested tags are rejected before output.
-  `EmitOptions::ByteCompatible` is opt-in and matches `serde_yaml` bytes for a
-  supported structural writer corpus covering common scalars, maps, sequences,
-  Serde enum tags, document markers, typed real-world config shapes, and
-  bytes rejection. `EmitOptions::Preserving` remains a declared future tier and
-  returns an explicit not-implemented error instead of falling back silently.
+  trees, and directly nested tags are rejected before output. `EmitOptions`
+  now exposes opt-in key sorting, scalar quote style, literal/folded block
+  scalar style, and block/flow collection style controls while preserving
+  default structural bytes. `EmitOptions::byte_compatible()` matches
+  `serde_yaml` bytes for a supported structural writer corpus covering common
+  scalars, maps, sequences, Serde enum tags, document markers, typed
+  real-world config shapes, and bytes rejection.
 - Serde read support through `yaml::from_str` and a spanless
   `serde_yaml`-style `yaml::Value`, including source-backed string reads and
   typed `i128`/`u128` integer targets for large config identifiers, plus
@@ -153,9 +154,9 @@ Intentional first-milestone non-goals:
   classification is closed.
 - Arbitrary `serde_yaml` byte parity for source-styled trees, comments,
   anchors/aliases, directives, and lossless formatting remains outside the
-  first `EmitOptions::ByteCompatible` corpus; use `LosslessStream` for
-  source-preserving replay. `EmitOptions::Preserving` is still a reserved
-  future tier and selecting it currently returns an error.
+  first `EmitOptions::byte_compatible()` corpus; use `LosslessStream` for
+  source-preserving replay. There is no source-preserving emitter tier until a
+  tested lossless contract exists.
 - Kubernetes schema validation or automated ecosystem migration tooling.
 
 ## Verification

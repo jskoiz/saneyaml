@@ -70,7 +70,9 @@ pub use de::{
     Deserializer, from_documents_reader, from_documents_slice, from_documents_str, from_node,
     from_reader, from_slice, from_str, from_value,
 };
-pub use emit::EmitOptions;
+pub use emit::{
+    BlockScalarStyle, EmitCollectionStyle, EmitFidelity, EmitOptions, KeyOrder, ScalarQuoteStyle,
+};
 pub use error::{
     Diagnostic, Error, ErrorCategory, ErrorPath, ErrorPathSegment, Location, RelatedDiagnostic,
     Result, SourceDiagnostic, SourceRenderOptions, Span,

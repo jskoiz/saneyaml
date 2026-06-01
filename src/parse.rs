@@ -333,7 +333,8 @@ pub(crate) fn parse_document_results_with_options(
         Ok(mut parser) => {
             let results = parser.parse_document_results();
             let schemas = mem::take(&mut parser.document_schemas);
-            apply_merge_keys_to_document_results(results, schemas)
+            let has_merge_keys = mem::take(&mut parser.document_has_merge_keys);
+            apply_merge_keys_to_document_results(results, schemas, has_merge_keys)
         }
         Err(error) => vec![Err(error)],
     }
@@ -342,14 +343,18 @@ pub(crate) fn parse_document_results_with_options(
 fn apply_merge_keys_to_document_results(
     results: Vec<Result<Node>>,
     schemas: Vec<Schema>,
+    has_merge_keys: Vec<bool>,
 ) -> Vec<Result<Node>> {
     let mut schemas = schemas.into_iter();
+    let mut has_merge_keys = has_merge_keys.into_iter();
     results
         .into_iter()
         .map(|result| {
             result.and_then(|mut node| {
                 let schema = schemas.next().unwrap_or(Schema::Yaml12);
-                node.apply_merge_keys_with_policy(merge_policy_for_schema(schema))?;
+                if has_merge_keys.next().unwrap_or(true) {
+                    node.apply_merge_keys_with_policy(merge_policy_for_schema(schema))?;
+                }
                 Ok(node)
             })
         })
@@ -566,10 +571,14 @@ impl Iterator for DocumentStream {
         match self.parser.next_raw_document() {
             Some(Ok(mut node)) => {
                 let schema = self.parser.last_document_schema();
-                Some(
-                    node.apply_merge_keys_with_policy(merge_policy_for_schema(schema))
-                        .map(|()| node),
-                )
+                if self.parser.last_document_has_merge_key() {
+                    Some(
+                        node.apply_merge_keys_with_policy(merge_policy_for_schema(schema))
+                            .map(|()| node),
+                    )
+                } else {
+                    Some(Ok(node))
+                }
             }
             Some(Err(error)) => {
                 self.finished = true;
@@ -587,6 +596,7 @@ struct StreamingParser {
     parser: Parser,
     state: DocumentParseState,
     current_schema: Schema,
+    current_document_has_merge_key: bool,
 }
 
 impl StreamingParser {
@@ -595,6 +605,7 @@ impl StreamingParser {
             parser: Parser::new_with_options(input, options)?,
             state: DocumentParseState::default(),
             current_schema: Schema::Yaml12,
+            current_document_has_merge_key: false,
         })
     }
 
@@ -604,6 +615,7 @@ impl StreamingParser {
 
     fn next_raw_document(&mut self) -> Option<Result<Node>> {
         let schema_count = self.parser.document_schemas.len();
+        let merge_key_count = self.parser.document_has_merge_keys.len();
         let result = self.parser.parse_next_document_result(&mut self.state);
         if matches!(result, Some(Ok(_))) {
             self.current_schema = self
@@ -611,8 +623,14 @@ impl StreamingParser {
                 .document_schemas
                 .pop()
                 .expect("parsed document records schema");
+            self.current_document_has_merge_key = self
+                .parser
+                .document_has_merge_keys
+                .pop()
+                .expect("parsed document records merge-key status");
         }
         debug_assert_eq!(self.parser.document_schemas.len(), schema_count);
+        debug_assert_eq!(self.parser.document_has_merge_keys.len(), merge_key_count);
         result
     }
 
@@ -626,6 +644,10 @@ impl StreamingParser {
 
     fn last_document_schema(&self) -> Schema {
         self.current_schema
+    }
+
+    fn last_document_has_merge_key(&self) -> bool {
+        self.current_document_has_merge_key
     }
 }
 
@@ -650,6 +672,8 @@ struct Parser {
     pending_document_directives: EventDocumentDirectives,
     pending_directives: bool,
     document_schemas: Vec<Schema>,
+    document_has_merge_keys: Vec<bool>,
+    current_document_has_merge_key: bool,
 }
 
 #[derive(Default)]
@@ -830,6 +854,8 @@ impl Parser {
             pending_document_directives: EventDocumentDirectives::default(),
             pending_directives: false,
             document_schemas: Vec::new(),
+            document_has_merge_keys: Vec::new(),
+            current_document_has_merge_key: false,
         })
     }
 
@@ -940,10 +966,13 @@ impl Parser {
     }
 
     fn check_duplicate_key(
-        &self,
+        &mut self,
         seen: &mut HashMap<DuplicateKey, Span>,
         key: &Node,
     ) -> Result<()> {
+        if node_is_merge_key(key) {
+            self.current_document_has_merge_key = true;
+        }
         check_duplicate_for_schema(self.recording_events(), self.active_schema, seen, key)
     }
 
@@ -1116,6 +1145,9 @@ impl Parser {
 
     fn finish_parsed_document(&mut self, doc: Node) -> Node {
         self.document_schemas.push(self.active_schema);
+        self.document_has_merge_keys
+            .push(self.current_document_has_merge_key);
+        self.current_document_has_merge_key = false;
         doc
     }
 
@@ -2703,7 +2735,7 @@ impl Parser {
         }
         if text.starts_with('[') || text.starts_with('{') {
             let buffer = self.collect_flow_buffer(text, line, local_start, parent_indent)?;
-            return FlowParser::new(
+            let (node, has_merge_key) = FlowParser::new(
                 buffer,
                 depth,
                 &mut self.anchors,
@@ -2711,7 +2743,9 @@ impl Parser {
                 &self.active_tag_handles,
                 self.active_schema,
             )
-            .parse();
+            .parse()?;
+            self.current_document_has_merge_key |= has_merge_key;
+            return Ok(node);
         }
         let node = parse_scalar(text, line, local_start, self.active_schema)?;
         self.emit_scalar_node(&node, scalar_style_for_text(text));
@@ -4207,6 +4241,7 @@ struct FlowParser<'a> {
     events: Option<&'a mut EventRecorder>,
     active_tag_handles: &'a HashMap<String, String>,
     pending_anchor: Option<PendingAnchor>,
+    has_merge_key: bool,
 }
 
 impl<'a> FlowParser<'a> {
@@ -4227,10 +4262,11 @@ impl<'a> FlowParser<'a> {
             events,
             active_tag_handles,
             pending_anchor: None,
+            has_merge_key: false,
         }
     }
 
-    fn parse(mut self) -> Result<Node> {
+    fn parse(mut self) -> Result<(Node, bool)> {
         let node = self.parse_value()?;
         self.skip_ws();
         if self.pos != self.buffer.text.len() {
@@ -4239,7 +4275,7 @@ impl<'a> FlowParser<'a> {
                 self.span(self.pos, self.buffer.text.len()),
             ));
         }
-        Ok(node)
+        Ok((node, self.has_merge_key))
     }
 
     fn emit_sequence_start(&mut self, style: CollectionStyle, span: Span) {
@@ -4331,10 +4367,13 @@ impl<'a> FlowParser<'a> {
     }
 
     fn check_duplicate_key(
-        &self,
+        &mut self,
         seen: &mut HashMap<DuplicateKey, Span>,
         key: &Node,
     ) -> Result<()> {
+        if node_is_merge_key(key) {
+            self.has_merge_key = true;
+        }
         check_duplicate_for_schema(self.recording_events(), self.schema, seen, key)
     }
 
@@ -5201,6 +5240,10 @@ mod tests {
             assert!(
                 parser.parser.document_schemas.is_empty(),
                 "streaming parser must not retain per-document schema history"
+            );
+            assert!(
+                parser.parser.document_has_merge_keys.is_empty(),
+                "streaming parser must not retain per-document merge-key history"
             );
             let expected_schema = if documents % 2 == 1 {
                 Schema::Yaml11

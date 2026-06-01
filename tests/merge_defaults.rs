@@ -141,6 +141,78 @@ canonical:
 }
 
 #[test]
+fn default_merge_expands_flow_and_directive_tagged_merge_keys() {
+    let input = "\
+%TAG !m! tag:yaml.org,2002:
+---
+base: &base {a: 1, shared: base}
+flow: {<<: *base, shared: flow}
+tagged: {!!merge <<: *base, shared: tagged}
+canonical: {!<tag:yaml.org,2002:merge> <<: *base, shared: canonical}
+handle: {!m!merge <<: *base, shared: handle}
+";
+
+    let value: Value = yaml::from_str(input).expect("flow merge keys expand by default");
+    for (key, expected_shared) in [
+        ("flow", "flow"),
+        ("tagged", "tagged"),
+        ("canonical", "canonical"),
+        ("handle", "handle"),
+    ] {
+        assert!(value[key]["<<"].is_null(), "{key} merge key removed");
+        assert_eq!(value[key]["a"].as_u64(), Some(1), "{key} inherited a");
+        assert_eq!(
+            value[key]["shared"].as_str(),
+            Some(expected_shared),
+            "{key} explicit value wins"
+        );
+    }
+}
+
+#[test]
+fn default_merge_state_resets_between_no_merge_documents() {
+    let input = "\
+---
+plain: before
+---
+base: &base {a: 1}
+target: {<<: *base, b: 2}
+---
+plain: after
+";
+    let batch = yaml::parse_documents(input).expect("batch parse mixed merge stream");
+    let streamed = yaml::DocumentStream::from_str(input)
+        .expect("document stream")
+        .collect::<yaml::Result<Vec<yaml::Node>>>()
+        .expect("streamed mixed merge documents");
+
+    assert_eq!(streamed, batch);
+    assert_eq!(batch.len(), 3);
+    let middle = top_mapping(&batch[1]);
+    let target = mapping_value(middle, "target");
+    let NodeValue::Mapping(entries) = &target.value else {
+        panic!("expected target mapping");
+    };
+    assert!(entries.iter().all(|(key, _)| key.as_str() != Some("<<")));
+    assert!(matches!(
+        mapping_value(entries, "a").value,
+        NodeValue::Number(yaml::Number::Integer(1))
+    ));
+    assert!(matches!(
+        mapping_value(entries, "b").value,
+        NodeValue::Number(yaml::Number::Integer(2))
+    ));
+    assert_eq!(
+        mapping_value(top_mapping(&batch[0]), "plain").as_str(),
+        Some("before")
+    );
+    assert_eq!(
+        mapping_value(top_mapping(&batch[2]), "plain").as_str(),
+        Some("after")
+    );
+}
+
+#[test]
 fn default_merge_reports_spanful_invalid_payloads() {
     let error = yaml::parse_str("item:\n  <<: scalar\n").expect_err("invalid merge payload");
 

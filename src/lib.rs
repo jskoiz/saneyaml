@@ -69,7 +69,7 @@ pub use error::{Diagnostic, Error, Location, RelatedDiagnostic, Result, Span};
 pub use lossless::{
     AliasId, AnchorId, LosslessAlias, LosslessAnchor, LosslessDocument, LosslessEdit,
     LosslessEffectiveMappingEntry, LosslessEffectiveMappingSource, LosslessNode, LosslessNodeKind,
-    LosslessStream, LosslessTrivia, LosslessTriviaKind, NodeId, parse_lossless,
+    LosslessStream, LosslessTrivia, LosslessTriviaKind, NodeId, PathSegment, parse_lossless,
     parse_lossless_bytes,
 };
 pub use parse::{

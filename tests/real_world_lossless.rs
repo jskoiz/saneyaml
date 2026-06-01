@@ -4,7 +4,7 @@ use std::fs;
 use std::path::Path;
 use yaml::{
     CollectionStyle, LosslessEffectiveMappingSource, LosslessNodeKind, LosslessStream, NodeId,
-    ScalarStyle, parse_lossless,
+    PathSegment, ScalarStyle, parse_lossless,
 };
 
 const FIXTURE_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/real-world");
@@ -484,6 +484,48 @@ fn lossless_in_place_delete_keeps_compose_service_comments() {
         edited.contains("#image: mysql:8"),
         "commented-out alternative image preserved after deletion"
     );
+}
+
+#[test]
+fn lossless_path_addressed_edits_update_compose_without_manual_navigation() {
+    let input = include_str!("fixtures/real-world/docker-compose/awesome-nginx-flask-mysql.yaml");
+    let stream = parse_lossless(input).expect("lossless parse Compose stack");
+
+    // Replace a deeply nested value addressed by path, with no hand-built NodeId
+    // navigation through services -> db -> image.
+    let after_image = stream
+        .replace_value_at_path(
+            0,
+            &[
+                PathSegment::from("services"),
+                PathSegment::from("db"),
+                PathSegment::from("image"),
+            ],
+            "mariadb:11-focal",
+        )
+        .expect("replace db image by path");
+    assert_minimal_line_diff(
+        input,
+        &after_image,
+        &[("    image: mariadb:10-focal", "    image: mariadb:11-focal")],
+    );
+
+    // Resolve a container by path, then reuse the existing sequence helper to
+    // append an item — the path layer composes with the structural editors.
+    let backend_ports = stream
+        .resolve_path(
+            0,
+            &[
+                PathSegment::from("services"),
+                PathSegment::from("backend"),
+                PathSegment::from("ports"),
+            ],
+        )
+        .expect("resolve services.backend.ports");
+    let after_port = stream
+        .insert_block_sequence_item_source(backend_ports, 1, "9000:9000")
+        .expect("append backend port");
+    assert_line_changes(input, &after_port, &[], &["      - 9000:9000"]);
 }
 
 /// Asserts the line-level diff between `original` and `edited` consists of exactly

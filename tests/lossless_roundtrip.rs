@@ -1,6 +1,6 @@
 use yaml::{
-    CollectionStyle, LosslessNodeKind, LosslessTriviaKind, ScalarStyle, parse_lossless,
-    parse_lossless_bytes,
+    CollectionStyle, LosslessNodeKind, LosslessTriviaKind, PathSegment, ScalarStyle,
+    parse_lossless, parse_lossless_bytes,
 };
 
 #[test]
@@ -776,4 +776,165 @@ fn sequence_node_contains_scalar_value(
         }),
         LosslessNodeKind::Alias { .. } => false,
     }
+}
+
+#[test]
+fn lossless_resolve_path_navigates_mappings_and_sequences() {
+    let input = "\
+services:
+  db:
+    image: mariadb:10-focal
+    ports:
+      - 3306
+      - 33060
+";
+    let stream = parse_lossless(input).expect("lossless parse");
+
+    let image = stream
+        .resolve_path(
+            0,
+            &[
+                PathSegment::from("services"),
+                PathSegment::from("db"),
+                PathSegment::from("image"),
+            ],
+        )
+        .expect("resolve services.db.image");
+    assert!(matches!(
+        stream.node(image).expect("image node").kind(),
+        LosslessNodeKind::Scalar { value, .. } if value == "mariadb:10-focal"
+    ));
+
+    let second_port = stream
+        .resolve_path(
+            0,
+            &[
+                PathSegment::Key("services".to_owned()),
+                PathSegment::Key("db".to_owned()),
+                PathSegment::Key("ports".to_owned()),
+                PathSegment::Index(1),
+            ],
+        )
+        .expect("resolve services.db.ports[1]");
+    assert!(matches!(
+        stream.node(second_port).expect("port node").kind(),
+        LosslessNodeKind::Scalar { value, .. } if value == "33060"
+    ));
+
+    // An empty path returns the document root.
+    let root = stream.resolve_path(0, &[]).expect("resolve root");
+    assert_eq!(root, stream.documents()[0].root().expect("doc root"));
+}
+
+#[test]
+fn lossless_replace_value_at_path_edits_addressed_node() {
+    let input = "\
+services:
+  db:
+    image: mariadb:10-focal
+";
+    let stream = parse_lossless(input).expect("lossless parse");
+    let output = stream
+        .replace_value_at_path(
+            0,
+            &[
+                PathSegment::from("services"),
+                PathSegment::from("db"),
+                PathSegment::from("image"),
+            ],
+            "mariadb:11-focal",
+        )
+        .expect("replace addressed value");
+    assert_eq!(output, "services:\n  db:\n    image: mariadb:11-focal\n");
+}
+
+#[test]
+fn lossless_resolve_path_reports_failing_segment() {
+    let input = "\
+services:
+  db:
+    image: mariadb:10-focal
+    ports:
+      - 3306
+ref: &dup 1
+copy: *dup
+dup_keys:
+  a: 1
+  a: 2
+";
+    let stream = parse_lossless(input).expect("lossless parse");
+
+    let missing = stream
+        .resolve_path(
+            0,
+            &[PathSegment::from("services"), PathSegment::from("web")],
+        )
+        .expect_err("missing key");
+    assert!(missing.to_string().contains("key \"web\" was not found"));
+
+    let out_of_bounds = stream
+        .resolve_path(
+            0,
+            &[
+                PathSegment::from("services"),
+                PathSegment::from("db"),
+                PathSegment::from("ports"),
+                PathSegment::from(5usize),
+            ],
+        )
+        .expect_err("index out of bounds");
+    assert!(out_of_bounds.to_string().contains("out of bounds"));
+
+    let key_on_scalar = stream
+        .resolve_path(
+            0,
+            &[
+                PathSegment::from("services"),
+                PathSegment::from("db"),
+                PathSegment::from("image"),
+                PathSegment::from("nope"),
+            ],
+        )
+        .expect_err("key into scalar");
+    assert!(
+        key_on_scalar
+            .to_string()
+            .contains("requires a mapping node")
+    );
+
+    let index_on_mapping = stream
+        .resolve_path(
+            0,
+            &[PathSegment::from("services"), PathSegment::from(0usize)],
+        )
+        .expect_err("index into mapping");
+    assert!(
+        index_on_mapping
+            .to_string()
+            .contains("requires a sequence node")
+    );
+
+    // Aliases are not followed: stepping into an alias node is an error rather
+    // than a silent traversal of the shared anchor.
+    let through_alias = stream
+        .resolve_path(
+            0,
+            &[PathSegment::from("copy"), PathSegment::from("anything")],
+        )
+        .expect_err("alias not followed");
+    assert!(
+        through_alias
+            .to_string()
+            .contains("requires a mapping node")
+    );
+
+    let ambiguous = stream
+        .resolve_path(0, &[PathSegment::from("dup_keys"), PathSegment::from("a")])
+        .expect_err("ambiguous duplicate key");
+    assert!(ambiguous.to_string().contains("is ambiguous"));
+
+    let bad_document = stream
+        .resolve_path(2, &[PathSegment::from("services")])
+        .expect_err("document out of range");
+    assert!(bad_document.to_string().contains("out of range"));
 }

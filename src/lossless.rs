@@ -65,6 +65,39 @@ impl AliasId {
     }
 }
 
+/// One step in a [`LosslessStream`] node path.
+///
+/// Paths address a node by walking from a document root through mapping keys and
+/// sequence indices. Use [`LosslessStream::resolve_path`] to turn a path into a
+/// [`NodeId`] that composes with the structural edit helpers. `From<&str>` and
+/// `From<usize>` are provided so a path can be written as
+/// `[PathSegment::from("services"), PathSegment::from(0)]`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PathSegment {
+    /// Descend into a block or flow mapping by matching a scalar key.
+    Key(String),
+    /// Descend into a block or flow sequence by zero-based index.
+    Index(usize),
+}
+
+impl From<&str> for PathSegment {
+    fn from(key: &str) -> Self {
+        PathSegment::Key(key.to_owned())
+    }
+}
+
+impl From<String> for PathSegment {
+    fn from(key: String) -> Self {
+        PathSegment::Key(key)
+    }
+}
+
+impl From<usize> for PathSegment {
+    fn from(index: usize) -> Self {
+        PathSegment::Index(index)
+    }
+}
+
 /// Source provenance for a lossless effective mapping entry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LosslessEffectiveMappingSource {
@@ -451,6 +484,112 @@ impl LosslessStream {
         let mut edit = self.edit();
         edit.delete_flow_sequence_item_source(sequence, index)?;
         edit.finish()
+    }
+
+    /// Resolves a node path against one parsed document and returns the
+    /// addressed node id.
+    ///
+    /// The path walks from the document root: [`PathSegment::Key`] descends into
+    /// a block or flow mapping by matching a scalar key, and
+    /// [`PathSegment::Index`] descends into a block or flow sequence by
+    /// zero-based position. An empty path returns the document root. The returned
+    /// [`NodeId`] composes with the structural edit helpers, so callers can
+    /// address a container by path and then insert, delete, or replace within it.
+    ///
+    /// Aliases are not followed: a path step into an alias node reports an error
+    /// so edits never silently target a shared anchor through one of its
+    /// references. A missing key, an ambiguous duplicate key, an out-of-range
+    /// index, or a type mismatch each returns a span-bearing error identifying
+    /// the failing segment.
+    pub fn resolve_path(&self, document: usize, path: &[PathSegment]) -> Result<NodeId> {
+        let doc = self.documents().get(document).ok_or_else(|| {
+            Error::new(
+                format!("lossless document index {document} is out of range"),
+                None,
+            )
+        })?;
+        let mut current = doc.root().ok_or_else(|| {
+            Error::new(
+                format!("lossless document index {document} has no root node"),
+                None,
+            )
+        })?;
+        for (depth, segment) in path.iter().enumerate() {
+            current = self.resolve_path_segment(current, segment, depth)?;
+        }
+        Ok(current)
+    }
+
+    /// Replaces the source of the node addressed by `path` and returns edited
+    /// YAML.
+    ///
+    /// This is a path-addressed convenience over [`Self::resolve_path`] and
+    /// [`Self::replace_node_source`]: the path must address the value node to
+    /// rewrite, for example `[PathSegment::from("services"),
+    /// PathSegment::from("db"), PathSegment::from("image")]`. The replacement is
+    /// raw YAML source for the selected node range, and the full stream is
+    /// reparsed before the edited string is returned.
+    pub fn replace_value_at_path(
+        &self,
+        document: usize,
+        path: &[PathSegment],
+        replacement: impl Into<String>,
+    ) -> Result<String> {
+        let node = self.resolve_path(document, path)?;
+        self.replace_node_source(node, replacement)
+    }
+
+    fn resolve_path_segment(
+        &self,
+        node: NodeId,
+        segment: &PathSegment,
+        depth: usize,
+    ) -> Result<NodeId> {
+        let current = self
+            .node(node)
+            .ok_or_else(|| Error::new("lossless path node id is out of bounds", None))?;
+        match (segment, current.kind()) {
+            (PathSegment::Key(key), LosslessNodeKind::Mapping { entries, .. }) => {
+                let mut matches = entries.iter().filter_map(|(key_id, value_id)| {
+                    match self.node(*key_id)?.kind() {
+                        LosslessNodeKind::Scalar { value, .. } if value == key => Some(*value_id),
+                        _ => None,
+                    }
+                });
+                let Some(value) = matches.next() else {
+                    return Err(Error::new(
+                        format!("lossless path segment {depth} key {key:?} was not found"),
+                        Some(current.span()),
+                    ));
+                };
+                if matches.next().is_some() {
+                    return Err(Error::new(
+                        format!("lossless path segment {depth} key {key:?} is ambiguous"),
+                        Some(current.span()),
+                    ));
+                }
+                Ok(value)
+            }
+            (PathSegment::Index(index), LosslessNodeKind::Sequence { children, .. }) => {
+                children.get(*index).copied().ok_or_else(|| {
+                    Error::new(
+                        format!(
+                            "lossless path segment {depth} index {index} is out of bounds for a sequence of length {}",
+                            children.len()
+                        ),
+                        Some(current.span()),
+                    )
+                })
+            }
+            (PathSegment::Key(key), _) => Err(Error::new(
+                format!("lossless path segment {depth} key {key:?} requires a mapping node"),
+                Some(current.span()),
+            )),
+            (PathSegment::Index(index), _) => Err(Error::new(
+                format!("lossless path segment {depth} index {index} requires a sequence node"),
+                Some(current.span()),
+            )),
+        }
     }
 
     fn collect_effective_mapping_entries(

@@ -1,4 +1,6 @@
-use crate::{Error, Node, NodeValue as Value, Number, Result, Span, parse::MAX_DEPTH};
+use crate::{
+    Error, Node, NodeValue as Value, Number, Result, Span, schema::DEFAULT_MAX_NESTING_DEPTH,
+};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -42,10 +44,6 @@ impl DuplicateKey {
     }
 }
 
-pub(crate) fn check_duplicate(seen: &mut HashMap<DuplicateKey, Span>, key: &Node) -> Result<()> {
-    check_duplicate_at_depth(seen, key, 1)
-}
-
 pub(crate) fn same_key_identity(left: &Node, right: &Node) -> Result<bool> {
     Ok(duplicate_key_identity_at(left, 1)? == duplicate_key_identity_at(right, 1)?)
 }
@@ -55,7 +53,16 @@ pub(crate) fn check_duplicate_at_depth(
     key: &Node,
     depth: usize,
 ) -> Result<()> {
-    let Some(key_identity) = duplicate_key_identity_at(key, depth)? else {
+    check_duplicate_at_depth_limit(seen, key, depth, Some(DEFAULT_MAX_NESTING_DEPTH))
+}
+
+pub(crate) fn check_duplicate_at_depth_limit(
+    seen: &mut HashMap<DuplicateKey, Span>,
+    key: &Node,
+    depth: usize,
+    max_depth: Option<usize>,
+) -> Result<()> {
+    let Some(key_identity) = duplicate_key_identity_with_limit(key, depth, max_depth)? else {
         return Ok(());
     };
     if let Some(previous) = seen.insert(key_identity.clone(), key.span) {
@@ -71,7 +78,15 @@ pub(crate) fn check_duplicate_at_depth(
 }
 
 fn duplicate_key_identity_at(key: &Node, depth: usize) -> Result<Option<DuplicateKey>> {
-    if depth > MAX_DEPTH {
+    duplicate_key_identity_with_limit(key, depth, Some(DEFAULT_MAX_NESTING_DEPTH))
+}
+
+fn duplicate_key_identity_with_limit(
+    key: &Node,
+    depth: usize,
+    max_depth: Option<usize>,
+) -> Result<Option<DuplicateKey>> {
+    if max_depth.is_some_and(|max| depth > max) {
         return Err(Error::new("maximum YAML nesting depth exceeded", key.span));
     }
 
@@ -83,16 +98,24 @@ fn duplicate_key_identity_at(key: &Node, depth: usize) -> Result<Option<Duplicat
         Value::Number(Number::Unsigned(value)) => Some(DuplicateKey::Unsigned(*value)),
         Value::Number(Number::Float(value)) => Some(DuplicateKey::Float(float_key_bits(*value))),
         Value::String(value) => Some(DuplicateKey::String(value.clone())),
-        Value::Sequence(items) => duplicate_sequence_identity(items, next_depth(depth))?,
-        Value::Mapping(entries) => duplicate_mapping_identity(entries, next_depth(depth))?,
-        Value::Tagged(tagged) => duplicate_key_identity_at(&tagged.value, next_depth(depth))?,
+        Value::Sequence(items) => duplicate_sequence_identity(items, next_depth(depth), max_depth)?,
+        Value::Mapping(entries) => {
+            duplicate_mapping_identity(entries, next_depth(depth), max_depth)?
+        }
+        Value::Tagged(tagged) => {
+            duplicate_key_identity_with_limit(&tagged.value, next_depth(depth), max_depth)?
+        }
     })
 }
 
-fn duplicate_sequence_identity(items: &[Node], depth: usize) -> Result<Option<DuplicateKey>> {
+fn duplicate_sequence_identity(
+    items: &[Node],
+    depth: usize,
+    max_depth: Option<usize>,
+) -> Result<Option<DuplicateKey>> {
     let mut identities = Vec::with_capacity(items.len());
     for item in items {
-        let Some(identity) = duplicate_key_identity_at(item, depth)? else {
+        let Some(identity) = duplicate_key_identity_with_limit(item, depth, max_depth)? else {
             return Ok(None);
         };
         identities.push(identity);
@@ -103,13 +126,15 @@ fn duplicate_sequence_identity(items: &[Node], depth: usize) -> Result<Option<Du
 fn duplicate_mapping_identity(
     entries: &[(Node, Node)],
     depth: usize,
+    max_depth: Option<usize>,
 ) -> Result<Option<DuplicateKey>> {
     let mut identities = Vec::with_capacity(entries.len());
     for (key, value) in entries {
-        let Some(key_identity) = duplicate_key_identity_at(key, depth)? else {
+        let Some(key_identity) = duplicate_key_identity_with_limit(key, depth, max_depth)? else {
             return Ok(None);
         };
-        let Some(value_identity) = duplicate_key_identity_at(value, depth)? else {
+        let Some(value_identity) = duplicate_key_identity_with_limit(value, depth, max_depth)?
+        else {
             return Ok(None);
         };
         identities.push((key_identity, value_identity));

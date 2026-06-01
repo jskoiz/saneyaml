@@ -76,7 +76,7 @@ pub use lossless::{
     AliasId, AnchorId, LosslessAlias, LosslessAnchor, LosslessDocument, LosslessEdit,
     LosslessEffectiveMappingEntry, LosslessEffectiveMappingSource, LosslessNode, LosslessNodeKind,
     LosslessStream, LosslessTrivia, LosslessTriviaKind, NodeId, PathSegment, parse_lossless,
-    parse_lossless_bytes,
+    parse_lossless_bytes, parse_lossless_bytes_with_options, parse_lossless_with_options,
 };
 pub use parse::{
     CollectionStyle, DocumentStream, Event, EventAnchor, EventDocumentDirectives, EventMeta,
@@ -86,7 +86,8 @@ pub use parse::{
     stream_events_reader, stream_events_slice,
 };
 pub use schema::{
-    DEFAULT_ALIAS_EXPANSION_FACTOR, DEFAULT_MAX_INPUT_BYTES, DEFAULT_MIN_ALIAS_EXPANSION_NODES,
+    DEFAULT_ALIAS_EXPANSION_FACTOR, DEFAULT_MAX_COLLECTION_ITEMS, DEFAULT_MAX_INPUT_BYTES,
+    DEFAULT_MAX_NESTING_DEPTH, DEFAULT_MAX_SCALAR_BYTES, DEFAULT_MIN_ALIAS_EXPANSION_NODES,
     LoadOptions, Schema,
 };
 pub use ser::{

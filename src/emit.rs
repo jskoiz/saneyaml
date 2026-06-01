@@ -1,6 +1,6 @@
 use crate::{
     Error, Node, NodeValue as Value, Number, Result, Span, Tag, TaggedNode,
-    key_identity::check_duplicate_at_depth, parse::MAX_DEPTH,
+    key_identity::check_duplicate_at_depth, schema::DEFAULT_MAX_NESTING_DEPTH,
 };
 use std::{collections::HashMap, fmt::Write as _};
 
@@ -72,7 +72,7 @@ fn validate_emittable(node: &Node) -> Result<()> {
 }
 
 fn validate_emittable_at(node: &Node, depth: usize) -> Result<()> {
-    if depth > MAX_DEPTH {
+    if depth > DEFAULT_MAX_NESTING_DEPTH {
         return Err(Error::new("maximum YAML nesting depth exceeded", node.span));
     }
     match &node.value {

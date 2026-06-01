@@ -13,6 +13,15 @@ pub const DEFAULT_ALIAS_EXPANSION_FACTOR: usize = 64;
 /// Minimum alias expansion budget used by default loading options.
 pub const DEFAULT_MIN_ALIAS_EXPANSION_NODES: usize = 1024;
 
+/// Default maximum constructed YAML nesting depth accepted by loading entrypoints.
+pub const DEFAULT_MAX_NESTING_DEPTH: usize = 128;
+
+/// Default maximum resolved scalar size accepted by loading entrypoints.
+pub const DEFAULT_MAX_SCALAR_BYTES: usize = DEFAULT_MAX_INPUT_BYTES;
+
+/// Default maximum number of entries accepted in one sequence or mapping.
+pub const DEFAULT_MAX_COLLECTION_ITEMS: usize = DEFAULT_MAX_INPUT_BYTES;
+
 /// Scalar construction schema used by tree and Serde loading.
 ///
 /// `Yaml12` is the default-compatible spelling and uses the same YAML
@@ -55,6 +64,9 @@ pub struct LoadOptions {
     pub(crate) schema: Schema,
     max_input_bytes: Option<usize>,
     max_alias_expansion_nodes: Option<usize>,
+    max_nesting_depth: Option<usize>,
+    max_scalar_bytes: Option<usize>,
+    max_collection_items: Option<usize>,
 }
 
 impl Default for LoadOptions {
@@ -70,6 +82,9 @@ impl LoadOptions {
             schema: Schema::Yaml12,
             max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
             max_alias_expansion_nodes: None,
+            max_nesting_depth: Some(DEFAULT_MAX_NESTING_DEPTH),
+            max_scalar_bytes: Some(DEFAULT_MAX_SCALAR_BYTES),
+            max_collection_items: Some(DEFAULT_MAX_COLLECTION_ITEMS),
         }
     }
 
@@ -79,6 +94,9 @@ impl LoadOptions {
             schema: Schema::Core,
             max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
             max_alias_expansion_nodes: None,
+            max_nesting_depth: Some(DEFAULT_MAX_NESTING_DEPTH),
+            max_scalar_bytes: Some(DEFAULT_MAX_SCALAR_BYTES),
+            max_collection_items: Some(DEFAULT_MAX_COLLECTION_ITEMS),
         }
     }
 
@@ -88,6 +106,9 @@ impl LoadOptions {
             schema: Schema::Json,
             max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
             max_alias_expansion_nodes: None,
+            max_nesting_depth: Some(DEFAULT_MAX_NESTING_DEPTH),
+            max_scalar_bytes: Some(DEFAULT_MAX_SCALAR_BYTES),
+            max_collection_items: Some(DEFAULT_MAX_COLLECTION_ITEMS),
         }
     }
 
@@ -97,6 +118,9 @@ impl LoadOptions {
             schema: Schema::Failsafe,
             max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
             max_alias_expansion_nodes: None,
+            max_nesting_depth: Some(DEFAULT_MAX_NESTING_DEPTH),
+            max_scalar_bytes: Some(DEFAULT_MAX_SCALAR_BYTES),
+            max_collection_items: Some(DEFAULT_MAX_COLLECTION_ITEMS),
         }
     }
 
@@ -106,6 +130,9 @@ impl LoadOptions {
             schema: Schema::Yaml11,
             max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
             max_alias_expansion_nodes: None,
+            max_nesting_depth: Some(DEFAULT_MAX_NESTING_DEPTH),
+            max_scalar_bytes: Some(DEFAULT_MAX_SCALAR_BYTES),
+            max_collection_items: Some(DEFAULT_MAX_COLLECTION_ITEMS),
         }
     }
 
@@ -115,6 +142,9 @@ impl LoadOptions {
             schema: Schema::LegacySerdeYaml,
             max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
             max_alias_expansion_nodes: None,
+            max_nesting_depth: Some(DEFAULT_MAX_NESTING_DEPTH),
+            max_scalar_bytes: Some(DEFAULT_MAX_SCALAR_BYTES),
+            max_collection_items: Some(DEFAULT_MAX_COLLECTION_ITEMS),
         }
     }
 
@@ -128,6 +158,9 @@ impl LoadOptions {
             schema: Schema::YamlVersionDirective,
             max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
             max_alias_expansion_nodes: None,
+            max_nesting_depth: Some(DEFAULT_MAX_NESTING_DEPTH),
+            max_scalar_bytes: Some(DEFAULT_MAX_SCALAR_BYTES),
+            max_collection_items: Some(DEFAULT_MAX_COLLECTION_ITEMS),
         }
     }
 
@@ -175,6 +208,57 @@ impl LoadOptions {
         self.max_alias_expansion_nodes
     }
 
+    /// Returns options with a maximum constructed YAML nesting depth.
+    pub const fn max_nesting_depth(mut self, max_nesting_depth: usize) -> Self {
+        self.max_nesting_depth = Some(max_nesting_depth);
+        self
+    }
+
+    /// Returns options without a constructed nesting-depth limit.
+    pub const fn without_nesting_depth_limit(mut self) -> Self {
+        self.max_nesting_depth = None;
+        self
+    }
+
+    /// Returns the configured maximum constructed nesting depth.
+    pub const fn selected_max_nesting_depth(self) -> Option<usize> {
+        self.max_nesting_depth
+    }
+
+    /// Returns options with a maximum resolved scalar size in bytes.
+    pub const fn max_scalar_bytes(mut self, max_scalar_bytes: usize) -> Self {
+        self.max_scalar_bytes = Some(max_scalar_bytes);
+        self
+    }
+
+    /// Returns options without a resolved scalar-size limit.
+    pub const fn without_scalar_limit(mut self) -> Self {
+        self.max_scalar_bytes = None;
+        self
+    }
+
+    /// Returns the configured maximum resolved scalar size in bytes.
+    pub const fn selected_max_scalar_bytes(self) -> Option<usize> {
+        self.max_scalar_bytes
+    }
+
+    /// Returns options with a maximum number of entries per sequence or mapping.
+    pub const fn max_collection_items(mut self, max_collection_items: usize) -> Self {
+        self.max_collection_items = Some(max_collection_items);
+        self
+    }
+
+    /// Returns options without a per-collection item limit.
+    pub const fn without_collection_limit(mut self) -> Self {
+        self.max_collection_items = None;
+        self
+    }
+
+    /// Returns the configured maximum number of entries per sequence or mapping.
+    pub const fn selected_max_collection_items(self) -> Option<usize> {
+        self.max_collection_items
+    }
+
     pub(crate) fn alias_expansion_budget(self, input_len: usize) -> usize {
         self.max_alias_expansion_nodes.unwrap_or_else(|| {
             input_len
@@ -200,6 +284,37 @@ impl LoadOptions {
             format!("YAML input exceeds configured limit of {max} bytes"),
             Span::default(),
         )
+    }
+
+    pub(crate) fn check_nesting_depth(self, depth: usize, span: Span) -> Result<()> {
+        if self.max_nesting_depth.is_some_and(|max| depth > max) {
+            return Err(Error::new("maximum YAML nesting depth exceeded", span));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn check_scalar_bytes(self, len: usize, span: Span) -> Result<()> {
+        if let Some(max) = self.max_scalar_bytes {
+            if len > max {
+                return Err(Error::new(
+                    format!("YAML scalar exceeds configured limit of {max} bytes"),
+                    span,
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn check_collection_items(self, len: usize, span: Span) -> Result<()> {
+        if let Some(max) = self.max_collection_items {
+            if len > max {
+                return Err(Error::new(
+                    format!("YAML collection exceeds configured limit of {max} entries"),
+                    span,
+                ));
+            }
+        }
+        Ok(())
     }
 
     /// Parses a single UTF-8 YAML document from bytes using these options.

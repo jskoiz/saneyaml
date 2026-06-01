@@ -88,14 +88,12 @@ The first milestone focuses on:
   config-shaped `Serialize` values with `serde_yaml`-style 128-bit integer
   value serialization, tagged values, and document markers.
 - Bounded input and alias expansion by default: `LoadOptions` carries a 64 MiB
-  input byte ceiling for string, slice, reader, pull event/document streams,
-  and direct deserializer entrypoints, and `parse_lossless_bytes` uses the same
-  default ceiling before UTF-8 validation. Raw event streaming validates alias
-  references without expanding them; loaded trees, Serde reads, and
-  `DocumentStream` enforce alias expansion budgets. Callers can tighten loader
-  paths with `max_input_bytes()`, tune alias expansion work with
-  `max_alias_expansion_nodes()`, or explicitly remove the loader input limit
-  with `without_input_limit()`.
+  input byte ceiling, input-derived alias budget, configurable nesting, scalar,
+  and collection limits, and explicit opt-outs for callers that have already
+  bounded their source. Raw event streaming validates alias references without
+  expanding them; loaded trees, Serde reads, and `DocumentStream` enforce alias
+  expansion budgets. `COMPATIBILITY.md` documents the threat model and resource
+  guarantees.
 - A `serde_yaml` swap harness and migration-readiness report for common
   downstream config-loading paths.
 - Pinned external replay fixtures from Pingora, rust-i18n, cfn-guard, navi,

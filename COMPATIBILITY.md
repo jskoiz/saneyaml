@@ -264,13 +264,44 @@ UTF-8 validation. Default options cap YAML input at 64 MiB and use an
 input-size-derived alias expansion budget. Raw event streaming validates alias
 references without expanding them, so it does not consume alias expansion
 budget; loaded trees, Serde reads, and `DocumentStream` enforce the alias budget
-while constructing semantic documents. `max_input_bytes()` can tighten or raise
+while constructing semantic documents. Default options also cap constructed
+nesting depth at 128, resolved scalar size at 64 MiB, and individual sequence or
+mapping collections at 64 MiB entries. `max_input_bytes()` can tighten or raise
 the byte ceiling, `max_alias_expansion_nodes()` can tune alias expansion work
-for untrusted config loads, and `without_input_limit()` is an explicit
-input-size opt-out for callers that have already bounded their source.
+for untrusted config loads, `max_nesting_depth()`, `max_scalar_bytes()`, and
+`max_collection_items()` can tune structural work, and the matching
+`without_*_limit()` methods are explicit opt-outs for callers that have already
+bounded their source.
 Direct input entrypoints borrow only scalars whose value can be represented as
 a slice of the original input; transformed scalars such as escaped quoted
 strings and block scalars still require owned `String`/`Cow` targets.
+
+## Threat Model and Resource Guarantees
+
+The defended input is untrusted YAML supplied to string, slice, reader,
+pull-event, pull-document, lossless bytes, and Serde load entrypoints. With
+default `LoadOptions`, the crate rejects inputs above 64 MiB before parsing,
+rejects alias-expansion bombs in semantic loaders using an input-derived alias
+budget, rejects recursive aliases, rejects block and flow nesting beyond 128,
+rejects resolved scalars above 64 MiB, rejects individual sequences and mappings
+above 64 MiB entries, and preserves span-bearing diagnostics for those failures.
+Raw event and lossless streams validate alias references but do not expand
+aliases and therefore do not spend the alias-expansion budget.
+
+Callers can tighten or relax the byte, alias, nesting, scalar, and collection
+limits through `LoadOptions`. Removing a limit with a `without_*_limit()` method
+transfers that part of the resource bound to the caller. Reader-backed
+entrypoints still fully buffer bounded input before parsing, so these guarantees
+are structural limits rather than wall-clock or resident-memory promises. Custom
+`Deserialize` implementations may allocate after the YAML layer has handed them
+bounded values, and this crate does not validate application schemas such as
+Kubernetes, OpenAPI, or Docker Compose.
+
+Compared with the archived `serde_yaml`, this crate keeps fixed-depth and
+alias/repetition protections but exposes caller-visible resource knobs for
+untrusted config loading. Psych/libyaml parity in this repository is limited to
+the pinned behavior probes and documented divergences; it is not a claim that
+their resource-limit behavior is matched.
 
 Explicit empty documents in YAML streams are preserved as `Value::Null` rather
 than dropped, matching the common Serde/reference-crate stream shape.

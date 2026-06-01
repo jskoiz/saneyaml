@@ -8,9 +8,7 @@
 
 use crate::{
     CollectionStyle, Error, Event, EventAnchor, EventDocumentDirectives, EventMeta, EventTag,
-    LoadOptions, Result, ScalarStyle, Span,
-    error::utf8_error_span,
-    parse::{comment_start, parse_events},
+    LoadOptions, Result, ScalarStyle, Span, error::utf8_error_span, parse::comment_start,
 };
 use std::collections::HashMap;
 use std::fmt;
@@ -20,11 +18,24 @@ pub fn parse_lossless(input: &str) -> Result<LosslessStream> {
     LosslessStream::parse(input)
 }
 
+/// Parses a YAML stream into a source-backed lossless graph view with load options.
+pub fn parse_lossless_with_options(input: &str, options: LoadOptions) -> Result<LosslessStream> {
+    LosslessStream::parse_with_options(input, options)
+}
+
 /// Parses UTF-8 YAML bytes into a source-backed lossless graph view.
 pub fn parse_lossless_bytes(input: &[u8]) -> Result<LosslessStream> {
-    LoadOptions::new().check_input_len(input.len())?;
+    parse_lossless_bytes_with_options(input, LoadOptions::new())
+}
+
+/// Parses UTF-8 YAML bytes into a source-backed lossless graph view with load options.
+pub fn parse_lossless_bytes_with_options(
+    input: &[u8],
+    options: LoadOptions,
+) -> Result<LosslessStream> {
+    options.check_input_len(input.len())?;
     match std::str::from_utf8(input) {
-        Ok(input) => parse_lossless(input),
+        Ok(input) => parse_lossless_with_options(input, options),
         Err(err) => Err(Error::new(
             "input is not valid UTF-8",
             utf8_error_span(input, err),
@@ -193,7 +204,12 @@ pub struct LosslessStream {
 impl LosslessStream {
     /// Parses a YAML stream into a source-backed lossless graph view.
     pub fn parse(input: &str) -> Result<Self> {
-        let events = parse_events(input)?;
+        Self::parse_with_options(input, LoadOptions::new())
+    }
+
+    /// Parses a YAML stream into a source-backed lossless graph view with load options.
+    pub fn parse_with_options(input: &str, options: LoadOptions) -> Result<Self> {
+        let events = options.stream_events(input)?.collect::<Result<Vec<_>>>()?;
         let trivia = scan_trivia(input);
         Builder::new(input, events, trivia).build()
     }

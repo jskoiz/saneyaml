@@ -1,0 +1,34 @@
+[[case]]
+name = "deep-flow-nesting"
+class = "nesting-depth"
+generator = "flow-sequence"
+limit = 4
+expected_error = "maximum YAML nesting depth exceeded"
+
+[[case]]
+name = "oversized-plain-scalar"
+class = "scalar-growth"
+generator = "plain-scalar"
+limit = 8
+expected_error = "YAML scalar exceeds configured limit"
+
+[[case]]
+name = "oversized-block-scalar"
+class = "scalar-growth"
+generator = "literal-block-scalar"
+limit = 8
+expected_error = "YAML scalar exceeds configured limit"
+
+[[case]]
+name = "wide-flow-sequence"
+class = "collection-growth"
+generator = "flow-sequence-items"
+limit = 3
+expected_error = "YAML collection exceeds configured limit"
+
+[[case]]
+name = "alias-expansion-bomb"
+class = "alias-expansion"
+generator = "billion-laughs-style"
+limit = 8
+expected_error = "alias expansion limit exceeded"

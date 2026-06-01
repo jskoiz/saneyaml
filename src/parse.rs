@@ -6,7 +6,7 @@ use crate::{
     ast::MergePolicy,
     de::read_to_end_with_options,
     error::utf8_error_span,
-    key_identity::{DuplicateKey, check_duplicate},
+    key_identity::{DuplicateKey, check_duplicate_at_depth_limit},
     schema::{LoadOptions, Schema},
     yaml11,
 };
@@ -18,8 +18,6 @@ use std::{
     ops::Deref,
     rc::Rc,
 };
-
-pub(crate) const MAX_DEPTH: usize = 128;
 
 /// A raw parser event emitted while reading a YAML stream.
 #[derive(Clone, Debug, PartialEq)]
@@ -696,6 +694,7 @@ struct Parser {
     lines: Vec<Line>,
     pos: usize,
     input_len: usize,
+    options: LoadOptions,
     schema: Schema,
     active_schema: Schema,
     anchors: AnchorRegistry,
@@ -788,15 +787,17 @@ struct AnchorRegistry {
     generation: usize,
     expanded_nodes: usize,
     expansion_budget: usize,
+    options: LoadOptions,
 }
 
 impl AnchorRegistry {
-    fn new(expansion_budget: usize) -> Self {
+    fn new(expansion_budget: usize, options: LoadOptions) -> Self {
         Self {
             entries: HashMap::new(),
             generation: 0,
             expanded_nodes: 0,
             expansion_budget,
+            options,
         }
     }
 
@@ -849,7 +850,11 @@ impl AnchorRegistry {
         if self.expanded_nodes > self.expansion_budget {
             return Err(Error::new("alias expansion limit exceeded", span));
         }
-        if depth.saturating_add(node_depth(target)) > MAX_DEPTH {
+        if self
+            .options
+            .selected_max_nesting_depth()
+            .is_some_and(|max| depth.saturating_add(node_depth(target)) > max)
+        {
             return Err(Error::new(
                 "maximum YAML nesting depth exceeded while expanding alias",
                 span,
@@ -878,9 +883,10 @@ impl Parser {
             lines: preprocess(input)?,
             pos: 0,
             input_len: input.len(),
+            options,
             schema,
             active_schema: default_construction_schema(schema),
-            anchors: AnchorRegistry::new(alias_expansion_budget),
+            anchors: AnchorRegistry::new(alias_expansion_budget, options),
             events: None,
             active_tag_handles: HashMap::new(),
             pending_tag_handles: HashMap::new(),
@@ -1010,7 +1016,13 @@ impl Parser {
         key: &Node,
     ) -> Result<()> {
         self.record_merge_key(key);
-        check_duplicate_for_schema(self.recording_events(), self.active_schema, seen, key)
+        check_duplicate_for_schema(
+            self.recording_events(),
+            self.active_schema,
+            self.options,
+            seen,
+            key,
+        )
     }
 
     fn parse_document_results(&mut self) -> Vec<Result<Node>> {
@@ -1519,6 +1531,7 @@ impl Parser {
                 self.parse_inline_value(rest_trim, &line, value_start, indent, depth + 1)?
             };
             items.push(item);
+            self.check_collection_items(items.len(), line.span())?;
         }
 
         let end = items.last().map(|item| item.span.end).unwrap_or(start.end);
@@ -1558,6 +1571,7 @@ impl Parser {
                     let value = Node::null(span);
                     self.check_duplicate_key(&mut seen, &key)?;
                     entries.push((key, value));
+                    self.check_collection_items(entries.len(), line.span())?;
                 }
                 let key =
                     self.parse_explicit_block_key(&line, rest_start, rest, indent, depth + 1)?;
@@ -1578,17 +1592,20 @@ impl Parser {
                     let value = Node::null(span);
                     self.check_duplicate_key(&mut seen, &key)?;
                     entries.push((key, value));
+                    self.check_collection_items(entries.len(), line.span())?;
                 }
                 self.parse_mapping_pair(&line, 0, &line.content, indent, depth + 1)?
             };
             self.check_duplicate_key(&mut seen, &key)?;
             entries.push((key, value));
+            self.check_collection_items(entries.len(), line.span())?;
         }
         if let Some((key, span)) = pending_key.take() {
             self.emit_null_scalar(span);
             let value = Node::null(span);
             self.check_duplicate_key(&mut seen, &key)?;
             entries.push((key, value));
+            self.check_collection_items(entries.len(), span)?;
         }
 
         let end = entries
@@ -1619,6 +1636,10 @@ impl Parser {
             self.parse_mapping_pair(line, rest_start, rest, item_indent, depth + 1)?;
         self.check_duplicate_key(&mut seen, &key)?;
         entries.push((key, value));
+        self.check_collection_items(
+            entries.len(),
+            line.local_span(rest_start, rest_start + rest.len()),
+        )?;
 
         loop {
             self.skip_blanks();
@@ -1637,6 +1658,7 @@ impl Parser {
                 self.parse_mapping_pair(&next, 0, &next.content, item_indent, depth + 1)?;
             self.check_duplicate_key(&mut seen, &key)?;
             entries.push((key, value));
+            self.check_collection_items(entries.len(), next.span())?;
         }
 
         let span = Span::new(
@@ -1779,6 +1801,10 @@ impl Parser {
             depth + 1,
         )?;
         items.push(first);
+        self.check_collection_items(
+            items.len(),
+            line.local_span(sequence_start, sequence_start + sequence_text.len()),
+        )?;
 
         loop {
             self.skip_blanks();
@@ -1801,6 +1827,7 @@ impl Parser {
                 depth + 1,
             )?;
             items.push(item);
+            self.check_collection_items(items.len(), next.span())?;
         }
 
         let end = items
@@ -2446,6 +2473,7 @@ impl Parser {
                 first_line.indent + first_start + 1,
             ),
         );
+        self.check_scalar_node(&node)?;
         self.emit_scalar_node(&node, ScalarStyle::Plain);
         Ok(node)
     }
@@ -2614,6 +2642,7 @@ impl Parser {
             Value::String(out),
             Span::new(marker_span.start, end, marker_span.line, marker_span.column),
         );
+        self.check_scalar_node(&node)?;
         self.emit_scalar_node(&node, style);
         Ok(node)
     }
@@ -2668,12 +2697,10 @@ impl Parser {
         depth: usize,
         properties: &mut NodePropertyState,
     ) -> Result<Node> {
-        if depth > MAX_DEPTH {
-            return Err(Error::new(
-                "maximum YAML nesting depth exceeded",
-                line.local_span(local_start, local_start + text.len()),
-            ));
-        }
+        self.options.check_nesting_depth(
+            depth,
+            line.local_span(local_start, local_start + text.len()),
+        )?;
         let leading_ws = text.len() - text.trim_start().len();
         let text = text.trim();
         let local_start = local_start + leading_ws;
@@ -2783,12 +2810,14 @@ impl Parser {
                 self.events.as_mut(),
                 &self.active_tag_handles,
                 self.active_schema,
+                self.options,
             )
             .parse()?;
             self.current_document_has_merge_key |= has_merge_key;
             return Ok(node);
         }
         let node = parse_scalar(text, line, local_start, self.active_schema)?;
+        self.check_scalar_node(&node)?;
         self.emit_scalar_node(&node, scalar_style_for_text(text));
         Ok(node)
     }
@@ -2860,6 +2889,7 @@ impl Parser {
         } else {
             ScalarStyle::SingleQuoted
         };
+        self.check_scalar_node(&node)?;
         self.emit_scalar_node(&node, style);
         Ok(node)
     }
@@ -2906,14 +2936,23 @@ impl Parser {
     }
 
     fn check_depth(&self, depth: usize) -> Result<()> {
-        if depth > MAX_DEPTH {
-            let span = self
-                .peek_content()
-                .map(Line::span)
-                .unwrap_or_else(|| Span::point(self.input_len, 1, self.input_len + 1));
-            return Err(Error::new("maximum YAML nesting depth exceeded", span));
-        }
-        Ok(())
+        let span = self
+            .peek_content()
+            .map(Line::span)
+            .unwrap_or_else(|| Span::point(self.input_len, 1, self.input_len + 1));
+        self.options.check_nesting_depth(depth, span)
+    }
+
+    fn check_scalar_bytes(&self, len: usize, span: Span) -> Result<()> {
+        self.options.check_scalar_bytes(len, span)
+    }
+
+    fn check_scalar_node(&self, node: &Node) -> Result<()> {
+        self.check_scalar_bytes(event_scalar_value_len(node), node.span)
+    }
+
+    fn check_collection_items(&self, len: usize, span: Span) -> Result<()> {
+        self.options.check_collection_items(len, span)
     }
 
     fn current_content(&mut self) -> Result<&Line> {
@@ -3203,13 +3242,14 @@ fn merge_policy_for_schema(schema: Schema) -> MergePolicy {
 fn check_duplicate_for_schema(
     recording_events: bool,
     schema: Schema,
+    options: LoadOptions,
     seen: &mut HashMap<DuplicateKey, Span>,
     key: &Node,
 ) -> Result<()> {
     if recording_events || (schema.is_legacy_compatible() && node_is_merge_key(key)) {
         return Ok(());
     }
-    check_duplicate(seen, key)
+    check_duplicate_at_depth_limit(seen, key, 1, options.selected_max_nesting_depth())
 }
 
 fn node_is_merge_key(key: &Node) -> bool {
@@ -3816,6 +3856,28 @@ fn event_scalar_value(node: &Node) -> String {
     }
 }
 
+fn event_scalar_value_len(node: &Node) -> usize {
+    match &node.value {
+        Value::Null => "null".len(),
+        Value::Bool(value) => value.to_string().len(),
+        Value::Number(Number::Integer(value)) => node
+            .scalar_source()
+            .map(|source| source.raw().len())
+            .unwrap_or_else(|| value.to_string().len()),
+        Value::Number(Number::Unsigned(value)) => node
+            .scalar_source()
+            .map(|source| source.raw().len())
+            .unwrap_or_else(|| value.to_string().len()),
+        Value::Number(Number::Float(value)) => node
+            .scalar_source()
+            .map(|source| source.raw().len())
+            .unwrap_or_else(|| value.to_string().len()),
+        Value::String(value) => value.len(),
+        Value::Tagged(tagged) => event_scalar_value_len(&tagged.value),
+        Value::Sequence(_) | Value::Mapping(_) => 0,
+    }
+}
+
 fn parse_scalar_with_span(text: &str, span: Span) -> Result<Node> {
     parse_scalar_with_schema(text, span, Schema::Yaml12)
 }
@@ -4372,6 +4434,7 @@ struct FlowParser<'a> {
     anchors: Option<&'a mut AnchorRegistry>,
     events: Option<&'a mut EventRecorder>,
     active_tag_handles: &'a HashMap<String, String>,
+    options: LoadOptions,
     pending_anchor: Option<PendingAnchor>,
     has_merge_key: bool,
 }
@@ -4384,6 +4447,7 @@ impl<'a> FlowParser<'a> {
         events: Option<&'a mut EventRecorder>,
         active_tag_handles: &'a HashMap<String, String>,
         schema: Schema,
+        options: LoadOptions,
     ) -> Self {
         Self {
             buffer,
@@ -4393,6 +4457,7 @@ impl<'a> FlowParser<'a> {
             anchors: Some(anchors),
             events,
             active_tag_handles,
+            options,
             pending_anchor: None,
             has_merge_key: false,
         }
@@ -4510,7 +4575,13 @@ impl<'a> FlowParser<'a> {
         key: &Node,
     ) -> Result<()> {
         self.record_merge_key(key);
-        check_duplicate_for_schema(self.recording_events(), self.schema, seen, key)
+        check_duplicate_for_schema(
+            self.recording_events(),
+            self.schema,
+            self.options,
+            seen,
+            key,
+        )
     }
 
     fn resolve_tag(&self, tag: Tag, span: Span) -> Result<Tag> {
@@ -4518,12 +4589,8 @@ impl<'a> FlowParser<'a> {
     }
 
     fn parse_value(&mut self) -> Result<Node> {
-        if self.depth > MAX_DEPTH {
-            return Err(Error::new(
-                "maximum YAML nesting depth exceeded",
-                self.span(self.pos, self.pos),
-            ));
-        }
+        self.options
+            .check_nesting_depth(self.depth, self.span(self.pos, self.pos))?;
         self.skip_ws();
         match self.peek() {
             Some('[') => self.parse_sequence(),
@@ -4531,12 +4598,14 @@ impl<'a> FlowParser<'a> {
             Some('"') => {
                 let (text, start, end) = self.take_quoted('"')?;
                 let node = parse_double_quoted(&text, self.span(start, end))?;
+                self.check_scalar_node(&node)?;
                 self.emit_scalar_node(&node, ScalarStyle::DoubleQuoted);
                 Ok(node)
             }
             Some('\'') => {
                 let (text, start, end) = self.take_quoted('\'')?;
                 let node = parse_single_quoted(&text, self.span(start, end))?;
+                self.check_scalar_node(&node)?;
                 self.emit_scalar_node(&node, ScalarStyle::SingleQuoted);
                 Ok(node)
             }
@@ -4553,6 +4622,7 @@ impl<'a> FlowParser<'a> {
                 }
                 let end = self.pos;
                 let node = self.parse_plain_flow_scalar(start, end)?;
+                self.check_scalar_node(&node)?;
                 self.emit_scalar_node(&node, ScalarStyle::Plain);
                 Ok(node)
             }
@@ -4587,6 +4657,7 @@ impl<'a> FlowParser<'a> {
             self.skip_ws();
             if self.consume(',') {
                 items.push(item);
+                self.check_collection_items(items.len(), self.span(start, self.pos))?;
                 self.skip_ws();
                 if self.consume(']') {
                     let span = self.span(start, self.pos);
@@ -4603,6 +4674,7 @@ impl<'a> FlowParser<'a> {
             }
             self.reject_missing_flow_sequence_comma(item_start, item_end, &item)?;
             items.push(item);
+            self.check_collection_items(items.len(), self.span(start, self.pos))?;
             self.expect(']')?;
             let span = self.span(start, self.pos);
             self.emit_sequence_end(span);
@@ -4701,6 +4773,7 @@ impl<'a> FlowParser<'a> {
             let (key, value) = self.with_depth(|parser| parser.parse_flow_mapping_entry())?;
             self.check_duplicate_key(&mut seen, &key)?;
             entries.push((key, value));
+            self.check_collection_items(entries.len(), self.span(start, self.pos))?;
             self.skip_ws();
             if self.consume(',') {
                 self.skip_ws();
@@ -4793,12 +4866,14 @@ impl<'a> FlowParser<'a> {
             Some('"') => {
                 let (text, start, end) = self.take_quoted('"')?;
                 let node = parse_double_quoted(&text, self.span(start, end))?;
+                self.check_scalar_node(&node)?;
                 self.emit_scalar_node(&node, ScalarStyle::DoubleQuoted);
                 Ok(node)
             }
             Some('\'') => {
                 let (text, start, end) = self.take_quoted('\'')?;
                 let node = parse_single_quoted(&text, self.span(start, end))?;
+                self.check_scalar_node(&node)?;
                 self.emit_scalar_node(&node, ScalarStyle::SingleQuoted);
                 Ok(node)
             }
@@ -4815,6 +4890,7 @@ impl<'a> FlowParser<'a> {
                 }
                 let end = self.pos;
                 let node = self.parse_plain_flow_scalar(start, end)?;
+                self.check_scalar_node(&node)?;
                 self.emit_scalar_node(&node, ScalarStyle::Plain);
                 Ok(node)
             }
@@ -5165,6 +5241,15 @@ impl<'a> FlowParser<'a> {
         let result = f(self);
         self.depth -= 1;
         result
+    }
+
+    fn check_scalar_node(&self, node: &Node) -> Result<()> {
+        self.options
+            .check_scalar_bytes(event_scalar_value_len(node), node.span)
+    }
+
+    fn check_collection_items(&self, len: usize, span: Span) -> Result<()> {
+        self.options.check_collection_items(len, span)
     }
 
     fn take_quoted(&mut self, quote: char) -> Result<(String, usize, usize)> {

@@ -10,9 +10,11 @@ use crate::{
     yaml11,
 };
 use std::{
+    borrow::Cow,
     collections::{HashMap, VecDeque},
     io::Read,
     mem,
+    rc::Rc,
 };
 
 pub(crate) const MAX_DEPTH: usize = 128;
@@ -185,10 +187,10 @@ enum LineKind {
 struct Line {
     no: usize,
     start: usize,
-    raw: String,
+    raw: Rc<str>,
     indent: usize,
     content_start: usize,
-    content: String,
+    content: Rc<str>,
     kind: LineKind,
     had_comment: bool,
 }
@@ -213,19 +215,21 @@ impl Line {
     }
 
     fn raw_from(&self, indent: usize) -> &str {
-        if indent >= self.raw.len() {
+        let raw = self.raw.as_ref();
+        if indent >= raw.len() {
             ""
         } else {
-            &self.raw[indent..]
+            &raw[indent..]
         }
     }
 
     fn raw_content_from(&self, local_start: usize) -> &str {
+        let raw = self.raw.as_ref();
         let start = self.content_start + local_start;
-        if start >= self.raw.len() {
+        if start >= raw.len() {
             ""
         } else {
-            &self.raw[start..]
+            &raw[start..]
         }
     }
 }
@@ -2895,13 +2899,14 @@ fn push_preprocessed_line(out: &mut Vec<Line>, no: usize, start: usize, raw: Str
     let raw_body = &raw[bom_len..];
     let raw_indent = raw_body.bytes().take_while(|byte| *byte == b' ').count();
     if raw_body.trim().is_empty() {
+        let raw = Rc::<str>::from(raw);
         out.push(Line {
             no,
             start,
             raw,
             indent: raw_indent,
             content_start: bom_len + raw_indent,
-            content: String::new(),
+            content: Rc::from(""),
             kind: LineKind::Blank,
             had_comment: false,
         });
@@ -2913,7 +2918,7 @@ fn push_preprocessed_line(out: &mut Vec<Line>, no: usize, start: usize, raw: Str
     let no_comment = raw[bom_len..end].trim_end();
     let indent = no_comment.bytes().take_while(|byte| *byte == b' ').count();
     let content_start = bom_len + indent;
-    let content = no_comment[indent..].to_string();
+    let content = Rc::<str>::from(&no_comment[indent..]);
     if let Some(tab_offset) =
         block_indicator_tab_separation_offset(&no_comment.as_bytes()[indent..])
     {
@@ -2927,19 +2932,20 @@ fn push_preprocessed_line(out: &mut Vec<Line>, no: usize, start: usize, raw: Str
         ));
     }
     if content.trim().is_empty() {
+        let raw = Rc::<str>::from(raw);
         out.push(Line {
             no,
             start,
             raw,
             indent: raw_indent,
             content_start: bom_len + raw_indent,
-            content: String::new(),
+            content: Rc::from(""),
             kind: LineKind::Blank,
             had_comment,
         });
         return Ok(());
     }
-    let kind = match content.as_str() {
+    let kind = match content.as_ref() {
         "---" => LineKind::DocumentStart,
         "..." => LineKind::DocumentEnd,
         _ if document_start_rest(&content).is_some() => LineKind::DocumentStart,
@@ -2957,6 +2963,7 @@ fn push_preprocessed_line(out: &mut Vec<Line>, no: usize, start: usize, raw: Str
         _ if content.starts_with('%') => LineKind::Directive,
         _ => LineKind::Content,
     };
+    let raw = Rc::<str>::from(raw);
     out.push(Line {
         no,
         start,
@@ -3735,14 +3742,14 @@ fn parse_scalar_with_schema(text: &str, span: Span, schema: Schema) -> Result<No
     if schema == Schema::Yaml11 && is_yaml11_invalid_octal(text) {
         return Ok(Node::new(Value::String(text.to_string()), span).with_scalar_source(text));
     }
-    if is_int_like(text) {
-        if let Some(number) = parse_number(text, span)? {
+    match parse_number(text)? {
+        NumberParse::Number(number) => {
             return Ok(Node::new(Value::Number(number), span).with_scalar_source(text));
         }
-        return Ok(Node::new(Value::String(text.to_string()), span).with_scalar_source(text));
-    }
-    if let Some(number) = parse_number(text, span)? {
-        return Ok(Node::new(Value::Number(number), span).with_scalar_source(text));
+        NumberParse::InvalidInteger => {
+            return Ok(Node::new(Value::String(text.to_string()), span).with_scalar_source(text));
+        }
+        NumberParse::PlainScalar => {}
     }
     Ok(Node::new(Value::String(text.to_string()), span))
 }
@@ -3772,15 +3779,24 @@ fn parse_single_quoted(text: &str, span: Span) -> Result<Node> {
         return Err(Error::new("unterminated single-quoted scalar", span));
     }
     let inner = &text[1..text.len() - 1];
-    Ok(Node::new(Value::String(inner.replace("''", "'")), span))
+    let value = if inner.contains("''") {
+        inner.replace("''", "'")
+    } else {
+        inner.to_string()
+    };
+    Ok(Node::new(Value::String(value), span))
 }
 
 fn parse_double_quoted(text: &str, span: Span) -> Result<Node> {
     if !text.ends_with('"') || text.len() < 2 {
         return Err(Error::new("unterminated double-quoted scalar", span));
     }
-    let mut out = String::new();
-    let mut chars = text[1..text.len() - 1].chars();
+    let inner = &text[1..text.len() - 1];
+    if !inner.as_bytes().contains(&b'\\') {
+        return Ok(Node::new(Value::String(inner.to_string()), span));
+    }
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars();
     while let Some(ch) = chars.next() {
         if ch != '\\' {
             out.push(ch);
@@ -3897,30 +3913,55 @@ fn char_from_escape(code: u32, span: Span) -> Result<char> {
     char::from_u32(code).ok_or_else(|| Error::new("invalid Unicode escape scalar", span))
 }
 
-fn parse_number(text: &str, _span: Span) -> Result<Option<Number>> {
-    let compact = text.replace('_', "");
-    if let Some(number) = parse_special_float(&compact) {
-        return Ok(Some(number));
+enum NumberParse {
+    Number(Number),
+    InvalidInteger,
+    PlainScalar,
+}
+
+fn parse_number(text: &str) -> Result<NumberParse> {
+    if !could_be_number(text) {
+        return Ok(NumberParse::PlainScalar);
+    }
+    let compact = compact_number_text(text);
+    let compact = compact.as_ref();
+    if let Some(number) = parse_special_float(compact) {
+        return Ok(NumberParse::Number(number));
     }
     if is_int_like(text) {
         if compact.starts_with('-') {
             return match compact.parse::<i128>() {
-                Ok(value) => Ok(Some(Number::Integer(value))),
-                Err(_) => Ok(None),
+                Ok(value) => Ok(NumberParse::Number(Number::Integer(value))),
+                Err(_) => Ok(NumberParse::InvalidInteger),
             };
         }
         if let Some(positive) = compact.strip_prefix('+') {
             return parse_positive_integer_number(positive);
         }
-        return parse_positive_integer_number(&compact);
+        return parse_positive_integer_number(compact);
     }
     if is_float_like(text) {
         match compact.parse::<f64>() {
-            Ok(value) => return Ok(Some(Number::Float(value))),
-            Err(_) => return Ok(None),
+            Ok(value) => return Ok(NumberParse::Number(Number::Float(value))),
+            Err(_) => return Ok(NumberParse::PlainScalar),
         }
     }
-    Ok(None)
+    Ok(NumberParse::PlainScalar)
+}
+
+fn could_be_number(text: &str) -> bool {
+    matches!(
+        text.as_bytes().first(),
+        Some(b'+' | b'-' | b'.' | b'0'..=b'9')
+    )
+}
+
+fn compact_number_text(text: &str) -> Cow<'_, str> {
+    if text.as_bytes().contains(&b'_') {
+        Cow::Owned(text.replace('_', ""))
+    } else {
+        Cow::Borrowed(text)
+    }
 }
 
 fn parse_yaml11_number(text: &str) -> Result<Option<Number>> {
@@ -3951,18 +3992,18 @@ fn parse_special_float(compact: &str) -> Option<Number> {
     }
 }
 
-fn parse_positive_integer_number(compact: &str) -> Result<Option<Number>> {
+fn parse_positive_integer_number(compact: &str) -> Result<NumberParse> {
     match compact.parse::<i64>() {
-        Ok(value) => Ok(Some(Number::Integer(i128::from(value)))),
+        Ok(value) => Ok(NumberParse::Number(Number::Integer(i128::from(value)))),
         Err(_) => match compact.parse::<u64>() {
-            Ok(value) => Ok(Some(Number::Unsigned(u128::from(value)))),
+            Ok(value) => Ok(NumberParse::Number(Number::Unsigned(u128::from(value)))),
             Err(_) => match compact.parse::<i128>() {
-                Ok(value) => Ok(Some(Number::Integer(value))),
+                Ok(value) => Ok(NumberParse::Number(Number::Integer(value))),
                 Err(_) => compact
                     .parse::<u128>()
                     .map(Number::Unsigned)
-                    .map(Some)
-                    .or(Ok(None)),
+                    .map(NumberParse::Number)
+                    .or(Ok(NumberParse::InvalidInteger)),
             },
         },
     }

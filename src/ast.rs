@@ -2,7 +2,7 @@ use crate::{Error, Span, key_identity::same_key_identity, yaml11};
 use serde::de::{self, EnumAccess, MapAccess, SeqAccess, VariantAccess, Visitor};
 use std::borrow::Cow;
 use std::cmp::Ordering;
-use std::collections::hash_map::DefaultHasher;
+use std::collections::{HashMap, hash_map::DefaultHasher};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem;
@@ -1016,6 +1016,30 @@ impl Mapping {
         Self {
             entries: Vec::with_capacity(capacity),
         }
+    }
+
+    pub(crate) fn from_deserialized_entries(entries: Vec<(Value, Value)>) -> Self {
+        const HASHED_DEDUP_THRESHOLD: usize = 128;
+
+        if entries.len() < HASHED_DEDUP_THRESHOLD {
+            let mut mapping = Self::with_capacity(entries.len());
+            for (key, value) in entries {
+                mapping.insert(key, value);
+            }
+            return mapping;
+        }
+
+        let mut mapping = Self::with_capacity(entries.len());
+        let mut positions = HashMap::<Value, usize>::with_capacity(entries.len());
+        for (key, value) in entries {
+            if let Some(index) = positions.get(&key).copied() {
+                mapping.entries[index].1 = value;
+            } else {
+                positions.insert(key.clone(), mapping.entries.len());
+                mapping.entries.push((key, value));
+            }
+        }
+        mapping
     }
 
     /// Reserves capacity for at least `additional` more entries.
@@ -3217,7 +3241,7 @@ impl<'de> Visitor<'de> for ValueVisitor {
     where
         A: SeqAccess<'de>,
     {
-        let mut items = Vec::new();
+        let mut items = Vec::with_capacity(seq.size_hint().unwrap_or(0));
         while let Some(value) = seq.next_element::<Value>()? {
             items.push(value);
         }
@@ -3228,11 +3252,11 @@ impl<'de> Visitor<'de> for ValueVisitor {
     where
         A: MapAccess<'de>,
     {
-        let mut entries = Mapping::new();
+        let mut entries = Vec::with_capacity(map.size_hint().unwrap_or(0));
         while let Some((key, value)) = map.next_entry::<Value, Value>()? {
-            entries.insert(key, value);
+            entries.push((key, value));
         }
-        Ok(Value::Mapping(entries))
+        Ok(Value::Mapping(Mapping::from_deserialized_entries(entries)))
     }
 
     fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>

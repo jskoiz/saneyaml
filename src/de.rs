@@ -5015,6 +5015,10 @@ impl<'de, 'tree> SeqAccess<'de> for InputSeqDeserializer<'tree, 'de> {
         .map(Some)
         .map_err(|error| error.with_span_if_missing(item.span))
     }
+
+    fn size_hint(&self) -> Option<usize> {
+        Some(self.items.len().saturating_sub(self.index))
+    }
 }
 
 impl<'de> SeqAccess<'de> for SeqDeserializer<'de> {
@@ -5031,6 +5035,10 @@ impl<'de> SeqAccess<'de> for SeqDeserializer<'de> {
         seed.deserialize(item)
             .map(Some)
             .map_err(|error| error.with_span_if_missing(item.span))
+    }
+
+    fn size_hint(&self) -> Option<usize> {
+        Some(self.items.len().saturating_sub(self.index))
     }
 }
 
@@ -5545,6 +5553,10 @@ impl<'de, 'tree> MapAccess<'de> for InputMapDeserializer<'tree, 'de> {
         seed.deserialize(value)
             .map_err(|error| error.with_span_if_missing(value.node.span))
     }
+
+    fn size_hint(&self) -> Option<usize> {
+        Some(self.entries.len().saturating_sub(self.index))
+    }
 }
 
 impl<'de> MapAccess<'de> for MapDeserializer<'de> {
@@ -5574,6 +5586,10 @@ impl<'de> MapAccess<'de> for MapDeserializer<'de> {
             .ok_or_else(|| Error::new("value requested before key", None))?;
         seed.deserialize(value)
             .map_err(|error| error.with_span_if_missing(value.span))
+    }
+
+    fn size_hint(&self) -> Option<usize> {
+        Some(self.entries.len().saturating_sub(self.index))
     }
 }
 

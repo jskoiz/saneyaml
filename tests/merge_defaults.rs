@@ -150,6 +150,7 @@ flow: {<<: *base, shared: flow}
 tagged: {!!merge <<: *base, shared: tagged}
 canonical: {!<tag:yaml.org,2002:merge> <<: *base, shared: canonical}
 handle: {!m!merge <<: *base, shared: handle}
+sequence: [<<: *base]
 ";
 
     let value: Value = yaml::from_str(input).expect("flow merge keys expand by default");
@@ -167,6 +168,9 @@ handle: {!m!merge <<: *base, shared: handle}
             "{key} explicit value wins"
         );
     }
+    assert!(value["sequence"][0]["<<"].is_null());
+    assert_eq!(value["sequence"][0]["a"].as_u64(), Some(1));
+    assert_eq!(value["sequence"][0]["shared"].as_str(), Some("base"));
 }
 
 #[test]

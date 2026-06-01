@@ -965,14 +965,18 @@ impl Parser {
         self.events.is_some()
     }
 
+    fn record_merge_key(&mut self, key: &Node) {
+        if node_is_merge_key(key) {
+            self.current_document_has_merge_key = true;
+        }
+    }
+
     fn check_duplicate_key(
         &mut self,
         seen: &mut HashMap<DuplicateKey, Span>,
         key: &Node,
     ) -> Result<()> {
-        if node_is_merge_key(key) {
-            self.current_document_has_merge_key = true;
-        }
+        self.record_merge_key(key);
         check_duplicate_for_schema(self.recording_events(), self.active_schema, seen, key)
     }
 
@@ -1893,6 +1897,7 @@ impl Parser {
             line.indent + marker_start + 1,
         );
         self.emit_mapping_end(span);
+        self.record_merge_key(&key);
         Ok(Node::new(Value::Mapping(vec![(key, value)]), span))
     }
 
@@ -4368,14 +4373,18 @@ impl<'a> FlowParser<'a> {
         self.events.is_some()
     }
 
+    fn record_merge_key(&mut self, key: &Node) {
+        if node_is_merge_key(key) {
+            self.has_merge_key = true;
+        }
+    }
+
     fn check_duplicate_key(
         &mut self,
         seen: &mut HashMap<DuplicateKey, Span>,
         key: &Node,
     ) -> Result<()> {
-        if node_is_merge_key(key) {
-            self.has_merge_key = true;
-        }
+        self.record_merge_key(key);
         check_duplicate_for_schema(self.recording_events(), self.schema, seen, key)
     }
 
@@ -4627,6 +4636,7 @@ impl<'a> FlowParser<'a> {
             key.span.column,
         );
         self.emit_mapping_end(span);
+        self.record_merge_key(&key);
         Ok(Node::new(Value::Mapping(vec![(key, value)]), span))
     }
 

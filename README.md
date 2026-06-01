@@ -46,8 +46,10 @@ The first milestone focuses on:
   retaining the full event vector or document graph. Event streaming is the raw
   non-expanding contract and matches `parse_events` event-for-event on
   successful input; document streaming yields merge-expanded `Node` documents
-  one at a time and matches `parse_documents`. Reader constructors use the same
-  bounded reader ingestion as `from_reader` before yielding the pull iterator.
+  one at a time and matches `parse_documents`. Input is still fully buffered;
+  streaming bounds the retained parsed representation, not source bytes. Reader
+  constructors use the same bounded reader ingestion as `from_reader` before
+  yielding the pull iterator.
 - A source-backed `yaml::parse_lossless` / `yaml::LosslessStream` API that
   keeps the original source for byte-stable replay, exposes comments and blank
   lines as trivia, represents anchors/aliases with stable graph ids, compares

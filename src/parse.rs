@@ -376,7 +376,8 @@ where
 /// Invalid inputs may yield already-parsed prefix events before the terminal
 /// error. Event streaming validates aliases but never expands them, so
 /// `LoadOptions` input limits apply while alias expansion budgets are reserved
-/// for semantic document loading.
+/// for semantic document loading. The source input is still fully buffered;
+/// streaming bounds the retained parsed representation, not source bytes.
 pub struct EventStream {
     parser: StreamingParser,
     pending: VecDeque<Event>,
@@ -474,7 +475,8 @@ impl Iterator for EventStream {
 /// `DocumentStream` applies the same scalar schema, merge-key behavior,
 /// duplicate-key checks, input byte ceiling, and alias expansion budget as
 /// [`parse_documents`], but yields one completed document at a time instead of
-/// retaining a `Vec<Node>`.
+/// retaining a `Vec<Node>`. The source input is still fully buffered; streaming
+/// bounds the retained parsed representation, not source bytes.
 pub struct DocumentStream {
     parser: StreamingParser,
     finished: bool,
@@ -556,6 +558,7 @@ impl Iterator for DocumentStream {
 struct StreamingParser {
     parser: Parser,
     state: DocumentParseState,
+    current_schema: Schema,
 }
 
 impl StreamingParser {
@@ -563,6 +566,7 @@ impl StreamingParser {
         Ok(Self {
             parser: Parser::new_with_options(input, options)?,
             state: DocumentParseState::default(),
+            current_schema: Schema::Yaml12,
         })
     }
 
@@ -571,7 +575,17 @@ impl StreamingParser {
     }
 
     fn next_raw_document(&mut self) -> Option<Result<Node>> {
-        self.parser.parse_next_document_result(&mut self.state)
+        let schema_count = self.parser.document_schemas.len();
+        let result = self.parser.parse_next_document_result(&mut self.state);
+        if matches!(result, Some(Ok(_))) {
+            self.current_schema = self
+                .parser
+                .document_schemas
+                .pop()
+                .expect("parsed document records schema");
+        }
+        debug_assert_eq!(self.parser.document_schemas.len(), schema_count);
+        result
     }
 
     fn take_events(&mut self) -> VecDeque<Event> {
@@ -583,11 +597,7 @@ impl StreamingParser {
     }
 
     fn last_document_schema(&self) -> Schema {
-        self.parser
-            .document_schemas
-            .last()
-            .copied()
-            .unwrap_or(Schema::Yaml12)
+        self.current_schema
     }
 }
 
@@ -5092,5 +5102,38 @@ fn fold_flow_line_break(out: &mut String, chars: &mut std::iter::Peekable<std::s
 fn skip_flow_line_indent(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) {
     while chars.peek().is_some_and(|ch| matches!(ch, ' ' | '\t')) {
         chars.next();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn streaming_parser_tracks_current_schema_without_accumulating_schema_history() {
+        let mut input = String::new();
+        for _ in 0..128 {
+            input.push_str("%YAML 1.1\n---\nlegacy: yes\n...\n---\nmodern: yes\n...\n");
+        }
+
+        let mut parser =
+            StreamingParser::new(&input, LoadOptions::yaml_version_directive()).unwrap();
+        let mut documents = 0usize;
+        while let Some(document) = parser.next_raw_document() {
+            document.unwrap();
+            documents += 1;
+            assert!(
+                parser.parser.document_schemas.is_empty(),
+                "streaming parser must not retain per-document schema history"
+            );
+            let expected_schema = if documents % 2 == 1 {
+                Schema::Yaml11
+            } else {
+                Schema::Yaml12
+            };
+            assert_eq!(parser.last_document_schema(), expected_schema);
+        }
+
+        assert_eq!(documents, 256);
     }
 }

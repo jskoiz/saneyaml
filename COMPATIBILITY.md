@@ -312,8 +312,9 @@ not expose equivalent data.
 `Node` documents one at a time, using the same scalar schema, duplicate-key
 policy, alias expansion budget, and spans as `parse_documents`. The reader
 constructors for both streams read through the same bounded reader path as
-`from_reader` before yielding items; they are synchronous pull APIs, not async
-I/O or streaming emission.
+`from_reader` before yielding items; input is still fully buffered, so
+streaming bounds the retained parsed representation, not source bytes. They are
+synchronous pull APIs, not async I/O or streaming emission.
 
 A normalized loaded-tree parity harness also compares selected document value
 shapes against `yaml-rust2::YamlLoader` and `saphyr::Yaml`. It strips tag

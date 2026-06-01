@@ -100,6 +100,9 @@ Current read APIs:
   `yaml::with::singleton_map_recursive::serialize` for write-side enum field
   annotations compatible with the corresponding `serde_yaml::with` helpers
 - `yaml::parse_str`, `parse_bytes`, `parse_documents`, and `parse_events`
+- `yaml::stream::{EventStream, DocumentStream}` plus
+  `yaml::stream_events*` and `yaml::stream_documents*` root helpers for
+  pull-based parser events and one-document-at-a-time loading
 - `yaml::parse_lossless`, `parse_lossless_bytes`, `yaml::LosslessStream`, and
   `yaml::LosslessEdit` for source-backed comment/trivia preservation,
   read-only merge-effective mapping inspection with alias/anchor provenance,
@@ -108,9 +111,11 @@ Current read APIs:
   identity reference-checked against parser anchor events from `yaml-rust2` and
   `saphyr`
 - `yaml::LoadOptions::{new, yaml_1_1, yaml_version_directive, schema,
-  max_input_bytes, without_input_limit, max_alias_expansion_nodes}` and
-  `yaml::Schema` for explicit construction-schema selection, input-size policy,
-  and alias expansion policy across parser and Serde read entrypoints
+  max_input_bytes, without_input_limit, max_alias_expansion_nodes,
+  stream_events, stream_events_slice, stream_events_reader, stream_documents,
+  stream_documents_slice, stream_documents_reader}` and `yaml::Schema` for
+  explicit construction-schema selection, input-size policy, and alias
+  expansion policy across parser, streaming, and Serde read entrypoints
 
 Migration-facing API status is tracked by `MIGRATION.md` and the executable
 `tests/serde_yaml_swap_harness.rs` harness. The current swap matrix covers:
@@ -221,13 +226,16 @@ All parser, event, and Serde read entrypoints ignore a single UTF-8 BOM only at
 stream byte offset 0, matching common `serde_yaml` and reference-loader
 behavior for BOM-prefixed config files while keeping spans anchored to the
 original byte buffer.
-All parser, loaded-tree, document-stream, reader-backed, and direct
-deserializer entrypoints enforce `LoadOptions` input-size policy before parsing.
-`parse_lossless_bytes` applies the same 64 MiB default ceiling before UTF-8
-validation. Default options cap YAML input at 64 MiB and use an
-input-size-derived alias expansion budget. `max_input_bytes()` can tighten or
-raise the byte ceiling, `max_alias_expansion_nodes()` can tune alias expansion
-work for untrusted config loads, and `without_input_limit()` is an explicit
+All parser, loaded-tree, pull event/document stream, reader-backed, and direct
+deserializer entrypoints enforce `LoadOptions` input-size policy before
+parsing. `parse_lossless_bytes` applies the same 64 MiB default ceiling before
+UTF-8 validation. Default options cap YAML input at 64 MiB and use an
+input-size-derived alias expansion budget. Raw event streaming validates alias
+references without expanding them, so it does not consume alias expansion
+budget; loaded trees, Serde reads, and `DocumentStream` enforce the alias budget
+while constructing semantic documents. `max_input_bytes()` can tighten or raise
+the byte ceiling, `max_alias_expansion_nodes()` can tune alias expansion work
+for untrusted config loads, and `without_input_limit()` is an explicit
 input-size opt-out for callers that have already bounded their source.
 Direct input entrypoints borrow only scalars whose value can be represented as
 a slice of the original input; transformed scalars such as escaped quoted
@@ -285,15 +293,27 @@ targets.
 
 ## Event API Status
 
-`parse_events` returns a parser-backed event stream with balanced stream,
-document, sequence, and mapping boundaries. Events now carry scalar style,
-flow-vs-block collection style, tag metadata, anchor metadata, alias events, directive metadata on
-`DocumentStart`, and explicit document start/end state. This is intended to
+`EventStream` is the stable pull-based parser-event contract. It yields
+balanced stream, document, sequence, and mapping boundaries without retaining
+the completed event vector; `parse_events` is the all-or-error convenience
+collector over the same event sequence. Events carry scalar style,
+flow-vs-block collection style, tag metadata, anchor metadata, alias events,
+directive metadata on `DocumentStart`, and explicit document start/end state.
+On successful input, `EventStream` and `parse_events` agree event-for-event; on
+invalid input, `EventStream` may yield already-parsed prefix events before the
+terminal error while preserving the same span diagnostic. This is intended to
 track the useful parser-event surface of `yaml-rust2`/`saphyr` while retaining
 this crate's `Span` diagnostics. A normalized event parity harness compares the
 selected event stream shape against `yaml-rust2` and `saphyr-parser`; it strips
 reference-specific anchor ids, spans, and directive payloads where those APIs do
 not expose equivalent data.
+
+`DocumentStream` is the semantic pull stream. It yields merge-expanded
+`Node` documents one at a time, using the same scalar schema, duplicate-key
+policy, alias expansion budget, and spans as `parse_documents`. The reader
+constructors for both streams read through the same bounded reader path as
+`from_reader` before yielding items; they are synchronous pull APIs, not async
+I/O or streaming emission.
 
 A normalized loaded-tree parity harness also compares selected document value
 shapes against `yaml-rust2::YamlLoader` and `saphyr::Yaml`. It strips tag
@@ -364,13 +384,13 @@ Event policy:
 - undeclared named handles such as `!e!Thing` are rejected in tree and event
   parsing.
 - aliases are emitted as raw `Alias` events, including scalar block mapping-key
-  aliases, instead of being expanded in the event stream.
+  aliases, instead of being expanded in `parse_events` or `EventStream`.
 - sequence and mapping start events expose `CollectionStyle::Block` or
   `CollectionStyle::Flow`.
 - duplicate-key validation is a tree-loading policy; `parse_events` exposes
   duplicate scalar, sequence, mapping, and tagged keys as raw key/value events.
-- recursive aliases are allowed in `parse_events` as raw alias references, but
-  unknown aliases are rejected.
+- recursive aliases are allowed in `parse_events` and `EventStream` as raw
+  alias references, but unknown aliases are rejected.
 - flow mapping keys are parsed as normal nodes for anchors, aliases, tags,
   scalar keys, sequence keys, and mapping keys.
 
@@ -416,14 +436,15 @@ Serde numeric policy:
 
 Known event and semantic-loader limitations remain:
 
-- raw scalar spelling is not exposed by `parse_events`; scalar event values are
-  normalized. `LosslessStream::source_fragment(node.span())` can recover the
-  source spelling for retained graph nodes.
+- raw scalar spelling is not exposed by `parse_events` or `EventStream`; scalar
+  event values are normalized. `LosslessStream::source_fragment(node.span())`
+  can recover the source spelling for retained graph nodes.
 - document start markers can carry root node content/properties such as
   `--- &root`, but document end markers still reject non-comment trailing text
-- tree loading still expands acyclic aliases and does not preserve graph
-  identity, even though `parse_events` exposes alias events without expansion
-  and `LosslessStream` exposes alias-to-anchor identity separately
+- tree loading and `DocumentStream` still expand acyclic aliases and do not
+  preserve graph identity, even though `parse_events` and `EventStream` expose
+  alias events without expansion and `LosslessStream` exposes alias-to-anchor
+  identity separately
 
 ## Fixture Gates
 

@@ -3,13 +3,17 @@
 use crate::{
     Error, Node, NodeValue as Value, Number, Result, Span, Tag, TaggedNode, Timestamp,
     ast::MergePolicy,
+    de::read_to_end_with_options,
     error::utf8_error_span,
     key_identity::{DuplicateKey, check_duplicate},
     schema::{LoadOptions, Schema},
     yaml11,
 };
-use std::collections::HashMap;
-use std::mem;
+use std::{
+    collections::{HashMap, VecDeque},
+    io::Read,
+    mem,
+};
 
 pub(crate) const MAX_DEPTH: usize = 128;
 
@@ -326,10 +330,273 @@ fn apply_merge_keys_to_document_results(
 
 /// Parses a YAML stream and returns raw structural events.
 pub fn parse_events(input: &str) -> Result<Vec<Event>> {
-    let mut parser = Parser::new(input)?;
-    parser.enable_events();
-    parser.parse_documents()?;
-    Ok(parser.finish_events())
+    EventStream::from_str(input)?.collect()
+}
+
+/// Creates a pull-based stream of raw parser events from a YAML string.
+pub fn stream_events(input: &str) -> Result<EventStream> {
+    EventStream::from_str(input)
+}
+
+/// Creates a pull-based stream of raw parser events from UTF-8 YAML bytes.
+pub fn stream_events_slice(input: &[u8]) -> Result<EventStream> {
+    EventStream::from_slice(input)
+}
+
+/// Reads YAML bytes and creates a pull-based stream of raw parser events.
+pub fn stream_events_reader<R>(reader: R) -> Result<EventStream>
+where
+    R: Read,
+{
+    EventStream::from_reader(reader)
+}
+
+/// Creates a pull-based stream of parsed YAML documents from a YAML string.
+pub fn stream_documents(input: &str) -> Result<DocumentStream> {
+    DocumentStream::from_str(input)
+}
+
+/// Creates a pull-based stream of parsed YAML documents from UTF-8 YAML bytes.
+pub fn stream_documents_slice(input: &[u8]) -> Result<DocumentStream> {
+    DocumentStream::from_slice(input)
+}
+
+/// Reads YAML bytes and creates a pull-based stream of parsed YAML documents.
+pub fn stream_documents_reader<R>(reader: R) -> Result<DocumentStream>
+where
+    R: Read,
+{
+    DocumentStream::from_reader(reader)
+}
+
+/// Pull-based iterator over raw YAML parser events.
+///
+/// `EventStream` yields the same event sequence as [`parse_events`] for a
+/// successfully parsed input without retaining the completed event vector.
+/// Invalid inputs may yield already-parsed prefix events before the terminal
+/// error. Event streaming validates aliases but never expands them, so
+/// `LoadOptions` input limits apply while alias expansion budgets are reserved
+/// for semantic document loading.
+pub struct EventStream {
+    parser: StreamingParser,
+    pending: VecDeque<Event>,
+    pending_error: Option<Error>,
+    finished: bool,
+}
+
+impl EventStream {
+    /// Creates an event stream from a YAML string.
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(input: &str) -> Result<Self> {
+        Self::from_str_with_options(input, LoadOptions::new())
+    }
+
+    /// Creates an event stream from a YAML string with explicit load options.
+    pub fn from_str_with_options(input: &str, options: LoadOptions) -> Result<Self> {
+        let mut parser = StreamingParser::new(input, options)?;
+        parser.enable_events();
+        let pending = parser.take_events();
+        Ok(Self {
+            parser,
+            pending,
+            pending_error: None,
+            finished: false,
+        })
+    }
+
+    /// Creates an event stream from UTF-8 YAML bytes.
+    pub fn from_slice(input: &[u8]) -> Result<Self> {
+        Self::from_slice_with_options(input, LoadOptions::new())
+    }
+
+    /// Creates an event stream from UTF-8 YAML bytes with explicit load options.
+    pub fn from_slice_with_options(input: &[u8], options: LoadOptions) -> Result<Self> {
+        options.check_input_len(input.len())?;
+        let input = std::str::from_utf8(input)
+            .map_err(|err| Error::new("input is not valid UTF-8", utf8_error_span(input, err)))?;
+        Self::from_str_with_options(input, options)
+    }
+
+    /// Reads YAML bytes and creates an event stream.
+    pub fn from_reader<R>(reader: R) -> Result<Self>
+    where
+        R: Read,
+    {
+        Self::from_reader_with_options(reader, LoadOptions::new())
+    }
+
+    /// Reads YAML bytes and creates an event stream with explicit load options.
+    pub fn from_reader_with_options<R>(reader: R, options: LoadOptions) -> Result<Self>
+    where
+        R: Read,
+    {
+        let input = read_to_end_with_options(reader, options)?;
+        Self::from_slice_with_options(&input, options)
+    }
+}
+
+impl Iterator for EventStream {
+    type Item = Result<Event>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(event) = self.pending.pop_front() {
+                return Some(Ok(event));
+            }
+            if let Some(error) = self.pending_error.take() {
+                return Some(Err(error));
+            }
+            if self.finished {
+                return None;
+            }
+
+            match self.parser.next_raw_document() {
+                Some(Ok(_)) => {
+                    self.pending = self.parser.take_events();
+                }
+                Some(Err(error)) => {
+                    self.pending = self.parser.take_events();
+                    self.pending_error = Some(error);
+                    self.finished = true;
+                }
+                None => {
+                    self.pending = self.parser.take_events();
+                    self.pending.push_back(Event::StreamEnd);
+                    self.finished = true;
+                }
+            }
+        }
+    }
+}
+
+/// Pull-based iterator over semantic YAML documents.
+///
+/// `DocumentStream` applies the same scalar schema, merge-key behavior,
+/// duplicate-key checks, input byte ceiling, and alias expansion budget as
+/// [`parse_documents`], but yields one completed document at a time instead of
+/// retaining a `Vec<Node>`.
+pub struct DocumentStream {
+    parser: StreamingParser,
+    finished: bool,
+}
+
+impl DocumentStream {
+    /// Creates a document stream from a YAML string.
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(input: &str) -> Result<Self> {
+        Self::from_str_with_options(input, LoadOptions::new())
+    }
+
+    /// Creates a document stream from a YAML string with explicit load options.
+    pub fn from_str_with_options(input: &str, options: LoadOptions) -> Result<Self> {
+        Ok(Self {
+            parser: StreamingParser::new(input, options)?,
+            finished: false,
+        })
+    }
+
+    /// Creates a document stream from UTF-8 YAML bytes.
+    pub fn from_slice(input: &[u8]) -> Result<Self> {
+        Self::from_slice_with_options(input, LoadOptions::new())
+    }
+
+    /// Creates a document stream from UTF-8 YAML bytes with explicit load options.
+    pub fn from_slice_with_options(input: &[u8], options: LoadOptions) -> Result<Self> {
+        options.check_input_len(input.len())?;
+        let input = std::str::from_utf8(input)
+            .map_err(|err| Error::new("input is not valid UTF-8", utf8_error_span(input, err)))?;
+        Self::from_str_with_options(input, options)
+    }
+
+    /// Reads YAML bytes and creates a document stream.
+    pub fn from_reader<R>(reader: R) -> Result<Self>
+    where
+        R: Read,
+    {
+        Self::from_reader_with_options(reader, LoadOptions::new())
+    }
+
+    /// Reads YAML bytes and creates a document stream with explicit load options.
+    pub fn from_reader_with_options<R>(reader: R, options: LoadOptions) -> Result<Self>
+    where
+        R: Read,
+    {
+        let input = read_to_end_with_options(reader, options)?;
+        Self::from_slice_with_options(&input, options)
+    }
+}
+
+impl Iterator for DocumentStream {
+    type Item = Result<Node>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.finished {
+            return None;
+        }
+        match self.parser.next_raw_document() {
+            Some(Ok(mut node)) => {
+                let schema = self.parser.last_document_schema();
+                Some(
+                    node.apply_merge_keys_with_policy(merge_policy_for_schema(schema))
+                        .map(|()| node),
+                )
+            }
+            Some(Err(error)) => {
+                self.finished = true;
+                Some(Err(error))
+            }
+            None => {
+                self.finished = true;
+                None
+            }
+        }
+    }
+}
+
+struct StreamingParser {
+    parser: Parser,
+    state: DocumentParseState,
+}
+
+impl StreamingParser {
+    fn new(input: &str, options: LoadOptions) -> Result<Self> {
+        Ok(Self {
+            parser: Parser::new_with_options(input, options)?,
+            state: DocumentParseState::default(),
+        })
+    }
+
+    fn enable_events(&mut self) {
+        self.parser.enable_events();
+    }
+
+    fn next_raw_document(&mut self) -> Option<Result<Node>> {
+        self.parser.parse_next_document_result(&mut self.state)
+    }
+
+    fn take_events(&mut self) -> VecDeque<Event> {
+        self.parser
+            .events
+            .as_mut()
+            .map(|recorder| recorder.events.drain(..).collect())
+            .unwrap_or_default()
+    }
+
+    fn last_document_schema(&self) -> Schema {
+        self.parser
+            .document_schemas
+            .last()
+            .copied()
+            .unwrap_or(Schema::Yaml12)
+    }
+}
+
+#[derive(Default)]
+struct DocumentParseState {
+    pending_start: Option<(Span, bool, EventDocumentDirectives)>,
+    open_document: Option<Span>,
+    pending_directive_span: Option<Span>,
+    finished: bool,
 }
 
 struct Parser {
@@ -508,10 +775,6 @@ impl AnchorRegistry {
 }
 
 impl Parser {
-    fn new(input: &str) -> Result<Self> {
-        Self::new_with_options(input, LoadOptions::new())
-    }
-
     fn new_with_options(input: &str, options: LoadOptions) -> Result<Self> {
         options.check_input_len(input.len())?;
         let schema = options.selected_schema();
@@ -537,12 +800,6 @@ impl Parser {
             events: vec![Event::StreamStart],
             pending_meta: EventMeta::default(),
         });
-    }
-
-    fn finish_events(mut self) -> Vec<Event> {
-        let mut recorder = self.events.take().expect("events enabled");
-        recorder.events.push(Event::StreamEnd);
-        recorder.events
     }
 
     fn emit_document_start(
@@ -652,60 +909,84 @@ impl Parser {
         check_duplicate_for_schema(self.recording_events(), self.active_schema, seen, key)
     }
 
-    fn parse_documents(&mut self) -> Result<Vec<Node>> {
-        self.parse_document_results()
-            .into_iter()
-            .collect::<Result<Vec<Node>>>()
-    }
-
     fn parse_document_results(&mut self) -> Vec<Result<Node>> {
         let mut docs = Vec::new();
-        let mut pending_start: Option<(Span, bool, EventDocumentDirectives)> = None;
-        let mut open_document: Option<Span> = None;
-        let mut pending_directive_span: Option<Span> = None;
+        let mut state = DocumentParseState::default();
+        while let Some(result) = self.parse_next_document_result(&mut state) {
+            docs.push(result);
+        }
+        docs
+    }
+
+    fn parse_next_document_result(
+        &mut self,
+        state: &mut DocumentParseState,
+    ) -> Option<Result<Node>> {
+        if state.finished {
+            return None;
+        }
+
         loop {
             self.skip_blanks();
             let Some(line) = self.lines.get(self.pos).cloned() else {
-                break;
+                if self.pending_directives {
+                    state.finished = true;
+                    return Some(Err(Error::new(
+                        "directives must be followed by an explicit document start marker",
+                        state.pending_directive_span.unwrap_or_default(),
+                    )));
+                }
+                if let Some((span, explicit, directives)) = state.pending_start.take() {
+                    self.activate_document_schema(&directives);
+                    self.emit_document_start(explicit, directives, span);
+                    self.emit_null_scalar(span);
+                    self.emit_document_end(false, span);
+                    return Some(Ok(self.finish_parsed_document(Node::null(span))));
+                }
+                if let Some(span) = state.open_document.take() {
+                    self.emit_document_end(false, span);
+                }
+                state.finished = true;
+                return None;
             };
             match line.kind {
                 LineKind::Blank => unreachable!("blank lines are skipped above"),
                 LineKind::Directive => {
-                    if pending_start.is_some() {
-                        docs.push(Err(Error::new(
+                    if state.pending_start.is_some() {
+                        state.finished = true;
+                        return Some(Err(Error::new(
                             "directives must appear before the document start marker",
                             line.span(),
                         )));
-                        return docs;
                     }
-                    if open_document.is_some() {
-                        docs.push(Err(Error::new(
+                    if state.open_document.is_some() {
+                        state.finished = true;
+                        return Some(Err(Error::new(
                             "directives must appear before the document start marker",
                             line.span(),
                         )));
-                        return docs;
                     }
                     if let Err(error) = self.parse_directive(&line) {
-                        docs.push(Err(error));
-                        return docs;
+                        state.finished = true;
+                        return Some(Err(error));
                     }
                     if self.pending_directives {
-                        pending_directive_span = Some(line.span());
+                        state.pending_directive_span = Some(line.span());
                     }
                     self.pos += 1;
                 }
                 LineKind::DocumentStart => {
-                    if let Some((span, explicit, directives)) = pending_start.take() {
+                    if let Some((span, explicit, directives)) = state.pending_start.take() {
                         self.emit_document_start(explicit, directives, span);
                         self.emit_null_scalar(span);
                         self.emit_document_end(false, span);
-                        docs.push(Ok(self.finish_parsed_document(Node::null(span))));
+                        return Some(Ok(self.finish_parsed_document(Node::null(span))));
                     }
-                    if let Some(span) = open_document.take() {
+                    if let Some(span) = state.open_document.take() {
                         self.emit_document_end(false, span);
                     }
                     let directives = self.activate_pending_directives();
-                    pending_directive_span = None;
+                    state.pending_directive_span = None;
                     let marker_span = line.local_span(0, 3);
                     self.pos += 1;
                     if let Some((rest_start, rest)) = document_start_rest(&line.content) {
@@ -721,53 +1002,54 @@ impl Parser {
                         ) {
                             Ok(doc) => doc,
                             Err(error) => {
-                                docs.push(Err(error));
-                                return docs;
+                                state.finished = true;
+                                return Some(Err(error));
                             }
                         };
-                        open_document = Some(doc.span);
+                        state.open_document = Some(doc.span);
                         if let Err(error) = self.reject_trailing_content_after_document_node() {
-                            docs.push(Err(error));
-                            return docs;
+                            state.finished = true;
+                            return Some(Err(error));
                         }
-                        docs.push(Ok(self.finish_parsed_document(doc)));
+                        return Some(Ok(self.finish_parsed_document(doc)));
                     } else {
-                        pending_start = Some((marker_span, true, directives));
+                        state.pending_start = Some((marker_span, true, directives));
                     }
                 }
                 LineKind::DocumentEnd => {
                     if self.pending_directives {
-                        docs.push(Err(Error::new(
+                        state.finished = true;
+                        return Some(Err(Error::new(
                             "directives must be followed by an explicit document start marker",
                             line.span(),
                         )));
-                        return docs;
                     }
-                    if let Some((span, explicit, directives)) = pending_start.take() {
+                    if let Some((span, explicit, directives)) = state.pending_start.take() {
                         self.activate_document_schema(&directives);
                         self.emit_document_start(explicit, directives, span);
                         self.emit_null_scalar(span);
                         self.emit_document_end(true, line.span());
-                        docs.push(Ok(self.finish_parsed_document(Node::null(span))));
+                        self.pos += 1;
+                        return Some(Ok(self.finish_parsed_document(Node::null(span))));
                     }
-                    if open_document.take().is_some() {
+                    if state.open_document.take().is_some() {
                         self.emit_document_end(true, line.span());
                     }
                     self.pos += 1;
                 }
                 LineKind::Content => {
                     if self.pending_directives {
-                        docs.push(Err(Error::new(
+                        state.finished = true;
+                        return Some(Err(Error::new(
                             "directives must be followed by an explicit document start marker",
                             line.span(),
                         )));
-                        return docs;
                     }
-                    if let Some(span) = open_document.take() {
+                    if let Some(span) = state.open_document.take() {
                         self.emit_document_end(false, span);
                     }
                     let (start_span, explicit, directives) =
-                        if let Some((span, explicit, directives)) = pending_start.take() {
+                        if let Some((span, explicit, directives)) = state.pending_start.take() {
                             (span, explicit, directives)
                         } else {
                             self.active_tag_handles.clear();
@@ -779,37 +1061,19 @@ impl Parser {
                     let doc = match self.parse_node(0) {
                         Ok(doc) => doc,
                         Err(error) => {
-                            docs.push(Err(error));
-                            return docs;
+                            state.finished = true;
+                            return Some(Err(error));
                         }
                     };
-                    open_document = Some(doc.span);
+                    state.open_document = Some(doc.span);
                     if let Err(error) = self.reject_trailing_content_after_document_node() {
-                        docs.push(Err(error));
-                        return docs;
+                        state.finished = true;
+                        return Some(Err(error));
                     }
-                    docs.push(Ok(self.finish_parsed_document(doc)));
+                    return Some(Ok(self.finish_parsed_document(doc)));
                 }
             }
         }
-        if self.pending_directives {
-            docs.push(Err(Error::new(
-                "directives must be followed by an explicit document start marker",
-                pending_directive_span.unwrap_or_default(),
-            )));
-            return docs;
-        }
-        if let Some((span, explicit, directives)) = pending_start {
-            self.activate_document_schema(&directives);
-            self.emit_document_start(explicit, directives, span);
-            self.emit_null_scalar(span);
-            self.emit_document_end(false, span);
-            docs.push(Ok(self.finish_parsed_document(Node::null(span))));
-        }
-        if let Some(span) = open_document {
-            self.emit_document_end(false, span);
-        }
-        docs
     }
 
     fn finish_parsed_document(&mut self, doc: Node) -> Node {

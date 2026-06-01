@@ -35,6 +35,11 @@ Notable completed release-candidate behavior:
   repository-only fixtures, downstream reductions, fuzz corpora, CI files, and
   proof scripts stay local until the public license/redistribution policy is
   selected.
+- Public pull-based streaming now has explicit `EventStream` and
+  `DocumentStream` contracts. Raw event streams match `parse_events` without
+  retaining the completed event vector and validate aliases without expanding
+  them; document streams match `parse_documents` while yielding one
+  merge-expanded `Node` at a time and enforcing the alias budget.
 - Default loaded-tree, `from_value`, direct owned/borrowed `Value`
   deserializers, and Serde reads expand untagged and explicit `!!merge` /
   canonical merge-tag keys while raw parser events retain merge syntax and tag
@@ -57,8 +62,8 @@ Notable completed release-candidate behavior:
 - A checked-in strict package-alias smoke fixture executes upstream-compatible
   `serde_yaml::...` paths against both `serde_yaml 0.9.34` and this package
   through `serde_yaml = { package = "yaml", ... }`; the expanded alias smoke
-  separately covers root document-stream helpers, explicit YAML 1.1
-  `LoadOptions`, bounded large-reader behavior, caller-built default merge
+  separately covers root pull event/document streaming helpers, explicit YAML
+  1.1 `LoadOptions`, bounded large-reader behavior, caller-built default merge
   deserialization plus explicit in-place merge expansion, mapping/index
   ergonomics, lossless graph identity inspection, and diagnostic locations. A separate
   real-world package-alias smoke now copies the fixture registry into a clean
@@ -158,8 +163,9 @@ Notable completed release-candidate behavior:
   for direct enum and `IgnoredAny` reads, matching the package-alias
   `serde_yaml::value::TaggedValue` surface.
 - `LoadOptions` now applies a default 64 MiB input byte ceiling across parser,
-  Serde, reader, document-stream, and direct deserializer entrypoints, and
-  `parse_lossless_bytes` now checks that default ceiling before UTF-8 validation.
+  Serde, reader, pull event/document streams, and direct deserializer
+  entrypoints, and `parse_lossless_bytes` now checks that default ceiling
+  before UTF-8 validation.
   Loader paths keep `max_input_bytes()` for byte-limit tuning,
   `max_alias_expansion_nodes()` for alias expansion work tuning, and
   `without_input_limit()` for explicitly pre-bounded sources.

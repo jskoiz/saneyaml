@@ -42,6 +42,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "streaming_parse"
+path = "fuzz_targets/streaming_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "emit_roundtrip"
 path = "fuzz_targets/emit_roundtrip.rs"
 test = false

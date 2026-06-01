@@ -15,7 +15,7 @@ chosen.
 
 The first milestone focuses on:
 
-- Raw parser events preserve scalar text, style, tags, anchors, and directive
+- Raw parser events preserve scalar values, style, tags, anchors, and directive
   metadata; constructed document trees use YAML 1.2 core scalar resolution by
   default.
 - Explicit `LoadOptions::yaml_1_1()` construction for legacy YAML 1.1
@@ -40,6 +40,14 @@ The first milestone focuses on:
   alias events. Real-world Docker Compose merge-anchor fixtures are
   loaded-tree gated by comparing merge-expanded reference-loader trees against
   this crate's default-expanded output.
+- Pull-based `yaml::EventStream` and `yaml::DocumentStream` APIs, available
+  through root `stream_events*` / `stream_documents*` helpers and
+  `LoadOptions`, consume parser events or completed documents without
+  retaining the full event vector or document graph. Event streaming is the raw
+  non-expanding contract and matches `parse_events` event-for-event on
+  successful input; document streaming yields merge-expanded `Node` documents
+  one at a time and matches `parse_documents`. Reader constructors use the same
+  bounded reader ingestion as `from_reader` before yielding the pull iterator.
 - A source-backed `yaml::parse_lossless` / `yaml::LosslessStream` API that
   keeps the original source for byte-stable replay, exposes comments and blank
   lines as trivia, represents anchors/aliases with stable graph ids, compares
@@ -74,10 +82,12 @@ The first milestone focuses on:
   config-shaped `Serialize` values with `serde_yaml`-style 128-bit integer
   value serialization, tagged values, and document markers.
 - Bounded input and alias expansion by default: `LoadOptions` carries a 64 MiB
-  input byte ceiling for string, slice, reader, document-stream, and direct
-  deserializer entrypoints, and `parse_lossless_bytes` uses the same default
-  ceiling before UTF-8 validation; callers can tighten loader paths with
-  `max_input_bytes()`, tune alias expansion work with
+  input byte ceiling for string, slice, reader, pull event/document streams,
+  and direct deserializer entrypoints, and `parse_lossless_bytes` uses the same
+  default ceiling before UTF-8 validation. Raw event streaming validates alias
+  references without expanding them; loaded trees, Serde reads, and
+  `DocumentStream` enforce alias expansion budgets. Callers can tighten loader
+  paths with `max_input_bytes()`, tune alias expansion work with
   `max_alias_expansion_nodes()`, or explicitly remove the loader input limit
   with `without_input_limit()`.
 - A `serde_yaml` swap harness and migration-readiness report for common
@@ -93,7 +103,8 @@ The first milestone focuses on:
   `serde_yaml::...` API paths against both `serde_yaml 0.9.34` and this
   package, including exact `with::singleton_map` helper shape behavior, plus an
   expanded package-alias smoke for explicit `LoadOptions`, bounded large-reader
-  behavior, document-stream, merge, mapping/index, lossless graph, and diagnostic-location paths, plus a
+  behavior, pull event/document streaming, merge, mapping/index, lossless
+  graph, and diagnostic-location paths, plus a
   packaged real-world alias smoke that copies the fixture registry into a clean
   downstream crate and parses GitHub Actions, Docker Compose, Kubernetes, Helm,
   OpenAPI, Wrangler, and Ansible files through `serde_yaml::...` imports, plus
@@ -171,10 +182,10 @@ scripts/fuzz-release-sweep.sh
 `tests/baseline_audit.rs` verifies that `BASELINE.md` matches the committed
 manifest, registry, migration report, package boundary, corpus, and command evidence. `cargo
 fuzz` is optional for ordinary development; the script copies corpora to a
-temporary directory before running all nine targets so it does not grow tracked
+temporary directory before running all ten targets so it does not grow tracked
 corpus files. CI runs that script with one requested pass per target to verify
 the wiring. `scripts/fuzz-release-sweep.sh` is the manual release gate: it runs
-the same nine targets with a configurable budget and writes a summary with
+the same ten targets with a configurable budget and writes a summary with
 checkout HEAD/status, target mode, target names, corpus counts, run counts,
 statuses, elapsed time, and artifact directories. Unfiltered release sweeps must
 cover every target declared in `fuzz/Cargo.toml`. Sustained fuzzing and minimized findings remain separate

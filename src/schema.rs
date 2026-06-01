@@ -161,6 +161,42 @@ impl LoadOptions {
         parse::parse_documents_with_options(input, self)
     }
 
+    /// Creates a pull-based raw event stream using these options.
+    pub fn stream_events(self, input: &str) -> Result<parse::EventStream> {
+        parse::EventStream::from_str_with_options(input, self)
+    }
+
+    /// Creates a pull-based raw event stream from UTF-8 bytes using these options.
+    pub fn stream_events_slice(self, input: &[u8]) -> Result<parse::EventStream> {
+        parse::EventStream::from_slice_with_options(input, self)
+    }
+
+    /// Reads YAML bytes and creates a pull-based raw event stream using these options.
+    pub fn stream_events_reader<R>(self, reader: R) -> Result<parse::EventStream>
+    where
+        R: Read,
+    {
+        parse::EventStream::from_reader_with_options(reader, self)
+    }
+
+    /// Creates a pull-based parsed document stream using these options.
+    pub fn stream_documents(self, input: &str) -> Result<parse::DocumentStream> {
+        parse::DocumentStream::from_str_with_options(input, self)
+    }
+
+    /// Creates a pull-based parsed document stream from UTF-8 bytes using these options.
+    pub fn stream_documents_slice(self, input: &[u8]) -> Result<parse::DocumentStream> {
+        parse::DocumentStream::from_slice_with_options(input, self)
+    }
+
+    /// Reads YAML bytes and creates a pull-based parsed document stream using these options.
+    pub fn stream_documents_reader<R>(self, reader: R) -> Result<parse::DocumentStream>
+    where
+        R: Read,
+    {
+        parse::DocumentStream::from_reader_with_options(reader, self)
+    }
+
     /// Deserializes a single YAML document from a string using these options.
     pub fn from_str<'de, T>(self, input: &'de str) -> Result<T>
     where

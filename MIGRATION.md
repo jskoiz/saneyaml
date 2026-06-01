@@ -47,10 +47,11 @@ That dependency-alias path is covered by
 runs the same upstream-compatible `serde_yaml` API calls once against
 `serde_yaml 0.9.34` and once against this package under the `serde_yaml`
 dependency name. The expanded smoke then covers this crate's extension surface,
-including root document-stream helpers, explicit YAML 1.1 `LoadOptions`,
-bounded large-reader behavior with `max_input_bytes()`, caller-built default
-merge deserialization plus explicit in-place merge expansion, lossless graph
-identity inspection, writer paths, and diagnostic locations. A real-world package-alias smoke copies the checked-in
+including root pull event/document streaming helpers, explicit YAML 1.1
+`LoadOptions`, bounded large-reader behavior with `max_input_bytes()`,
+caller-built default merge deserialization plus explicit in-place merge
+expansion, lossless graph identity inspection, writer paths, and diagnostic
+locations. A real-world package-alias smoke copies the checked-in
 GitHub Actions, Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and
 Ansible fixture registry into a clean downstream crate, parses every registered
 fixture through `serde_yaml::Deserializer`, and keeps representative deep field
@@ -104,17 +105,22 @@ Additional crate surfaces useful during migration:
   document only when the document declares `%YAML 1.1`. Default entrypoints
   remain YAML 1.2-oriented.
 - `yaml::LoadOptions` enforces a 64 MiB input byte ceiling by default across
-  string, slice, reader, document-stream, and direct deserializer paths.
-  `yaml::parse_lossless_bytes` applies the same default ceiling before UTF-8
-  validation. Use `max_input_bytes()` to tune the ceiling for a loader call site,
-  `max_alias_expansion_nodes()` to tune alias expansion work for untrusted
-  config loads, or `without_input_limit()` only when a caller has already
-  bounded the source.
+  string, slice, reader, pull event/document streams, and direct deserializer
+  paths. `yaml::parse_lossless_bytes` applies the same default ceiling before
+  UTF-8 validation. Use `max_input_bytes()` to tune the ceiling for a loader
+  call site, `max_alias_expansion_nodes()` to tune alias expansion work for
+  untrusted config loads, or `without_input_limit()` only when a caller has
+  already bounded the source. Raw event streaming validates aliases without
+  expanding them; document streaming uses the same alias-expansion budget as
+  loaded-tree and Serde paths.
 - `yaml::from_node` preserves parser spans while deserializing from a loaded tree.
 - `yaml::from_documents_str`, `from_documents_slice`, and
   `from_documents_reader` return typed vectors for YAML streams.
-- `yaml::parse_events` and `yaml::parse_documents` expose parser/event proof
-  surfaces that `serde_yaml` does not provide directly.
+- `yaml::stream::{EventStream, DocumentStream}` plus root
+  `stream_events*` / `stream_documents*` helpers expose pull-based parser-event
+  and one-document-at-a-time loading surfaces that `serde_yaml` does not
+  provide directly. `parse_events` and `parse_documents` remain all-or-error
+  convenience collection APIs over the same parser behavior.
 - `yaml::parse_lossless` and `yaml::LosslessStream` provide a separate
   source-backed graph surface for callers that need byte-stable replay,
   comments/trivia, scalar spelling, directives, alias-to-anchor identity checked

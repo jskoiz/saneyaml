@@ -1,9 +1,9 @@
 //! Pure-Rust YAML parser, emitter, and Serde integration for
 //! configuration-shaped YAML.
 //!
-//! The preview API focuses on YAML 1.2 parser events, loaded document trees
-//! with default merge-key expansion, explicit and directive-driven YAML 1.1
-//! scalar construction options, `serde_yaml`-style
+//! The preview API focuses on YAML 1.2 parser events, pull-based event and
+//! document streaming, loaded document trees with default merge-key expansion,
+//! explicit and directive-driven YAML 1.1 scalar construction options, `serde_yaml`-style
 //! `Value`/`Mapping`/`Number` workflows, typed Serde reads, structural writes,
 //! explicit emission fidelity tiers, and line/column diagnostics. See `MIGRATION.md`,
 //! `COMPATIBILITY.md`, and `DEVELOPER_PREVIEW.md` for the current adoption
@@ -37,6 +37,11 @@ mod yaml11;
 
 /// Serde helper modules matching selected `serde_yaml::with` paths.
 pub mod with;
+
+/// Pull-based YAML event and document streaming APIs.
+pub mod stream {
+    pub use crate::parse::{DocumentStream, EventStream};
+}
 
 /// Mapping types and iterators for YAML [`Mapping`].
 pub mod mapping {
@@ -73,9 +78,10 @@ pub use lossless::{
     parse_lossless_bytes,
 };
 pub use parse::{
-    CollectionStyle, Event, EventAnchor, EventDocumentDirectives, EventMeta, EventTag,
-    EventTagDirective, EventYamlVersion, ScalarStyle, parse_bytes, parse_documents, parse_events,
-    parse_str,
+    CollectionStyle, DocumentStream, Event, EventAnchor, EventDocumentDirectives, EventMeta,
+    EventStream, EventTag, EventTagDirective, EventYamlVersion, ScalarStyle, parse_bytes,
+    parse_documents, parse_events, parse_str, stream_documents, stream_documents_reader,
+    stream_documents_slice, stream_events, stream_events_reader, stream_events_slice,
 };
 pub use schema::{
     DEFAULT_ALIAS_EXPANSION_FACTOR, DEFAULT_MAX_INPUT_BYTES, DEFAULT_MIN_ALIAS_EXPANSION_NODES,

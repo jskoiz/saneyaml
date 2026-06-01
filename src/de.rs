@@ -158,7 +158,7 @@ where
     from_documents_slice_with_options(&input, options)
 }
 
-fn read_to_end_with_options<R>(reader: R, options: LoadOptions) -> crate::Result<Vec<u8>>
+pub(crate) fn read_to_end_with_options<R>(reader: R, options: LoadOptions) -> crate::Result<Vec<u8>>
 where
     R: Read,
 {

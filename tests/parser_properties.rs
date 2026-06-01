@@ -148,6 +148,13 @@ const EVENT_STREAM_REQUIRED_SEEDS: &[&str] = &[
     "yts-zwk4-anchor-explicit-key",
     "yts-zxt5-implicit-key-adjacent-newline",
 ];
+const STREAMING_PARSE_REQUIRED_SEEDS: &[&str] = &[
+    "alias-budget-bomb",
+    "directive-boundary",
+    "empty-doc-stream",
+    "flow-prefix-error",
+    "prior-doc-later-alias-error",
+];
 const EMIT_ROUNDTRIP_REQUIRED_SEEDS: &[&str] = &[
     "anchors-and-aliases",
     "default-merge",
@@ -286,6 +293,22 @@ proptest! {
     }
 
     #[test]
+    fn pull_event_stream_matches_batch_events(input in "\\PC{0,4096}") {
+        let batch = yaml::parse_events(&input);
+        let streamed = yaml::EventStream::from_str(&input)
+            .and_then(|stream| stream.collect::<yaml::Result<Vec<_>>>());
+        prop_assert_eq!(streamed, batch);
+    }
+
+    #[test]
+    fn pull_document_stream_matches_batch_documents(input in "\\PC{0,4096}") {
+        let batch = yaml::parse_documents(&input);
+        let streamed = yaml::DocumentStream::from_str(&input)
+            .and_then(|stream| stream.collect::<yaml::Result<Vec<_>>>());
+        prop_assert_eq!(streamed, batch);
+    }
+
+    #[test]
     fn emitted_generated_trees_parse_equivalently(node in arb_node(4)) {
         if has_non_roundtrippable_explicit_core_scalar_tag(&node) {
             return Ok(());
@@ -373,6 +396,28 @@ fn event_stream_fuzz_corpus_does_not_panic() {
         .unwrap_or_else(|_| {
             panic!("event parser must not panic on event_stream fuzz corpus {name}")
         });
+    }
+}
+
+#[test]
+fn streaming_parse_fuzz_corpus_matches_batch_entrypoints() {
+    for (name, input) in fuzz_corpus_inputs("streaming_parse") {
+        std::panic::catch_unwind(|| {
+            if let Ok(text) = std::str::from_utf8(&input) {
+                let events = yaml::EventStream::from_str(text)
+                    .and_then(|stream| stream.collect::<yaml::Result<Vec<_>>>());
+                assert_eq!(events, yaml::parse_events(text), "{name} event stream");
+
+                let documents = yaml::DocumentStream::from_str(text)
+                    .and_then(|stream| stream.collect::<yaml::Result<Vec<_>>>());
+                assert_eq!(
+                    documents,
+                    yaml::parse_documents(text),
+                    "{name} document stream"
+                );
+            }
+        })
+        .unwrap_or_else(|_| panic!("streaming parser must match batch parser on {name}"));
     }
 }
 
@@ -479,6 +524,7 @@ fn fuzz_corpora_cover_release_targets_and_named_safety_seeds() {
         ("schema_modes", (31, SCHEMA_MODES_REQUIRED_SEEDS)),
         ("serde_entrypoints", (314, SERDE_ENTRYPOINTS_REQUIRED_SEEDS)),
         ("serde_serializer", (7, SERDE_SERIALIZER_REQUIRED_SEEDS)),
+        ("streaming_parse", (5, STREAMING_PARSE_REQUIRED_SEEDS)),
     ]);
     let expected_targets = expected.keys().copied().collect::<BTreeSet<_>>();
     assert_eq!(declared_fuzz_targets(), expected_targets);
@@ -587,6 +633,7 @@ fn fuzz_corpus_targets() -> BTreeSet<&'static str> {
                 "schema_modes" => "schema_modes",
                 "serde_entrypoints" => "serde_entrypoints",
                 "serde_serializer" => "serde_serializer",
+                "streaming_parse" => "streaming_parse",
                 other => panic!("unexpected fuzz corpus target {other}"),
             }
         })
@@ -612,6 +659,7 @@ fn declared_fuzz_targets() -> BTreeSet<&'static str> {
                 "schema_modes" => "schema_modes",
                 "serde_entrypoints" => "serde_entrypoints",
                 "serde_serializer" => "serde_serializer",
+                "streaming_parse" => "streaming_parse",
                 other => panic!("unexpected fuzz target {other}"),
             }
         })

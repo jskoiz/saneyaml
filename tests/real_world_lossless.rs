@@ -528,6 +528,107 @@ fn lossless_path_addressed_edits_update_compose_without_manual_navigation() {
     assert_line_changes(input, &after_port, &[], &["      - 9000:9000"]);
 }
 
+#[test]
+fn lossless_path_addressed_edits_update_kubernetes_deployment() {
+    let input = include_str!("fixtures/real-world/kubernetes/deployment.yaml");
+    let stream = parse_lossless(input).expect("lossless parse Kubernetes deployment");
+
+    // A deeply nested container image, addressed by path with no manual walk
+    // through spec -> template -> spec -> containers[0] -> image.
+    let bumped = stream
+        .replace_value_at_path(
+            0,
+            &[
+                "spec".into(),
+                "template".into(),
+                "spec".into(),
+                "containers".into(),
+                0usize.into(),
+                "image".into(),
+            ],
+            "nginx:1.27",
+        )
+        .expect("bump container image by path");
+    assert_minimal_line_diff(
+        input,
+        &bumped,
+        &[("          image: nginx:1.25", "          image: nginx:1.27")],
+    );
+
+    // Delete the nested resources block; the block style is detected from the
+    // resolved container mapping.
+    let pruned = stream
+        .delete_at_path(
+            0,
+            &[
+                "spec".into(),
+                "template".into(),
+                "spec".into(),
+                "containers".into(),
+                0usize.into(),
+                "resources".into(),
+            ],
+        )
+        .expect("delete container resources by path");
+    assert_line_changes(
+        input,
+        &pruned,
+        &[
+            "          resources:",
+            "            requests:",
+            "              cpu: 100m",
+            "              memory: 128Mi",
+        ],
+        &[],
+    );
+
+    // Insert a label into the metadata.labels block mapping.
+    let labeled = stream
+        .insert_entry_at_path(0, &["metadata".into(), "labels".into()], "tier: frontend")
+        .expect("insert metadata label by path");
+    assert_line_changes(input, &labeled, &[], &["    tier: frontend"]);
+}
+
+#[test]
+fn lossless_path_addressed_edit_extends_openapi_flow_required() {
+    let input = include_str!("fixtures/real-world/openapi/petstore-fragment.yaml");
+    let stream = parse_lossless(input).expect("lossless parse OpenAPI fragment");
+
+    // `required: [id, name]` is a flow sequence; insert_item_at_path detects the
+    // flow style and rewrites the line in place.
+    let extended = stream
+        .insert_item_at_path(
+            0,
+            &[
+                "components".into(),
+                "schemas".into(),
+                "Pet".into(),
+                "required".into(),
+            ],
+            2,
+            "tag",
+        )
+        .expect("append required field by path");
+    assert_minimal_line_diff(
+        input,
+        &extended,
+        &[(
+            "      required: [id, name]",
+            "      required: [id, name, tag]",
+        )],
+    );
+
+    // A nested scalar replace through the same path layer.
+    let retitled = stream
+        .replace_value_at_path(0, &["info".into(), "version".into()], "\"1.1.0\"")
+        .expect("bump info.version by path");
+    assert_minimal_line_diff(
+        input,
+        &retitled,
+        &[("  version: \"1.0.0\"", "  version: \"1.1.0\"")],
+    );
+}
+
 /// Asserts the line-level diff between `original` and `edited` consists of exactly
 /// the given removed and added lines (each in document order). Because it is built
 /// on a longest-common-subsequence diff, every line not listed here — comments,

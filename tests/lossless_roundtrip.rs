@@ -938,3 +938,106 @@ dup_keys:
         .expect_err("document out of range");
     assert!(bad_document.to_string().contains("out of range"));
 }
+
+#[test]
+fn lossless_path_addressed_insert_and_delete_dispatch_by_style() {
+    let input = "\
+block:
+  a: 1
+  b: 2
+flow_map: {x: 1}
+block_seq:
+  - one
+  - two
+flow_seq: [p, q]
+";
+    let stream = parse_lossless(input).expect("lossless parse");
+
+    // Deletes: the block/flow style is detected from the resolved parent.
+    let del_block_entry = stream
+        .delete_at_path(0, &["block".into(), "b".into()])
+        .expect("delete block mapping entry");
+    assert!(del_block_entry.contains("block:\n  a: 1\nflow_map:"));
+
+    let del_flow_entry = stream
+        .delete_at_path(0, &["flow_map".into(), "x".into()])
+        .expect("delete flow mapping entry");
+    assert!(del_flow_entry.contains("flow_map: {}"));
+
+    let del_block_item = stream
+        .delete_at_path(0, &["block_seq".into(), 0usize.into()])
+        .expect("delete block sequence item");
+    assert!(del_block_item.contains("block_seq:\n  - two\n"));
+
+    let del_flow_item = stream
+        .delete_at_path(0, &["flow_seq".into(), 1usize.into()])
+        .expect("delete flow sequence item");
+    assert!(del_flow_item.contains("flow_seq: [p]"));
+
+    // Inserts: one method each for mappings and sequences, style auto-detected.
+    let ins_block_entry = stream
+        .insert_entry_at_path(0, &["block".into()], "c: 3")
+        .expect("insert block mapping entry");
+    assert!(ins_block_entry.contains("  a: 1\n  b: 2\n  c: 3\n"));
+
+    let ins_flow_entry = stream
+        .insert_entry_at_path(0, &["flow_map".into()], "y: 2")
+        .expect("insert flow mapping entry");
+    assert!(ins_flow_entry.contains("flow_map: {x: 1, y: 2}"));
+
+    let ins_block_item = stream
+        .insert_item_at_path(0, &["block_seq".into()], 1, "mid")
+        .expect("insert block sequence item");
+    assert!(ins_block_item.contains("  - one\n  - mid\n  - two\n"));
+
+    let ins_flow_item = stream
+        .insert_item_at_path(0, &["flow_seq".into()], 2, "r")
+        .expect("insert flow sequence item");
+    assert!(ins_flow_item.contains("flow_seq: [p, q, r]"));
+}
+
+#[test]
+fn lossless_path_addressed_mutations_reject_mismatched_targets() {
+    let stream = parse_lossless("m:\n  a: 1\nseq:\n  - one\n").expect("lossless parse");
+
+    let empty = stream
+        .delete_at_path(0, &[])
+        .expect_err("empty delete path");
+    assert!(empty.to_string().contains("non-empty path"));
+
+    let index_on_mapping = stream
+        .delete_at_path(0, &["m".into(), 0usize.into()])
+        .expect_err("index delete on mapping parent");
+    assert!(
+        index_on_mapping
+            .to_string()
+            .contains("requires a sequence parent")
+    );
+
+    let key_on_sequence = stream
+        .delete_at_path(0, &["seq".into(), "a".into()])
+        .expect_err("key delete on sequence parent");
+    assert!(
+        key_on_sequence
+            .to_string()
+            .contains("requires a mapping parent")
+    );
+
+    let entry_into_sequence = stream
+        .insert_entry_at_path(0, &["seq".into()], "a: 1")
+        .expect_err("entry insert into sequence");
+    assert!(
+        entry_into_sequence
+            .to_string()
+            .contains("requires a mapping node")
+    );
+
+    let item_into_mapping = stream
+        .insert_item_at_path(0, &["m".into()], 0, "x")
+        .expect_err("item insert into mapping");
+    assert!(
+        item_into_mapping
+            .to_string()
+            .contains("requires a sequence node")
+    );
+}

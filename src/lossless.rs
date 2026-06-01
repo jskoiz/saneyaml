@@ -539,6 +539,113 @@ impl LosslessStream {
         self.replace_node_source(node, replacement)
     }
 
+    /// Deletes the entry or item addressed by `path` and returns edited YAML.
+    ///
+    /// The final path segment selects what to delete from its resolved parent
+    /// container: a [`PathSegment::Key`] deletes that scalar-keyed entry from a
+    /// block or flow mapping, and a [`PathSegment::Index`] deletes that item from
+    /// a block or flow sequence. The block/flow style is detected from the parent
+    /// node, so callers need not pick a style-specific helper. An empty path is
+    /// rejected because the document root has no container to delete from.
+    pub fn delete_at_path(&self, document: usize, path: &[PathSegment]) -> Result<String> {
+        let Some((last, parent_path)) = path.split_last() else {
+            return Err(Error::new(
+                "lossless delete requires a non-empty path",
+                None,
+            ));
+        };
+        let parent = self.resolve_path(document, parent_path)?;
+        let parent_kind = self
+            .node(parent)
+            .ok_or_else(|| Error::new("lossless path node id is out of bounds", None))?
+            .kind();
+        match (last, parent_kind) {
+            (PathSegment::Key(key), LosslessNodeKind::Mapping { style, .. }) => match style {
+                CollectionStyle::Block => self.delete_block_mapping_entry_source(parent, key),
+                CollectionStyle::Flow => self.delete_flow_mapping_entry_source(parent, key),
+            },
+            (PathSegment::Index(index), LosslessNodeKind::Sequence { style, .. }) => match style {
+                CollectionStyle::Block => self.delete_block_sequence_item_source(parent, *index),
+                CollectionStyle::Flow => self.delete_flow_sequence_item_source(parent, *index),
+            },
+            (PathSegment::Key(key), _) => Err(Error::new(
+                format!("lossless delete of key {key:?} requires a mapping parent"),
+                self.node(parent).map(LosslessNode::span),
+            )),
+            (PathSegment::Index(index), _) => Err(Error::new(
+                format!("lossless delete of index {index} requires a sequence parent"),
+                self.node(parent).map(LosslessNode::span),
+            )),
+        }
+    }
+
+    /// Inserts one mapping entry into the mapping addressed by `path`.
+    ///
+    /// `entry_source` is unindented YAML that must parse as exactly one mapping
+    /// entry, for example `labels:\n  role: web`. The block/flow style is
+    /// detected from the addressed node, so callers use one method for either
+    /// mapping shape. The edited stream is reparsed before it is returned.
+    pub fn insert_entry_at_path(
+        &self,
+        document: usize,
+        path: &[PathSegment],
+        entry_source: impl Into<String>,
+    ) -> Result<String> {
+        let node = self.resolve_path(document, path)?;
+        match self
+            .node(node)
+            .ok_or_else(|| Error::new("lossless path node id is out of bounds", None))?
+            .kind()
+        {
+            LosslessNodeKind::Mapping {
+                style: CollectionStyle::Block,
+                ..
+            } => self.insert_block_mapping_entry_source(node, entry_source),
+            LosslessNodeKind::Mapping {
+                style: CollectionStyle::Flow,
+                ..
+            } => self.insert_flow_mapping_entry_source(node, entry_source),
+            _ => Err(Error::new(
+                "lossless entry insertion requires a mapping node",
+                self.node(node).map(LosslessNode::span),
+            )),
+        }
+    }
+
+    /// Inserts one item at `index` into the sequence addressed by `path`.
+    ///
+    /// `item_source` is unindented YAML that must parse as exactly one node. The
+    /// block/flow style is detected from the addressed node, so callers use one
+    /// method for either sequence shape. The edited stream is reparsed before it
+    /// is returned.
+    pub fn insert_item_at_path(
+        &self,
+        document: usize,
+        path: &[PathSegment],
+        index: usize,
+        item_source: impl Into<String>,
+    ) -> Result<String> {
+        let node = self.resolve_path(document, path)?;
+        match self
+            .node(node)
+            .ok_or_else(|| Error::new("lossless path node id is out of bounds", None))?
+            .kind()
+        {
+            LosslessNodeKind::Sequence {
+                style: CollectionStyle::Block,
+                ..
+            } => self.insert_block_sequence_item_source(node, index, item_source),
+            LosslessNodeKind::Sequence {
+                style: CollectionStyle::Flow,
+                ..
+            } => self.insert_flow_sequence_item_source(node, index, item_source),
+            _ => Err(Error::new(
+                "lossless item insertion requires a sequence node",
+                self.node(node).map(LosslessNode::span),
+            )),
+        }
+    }
+
     fn resolve_path_segment(
         &self,
         node: NodeId,

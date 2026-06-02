@@ -408,6 +408,8 @@ binary_spaced: !yaml!binary \"SGVs bG8=\"\n",
     assert_eq!(location.line(), 1);
     assert_eq!(location.column(), 8);
     assert_eq!(location.index(), 7);
+    assert_eq!(error.line(), Some(1));
+    assert_eq!(error.column(), Some(8));
 }
 
 fn bounded_reader_smoke_uses_package_alias() {

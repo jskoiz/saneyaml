@@ -9,16 +9,46 @@ every emitter formatting choice, or full YAML 1.1/libyaml compatibility mode.
 
 ## Migration Shape
 
-For local evaluation:
+There are two supported rename paths for local evaluation.
+
+### Cargo Package Alias
+
+Use this when you want existing `serde_yaml::...` paths to keep compiling while
+the dependency resolves to this crate:
+
+```toml
+[dependencies]
+serde_yaml = { package = "yaml", path = "/Users/jk/Desktop/yaml" }
+```
+
+With this shape, the covered public surface stays spelled
+`serde_yaml::from_str`, `serde_yaml::Value`, `serde_yaml::with::singleton_map`,
+and so on. The package-alias smoke fixtures compile those names from a clean
+downstream crate.
+
+### Direct Crate Alias
+
+Use this when the dependency is named `yaml`, but a source file should exercise
+the same call sites as the old crate:
 
 ```toml
 [dependencies]
 yaml = { path = "/Users/jk/Desktop/yaml" }
 ```
 
-The compileable example in `examples/serde_yaml_migration.rs` shows the same
-path for typed reads, `Value` patching, stream reads, structural writes, and
-diagnostic handling.
+```rust
+use yaml as serde_yaml;
+
+let config: Config = serde_yaml::from_str(input)?;
+let value: serde_yaml::Value = serde_yaml::from_slice(bytes)?;
+# Ok::<(), serde_yaml::Error>(())
+```
+
+The compileable example in `examples/serde_yaml_migration.rs` uses this
+direct-alias path for typed reads, `Value` patching, stream reads, structural
+writes, tagged enum helpers, and diagnostic handling. The focused
+`serde_yaml_direct_alias_smoke` test pins the same spelling in the normal test
+suite.
 
 Typical import rewrites:
 
@@ -30,14 +60,6 @@ let value: serde_yaml::Value = serde_yaml::from_slice(bytes)?;
 // after
 let config: Config = yaml::from_str(input)?;
 let value: yaml::Value = yaml::from_slice(bytes)?;
-```
-
-For low-friction runtime checks, existing `serde_yaml::...` paths can also be
-kept while Cargo points that dependency name at this package:
-
-```toml
-[dependencies]
-serde_yaml = { package = "yaml", path = "/Users/jk/Desktop/yaml" }
 ```
 
 That dependency-alias path is covered by
@@ -74,6 +96,136 @@ The low-friction path is to replace owned config reads and common
 `serde_yaml::Value` usage first. Keep compatibility-sensitive code covered by
 tests that exercise the actual downstream YAML files.
 
+## Cookbook
+
+Each recipe shows the old `serde_yaml` call site, then the direct `yaml` import
+shape. If you use the Cargo package alias or `use yaml as serde_yaml;`, keep the
+left-hand spelling and let the dependency or local alias do the rename.
+
+### Typed Read
+
+```rust
+// before
+let config: Config = serde_yaml::from_str(input)?;
+let from_slice: Config = serde_yaml::from_slice(bytes)?;
+let from_reader: Config = serde_yaml::from_reader(reader)?;
+
+// after
+let config: Config = yaml::from_str(input)?;
+let from_slice: Config = yaml::from_slice(bytes)?;
+let from_reader: Config = yaml::from_reader(reader)?;
+# Ok::<(), yaml::Error>(())
+```
+
+### Value Indexing and Patching
+
+```rust
+// before
+let mut value: serde_yaml::Value = serde_yaml::from_str(input)?;
+value["services"]["api"]["image"] = serde_yaml::Value::from("nginx:latest");
+let ports = value["services"]["api"]["ports"].as_sequence();
+
+// after
+let mut value: yaml::Value = yaml::from_str(input)?;
+value["services"]["api"]["image"] = yaml::Value::from("nginx:latest");
+let ports = value["services"]["api"]["ports"].as_sequence();
+# let _ = ports;
+# Ok::<(), yaml::Error>(())
+```
+
+`yaml::Sequence`, `yaml::Mapping`, `yaml::Number`, `yaml::value::*`, and
+`yaml::mapping::*` also resolve under the package alias and direct-alias paths.
+The `Index` traits are sealed, as they were in `serde_yaml`; use the built-in
+string, `usize`, and `Value` lookup forms.
+
+### Tagged Enums and Singleton Maps
+
+```rust
+// before
+#[derive(serde::Deserialize, serde::Serialize)]
+struct Job {
+    #[serde(with = "serde_yaml::with::singleton_map")]
+    action: Action,
+}
+
+// after, when importing the crate as yaml
+#[derive(serde::Deserialize, serde::Serialize)]
+struct Job {
+    #[serde(with = "yaml::with::singleton_map")]
+    action: Action,
+}
+```
+
+Under `serde_yaml = { package = "yaml", ... }` or `use yaml as serde_yaml;`,
+keep `#[serde(with = "serde_yaml::with::singleton_map")]`. Nested enum payloads
+that need one-entry mapping form should use
+`singleton_map_recursive`. The helpers reject YAML tag shorthand through those
+`with` paths, matching `serde_yaml`.
+
+### Multi-Document Streams
+
+```rust
+// before
+let docs = serde_yaml::Deserializer::from_str(stream)
+    .map(Config::deserialize)
+    .collect::<Result<Vec<_>, _>>()?;
+
+// after
+let docs = yaml::Deserializer::from_str(stream)
+    .map(Config::deserialize)
+    .collect::<Result<Vec<_>, _>>()?;
+
+// additive convenience
+let docs: Vec<Config> = yaml::from_documents_str(stream)?;
+# Ok::<(), yaml::Error>(())
+```
+
+`from_documents_str`, `from_documents_slice`, and `from_documents_reader` are
+this crate's all-or-error convenience helpers. Use iterator-style
+`Deserializer` when you need to process earlier good documents before a later
+stream error.
+
+### Structural Write
+
+```rust
+// before
+let yaml_text = serde_yaml::to_string(&config)?;
+serde_yaml::to_writer(&mut writer, &config)?;
+
+// after
+let yaml_text = yaml::to_string(&config)?;
+yaml::to_writer(&mut writer, &config)?;
+# let _ = yaml_text;
+# Ok::<(), yaml::Error>(())
+```
+
+The default writer is deterministic structural YAML. Use
+`yaml::EmitOptions::byte_compatible()` only for the documented byte-compatible
+structural corpus; comments, anchors, directives, and source style are lossless
+concerns, not default writer concerns.
+
+### Error and Location Handling
+
+```rust
+// before
+let error: serde_yaml::Error = serde_yaml::from_str::<Config>("name: [")
+    .unwrap_err();
+if let Some(location) = error.location() {
+    eprintln!("{}:{}", location.line(), location.column());
+}
+
+// after
+let error: yaml::Error = yaml::from_str::<Config>("name: [").unwrap_err();
+if let Some(location) = error.location() {
+    eprintln!("{}:{}", location.line(), location.column());
+}
+# Ok::<(), yaml::Error>(())
+```
+
+`yaml::Error::line()` and `column()` mirror the common convenience path, while
+`span()`, `category()`, `path()`, `document_index()`, and `render_source(...)`
+are additive diagnostics.
+
 ## API Matrix
 
 | serde_yaml surface | yaml surface | Status |
@@ -94,6 +246,9 @@ tests that exercise the actual downstream YAML files.
 | `serde_yaml::Serializer` | `yaml::Serializer` | Covered for multi-document writer usage and document marker policy; `Serializer::with_options(..., EmitOptions::structural())` matches the default writer path, and `Serializer::with_options(..., EmitOptions::byte_compatible())` matches `serde_yaml` for the supported structural stream corpus |
 | `serde_yaml::with::singleton_map` | `yaml::with::singleton_map` | Covered for read and write enum-field annotations |
 | `serde_yaml::with::singleton_map_recursive` | `yaml::with::singleton_map_recursive` | Covered for nested read and write enum-field annotations |
+| `serde_yaml::Error` / `Result` | `yaml::Error` / `Result` | Covered for parser, Serde, writer, and direct-deserializer errors; richer diagnostics are additive |
+| `serde_yaml::Location` | `yaml::Location` | Covered for `index()`, `line()`, and `column()` location handling |
+| `use yaml as serde_yaml;` | local direct alias | Covered by `tests/serde_yaml_direct_alias_smoke.rs` and `examples/serde_yaml_migration.rs` |
 
 Additional crate surfaces useful during migration:
 
@@ -279,18 +434,18 @@ testing each adopter's own YAML corpus.
 
 ## Required Call-Site Changes
 
-- For the covered public API surface, downstreams may first use
-  `serde_yaml = { package = "yaml", ... }` and keep existing `serde_yaml::...`
-  paths while compiling against this crate.
-- Replace `serde_yaml::Value`, `serde_yaml::Mapping`, and
-  `serde_yaml::Number` imports with `yaml::Value`, `yaml::Mapping`, and
-  `yaml::Number`.
-- Replace `serde_yaml::with::singleton_map` and
-  `serde_yaml::with::singleton_map_recursive` attribute paths with the matching
-  `yaml::with` paths.
-- Replace `serde_yaml::Error` handling with `yaml::Error`. Parser and Serde
-  errors expose line/column locations, but spanless `Value` and reader I/O
-  errors cannot recover source spans.
+- With `serde_yaml = { package = "yaml", ... }`, keep existing
+  `serde_yaml::...` paths for the covered public surface and let Cargo resolve
+  that name to this crate.
+- With `use yaml as serde_yaml;`, keep the old spelling inside that source file
+  while depending on `yaml`.
+- With direct `yaml::...` imports, mechanically replace the prefix:
+  `serde_yaml::Value` becomes `yaml::Value`, `serde_yaml::Mapping` becomes
+  `yaml::Mapping`, `serde_yaml::Number` becomes `yaml::Number`,
+  `serde_yaml::with::singleton_map` becomes `yaml::with::singleton_map`, and
+  `serde_yaml::Error` becomes `yaml::Error`.
+- Parser and Serde errors expose line/column locations. Spanless `Value` and
+  reader I/O errors cannot recover source spans.
 - Treat writer output as `EmitOptions::structural()` YAML by default. Select
   `EmitOptions::byte_compatible()` only for the proven `serde_yaml` byte
   corpus: common scalars, maps, sequences, Serde enum tags, document markers,

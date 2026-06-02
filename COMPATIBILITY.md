@@ -38,6 +38,37 @@ Every divergence record in `tests/fixtures/divergences/records/` carries a
 that omit caller-facing adoption impact. That registry is the source of truth
 for intentional behavior splits that matter during migration.
 
+## serde_yaml 0.9 Rename Support Matrix
+
+This matrix is the Goal 01 drop-in ledger for common `serde_yaml` 0.9 call
+sites. "Supported" means the public name resolves under both
+`serde_yaml = { package = "yaml", ... }` and `use yaml as serde_yaml;`.
+"Intentionally divergent" means the call site resolves but behavior is
+different by policy. "Not preservable" means the item is not a stable public
+surface that this crate can or should emulate.
+
+| `serde_yaml` 0.9 surface | Status | Evidence / policy |
+|---|---|---|
+| `from_str`, `from_slice`, `from_reader` | Supported | Root functions are exported and covered by `serde_yaml_swap_harness`, package-alias smoke projects, and `serde_yaml_direct_alias_smoke`. |
+| `from_value`, `to_value` | Supported | Root and `value` module functions are exported; common config-shaped value conversion is covered by swap and alias smokes. |
+| `to_string`, `to_writer` | Supported | Structural writer paths are exported; byte-compatible output is an opt-in `EmitOptions` tier for the documented structural corpus. |
+| `Deserializer::{from_str,from_slice,from_reader}` | Supported | Direct Serde use and multi-document iteration are covered. |
+| `Serializer::{new,flush,into_inner}` | Supported | Stream writer usage is covered; `Serializer::with_options` is additive. |
+| `Value`, `Sequence`, `Mapping`, `Number` | Supported | Root names and `value` module names are exported; patch-style indexing, mapping mutation, and number helpers are covered. |
+| `value::{Value,Sequence,Mapping,Number,Index,Tag,TaggedValue,Serializer,from_value,to_value}` | Supported | Module shape is exported and covered by strict package-alias and direct-alias smokes. |
+| `mapping::{Mapping,Index,Entry,OccupiedEntry,VacantEntry,Iter,IterMut,IntoIter,Keys,IntoKeys,Values,ValuesMut,IntoValues}` | Supported | Module shape is exported; direct `Mapping` lookup uses string-like and `Value` keys. |
+| `with::singleton_map` | Supported | Read/write field annotation paths are covered and reject YAML tag shorthand through the helper path, matching `serde_yaml`. |
+| `with::singleton_map_recursive` | Supported | Nested read/write helper paths and direct helper calls are covered. |
+| Default tag-style enum input/output | Supported | `Value::Tagged` and Serde enum dispatch cover common `!Variant` and unit variant shapes. |
+| `Error`, `Result` | Supported | Root names resolve; `Error::location()`, `line()`, and `column()` are covered. Richer diagnostics are additive. |
+| `Location::{index,line,column}` | Supported | Location accessors resolve under both rename paths. |
+| `serde_yaml::Value` merge-key retention | Intentionally divergent | Loaded `Node`/`Value`, `from_value`, and direct `Value` deserializers expand untagged and explicit merge keys by default; raw events and `LosslessStream` preserve source syntax. |
+| Default YAML 1.1/libyaml scalar construction | Intentionally divergent | Default loading stays YAML 1.2-oriented. Use explicit `LoadOptions` schema modes for legacy behavior. |
+| Exact `Number` private representation | Not preservable | `serde_yaml` keeps internals private; this crate preserves public helpers while widening integer support. |
+| Downstream implementations of `Index` / `mapping::Index` | Not preservable | The traits are sealed here and were sealed upstream; callers should use built-in lookup forms. |
+| Arbitrary byte-identical libyaml emitter output | Not preservable | The default writer is structural. Byte-compatible output is only promised for the documented structural corpus. |
+| Comments, directives, anchors, and graph identity in semantic `Value` | Not preservable | Semantic loaders discard source formatting; use `LosslessStream` for source-backed replay and graph inspection. |
+
 | Area | Prototype policy | libyaml / YAML 1.1 paths | yaml-rust2 / saphyr | serde_yaml |
 |---|---|---|---|---|
 | YAML version | Numeric `%YAML` version directives are accepted as syntax metadata; scalar resolution remains YAML 1.2/core-config oriented unless the caller selects `LoadOptions::yaml_1_1()` or `LoadOptions::yaml_version_directive()` for per-document `%YAML 1.1` opt-in | Often YAML 1.1 heritage | Compare as YAML 1.2-oriented Rust parsers | Serde data model |

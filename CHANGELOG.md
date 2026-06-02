@@ -11,7 +11,7 @@ work and does not announce a crates.io release.
 - Trust and release-engineering documentation: `SECURITY.md`,
   `CONTRIBUTING.md`, issue templates, pull request template, MSRV/stability
   policy text, public API drift checks, runtime dependency closure checks, and
-  README status badges.
+  README local-status badges.
 - CI configuration for Linux, macOS, Windows, Rust 1.85 MSRV proof, doctests,
   public API drift, runtime dependency closure, and template validation.
 

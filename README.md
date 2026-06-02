@@ -1,12 +1,13 @@
 # yaml
 
-[![CI](https://github.com/jskoiz/yaml/actions/workflows/ci.yml/badge.svg)](https://github.com/jskoiz/yaml/actions/workflows/ci.yml)
+[![CI configured](https://img.shields.io/badge/CI-configured%20local%20proof-informational)](DEVELOPER_PREVIEW.md)
 [![Fuzzing](https://img.shields.io/badge/fuzzing-10%20targets-informational)](DEVELOPER_PREVIEW.md)
-[![docs.rs](https://img.shields.io/badge/docs.rs-pending-lightgrey)](DEVELOPER_PREVIEW.md)
+[![rustdoc](https://img.shields.io/badge/rustdoc-local%20missing--docs%20gate-informational)](DEVELOPER_PREVIEW.md)
 [![license](https://img.shields.io/badge/license-local%20preview-lightgrey)](LICENSE.md)
 
-A production-oriented pure-Rust YAML parser/emitter prototype for common
-developer configuration files.
+A developer-preview pure-Rust YAML parser/emitter prototype for common
+developer configuration files, with production-oriented safety and validation
+constraints under local proof.
 
 Status: local developer preview. The crate is intentionally not published yet
 (`publish = false`), and the public crate name/license still need final release
@@ -215,9 +216,10 @@ manifest, registry, migration report, package boundary, public API snapshot,
 runtime dependency closure, trust metadata, corpus, and command evidence. `cargo
 fuzz` is optional for ordinary development; the script copies corpora to a
 temporary directory before running all ten targets so it does not grow tracked
-corpus files. CI runs Linux/macOS/Windows Rust checks, an Ubuntu MSRV job, and
-Ubuntu-only downstream/fuzz release evidence; hosted macOS/Windows execution
-requires explicit approval before a push or manual run.
+corpus files. Configured CI declares Linux/macOS/Windows Rust checks, an Ubuntu
+MSRV job, and Ubuntu-only downstream/fuzz release evidence when the workflow is
+run; hosted macOS/Windows execution requires explicit approval before a push or
+manual run.
 `scripts/fuzz-release-sweep.sh` is the manual release gate: it runs
 the same ten targets with a configurable budget and writes a summary with
 checkout HEAD/status, target mode, target names, corpus counts, run counts,

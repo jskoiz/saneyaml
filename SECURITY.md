@@ -8,12 +8,12 @@ public release is approved, security triage applies to the current repository
 
 ## Reporting a Vulnerability
 
-Use GitHub private vulnerability reporting for `jskoiz/yaml` when available. If
-private reporting is unavailable, contact the maintainer privately on GitHub
-before filing a public issue. Public issues should not include exploit payloads,
-private configuration files, credentials, minimized denial-of-service payloads,
-or unreduced crash inputs that could be directly reused against another
-project.
+After the public GitHub repository exists and private vulnerability reporting is
+enabled, use GitHub private vulnerability reporting for `jskoiz/yaml`. Until
+that path exists, contact the maintainer privately on GitHub before filing a
+public issue. Public issues should not include exploit payloads, private
+configuration files, credentials, minimized denial-of-service payloads, or
+unreduced crash inputs that could be directly reused against another project.
 
 For non-sensitive parser bugs, compatibility divergences, and documentation
 issues, use the public issue templates.
@@ -42,7 +42,10 @@ wall-clock, resident-memory, or sandbox guarantee.
 The repository carries ten fuzz targets, non-mutating corpus replay through
 `scripts/fuzz-smoke-nonmutating.sh`, and a manual release sweep through
 `scripts/fuzz-release-sweep.sh`. Corpus release floors and named safety seeds
-are also gated by the property-test suite.
+are also gated by the property-test suite. The current committed hygiene sweep
+is `goals/hygiene-and-polish.fuzz.md`: clean checkout `ecbf61be5661`, all ten
+configured targets, 1000 requested runs per target, and zero crash artifacts
+observed.
 
 Security-relevant fixes should include the narrowest reproducible test,
 fixture, corpus seed, or divergence record that proves the issue stays fixed

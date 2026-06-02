@@ -157,8 +157,9 @@ Notable completed release-candidate behavior:
   `to_string`, `to_writer`, and streaming `Serializer` output for
   struct/map/enum/helper shapes, Kubernetes/OpenAPI-like documents, nested
   options, multi-document streams, and unsupported byte serialization.
-- The Ubuntu CI workflow now installs nightly plus `cargo-fuzz` and runs a
-  one-pass all-target non-mutating fuzz smoke over copied corpora.
+- The Ubuntu release-evidence workflow is configured to install nightly plus
+  `cargo-fuzz` and run a one-pass all-target non-mutating fuzz smoke over
+  copied corpora.
 - Direct Serde `IgnoredAny` entrypoints now validate malformed YAML and
   single-document boundaries before skipping a document.
 - Divergence records now require caller-facing `migration_impact` text, so
@@ -211,6 +212,9 @@ Notable completed release-candidate behavior:
   counts, statuses, elapsed time, and artifact directories, while
   `parser_properties` gates corpus target parity, release floors, and named
   safety seeds.
+- The committed hygiene fuzz summary at `goals/hygiene-and-polish.fuzz.md`
+  records clean checkout `ecbf61be5661`, all ten configured targets, 1000
+  requested runs per target, and zero crash artifacts.
 
 Known release-candidate gaps remain tracked in `BASELINE.md`,
 `COMPATIBILITY.md`, and `MIGRATION.md`: complete YAML 1.1 ecosystem parity,

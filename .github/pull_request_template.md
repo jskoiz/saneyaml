@@ -16,7 +16,7 @@
 
 ## Compatibility and Release Notes
 
-- [ ] Public API drift is intentional and documented, or `PUBLIC_API.txt` is unchanged.
+- [ ] Public API drift is intentional and documented, or `docs/PUBLIC_API.txt` is unchanged.
 - [ ] Runtime dependencies remain limited to direct `ryu` and `serde`.
-- [ ] `CHANGELOG.md` and `COMPATIBILITY.md` are updated when claims changed.
+- [ ] `CHANGELOG.md` and `docs/COMPATIBILITY.md` are updated when claims changed.
 - [ ] No manual hosted workflow run or workflow change was made without maintainer coordination.

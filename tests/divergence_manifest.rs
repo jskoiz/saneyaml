@@ -27,8 +27,8 @@ const EVIDENCE_SOURCES: &[&str] = &[
     include_str!("event_policy.rs"),
     include_str!("serde_value_api.rs"),
     include_str!("yaml_test_suite.rs"),
-    include_str!("../COMPATIBILITY.md"),
-    include_str!("../MIGRATION.md"),
+    include_str!("../docs/COMPATIBILITY.md"),
+    include_str!("../docs/MIGRATION.md"),
 ];
 
 #[test]

@@ -46,10 +46,10 @@ the smallest safe regression artifact and should follow `SECURITY.md`.
 
 ## Public API and Stability
 
-The pre-1.0 preview surface is documented in `COMPATIBILITY.md`. Public exports, public enum variants, public struct fields,
-and public constants are SemVer-visible. If a change would alter the public API
-snapshot, update `PUBLIC_API.txt` only when the API change is intentional and
-documented.
+The pre-1.0 preview surface is documented in `docs/COMPATIBILITY.md`. Public
+exports, public enum variants, public struct fields, and public constants are
+SemVer-visible. If a change would alter the public API snapshot, update
+`docs/PUBLIC_API.txt` only when the API change is intentional and documented.
 
 Runtime dependencies remain limited to direct `ryu` and `serde`; any resolved
 no-dev dependency tree change must update the snapshot and explain why it is

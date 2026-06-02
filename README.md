@@ -37,7 +37,7 @@ fn main() -> Result<(), saneyaml::Error> {
 ```
 
 Coming from the archived `serde_yaml`? It's close to a drop-in — see
-[MIGRATION.md](MIGRATION.md).
+[MIGRATION.md](docs/MIGRATION.md).
 
 ## Why saneyaml
 
@@ -53,7 +53,7 @@ Coming from the archived `serde_yaml`? It's close to a drop-in — see
 - **Streaming and lossless editing** — pull-based streaming (`EventStream` /
   `DocumentStream`) and a lossless, comment-preserving editor.
 - **Benchmarked** — on the config benchmark corpus it parses faster than `yaml-rust2`
-  and `saphyr`; see [BENCHMARKS.md](BENCHMARKS.md).
+  and `saphyr`; see [BENCHMARKS.md](docs/BENCHMARKS.md).
 
 ## Status
 
@@ -63,10 +63,10 @@ decisions.
 
 ## Documentation
 
-- [MIGRATION.md](MIGRATION.md) — `serde_yaml` migration cookbook + support matrix
-- [COMPATIBILITY.md](COMPATIBILITY.md) — schema modes, scalar resolution, divergences, threat model
-- [ARCHITECTURE.md](ARCHITECTURE.md) — crate layout and design
-- [BENCHMARKS.md](BENCHMARKS.md) · [SECURITY.md](SECURITY.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [CHANGELOG.md](CHANGELOG.md)
+- [MIGRATION.md](docs/MIGRATION.md) — `serde_yaml` migration cookbook + support matrix
+- [COMPATIBILITY.md](docs/COMPATIBILITY.md) — schema modes, scalar resolution, divergences, threat model
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — crate layout and design
+- [BENCHMARKS.md](docs/BENCHMARKS.md) · [SECURITY.md](SECURITY.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [CHANGELOG.md](CHANGELOG.md)
 
 ## License
 

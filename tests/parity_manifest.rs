@@ -5,7 +5,7 @@ const EVENT_PARITY_SOURCE: &str = include_str!("event_parity.rs");
 const TREE_PARITY_SOURCE: &str = include_str!("tree_parity.rs");
 const COMPATIBILITY_HARNESS_SOURCE: &str = include_str!("compatibility_harness.rs");
 const REAL_WORLD_CONFIGS_SOURCE: &str = include_str!("real_world_configs.rs");
-const COMPATIBILITY_SOURCE: &str = include_str!("../COMPATIBILITY.md");
+const COMPATIBILITY_SOURCE: &str = include_str!("../docs/COMPATIBILITY.md");
 const YAML_SUITE_MANIFEST: &str = include_str!("fixtures/yaml-test-suite/manifest.toml");
 const REAL_WORLD_SOURCE: &str = include_str!("fixtures/real-world/SOURCE.toml");
 const ADJACENT_FLOW_MAPPING_SCALARS_RECORD: &str =
@@ -774,7 +774,7 @@ fn yaml_suite_tree_shape_divergences_are_explicitly_gated() {
         for term in divergence.compatibility_terms {
             assert!(
                 COMPATIBILITY_SOURCE.contains(term),
-                "tree-shape divergence {} must keep COMPATIBILITY.md term {term:?}",
+                "tree-shape divergence {} must keep docs/COMPATIBILITY.md term {term:?}",
                 divergence.id,
             );
         }

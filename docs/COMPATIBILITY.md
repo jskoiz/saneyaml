@@ -137,7 +137,7 @@ The current MSRV is Rust 1.88. Raising or lowering it is a release-policy
 change, not an incidental dependency update. The crate is pre-1.0, but the
 preview public surface is SemVer-visible: public exports, public enum variants,
 public struct fields, public constants, and duplicate root/module export paths
-are API commitments. `PUBLIC_API.txt` is the committed snapshot for drift
+are API commitments. `docs/PUBLIC_API.txt` is the committed snapshot for drift
 review, and intentional drift must be documented with its migration impact.
 
 Current read APIs:
@@ -206,7 +206,7 @@ traversal context such as `server.port`, `ports[1]`, and bracket-quoted
 non-identifier keys. Document indices are zero-based and metadata-only; byte
 spans, line numbers, and columns remain stream-relative.
 
-Migration-facing API status is tracked by `MIGRATION.md` and the executable
+Migration-facing API status is tracked by `docs/MIGRATION.md` and the executable
 `tests/serde_yaml_swap_harness.rs` harness. The current swap matrix covers:
 
 | `serde_yaml` surface | `yaml` surface | Status |

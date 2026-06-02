@@ -411,7 +411,7 @@ cargo clippy --all-targets -- -D warnings
 cargo run --release --example real_world_benchmark
 ```
 
-The latest captured table is recorded in `BENCHMARKS.md`.
+The latest captured table is recorded in `docs/BENCHMARKS.md`.
 
 ## Real-World Fixture Coverage
 
@@ -470,7 +470,7 @@ testing each adopter's own YAML corpus.
   `LoadOptions::legacy_serde_yaml()` follows the existing broad legacy
   YAML 1.1/libyaml-era table. Missing mapping values remain parser empty nodes
   before schema resolution and therefore stay null. The full table is in
-  `COMPATIBILITY.md`.
+  `docs/COMPATIBILITY.md`.
 - YAML 1.1 scalar construction is explicit. `LoadOptions` can resolve legacy
   boolean/null aliases plus timestamp-shaped plain scalars, signed and
   underscored leading-zero octal, hex, binary numeric, two/three-part
@@ -536,7 +536,7 @@ testing each adopter's own YAML corpus.
 - Full upstream YAML test-suite coverage is now classified; the pinned coverage
   ledger records 402 upstream cases, 402 selected cases, and 0 not-imported
   cases, while selected-suite scope and deferred parity cases remain documented
-  in `COMPATIBILITY.md`. `cargo test --test
+  in `docs/COMPATIBILITY.md`. `cargo test --test
   conformance_dashboard -- --nocapture` prints the current 402-case dashboard
   and keeps documented divergence overlays separate from accepted/rejected
   outcome counts.

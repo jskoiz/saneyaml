@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
-const COMPATIBILITY: &str = include_str!("../COMPATIBILITY.md");
+const COMPATIBILITY: &str = include_str!("../docs/COMPATIBILITY.md");
 const MATRIX_MANIFEST: &str = include_str!("fixtures/compatibility-matrix/manifest.toml");
 const CROSS_ECOSYSTEM: &str =
     include_str!("fixtures/compatibility-matrix/cross-ecosystem-vectors.toml");

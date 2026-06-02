@@ -64,5 +64,6 @@ only with explicit tests and documentation.
 The crate is pre-1.0. Public exports, public enum variants, public struct
 fields, feature names, package metadata, MSRV, and the package-vs-library name
 split are still SemVer-visible for adopter trust. Intentional changes to those
-surfaces must update `PUBLIC_API.txt`, `MIGRATION.md`, `COMPATIBILITY.md`, and
-the baseline evidence rather than relying on silent drift.
+surfaces must update `docs/PUBLIC_API.txt`, `docs/MIGRATION.md`,
+`docs/COMPATIBILITY.md`, and the baseline evidence rather than relying on
+silent drift.

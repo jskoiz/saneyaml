@@ -27,4 +27,4 @@ PATH="$nightly_bin:$PATH" \
   cargo public-api --manifest-path Cargo.toml -sss --color never \
   > "$tmpdir/PUBLIC_API.txt"
 
-diff -u PUBLIC_API.txt "$tmpdir/PUBLIC_API.txt"
+diff -u docs/PUBLIC_API.txt "$tmpdir/PUBLIC_API.txt"

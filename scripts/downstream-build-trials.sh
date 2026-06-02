@@ -18,16 +18,16 @@ package_current_crate() {
   )
 
   local crate_path
-  crate_path="$(find "$tmp/package-target/package" -maxdepth 1 -type f -name 'yaml-*.crate' | sort | tail -n 1)"
+  crate_path="$(find "$tmp/package-target/package" -maxdepth 1 -type f -name 'saneyaml-*.crate' | sort | tail -n 1)"
   if [[ -z "$crate_path" ]]; then
-    echo "could not find packaged yaml crate" >&2
+    echo "could not find packaged saneyaml crate" >&2
     return 1
   fi
 
   tar -xf "$crate_path" -C "$tmp/unpacked"
-  package_dir="$(find "$tmp/unpacked" -maxdepth 1 -type d -name 'yaml-*' | sort | tail -n 1)"
+  package_dir="$(find "$tmp/unpacked" -maxdepth 1 -type d -name 'saneyaml-*' | sort | tail -n 1)"
   if [[ -z "$package_dir" ]]; then
-    echo "could not find unpacked yaml package" >&2
+    echo "could not find unpacked saneyaml package" >&2
     return 1
   fi
 }
@@ -137,16 +137,16 @@ patch_serde_yaml_dependency() {
     's{^(\[[^\]\n]*(?:dependencies|dev-dependencies|build-dependencies)(?:\.[^\]\n]+)?\.serde_yaml\]\n)(.*?)(?=^\[|\z)}{
       my ($header, $body) = ($1, $2);
       my $optional = $body =~ /^\s*optional\s*=\s*true\s*$/m ? qq{optional = true\n} : "";
-      qq{$header} . qq{package = "yaml"\npath = "$ENV{YAML_PACKAGE_DIR}"\n$optional\n}
+      qq{$header} . qq{package = "saneyaml"\npath = "$ENV{YAML_PACKAGE_DIR}"\n$optional\n}
     }egmsx;
     s{^([[:blank:]]*)serde_yaml[[:blank:]]*=[[:blank:]]*(?:"[^"]+"|\{[^\n]*\})}{
       my ($indent, $entry) = ($1, $&);
       my $optional = $entry =~ /optional\s*=\s*true/ ? ", optional = true" : "";
-      qq{${indent}serde_yaml = { package = "yaml", path = "$ENV{YAML_PACKAGE_DIR}"$optional }}
+      qq{${indent}serde_yaml = { package = "saneyaml", path = "$ENV{YAML_PACKAGE_DIR}"$optional }}
     }egm' \
     "$manifest"
-  if ! grep -q 'serde_yaml = { package = "yaml"' "$manifest" \
-    && ! grep -q 'package = "yaml"' "$manifest"; then
+  if ! grep -q 'serde_yaml = { package = "saneyaml"' "$manifest" \
+    && ! grep -q 'package = "saneyaml"' "$manifest"; then
     echo "failed to rewrite serde_yaml dependency in $manifest" >&2
     return 1
   fi

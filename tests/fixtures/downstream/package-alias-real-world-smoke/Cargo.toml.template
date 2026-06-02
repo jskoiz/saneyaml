@@ -6,5 +6,5 @@ publish = false
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
-serde_yaml = { package = "yaml", path = "__YAML_PACKAGE_DIR__" }
+serde_yaml = { package = "saneyaml", path = "__YAML_PACKAGE_DIR__" }
 toml = "0.8"

@@ -2,11 +2,10 @@
 
 ## 0.1.0 release-candidate work in progress
 
-This crate is still a local developer preview and is not published. Current
-release blockers are the public crate name, final license, version decision,
-and explicit user approval for a crates.io push. `CHANGELOG.md` is the
-maintained release-history index; this file remains the narrative
-release-candidate ledger.
+This package is prepared as the `saneyaml` 0.1.0 crates.io candidate and is not
+published. The remaining irreversible blocker is explicit user approval for the
+real crates.io publish. `CHANGELOG.md` is the maintained release-history index;
+this file remains the narrative release-candidate ledger.
 
 Notable completed release-candidate behavior:
 
@@ -14,7 +13,7 @@ Notable completed release-candidate behavior:
   pre-1.0 SemVer-visible preview surface, security reporting posture,
   contribution evidence requirements, public API drift guard, runtime
   dependency closure guard, and GitHub issue/PR templates without changing the
-  crate name, license, version, or publication identity.
+  library import name from `yaml`.
 - Diagnostics now expose additive structured metadata while keeping the default
   `Display` string unchanged: broad `ErrorCategory`, Serde/YAML key paths such
   as `server.port` and `ports[1]`, zero-based document indices for stream
@@ -43,11 +42,12 @@ Notable completed release-candidate behavior:
   for the supported structural corpus, and structural writers can opt into
   sorted mapping keys, scalar quote style, literal/folded block scalar style,
   and block/flow collection style without changing default bytes.
-- `Cargo.toml` now has an explicit package include boundary for the developer
-  preview: source, examples, public docs, trust docs, and the public API
-  snapshot are package contents, while repository-only fixtures, downstream
-  reductions, fuzz corpora, CI files, GitHub templates, and proof scripts stay
-  local until the public license/redistribution policy is selected.
+- `Cargo.toml` now has final package metadata for `saneyaml` 0.1.0, an explicit
+  `yaml` library target, MIT license metadata, a feature facade, and an explicit package
+  include boundary: source, the self-contained migration example, public docs,
+  trust docs, architecture notes, and the public API snapshot are package
+  contents, while repository-only fixtures, downstream reductions, fuzz corpora,
+  CI files, GitHub templates, goal docs, and proof scripts stay local.
 - Public pull-based streaming now has explicit `EventStream` and
   `DocumentStream` contracts. Raw event streams match `parse_events` without
   retaining the completed event vector and validate aliases without expanding
@@ -79,7 +79,7 @@ Notable completed release-candidate behavior:
   loading keeps those cases strict.
 - A checked-in strict package-alias smoke fixture executes upstream-compatible
   `serde_yaml::...` paths against both `serde_yaml 0.9.34` and this package
-  through `serde_yaml = { package = "yaml", ... }`; the expanded alias smoke
+  through `serde_yaml = { package = "saneyaml", ... }`; the expanded alias smoke
   separately covers root pull event/document streaming helpers, explicit YAML
   1.1 `LoadOptions`, bounded large-reader behavior, caller-built default merge
   deserialization plus explicit in-place merge expansion, mapping/index

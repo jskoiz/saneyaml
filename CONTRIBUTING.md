@@ -1,8 +1,9 @@
 # Contributing
 
-This repository is still a local developer preview. Contributions should keep
-behavioral claims tied to reproducible local evidence and should not publish,
-push tags, or run hosted CI without maintainer approval.
+This repository is a package-ready candidate awaiting explicit publish
+approval. Contributions should keep behavioral claims tied to reproducible local
+evidence and should not publish, push tags, or run hosted CI without maintainer
+approval.
 
 ## Local Setup
 

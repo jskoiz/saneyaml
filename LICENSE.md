@@ -1,16 +1,21 @@
-# License Status
+MIT License
 
-This repository is a local developer-preview workspace. No public
-redistribution license has been selected yet.
+Copyright (c) 2026 jskoiz
 
-Before publishing, accepting external production adopters, or distributing this
-crate as a public dependency, choose the final license and update `Cargo.toml`
-to use the corresponding SPDX `license` expression or license files.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-The Cargo package boundary is intentionally narrow while this remains a local
-preview: package contents are limited to crate source, examples, and public
-documentation, including security, changelog, and contributing docs.
-`PUBLIC_API.txt` is also included as a public release-engineering artifact.
-Repository-only conformance fixtures, downstream reductions, fuzz corpora, CI
-files, GitHub templates, and proof scripts stay out of the distributable
-package until the final license and redistribution policy are selected.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

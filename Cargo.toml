@@ -1,19 +1,19 @@
 [package]
-name = "yaml"
+name = "saneyaml"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
-description = "Pure-Rust YAML parser, emitter, and Serde compatibility prototype for developer config files."
+description = "Pure-Rust YAML parser, emitter, and Serde compatibility layer for developer configuration files."
 readme = "README.md"
-license-file = "LICENSE.md"
+license = "MIT"
 repository = "https://github.com/jskoiz/yaml"
 keywords = ["yaml", "serde", "parser", "configuration"]
 categories = ["config", "encoding", "parser-implementations"]
-publish = false
 include = [
     "/Cargo.lock",
     "/Cargo.toml",
     "/README.md",
+    "/ARCHITECTURE.md",
     "/LICENSE.md",
     "/BENCHMARKS.md",
     "/CHANGELOG.md",
@@ -24,9 +24,19 @@ include = [
     "/PUBLIC_API.txt",
     "/RELEASE_NOTES.md",
     "/SECURITY.md",
-    "/examples/**",
+    "/examples/serde_yaml_migration.rs",
     "/src/**",
 ]
+
+[lib]
+name = "yaml"
+path = "src/lib.rs"
+
+[features]
+default = ["serde", "emit", "lossless"]
+serde = []
+emit = []
+lossless = []
 
 [dependencies]
 ryu = "1.0"

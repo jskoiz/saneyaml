@@ -1,13 +1,18 @@
 # Changelog
 
-This changelog follows the shape of Keep a Changelog. The crate remains a local
-developer preview with `publish = false`; this file records release-candidate
-work and does not announce a crates.io release.
+This changelog follows the shape of Keep a Changelog. The package is prepared
+for `saneyaml` 0.1.0, but this file does not announce a crates.io release until
+the real publish is explicitly approved and completed.
 
 ## Unreleased
 
 ### Added
 
+- Package metadata for the `saneyaml` 0.1.0 crates.io candidate, while keeping
+  the Rust library target named `yaml` for source compatibility.
+- MIT license metadata and standard MIT license text.
+- `ARCHITECTURE.md`, documenting the package-vs-library name split, monolith
+  decision, and feature facade.
 - Trust and release-engineering documentation: `SECURITY.md`,
   `CONTRIBUTING.md`, issue templates, pull request template, MSRV/stability
   policy text, public API drift checks, runtime dependency closure checks, and
@@ -38,5 +43,4 @@ work and does not announce a crates.io release.
 
 ### Unreleased Blockers
 
-- Public crate name, final license, version decision, publication identity, and
-  crates.io publication still require explicit approval.
+- The real crates.io publication still requires explicit approval.

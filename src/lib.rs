@@ -29,6 +29,7 @@ mod de;
 mod emit;
 mod error;
 mod key_identity;
+#[cfg(feature = "lossless")]
 pub mod lossless;
 mod parse;
 mod schema;
@@ -77,6 +78,7 @@ pub use error::{
     Diagnostic, Error, ErrorCategory, ErrorPath, ErrorPathSegment, Location, RelatedDiagnostic,
     Result, SourceDiagnostic, SourceRenderOptions, Span,
 };
+#[cfg(feature = "lossless")]
 pub use lossless::{
     AliasId, AnchorId, LosslessAlias, LosslessAnchor, LosslessDocument, LosslessEdit,
     LosslessEffectiveMappingEntry, LosslessEffectiveMappingSource, LosslessNode, LosslessNodeKind,

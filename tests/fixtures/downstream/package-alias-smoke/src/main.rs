@@ -434,7 +434,9 @@ fn bounded_reader_smoke_uses_package_alias() {
         ),
     );
 
-    let options = serde_yaml::LoadOptions::new().max_input_bytes(input.len());
+    let options = serde_yaml::LoadOptions::new()
+        .max_input_bytes(input.len())
+        .without_scalar_limit();
     let decoded: LargePayload = options.from_reader(Cursor::new(&input)).unwrap();
     assert_eq!(decoded.payload.len(), large_payload_len(input.len()));
 

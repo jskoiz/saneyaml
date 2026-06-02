@@ -10,7 +10,7 @@ const FUZZ_TEMPLATE: &str = include_str!("../.github/ISSUE_TEMPLATE/fuzz_crash.y
 #[test]
 fn security_policy_states_supported_preview_and_limits() {
     for term in [
-        "local developer preview",
+        "package-ready candidate",
         "current repository",
         "`main` line only",
         "GitHub private vulnerability reporting",
@@ -29,7 +29,7 @@ fn security_policy_states_supported_preview_and_limits() {
 fn changelog_and_contributing_do_not_claim_publication() {
     for term in [
         "Keep a Changelog",
-        "publish = false",
+        "saneyaml",
         "does not announce a crates.io release",
         "0.1.0 release-candidate work in progress",
     ] {

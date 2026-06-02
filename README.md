@@ -1,26 +1,26 @@
-# yaml
+# saneyaml
 
 [![CI configured](https://img.shields.io/badge/CI-configured%20local%20proof-informational)](DEVELOPER_PREVIEW.md)
 [![Fuzzing](https://img.shields.io/badge/fuzzing-10%20targets-informational)](DEVELOPER_PREVIEW.md)
 [![rustdoc](https://img.shields.io/badge/rustdoc-local%20missing--docs%20gate-informational)](DEVELOPER_PREVIEW.md)
-[![license](https://img.shields.io/badge/license-local%20preview-lightgrey)](LICENSE.md)
+[![license](https://img.shields.io/badge/license-MIT-green)](LICENSE.md)
 
-A developer-preview pure-Rust YAML parser/emitter prototype for common
-developer configuration files, with production-oriented safety and validation
-constraints under local proof.
+`saneyaml` is a pure-Rust YAML parser/emitter package for common developer
+configuration files, with production-oriented safety limits, span diagnostics,
+and Serde-compatible migration paths under local proof.
 
-Status: local developer preview. The crate is intentionally not published yet
-(`publish = false`), and the public crate name/license still need final release
-decisions. Start with [DEVELOPER_PREVIEW.md](DEVELOPER_PREVIEW.md),
+Status: package-ready candidate awaiting explicit crates.io publish approval.
+The package name is `saneyaml`, the license is MIT, the version is `0.1.0`, and
+the Rust library target intentionally remains `yaml`. Start with
+[ARCHITECTURE.md](ARCHITECTURE.md), [DEVELOPER_PREVIEW.md](DEVELOPER_PREVIEW.md),
 [MIGRATION.md](MIGRATION.md), [COMPATIBILITY.md](COMPATIBILITY.md), and
 [BASELINE.md](BASELINE.md) before evaluating it in another project. Trust and
 release-process docs live in [SECURITY.md](SECURITY.md),
 [CHANGELOG.md](CHANGELOG.md), and [CONTRIBUTING.md](CONTRIBUTING.md).
 The Cargo package include list is explicit: it packages source, examples,
 public documentation including the security, changelog, and contributing docs,
-and `PUBLIC_API.txt`, while repository-only fixtures, fuzz corpora, CI files,
-GitHub templates, and proof scripts remain local evidence until the final
-redistribution policy is chosen.
+`ARCHITECTURE.md`, and `PUBLIC_API.txt`, while repository-only fixtures, fuzz
+corpora, CI files, GitHub templates, and proof scripts remain local evidence.
 
 Current MSRV is Rust 1.85, matching `Cargo.toml` `rust-version`. The crate is
 pre-1.0, but the documented preview surface is treated as SemVer-visible:

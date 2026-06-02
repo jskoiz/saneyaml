@@ -464,6 +464,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
+name = "saneyaml"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "ryu",
+ "saphyr",
+ "saphyr-parser",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "serde_yaml_ng",
+ "serde_yml",
+ "sha2",
+ "toml",
+ "yaml-rust2",
+]
+
+[[package]]
 name = "saphyr"
 version = "0.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -875,24 +893,6 @@ dependencies = [
  "serde_json",
  "unicode-xid",
  "wasmparser",
-]
-
-[[package]]
-name = "yaml"
-version = "0.1.0"
-dependencies = [
- "proptest",
- "ryu",
- "saphyr",
- "saphyr-parser",
- "serde",
- "serde_json",
- "serde_yaml",
- "serde_yaml_ng",
- "serde_yml",
- "sha2",
- "toml",
- "yaml-rust2",
 ]
 
 [[package]]

@@ -2,9 +2,10 @@
 
 ## Supported Versions
 
-`yaml` is a local developer preview and is not published to crates.io. Until a
-public release is approved, security triage applies to the current repository
-`main` line only. There are no public backport or support branches yet.
+`saneyaml` 0.1.0 is a package-ready candidate and is not published to crates.io
+until explicit approval is given. Until a public release exists, security
+triage applies to the current repository `main` line only. There are no public
+backport or support branches yet.
 
 ## Reporting a Vulnerability
 

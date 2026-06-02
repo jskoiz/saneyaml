@@ -42,7 +42,7 @@ for intentional behavior splits that matter during migration.
 
 This matrix is the Goal 01 drop-in ledger for common `serde_yaml` 0.9 call
 sites. "Supported" means the public name resolves under both
-`serde_yaml = { package = "yaml", ... }` and `use yaml as serde_yaml;`.
+`serde_yaml = { package = "saneyaml", ... }` and `use yaml as serde_yaml;`.
 "Intentionally divergent" means the call site resolves but behavior is
 different by policy. "Not preservable" means the item is not a stable public
 surface that this crate can or should emulate.

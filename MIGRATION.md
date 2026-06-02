@@ -18,7 +18,7 @@ the dependency resolves to this crate:
 
 ```toml
 [dependencies]
-serde_yaml = { package = "yaml", path = "/Users/jk/Desktop/yaml" }
+serde_yaml = { package = "saneyaml", path = "/Users/jk/Desktop/yaml" }
 ```
 
 With this shape, the covered public surface stays spelled
@@ -33,7 +33,7 @@ the same call sites as the old crate:
 
 ```toml
 [dependencies]
-yaml = { path = "/Users/jk/Desktop/yaml" }
+yaml = { package = "saneyaml", path = "/Users/jk/Desktop/yaml" }
 ```
 
 ```rust
@@ -156,7 +156,7 @@ struct Job {
 }
 ```
 
-Under `serde_yaml = { package = "yaml", ... }` or `use yaml as serde_yaml;`,
+Under `serde_yaml = { package = "saneyaml", ... }` or `use yaml as serde_yaml;`,
 keep `#[serde(with = "serde_yaml::with::singleton_map")]`. Nested enum payloads
 that need one-entry mapping form should use
 `singleton_map_recursive`. The helpers reject YAML tag shorthand through those
@@ -439,7 +439,7 @@ testing each adopter's own YAML corpus.
 
 ## Required Call-Site Changes
 
-- With `serde_yaml = { package = "yaml", ... }`, keep existing
+- With `serde_yaml = { package = "saneyaml", ... }`, keep existing
   `serde_yaml::...` paths for the covered public surface and let Cargo resolve
   that name to this crate.
 - With `use yaml as serde_yaml;`, keep the old spelling inside that source file
@@ -550,7 +550,7 @@ testing each adopter's own YAML corpus.
 | Alias graph identity | Semantic `Node`/`Value` trees intentionally clone acyclic aliases and reject recursive alias expansion. Graph-sensitive callers should use `LosslessStream`; its anchor definitions and alias targets are checked against reference parser anchor events for redefinition, recursive, document-reset, merge, YAML 1.1 merge/comment graph fixtures, post-edit source output, manifest-owned selected YAML-suite anchor/alias cases, and manifest-owned real-world Docker Compose anchor cases including an adapted official Compose Specification fragment. `LosslessStream::effective_mapping_entries` exposes merge-derived entries with alias/anchor provenance for callers that need effective config inspection without losing graph identity. |
 | Lossless formatting | `LosslessStream` preserves source, comments, trivia, directives, anchors, aliases, tags, and scalar spelling for replay/inspection, including a merge-effective mapping view that leaves the original source untouched. `LosslessEdit` can replace retained node or raw source spans, update scalar-keyed block/flow mapping values, insert or delete block/flow mapping entries, update block/flow sequence items, insert or delete block/flow sequence items, insert source, delete source spans, and validate the final YAML while preserving untouched bytes. Manifest-owned real-world replay now gates GitHub Actions comments, flow-style lists, and expression strings, Ansible tagged scalars, plus Kubernetes streams and block scalar fixtures. |
 | Parser acceptance differences | Some YAML 1.2 inputs rejected by libyaml are accepted, and some malformed libyaml-tolerated inputs are rejected. Divergence records now carry per-case migration impact. |
-| Package readiness | The crate remains local-preview only until public name, license, version, and crates.io approval are selected by the user. |
+| Package readiness | The package is prepared as `saneyaml` 0.1.0 under MIT and remains unpublished until explicit crates.io publish approval is given. |
 
 ## Next Adoption Blockers
 
@@ -581,4 +581,4 @@ testing each adopter's own YAML corpus.
   stream-marker and empty-key document shapes, unusual anchor characters, and
   A2M4 block indentation, so the remaining work is policy rather than missing
   record ownership.
-- Choose the public package name and final license before publishing.
+- Obtain explicit approval before running the real crates.io publish.

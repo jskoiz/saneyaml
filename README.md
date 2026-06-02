@@ -143,6 +143,7 @@ The first milestone focuses on:
   broad `ErrorCategory`, optional in-document `ErrorPath`, optional
   zero-based document index for stream failures, and explicit
   `render_source(...)` caret rendering over caller-provided source text.
+  `render_source_with_options(...)` can include neighboring context lines.
 - A live conformance dashboard test over the pinned YAML test-suite denominator:
   402 selected/classified cases out of 402, with 0 unselected cases tracked
   as coverage debt and documented divergence overlays kept separate from

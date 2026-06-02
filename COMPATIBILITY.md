@@ -200,11 +200,12 @@ Current read APIs:
   explicit construction-schema selection, input-size policy, and alias
   expansion policy across parser, streaming, and Serde read entrypoints
 - `yaml::Error` keeps its default flat `Display` string compatible with the
-  existing preview contract, and exposes additive diagnostics through
-  `category()`, `path()`, `document_index()`, and `render_source(...)`. Paths
-  use Serde/YAML traversal context such as `server.port`, `ports[1]`, and
-  bracket-quoted non-identifier keys. Document indices are zero-based and
-  metadata-only; byte spans, line numbers, and columns remain stream-relative.
+existing preview contract, and exposes additive diagnostics through
+`category()`, `path()`, `document_index()`, `render_source(...)`, and
+`render_source_with_options(...)` context-line rendering. Paths use Serde/YAML
+traversal context such as `server.port`, `ports[1]`, and bracket-quoted
+non-identifier keys. Document indices are zero-based and metadata-only; byte
+spans, line numbers, and columns remain stream-relative.
 
 Migration-facing API status is tracked by `MIGRATION.md` and the executable
 `tests/serde_yaml_swap_harness.rs` harness. The current swap matrix covers:

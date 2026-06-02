@@ -1034,6 +1034,40 @@ fn diagnostics_expose_category_path_and_rendered_source_context() {
 }
 
 #[test]
+fn source_render_options_context_lines_control_primary_and_related_spans() {
+    let input = "root:\n  true: first\n  true: second\n";
+    let error = parse_str(input).expect_err("duplicate key");
+    let compact = error.render_source(input).to_string();
+
+    let mut options = yaml::SourceRenderOptions::default();
+    options.context_lines = 0;
+    assert_eq!(
+        error.render_source_with_options(input, options).to_string(),
+        compact
+    );
+    assert_eq!(
+        error
+            .diagnostic()
+            .render_source_with_options(input, options)
+            .to_string(),
+        compact
+    );
+
+    options.context_lines = 1;
+    assert_eq!(
+        error.render_source_with_options(input, options).to_string(),
+        "duplicate mapping key `true` at line 3, column 3\n  |\n2 |   true: first\n3 |   true: second\n  |   ^^^^\nprevious key is here\n  |\n1 | root:\n2 |   true: first\n  |   ^^^^\n3 |   true: second"
+    );
+    assert_eq!(
+        error
+            .diagnostic()
+            .render_source_with_options(input, options)
+            .to_string(),
+        error.render_source_with_options(input, options).to_string()
+    );
+}
+
+#[test]
 fn serde_diagnostics_include_key_paths_across_entrypoints() {
     for (shape, input, expected_path, expected_source) in [
         (

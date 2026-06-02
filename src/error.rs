@@ -467,6 +467,10 @@ impl Diagnostic {
 #[non_exhaustive]
 pub struct SourceRenderOptions {
     /// Number of source lines to render before and after the primary line.
+    ///
+    /// The default `0` preserves compact rendering with only the diagnostic
+    /// line. Nonzero values include up to that many neighboring source lines on
+    /// each side for both primary and related spans.
     pub context_lines: usize,
 }
 
@@ -521,29 +525,45 @@ fn render_span_block(
     if span.line == 0 || span.column == 0 || span.start > source.len() {
         return Ok(());
     }
-    let Some((line_start, line_end, line_text)) = line_bounds(source, span.start) else {
+    let Some((line_start, line_end, _)) = line_bounds(source, span.start) else {
         return Ok(());
     };
     let line_number = span.line;
-    let width = line_number.to_string().len();
+    let context_start = line_number.saturating_sub(options.context_lines).max(1);
+    let context_end = line_number.saturating_add(options.context_lines);
+    let width = context_end.to_string().len();
     writeln!(f)?;
     writeln!(f, "{:>width$} |", "", width = width)?;
-    writeln!(f, "{line_number:>width$} | {line_text}", width = width)?;
-    write!(f, "{:>width$} | ", "", width = width)?;
     let caret_start = floor_char_boundary(source, span.start.clamp(line_start, line_end));
     let caret_end = floor_char_boundary(source, span.end.clamp(caret_start, line_end));
-    for ch in source[line_start..caret_start].chars() {
-        if ch == '\t' {
-            f.write_str("\t")?;
-        } else {
-            f.write_str(" ")?;
+    let mut rendered_line = false;
+    for current_line in context_start..=context_end {
+        let Some((current_start, _, line_text)) =
+            line_bounds_for_line(source, current_line, current_line == line_number)
+        else {
+            continue;
+        };
+        if rendered_line {
+            writeln!(f)?;
         }
+        write!(f, "{current_line:>width$} | {line_text}", width = width)?;
+        if current_line == line_number {
+            writeln!(f)?;
+            write!(f, "{:>width$} | ", "", width = width)?;
+            for ch in source[current_start..caret_start].chars() {
+                if ch == '\t' {
+                    f.write_str("\t")?;
+                } else {
+                    f.write_str(" ")?;
+                }
+            }
+            let caret_count = source[caret_start..caret_end].chars().count().max(1);
+            for _ in 0..caret_count {
+                f.write_str("^")?;
+            }
+        }
+        rendered_line = true;
     }
-    let caret_count = source[caret_start..caret_end].chars().count().max(1);
-    for _ in 0..caret_count {
-        f.write_str("^")?;
-    }
-    let _ = options.context_lines;
     Ok(())
 }
 
@@ -558,6 +578,31 @@ fn line_bounds(source: &str, offset: usize) -> Option<(usize, usize, &str)> {
         .find('\n')
         .map_or(source.len(), |index| offset + index);
     Some((line_start, line_end, &source[line_start..line_end]))
+}
+
+fn line_bounds_for_line(
+    source: &str,
+    target_line: usize,
+    include_trailing_empty_line: bool,
+) -> Option<(usize, usize, &str)> {
+    if target_line == 0 {
+        return None;
+    }
+    let mut line = 1usize;
+    let mut start = 0usize;
+    for part in source.split_inclusive('\n') {
+        let end = start + part.len();
+        let text_end = end.saturating_sub(usize::from(part.ends_with('\n')));
+        if line == target_line {
+            return Some((start, text_end, &source[start..text_end]));
+        }
+        start = end;
+        line += 1;
+    }
+    if include_trailing_empty_line && source.ends_with('\n') && line == target_line {
+        return Some((source.len(), source.len(), ""));
+    }
+    None
 }
 
 fn floor_char_boundary(source: &str, mut offset: usize) -> usize {

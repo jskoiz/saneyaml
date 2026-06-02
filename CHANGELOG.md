@@ -1,28 +1,19 @@
 # Changelog
 
-This changelog follows the shape of Keep a Changelog. The package is prepared
-for `saneyaml` 0.1.0, but this file does not announce a crates.io release until
-the real publish is explicitly approved and completed.
+This changelog follows the shape of Keep a Changelog.
 
 ## Unreleased
 
-### Added
+No changes yet.
 
-- Package metadata for the `saneyaml` 0.1.0 crates.io candidate.
-- MIT license metadata and standard MIT license text.
-- `ARCHITECTURE.md`, documenting the monolith
-  decision, and feature facade.
-- Trust and release-engineering documentation: `SECURITY.md`,
-  `CONTRIBUTING.md`, issue templates, pull request template, MSRV/stability
-  policy text, public API drift checks, runtime dependency closure checks, and
-  README local-status badges.
-- CI configuration for Linux and Windows, Rust 1.88 MSRV proof, doctests,
-  public API drift, runtime dependency closure, and template validation.
+## 0.1.0
 
-## 0.1.0 release-candidate work in progress
+Initial `saneyaml` release.
 
 ### Added
 
+- Package metadata, MIT license text, public docs, issue templates, pull
+  request template, and CI.
 - Serde-compatible read and write APIs for common config-shaped YAML,
   including `from_*`, `to_*`, `Value`, `Mapping`, `Number`, `Deserializer`,
   `Serializer`, and selected `serde_yaml::with` helper paths.
@@ -39,7 +30,3 @@ the real publish is explicitly approved and completed.
 - Default 64 MiB input ceiling, input-derived alias expansion budget, recursive
   alias rejection, protective scalar/collection structural parser limits, ten
   fuzz targets, and release fuzz-sweep tooling.
-
-### Unreleased Blockers
-
-- The real crates.io publication still requires explicit approval.

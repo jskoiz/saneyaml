@@ -4,10 +4,9 @@
 [![rust](https://img.shields.io/badge/rust-1.88%2B-blue)](Cargo.toml)
 [![unsafe](https://img.shields.io/badge/unsafe-forbidden-success)](src/lib.rs)
 
-Sane, safe, serde-first YAML for Rust. `saneyaml` reads and writes the YAML
-people actually put in config files — **YAML 1.2 by default** (so `NO` stays the
-string `"NO"`, not `false`), with serde-first ergonomics, real diagnostics, and
-safe-by-default resource limits. Pure Rust, `#![forbid(unsafe_code)]`.
+Serde-first YAML for Rust. `saneyaml` reads and writes common config YAML with
+**YAML 1.2 by default** (so `NO` stays the string `"NO"`, not `false`),
+diagnostics, and resource limits. Pure Rust, `#![forbid(unsafe_code)]`.
 
 ## Install
 
@@ -47,13 +46,13 @@ Coming from the archived `serde_yaml`? It's close to a drop-in — see
   schema modes (`Core`, `Json`, `Failsafe`, `LegacySerdeYaml`).
 - **Serde-first** — `from_str` / `from_slice` / `from_reader`, `to_string` /
   `to_writer`, and a `serde_yaml`-style `Value`.
-- **Real diagnostics** — line/column, in-document key path (e.g. `server.port`),
+- **Diagnostics** — line/column, in-document key path (e.g. `server.port`),
   and opt-in source-caret rendering.
-- **Safe by default** — unsafe-free, with input-size, alias-expansion,
+- **Resource limits** — unsafe-free, with input-size, alias-expansion,
   nesting-depth, scalar-length, and collection-size limits.
-- **More than a parser** — pull-based streaming (`EventStream` /
+- **Streaming and lossless editing** — pull-based streaming (`EventStream` /
   `DocumentStream`) and a lossless, comment-preserving editor.
-- **Fast** — on the config benchmark corpus it parses faster than `yaml-rust2`
+- **Benchmarked** — on the config benchmark corpus it parses faster than `yaml-rust2`
   and `saphyr`; see [BENCHMARKS.md](BENCHMARKS.md).
 
 ## Status

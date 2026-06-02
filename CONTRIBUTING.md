@@ -1,9 +1,8 @@
 # Contributing
 
-This repository is a package-ready candidate awaiting explicit publish
-approval. Contributions should keep behavioral claims tied to reproducible local
-evidence and should not publish, push tags, or run hosted CI without maintainer
-approval.
+Contributions should keep behavioral claims tied to reproducible local evidence.
+Do not publish releases, push tags, or manually run hosted CI without maintainer
+coordination.
 
 ## Local Setup
 
@@ -58,6 +57,6 @@ safe.
 
 ## Hosted CI
 
-The workflow includes hosted Linux, Windows, and macOS jobs. Do not trigger
-hosted macOS/Windows runs from this repository or a personal fork unless a
-maintainer explicitly approves that exact repo, workflow, and ref run.
+The workflow uses hosted Linux and Windows runners. Avoid manual
+`workflow_dispatch` runs and workflow changes unless coordinated with a
+maintainer.

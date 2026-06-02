@@ -10,10 +10,9 @@ const FUZZ_TEMPLATE: &str = include_str!("../.github/ISSUE_TEMPLATE/fuzz_crash.y
 #[test]
 fn security_policy_states_supported_preview_and_limits() {
     for term in [
-        "package-ready candidate",
         "current repository",
         "`main` line only",
-        "GitHub private vulnerability reporting",
+        "jskoiz/saneyaml",
         "default 64 MiB input byte ceiling",
         "max_alias_expansion_nodes()",
         "Recursive aliases are rejected",
@@ -27,12 +26,7 @@ fn security_policy_states_supported_preview_and_limits() {
 
 #[test]
 fn changelog_and_contributing_do_not_claim_publication() {
-    for term in [
-        "Keep a Changelog",
-        "saneyaml",
-        "does not announce a crates.io release",
-        "0.1.0 release-candidate work in progress",
-    ] {
+    for term in ["Keep a Changelog", "saneyaml", "## 0.1.0"] {
         assert_contains(CHANGELOG, term);
     }
 
@@ -40,7 +34,7 @@ fn changelog_and_contributing_do_not_claim_publication() {
         "Rust 1.88",
         "scripts/check-public-api.sh",
         "Runtime dependencies remain limited to direct `ryu` and `serde`",
-        "hosted macOS/Windows runs",
+        "hosted Linux and Windows runners",
     ] {
         assert_contains(CONTRIBUTING, term);
     }
@@ -63,7 +57,7 @@ fn github_templates_parse_as_yaml_and_route_sensitive_reports() {
     assert_contains(ISSUE_CONFIG, "/security/advisories/new");
     assert_contains(BUG_TEMPLATE, "Use SECURITY.md for vulnerabilities");
     assert_contains(FUZZ_TEMPLATE, "report it privately through SECURITY.md");
-    assert_contains(PR_TEMPLATE, "No hosted macOS/Windows workflow run");
+    assert_contains(PR_TEMPLATE, "No manual hosted workflow run");
 }
 
 fn assert_contains(haystack: &str, needle: &str) {

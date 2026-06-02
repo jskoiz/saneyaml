@@ -9,7 +9,7 @@ every emitter formatting choice, or full YAML 1.1/libyaml compatibility mode.
 
 ## Migration Shape
 
-There are two supported rename paths for local evaluation.
+There are two supported rename paths.
 
 ### Cargo Package Alias
 
@@ -18,7 +18,7 @@ the dependency resolves to this crate:
 
 ```toml
 [dependencies]
-serde_yaml = { package = "saneyaml", path = "/Users/jk/Desktop/yaml" }
+serde_yaml = { package = "saneyaml", version = "0.1" }
 ```
 
 With this shape, the covered public surface stays spelled
@@ -26,14 +26,14 @@ With this shape, the covered public surface stays spelled
 and so on. The package-alias smoke fixtures compile those names from a clean
 downstream crate.
 
-### Direct Crate Alias
+### Source Alias
 
-Use this when the dependency is named `yaml`, but a source file should exercise
-the same call sites as the old crate:
+Use this when you depend on `saneyaml` directly but want one source file to keep
+the old call-site spelling:
 
 ```toml
 [dependencies]
-yaml = { package = "saneyaml", path = "/Users/jk/Desktop/yaml" }
+saneyaml = "0.1"
 ```
 
 ```rust
@@ -44,9 +44,9 @@ let value: serde_yaml::Value = serde_yaml::from_slice(bytes)?;
 # Ok::<(), serde_yaml::Error>(())
 ```
 
-The compileable example in `examples/serde_yaml_migration.rs` uses this
-direct-alias path for typed reads, `Value` patching, stream reads, structural
-writes, tagged enum helpers, and diagnostic handling. The focused
+The compileable example in `examples/serde_yaml_migration.rs` uses this source
+alias path for typed reads, `Value` patching, stream reads, structural writes,
+tagged enum helpers, and diagnostic handling. The focused
 `serde_yaml_direct_alias_smoke` test pins the same spelling in the normal test
 suite.
 
@@ -550,35 +550,14 @@ testing each adopter's own YAML corpus.
 | Alias graph identity | Semantic `Node`/`Value` trees intentionally clone acyclic aliases and reject recursive alias expansion. Graph-sensitive callers should use `LosslessStream`; its anchor definitions and alias targets are checked against reference parser anchor events for redefinition, recursive, document-reset, merge, YAML 1.1 merge/comment graph fixtures, post-edit source output, manifest-owned selected YAML-suite anchor/alias cases, and manifest-owned real-world Docker Compose anchor cases including an adapted official Compose Specification fragment. `LosslessStream::effective_mapping_entries` exposes merge-derived entries with alias/anchor provenance for callers that need effective config inspection without losing graph identity. |
 | Lossless formatting | `LosslessStream` preserves source, comments, trivia, directives, anchors, aliases, tags, and scalar spelling for replay/inspection, including a merge-effective mapping view that leaves the original source untouched. `LosslessEdit` can replace retained node or raw source spans, update scalar-keyed block/flow mapping values, insert or delete block/flow mapping entries, update block/flow sequence items, insert or delete block/flow sequence items, insert source, delete source spans, and validate the final YAML while preserving untouched bytes. Manifest-owned real-world replay now gates GitHub Actions comments, flow-style lists, and expression strings, Ansible tagged scalars, plus Kubernetes streams and block scalar fixtures. |
 | Parser acceptance differences | Some YAML 1.2 inputs rejected by libyaml are accepted, and some malformed libyaml-tolerated inputs are rejected. Divergence records now carry per-case migration impact. |
-| Package readiness | The package is prepared as `saneyaml` 0.1.0 under MIT and remains unpublished until explicit crates.io publish approval is given. |
+| Package status | `saneyaml` is prepared as a 0.1.0 MIT package. |
 
-## Next Adoption Blockers
+## Known Follow-Up
 
-- Continue expanding real external crate build trials beyond the current
-  Pingora, rust-i18n, cfn-guard, navi, Stackable operator-rs, figment, and
-  uaparser package smoke before claiming broad ecosystem replacement readiness.
-- Keep migration-impact wording current as new divergence records are added.
-- Keep growing default merge, `apply_merge`, emitter, and lossless graph
-  coverage with sustained fuzz runs and minimized discoveries beyond the
-  curated seed corpus. `scripts/fuzz-release-sweep.sh` is the release-audit path
-  for recording checkout HEAD/status, per-target corpus counts, run counts,
-  elapsed time, statuses, and artifact directories before a release candidate;
-  unfiltered sweeps must cover every configured fuzz target.
-- Keep broader YAML 1.1/libyaml compatibility decisions explicit beyond the
-  fixture-backed Psych/libyaml merge/tag/graph cross-checks and eight-family
-  Psych/libyaml coverage ledger, now including directive stream-boundary
-  behavior and no tracked next-probe gaps; full arbitrary structural lossless formatting/emission beyond
-  targeted block/flow mapping entry and sequence item helpers; and the
-  long-term graph API contract before claiming full YAML compatibility.
-- Drive the next phase from the conformance dashboard parity ledgers: event
-  parity is closed, and explicit core scalar tag fixtures now count in
-  loaded-tree value-shape parity under semantic explicit-core projection while
-  retained `Node`/`Value` trees still preserve tag metadata. Remaining
-  loaded-tree and shared-reference deferrals need reference-policy changes
-  before promotion.
-  The broad shared-reference
-  catch-all has been split into case-family records for flow collection syntax,
-  stream-marker and empty-key document shapes, unusual anchor characters, and
-  A2M4 block indentation, so the remaining work is policy rather than missing
-  record ownership.
-- Obtain explicit approval before running the real crates.io publish.
+- Expand external crate build trials before claiming broad ecosystem
+  replacement readiness.
+- Keep divergence records and migration-impact wording current as behavior
+  changes.
+- Continue fuzz and corpus replay beyond the curated seed corpus.
+- Treat full YAML compatibility and arbitrary source-preserving emission as
+  future work until they are fixture-backed.

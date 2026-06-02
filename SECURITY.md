@@ -2,17 +2,14 @@
 
 ## Supported Versions
 
-`saneyaml` 0.1.0 is a package-ready candidate and is not published to crates.io
-until explicit approval is given. Until a public release exists, security
-triage applies to the current repository `main` line only. There are no public
-backport or support branches yet.
+Security triage applies to the current repository `main` line only. There are
+no public backport or support branches yet.
 
 ## Reporting a Vulnerability
 
-After the public GitHub repository exists and private vulnerability reporting is
-enabled, use GitHub private vulnerability reporting for `jskoiz/yaml`. Until
-that path exists, contact the maintainer privately on GitHub before filing a
-public issue. Public issues should not include exploit payloads, private
+Use GitHub private vulnerability reporting for `jskoiz/saneyaml` when it is
+available. Otherwise, contact the maintainer privately on GitHub before filing
+a public issue. Public issues should not include exploit payloads, private
 configuration files, credentials, minimized denial-of-service payloads, or
 unreduced crash inputs that could be directly reused against another project.
 

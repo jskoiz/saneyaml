@@ -1,6 +1,6 @@
 # Compatibility Notes
 
-This crate is aiming at a replacement candidate for **Serde read paths first**:
+This crate targets **Serde read paths first**:
 `serde_yaml`-style `from_str`, `from_slice`, and `from_reader` for common
 developer configuration files, with parser/tree/event behavior compared against
 `yaml-rust2` and `saphyr`. It now includes a source-backed lossless graph view
@@ -40,7 +40,7 @@ for intentional behavior splits that matter during migration.
 
 ## serde_yaml 0.9 Rename Support Matrix
 
-This matrix is the Goal 01 drop-in ledger for common `serde_yaml` 0.9 call
+This matrix tracks common `serde_yaml` 0.9 call
 sites. "Supported" means the public name resolves under both
 `serde_yaml = { package = "saneyaml", ... }` and `use saneyaml as serde_yaml;`.
 "Intentionally divergent" means the call site resolves but behavior is
@@ -134,12 +134,11 @@ parser empty nodes before scalar text resolution and remain null in every mode.
 ## Public API Compatibility Surface
 
 The current MSRV is Rust 1.88. Raising or lowering it is a release-policy
-change, not an incidental dependency update. The crate is pre-1.0 and
-unpublished, but the preview public surface is SemVer-visible: public exports,
-public enum variants, public struct fields, public constants, and duplicate
-root/module export paths are API commitments. `PUBLIC_API.txt` is the committed
-snapshot for drift review, and intentional drift must be documented with its
-migration impact.
+change, not an incidental dependency update. The crate is pre-1.0, but the
+preview public surface is SemVer-visible: public exports, public enum variants,
+public struct fields, public constants, and duplicate root/module export paths
+are API commitments. `PUBLIC_API.txt` is the committed snapshot for drift
+review, and intentional drift must be documented with its migration impact.
 
 Current read APIs:
 

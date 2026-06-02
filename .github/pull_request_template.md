@@ -19,4 +19,4 @@
 - [ ] Public API drift is intentional and documented, or `PUBLIC_API.txt` is unchanged.
 - [ ] Runtime dependencies remain limited to direct `ryu` and `serde`.
 - [ ] `CHANGELOG.md` and `COMPATIBILITY.md` are updated when claims changed.
-- [ ] No hosted macOS/Windows workflow run was triggered without explicit maintainer approval.
+- [ ] No manual hosted workflow run or workflow change was made without maintainer coordination.

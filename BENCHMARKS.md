@@ -12,11 +12,10 @@ YAML_LARGE_BENCH_ITERS=20 cargo run --release --example large_input_benchmark
 
 Environment for the latest captured run:
 
-- Workspace: `/Users/jk/Desktop/yaml`
 - Reference crates: `yaml-rust2 0.11.0`, `saphyr 0.0.6`
 - Small fixture set: 33 files / 39 YAML documents / 25,362 bytes
 - Large fixture set: pinned downstream fixtures plus generated 1 MiB inputs
-- Captured: 2026-06-01 on the local `release` profile
+- Captured: 2026-06-01 with Cargo's `release` profile
 
 The large benchmark's `peak retained bytes` and `peak retained heap objects`
 columns are safe retained-output estimates from parsed tree container and
@@ -66,9 +65,8 @@ behavior.
 
 ## Real-World Config Corpus
 
-Goal 05 corpus-expansion re-capture after adding CloudFormation/SAM, Symfony,
-GitLab CI, CircleCI, Azure Pipelines, and an additional reusable GitHub Actions
-workflow:
+Corpus re-capture after adding CloudFormation/SAM, Symfony, GitLab CI,
+CircleCI, Azure Pipelines, and an additional reusable GitHub Actions workflow:
 
 | parser/load path | iterations | bytes per iteration | docs per iteration | elapsed ms | ns/byte |
 |---|---:|---:|---:|---:|---:|

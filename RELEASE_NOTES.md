@@ -182,8 +182,10 @@ Notable completed release-candidate behavior:
   `serde_yaml::value::TaggedValue` surface.
 - `LoadOptions` now applies a default 64 MiB input byte ceiling across parser,
   Serde, reader, pull event/document streams, and direct deserializer
-  entrypoints, and `parse_lossless_bytes` now checks that default ceiling
-  before UTF-8 validation.
+  entrypoints, plus protective defaults for constructed nesting depth
+  (128), resolved scalar bytes (1 MiB), and per-sequence/per-mapping entries
+  (16,384). `parse_lossless_bytes` checks the input ceiling before UTF-8
+  validation.
   Loader paths keep `max_input_bytes()` for byte-limit tuning,
   `max_alias_expansion_nodes()` for alias expansion work tuning, and
   `without_input_limit()` for explicitly pre-bounded sources.

@@ -33,8 +33,8 @@ work and does not announce a crates.io release.
 ### Security
 
 - Default 64 MiB input ceiling, input-derived alias expansion budget, recursive
-  alias rejection, structural parser limits, ten fuzz targets, and release
-  fuzz-sweep tooling.
+  alias rejection, protective scalar/collection structural parser limits, ten
+  fuzz targets, and release fuzz-sweep tooling.
 
 ### Unreleased Blockers
 

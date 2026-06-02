@@ -29,7 +29,9 @@ The default loader posture is bounded for untrusted YAML inputs:
   `max_alias_expansion_nodes()`.
 - Recursive aliases are rejected.
 - Default nesting, scalar-size, and collection-item limits protect parser,
-  loader, Serde, and lossless entrypoints from unbounded structural work.
+  loader, Serde, and lossless entrypoints from unbounded structural work:
+  128 constructed nesting levels, 1 MiB resolved scalars, and 16,384 entries per
+  sequence or mapping.
 
 Reader-backed entrypoints still fully buffer the bounded input before parsing.
 The limits are parser and construction safety controls; they are not a

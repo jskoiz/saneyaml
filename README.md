@@ -102,9 +102,10 @@ The first milestone focuses on:
   config-shaped `Serialize` values with `serde_yaml`-style 128-bit integer
   value serialization, tagged values, and document markers.
 - Bounded input and alias expansion by default: `LoadOptions` carries a 64 MiB
-  input byte ceiling, input-derived alias budget, configurable nesting, scalar,
-  and collection limits, and explicit opt-outs for callers that have already
-  bounded their source. Raw event streaming validates alias references without
+  input byte ceiling, input-derived alias budget, a 128-level nesting ceiling,
+  a 1 MiB resolved-scalar ceiling, a 16,384-entry per-collection ceiling, and
+  explicit opt-outs for callers that have already bounded their source. Raw
+  event streaming validates alias references without
   expanding them; loaded trees, Serde reads, and `DocumentStream` enforce alias
   expansion budgets. `COMPATIBILITY.md` documents the threat model and resource
   guarantees.

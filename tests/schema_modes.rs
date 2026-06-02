@@ -48,6 +48,14 @@ fn load_options_default_carries_schema_and_input_limit_defaults() {
         Some(yaml::DEFAULT_MAX_INPUT_BYTES)
     );
     assert_eq!(
+        LoadOptions::new().selected_max_scalar_bytes(),
+        Some(yaml::DEFAULT_MAX_SCALAR_BYTES)
+    );
+    assert_eq!(
+        LoadOptions::new().selected_max_collection_items(),
+        Some(yaml::DEFAULT_MAX_COLLECTION_ITEMS)
+    );
+    assert_eq!(
         LoadOptions::new().selected_max_alias_expansion_nodes(),
         None
     );

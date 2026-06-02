@@ -25,10 +25,17 @@ pub const DEFAULT_MIN_ALIAS_EXPANSION_NODES: usize = 1024;
 pub const DEFAULT_MAX_NESTING_DEPTH: usize = 128;
 
 /// Default maximum resolved scalar size accepted by loading entrypoints.
-pub const DEFAULT_MAX_SCALAR_BYTES: usize = DEFAULT_MAX_INPUT_BYTES;
+///
+/// The 1 MiB ceiling leaves room for unusually large but plausible config
+/// values while rejecting scalar bombs well below the global input ceiling.
+pub const DEFAULT_MAX_SCALAR_BYTES: usize = 1024 * 1024;
 
 /// Default maximum number of entries accepted in one sequence or mapping.
-pub const DEFAULT_MAX_COLLECTION_ITEMS: usize = DEFAULT_MAX_INPUT_BYTES;
+///
+/// This is a per-sequence or per-mapping-pair limit. It is intentionally much
+/// lower than the input byte ceiling so compact wide collections cannot force
+/// unbounded construction work by default.
+pub const DEFAULT_MAX_COLLECTION_ITEMS: usize = 16 * 1024;
 
 /// Scalar construction schema used by tree and Serde loading.
 ///

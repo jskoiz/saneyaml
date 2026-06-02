@@ -328,10 +328,13 @@ input-size-derived alias expansion budget. Raw event streaming validates alias
 references without expanding them, so it does not consume alias expansion
 budget; loaded trees, Serde reads, and `DocumentStream` enforce the alias budget
 while constructing semantic documents. Default options also cap constructed
-nesting depth at 128, resolved scalar size at 64 MiB, and individual sequence or
-mapping collections at 64 MiB entries. `max_input_bytes()` can tighten or raise
-the byte ceiling, `max_alias_expansion_nodes()` can tune alias expansion work
-for untrusted config loads, `max_nesting_depth()`, `max_scalar_bytes()`, and
+nesting depth at 128, resolved scalar size at 1 MiB, and individual sequence or
+mapping collections at 16,384 entries. The scalar and collection defaults are
+chosen to accept the committed real-world config corpus while rejecting compact
+scalar and wide-collection bombs below the input byte ceiling.
+`max_input_bytes()` can tighten or raise the byte ceiling,
+`max_alias_expansion_nodes()` can tune alias expansion work for untrusted config
+loads, `max_nesting_depth()`, `max_scalar_bytes()`, and
 `max_collection_items()` can tune structural work, and the matching
 `without_*_limit()` methods are explicit opt-outs for callers that have already
 bounded their source.
@@ -346,8 +349,8 @@ pull-event, pull-document, lossless bytes, and Serde load entrypoints. With
 default `LoadOptions`, the crate rejects inputs above 64 MiB before parsing,
 rejects alias-expansion bombs in semantic loaders using an input-derived alias
 budget, rejects recursive aliases, rejects block and flow nesting beyond 128,
-rejects resolved scalars above 64 MiB, rejects individual sequences and mappings
-above 64 MiB entries, and preserves span-bearing diagnostics for those failures.
+rejects resolved scalars above 1 MiB, rejects individual sequences and mappings
+above 16,384 entries, and preserves span-bearing diagnostics for those failures.
 Raw event and lossless streams validate alias references but do not expand
 aliases and therefore do not spend the alias-expansion budget.
 

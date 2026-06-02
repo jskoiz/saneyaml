@@ -2,33 +2,55 @@
 name = "deep-flow-nesting"
 class = "nesting-depth"
 generator = "flow-sequence"
-limit = 4
+path = "adversarial/deep-flow-nesting.yaml"
+limit = 128
 expected_error = "maximum YAML nesting depth exceeded"
 
 [[case]]
 name = "oversized-plain-scalar"
 class = "scalar-growth"
 generator = "plain-scalar"
-limit = 8
+path = "adversarial/oversized-plain-scalar.yaml"
+limit = 1048576
 expected_error = "YAML scalar exceeds configured limit"
 
 [[case]]
 name = "oversized-block-scalar"
 class = "scalar-growth"
 generator = "literal-block-scalar"
-limit = 8
+path = "adversarial/oversized-block-scalar.yaml"
+limit = 1048576
+expected_error = "YAML scalar exceeds configured limit"
+
+[[case]]
+name = "oversized-double-quoted-scalar"
+class = "scalar-growth"
+generator = "double-quoted-scalar"
+path = "adversarial/oversized-double-quoted-scalar.yaml"
+limit = 1048576
 expected_error = "YAML scalar exceeds configured limit"
 
 [[case]]
 name = "wide-flow-sequence"
 class = "collection-growth"
 generator = "flow-sequence-items"
-limit = 3
+path = "adversarial/wide-flow-sequence.yaml"
+limit = 16384
+expected_error = "YAML collection exceeds configured limit"
+
+[[case]]
+name = "wide-flow-mapping"
+class = "collection-growth"
+generator = "flow-mapping-pairs"
+path = "adversarial/wide-flow-mapping.yaml"
+limit = 16384
 expected_error = "YAML collection exceeds configured limit"
 
 [[case]]
 name = "alias-expansion-bomb"
 class = "alias-expansion"
 generator = "billion-laughs-style"
-limit = 8
+path = "adversarial/alias-expansion-bomb.yaml"
+limit = 0
+limit_kind = "input-derived alias expansion budget"
 expected_error = "alias expansion limit exceeded"

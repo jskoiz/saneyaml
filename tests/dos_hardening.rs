@@ -1,17 +1,33 @@
 use serde::Deserialize;
+use std::fs;
 use std::io::Cursor;
+use std::path::Path;
 use yaml::{Error, Event, LoadOptions, Node, Value};
 
 const DOS_MANIFEST: &str = include_str!("fixtures/dos/manifest.toml");
 const CLEAN_SMALL: &str = include_str!("fixtures/dos/clean/small.yaml");
+const REAL_WORLD_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/real-world");
+const REAL_WORLD_SOURCE: &str = include_str!("fixtures/real-world/SOURCE.toml");
+const ALIAS_BOMB: &str = include_str!("fixtures/dos/adversarial/alias-expansion-bomb.yaml");
+const DEEP_FLOW_NESTING: &str = include_str!("fixtures/dos/adversarial/deep-flow-nesting.yaml");
+const OVERSIZED_PLAIN_SCALAR: &str =
+    include_str!("fixtures/dos/adversarial/oversized-plain-scalar.yaml");
+const OVERSIZED_BLOCK_SCALAR: &str =
+    include_str!("fixtures/dos/adversarial/oversized-block-scalar.yaml");
+const OVERSIZED_DOUBLE_QUOTED_SCALAR: &str =
+    include_str!("fixtures/dos/adversarial/oversized-double-quoted-scalar.yaml");
+const WIDE_FLOW_SEQUENCE: &str = include_str!("fixtures/dos/adversarial/wide-flow-sequence.yaml");
+const WIDE_FLOW_MAPPING: &str = include_str!("fixtures/dos/adversarial/wide-flow-mapping.yaml");
 
-const ALIAS_BOMB: &str = "\
-a: &a [lol, lol, lol, lol, lol, lol, lol, lol]
-b: &b [*a, *a, *a, *a, *a, *a, *a, *a]
-c: &c [*b, *b, *b, *b, *b, *b, *b, *b]
-d: &d [*c, *c, *c, *c, *c, *c, *c, *c]
-boom: *d
-";
+#[derive(Debug, Deserialize)]
+struct RealWorldManifest {
+    fixture: Vec<RealWorldFixture>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RealWorldFixture {
+    path: String,
+}
 
 #[test]
 fn adversarial_manifest_documents_goal_06_cases() {
@@ -19,7 +35,9 @@ fn adversarial_manifest_documents_goal_06_cases() {
         "deep-flow-nesting",
         "oversized-plain-scalar",
         "oversized-block-scalar",
+        "oversized-double-quoted-scalar",
         "wide-flow-sequence",
+        "wide-flow-mapping",
         "alias-expansion-bomb",
         "nesting-depth",
         "scalar-growth",
@@ -31,6 +49,36 @@ fn adversarial_manifest_documents_goal_06_cases() {
             "DoS manifest must record {required}"
         );
     }
+}
+
+#[test]
+fn default_limits_accept_all_real_world_fixtures() {
+    let manifest: RealWorldManifest =
+        toml::from_str(REAL_WORLD_SOURCE).expect("real-world manifest parses");
+    assert_eq!(manifest.fixture.len(), 33);
+    let root = Path::new(REAL_WORLD_ROOT);
+    let mut documents = 0usize;
+    for fixture in manifest.fixture {
+        let input = fs::read_to_string(root.join(&fixture.path))
+            .unwrap_or_else(|error| panic!("read real-world fixture {}: {error}", fixture.path));
+        let parsed = LoadOptions::new()
+            .parse_documents(&input)
+            .unwrap_or_else(|error| panic!("default limits parse {}: {error}", fixture.path));
+        documents += parsed.len();
+        LoadOptions::new()
+            .stream_events(&input)
+            .unwrap_or_else(|error| {
+                panic!("default limits stream events {}: {error}", fixture.path)
+            })
+            .collect::<yaml::Result<Vec<Event>>>()
+            .unwrap_or_else(|error| {
+                panic!("default event stream accepts {}: {error}", fixture.path)
+            });
+        LoadOptions::new()
+            .from_documents_str::<Value>(&input)
+            .unwrap_or_else(|error| panic!("default Serde accepts {}: {error}", fixture.path));
+    }
+    assert_eq!(documents, 39);
 }
 
 #[test]
@@ -65,7 +113,7 @@ fn clean_inputs_load_with_default_and_tight_limits() {
 
 #[test]
 fn nesting_limit_rejects_every_load_shape_with_spans() {
-    let input = "root: [[[[[0]]]]]\n";
+    let input = DEEP_FLOW_NESTING;
     let options = LoadOptions::new().max_nesting_depth(4);
     assert_all_expanding_entrypoints_reject(input, options, "maximum YAML nesting depth exceeded");
     assert_event_entrypoints_reject(input, options, "maximum YAML nesting depth exceeded");
@@ -76,9 +124,9 @@ fn nesting_limit_rejects_every_load_shape_with_spans() {
 fn scalar_limit_rejects_plain_and_block_scalars_with_spans() {
     let options = LoadOptions::new().max_scalar_bytes(8);
     for input in [
-        "value: aaaaaaaaa\n",
-        "value: |\n  aaaaaaaaa\n",
-        "value: \"aaaaaaaaa\"\n",
+        OVERSIZED_PLAIN_SCALAR,
+        OVERSIZED_BLOCK_SCALAR,
+        OVERSIZED_DOUBLE_QUOTED_SCALAR,
     ] {
         assert_all_expanding_entrypoints_reject(
             input,
@@ -93,7 +141,7 @@ fn scalar_limit_rejects_plain_and_block_scalars_with_spans() {
 #[test]
 fn collection_limit_rejects_wide_sequences_and_mappings_with_spans() {
     let options = LoadOptions::new().max_collection_items(3);
-    for input in ["items: [1, 2, 3, 4]\n", "{a: 1, b: 2, c: 3, d: 4}\n"] {
+    for input in [WIDE_FLOW_SEQUENCE, WIDE_FLOW_MAPPING] {
         assert_all_expanding_entrypoints_reject(
             input,
             options,
@@ -118,10 +166,40 @@ fn alias_bomb_rejects_semantic_loaders_but_raw_events_do_not_expand() {
     assert!(
         events
             .iter()
-            .any(|event| matches!(event, Event::Alias { anchor } if anchor.name == "d"))
+            .any(|event| matches!(event, Event::Alias { anchor } if anchor.name == "e"))
     );
     yaml::parse_lossless_with_options(ALIAS_BOMB, options)
         .expect("lossless graph validates aliases without semantic expansion");
+}
+
+#[test]
+fn default_limits_reject_committed_adversarial_fixtures() {
+    for (input, expected) in [
+        (ALIAS_BOMB, "alias expansion limit exceeded"),
+        (DEEP_FLOW_NESTING, "maximum YAML nesting depth exceeded"),
+        (
+            OVERSIZED_PLAIN_SCALAR,
+            "YAML scalar exceeds configured limit",
+        ),
+        (
+            OVERSIZED_BLOCK_SCALAR,
+            "YAML scalar exceeds configured limit",
+        ),
+        (
+            OVERSIZED_DOUBLE_QUOTED_SCALAR,
+            "YAML scalar exceeds configured limit",
+        ),
+        (
+            WIDE_FLOW_SEQUENCE,
+            "YAML collection exceeds configured limit",
+        ),
+        (
+            WIDE_FLOW_MAPPING,
+            "YAML collection exceeds configured limit",
+        ),
+    ] {
+        assert_all_expanding_entrypoints_reject(input, LoadOptions::new(), expected);
+    }
 }
 
 fn assert_all_expanding_entrypoints_reject(input: &str, options: LoadOptions, expected: &str) {

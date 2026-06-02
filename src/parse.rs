@@ -1,4 +1,13 @@
 //! YAML parser entrypoints and raw event types.
+//!
+//! ```rust
+//! let events = yaml::parse_events("items:\n  - one\n")?;
+//! assert!(matches!(events.first(), Some(yaml::Event::StreamStart)));
+//! assert!(events.iter().any(|event| {
+//!     matches!(event, yaml::Event::Scalar { value, .. } if value == "items")
+//! }));
+//! # Ok::<(), yaml::Error>(())
+//! ```
 
 use crate::{
     BorrowedNode, Error, Node, NodeValue as Value, Number, Result, Span, Tag, TaggedNode,

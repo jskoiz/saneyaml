@@ -1,4 +1,26 @@
 //! Serde helper modules matching selected `serde_yaml::with` paths.
+//!
+//! ```rust
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Debug, PartialEq, Deserialize, Serialize)]
+//! enum Mode {
+//!     Http { port: u16 },
+//! }
+//!
+//! #[derive(Deserialize, Serialize)]
+//! struct Config {
+//!     #[serde(with = "yaml::with::singleton_map")]
+//!     mode: Mode,
+//! }
+//!
+//! let config: Config = yaml::from_str("mode:\n  Http:\n    port: 8080\n")?;
+//! assert_eq!(config.mode, Mode::Http { port: 8080 });
+//!
+//! let output = yaml::to_string(&config)?;
+//! assert!(output.contains("Http"));
+//! # Ok::<(), yaml::Error>(())
+//! ```
 
 use crate::{Mapping, Value};
 

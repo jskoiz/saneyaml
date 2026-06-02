@@ -133,6 +133,14 @@ parser empty nodes before scalar text resolution and remain null in every mode.
 
 ## Public API Compatibility Surface
 
+The current MSRV is Rust 1.85. Raising or lowering it is a release-policy
+change, not an incidental dependency update. The crate is pre-1.0 and
+unpublished, but the preview public surface is SemVer-visible: public exports,
+public enum variants, public struct fields, public constants, and duplicate
+root/module export paths are API commitments. `PUBLIC_API.txt` is the committed
+snapshot for drift review, and intentional drift must be documented with its
+migration impact.
+
 Current read APIs:
 
 - `yaml::from_str<T>(&str) -> Result<T>`

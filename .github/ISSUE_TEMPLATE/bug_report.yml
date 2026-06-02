@@ -1,0 +1,38 @@
+name: Bug report
+description: Report a non-sensitive parser, loader, emitter, or API bug.
+title: "[bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: "Do not include credentials, private config files, or exploit-sensitive payloads. Use SECURITY.md for vulnerabilities."
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What failed, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Minimal YAML input or Rust snippet
+      description: Keep this reduced and non-sensitive.
+      render: yaml
+  - type: textarea
+    id: commands
+    attributes:
+      label: Reproduction commands
+      description: Include local commands such as cargo test invocations when possible.
+      render: sh
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Rust version, operating system, crate commit, and relevant features.
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context
+      description: Link related compatibility records, fixtures, or downstream projects when useful.

@@ -1,5 +1,22 @@
 //! Serde deserialization entrypoints for YAML strings, bytes, readers, nodes,
 //! and values.
+//!
+//! ```rust
+//! use serde::Deserialize;
+//! use std::io::Cursor;
+//!
+//! #[derive(Deserialize)]
+//! struct Config {
+//!     enabled: bool,
+//! }
+//!
+//! let config: Config = yaml::from_reader(Cursor::new(b"enabled: true\n"))?;
+//! assert!(config.enabled);
+//!
+//! let value: yaml::Value = yaml::from_slice(b"name: api\n")?;
+//! assert_eq!(value.get("name").and_then(yaml::Value::as_str), Some("api"));
+//! # Ok::<(), yaml::Error>(())
+//! ```
 
 use crate::parse::parse_document_results_with_options;
 use crate::{

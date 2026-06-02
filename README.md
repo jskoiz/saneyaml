@@ -1,5 +1,10 @@
 # yaml
 
+[![CI](https://github.com/jskoiz/yaml/actions/workflows/ci.yml/badge.svg)](https://github.com/jskoiz/yaml/actions/workflows/ci.yml)
+[![Fuzzing](https://img.shields.io/badge/fuzzing-10%20targets-informational)](DEVELOPER_PREVIEW.md)
+[![docs.rs](https://img.shields.io/badge/docs.rs-pending-lightgrey)](DEVELOPER_PREVIEW.md)
+[![license](https://img.shields.io/badge/license-local%20preview-lightgrey)](LICENSE.md)
+
 A production-oriented pure-Rust YAML parser/emitter prototype for common
 developer configuration files.
 
@@ -7,11 +12,19 @@ Status: local developer preview. The crate is intentionally not published yet
 (`publish = false`), and the public crate name/license still need final release
 decisions. Start with [DEVELOPER_PREVIEW.md](DEVELOPER_PREVIEW.md),
 [MIGRATION.md](MIGRATION.md), [COMPATIBILITY.md](COMPATIBILITY.md), and
-[BASELINE.md](BASELINE.md) before evaluating it in another project.
-The Cargo package include list is explicit: it packages source, examples, and
-public documentation, while repository-only fixtures, fuzz corpora, CI files,
-and proof scripts remain local evidence until the final redistribution policy is
-chosen.
+[BASELINE.md](BASELINE.md) before evaluating it in another project. Trust and
+release-process docs live in [SECURITY.md](SECURITY.md),
+[CHANGELOG.md](CHANGELOG.md), and [CONTRIBUTING.md](CONTRIBUTING.md).
+The Cargo package include list is explicit: it packages source, examples,
+public documentation including the security, changelog, and contributing docs,
+and `PUBLIC_API.txt`, while repository-only fixtures, fuzz corpora, CI files,
+GitHub templates, and proof scripts remain local evidence until the final
+redistribution policy is chosen.
+
+Current MSRV is Rust 1.85, matching `Cargo.toml` `rust-version`. The crate is
+pre-1.0, but the documented preview surface is treated as SemVer-visible:
+breaking public API changes, MSRV bumps, and final package identity decisions
+must be explicit release decisions rather than incidental implementation drift.
 
 The first milestone focuses on:
 
@@ -121,8 +134,9 @@ The first milestone focuses on:
   trial covers large bundled `regexes.yaml` data through slice, reader, and
   example parser paths.
 - A downstream-shaped migration harness, compileable migration example,
-  Ubuntu-only CI workflow with all-target fuzz-smoke wiring, non-mutating
-  fuzz replay script, and real-world config benchmark command.
+  Linux/macOS/Windows CI matrix configuration, Ubuntu-only downstream and
+  all-target fuzz-smoke wiring, non-mutating fuzz replay script, and
+  real-world config benchmark command.
 - Clear diagnostics with line/column spans. The default `Display` remains the
   compact `message at line L, column C` string, while `Error` also exposes a
   broad `ErrorCategory`, optional in-document `ErrorPath`, optional
@@ -179,21 +193,30 @@ scripts/downstream-build-trials.sh stackable-operator
 scripts/downstream-build-trials.sh figment
 scripts/downstream-build-trials.sh uaparser
 cargo test --test baseline_audit
+scripts/check-public-api.sh
+cargo test --locked --test runtime_dependency_closure
+cargo test --locked --test trust_metadata
 RUSTDOCFLAGS='-D missing_docs' cargo doc --no-deps
+cargo test --locked --doc
 cargo test
 cargo clippy --all-targets -- -D warnings
 cargo clippy --manifest-path fuzz/Cargo.toml --all-targets -- -D warnings
+rustup run 1.85.0 cargo check --locked --all-targets
+rustup run 1.85.0 cargo test --locked
 cargo run --release --example real_world_benchmark
 scripts/fuzz-smoke-nonmutating.sh
 scripts/fuzz-release-sweep.sh
 ```
 
 `tests/baseline_audit.rs` verifies that `BASELINE.md` matches the committed
-manifest, registry, migration report, package boundary, corpus, and command evidence. `cargo
+manifest, registry, migration report, package boundary, public API snapshot,
+runtime dependency closure, trust metadata, corpus, and command evidence. `cargo
 fuzz` is optional for ordinary development; the script copies corpora to a
 temporary directory before running all ten targets so it does not grow tracked
-corpus files. CI runs that script with one requested pass per target to verify
-the wiring. `scripts/fuzz-release-sweep.sh` is the manual release gate: it runs
+corpus files. CI runs Linux/macOS/Windows Rust checks, an Ubuntu MSRV job, and
+Ubuntu-only downstream/fuzz release evidence; hosted macOS/Windows execution
+requires explicit approval before a push or manual run.
+`scripts/fuzz-release-sweep.sh` is the manual release gate: it runs
 the same ten targets with a configurable budget and writes a summary with
 checkout HEAD/status, target mode, target names, corpus counts, run counts,
 statuses, elapsed time, and artifact directories. Unfiltered release sweeps must

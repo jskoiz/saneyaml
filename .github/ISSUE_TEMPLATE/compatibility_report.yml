@@ -1,0 +1,41 @@
+name: Compatibility report
+description: Report a behavior split from serde_yaml, yaml-rust2, saphyr, or libyaml.
+title: "[compat]: "
+labels:
+  - compatibility
+body:
+  - type: markdown
+    attributes:
+      value: "Compatibility reports should distinguish expected policy divergence from unexpected migration risk."
+  - type: input
+    id: reference
+    attributes:
+      label: Reference implementation
+      description: serde_yaml, yaml-rust2, saphyr, Psych/libyaml, or another parser.
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Minimal YAML input
+      description: Keep this reduced and non-sensitive.
+      render: yaml
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: Include this crate's result and the reference result.
+    validations:
+      required: true
+  - type: textarea
+    id: migration-impact
+    attributes:
+      label: Migration impact
+      description: Which downstream call site or config shape is affected?
+  - type: textarea
+    id: commands
+    attributes:
+      label: Reproduction commands
+      render: sh

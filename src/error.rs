@@ -1,4 +1,11 @@
 //! Error and source-location types shared by the parser, emitter, and Serde API.
+//!
+//! ```rust
+//! let input = "key: [unterminated\n";
+//! let error = yaml::parse_str(input).unwrap_err();
+//! assert!(error.location().is_some());
+//! assert!(error.render_source(input).to_string().contains('^'));
+//! ```
 
 use std::fmt;
 

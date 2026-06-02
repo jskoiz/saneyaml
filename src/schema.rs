@@ -1,4 +1,12 @@
 //! Load options and schema selection for constructed YAML document trees.
+//!
+//! ```rust
+//! let value: yaml::Value = yaml::LoadOptions::legacy_serde_yaml()
+//!     .max_input_bytes(1024)
+//!     .from_str("flag: on\n")?;
+//! assert_eq!(value.get("flag").and_then(yaml::Value::as_bool), Some(true));
+//! # Ok::<(), yaml::Error>(())
+//! ```
 
 use crate::{BorrowedNode, Error, Node, Result, Span, de, parse};
 use serde::de::DeserializeOwned;

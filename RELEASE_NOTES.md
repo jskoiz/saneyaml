@@ -4,10 +4,17 @@
 
 This crate is still a local developer preview and is not published. Current
 release blockers are the public crate name, final license, version decision,
-and explicit user approval for a crates.io push.
+and explicit user approval for a crates.io push. `CHANGELOG.md` is the
+maintained release-history index; this file remains the narrative
+release-candidate ledger.
 
 Notable completed release-candidate behavior:
 
+- Trust and release-engineering docs now state the Rust 1.85 MSRV policy,
+  pre-1.0 SemVer-visible preview surface, security reporting posture,
+  contribution evidence requirements, public API drift guard, runtime
+  dependency closure guard, and GitHub issue/PR templates without changing the
+  crate name, license, version, or publication identity.
 - Diagnostics now expose additive structured metadata while keeping the default
   `Display` string unchanged: broad `ErrorCategory`, Serde/YAML key paths such
   as `server.port` and `ports[1]`, zero-based document indices for stream
@@ -37,10 +44,10 @@ Notable completed release-candidate behavior:
   sorted mapping keys, scalar quote style, literal/folded block scalar style,
   and block/flow collection style without changing default bytes.
 - `Cargo.toml` now has an explicit package include boundary for the developer
-  preview: source, examples, and public docs are package contents, while
-  repository-only fixtures, downstream reductions, fuzz corpora, CI files, and
-  proof scripts stay local until the public license/redistribution policy is
-  selected.
+  preview: source, examples, public docs, trust docs, and the public API
+  snapshot are package contents, while repository-only fixtures, downstream
+  reductions, fuzz corpora, CI files, GitHub templates, and proof scripts stay
+  local until the public license/redistribution policy is selected.
 - Public pull-based streaming now has explicit `EventStream` and
   `DocumentStream` contracts. Raw event streams match `parse_events` without
   retaining the completed event vector and validate aliases without expanding

@@ -5,6 +5,14 @@
 //! comments because that is the useful shape for config reads. The lossless
 //! stream keeps the original source text, exposes comments and blank lines as
 //! trivia, and builds a graph view where aliases reference stable anchor ids.
+//!
+//! ```rust
+//! let stream = yaml::parse_lossless("# service\nname: api\n")?;
+//! assert_eq!(stream.comments().count(), 1);
+//! let root = stream.documents()[0].root().expect("document root");
+//! assert!(stream.node(root).is_some());
+//! # Ok::<(), yaml::Error>(())
+//! ```
 
 use crate::{
     CollectionStyle, Error, Event, EventAnchor, EventDocumentDirectives, EventMeta, EventTag,

@@ -1,4 +1,24 @@
 //! Serde serialization entrypoints for YAML values and writers.
+//!
+//! ```rust
+//! let mut mapping = yaml::Mapping::new();
+//! mapping.insert(
+//!     yaml::Value::String("name".to_owned()),
+//!     yaml::Value::String("api".to_owned()),
+//! );
+//! let value = yaml::Value::Mapping(mapping);
+//!
+//! let output = yaml::to_string_with_options(
+//!     &value,
+//!     yaml::EmitOptions::structural().with_key_order(yaml::KeyOrder::Sort),
+//! )?;
+//! assert!(output.contains("name: api"));
+//!
+//! let mut bytes = Vec::new();
+//! yaml::to_writer(&mut bytes, &value)?;
+//! assert!(!bytes.is_empty());
+//! # Ok::<(), yaml::Error>(())
+//! ```
 
 use crate::{
     EmitOptions, Error, Mapping, Node, NodeValue, Number, Result, Span, Tag, TaggedNode,

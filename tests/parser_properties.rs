@@ -2182,15 +2182,34 @@ fn assert_emit_roundtrip_invariants(node: &Node) {
     assert!(stream_values[1].equivalent(&reparsed_value));
 }
 
-fn emit_option_roundtrip_matrix() -> [yaml::EmitOptions; 4] {
-    [
-        yaml::EmitOptions::structural()
-            .with_scalar_quote_style(yaml::ScalarQuoteStyle::SingleQuoted),
-        yaml::EmitOptions::structural()
-            .with_scalar_quote_style(yaml::ScalarQuoteStyle::DoubleQuoted),
-        yaml::EmitOptions::structural().with_block_scalar_style(yaml::BlockScalarStyle::Folded),
-        yaml::EmitOptions::structural().with_collection_style(yaml::EmitCollectionStyle::Flow),
-    ]
+fn emit_option_roundtrip_matrix() -> Vec<yaml::EmitOptions> {
+    let mut matrix = Vec::new();
+    for key_order in [yaml::KeyOrder::Preserve, yaml::KeyOrder::Sort] {
+        for scalar_quote_style in [
+            yaml::ScalarQuoteStyle::PlainWhereSafe,
+            yaml::ScalarQuoteStyle::SingleQuoted,
+            yaml::ScalarQuoteStyle::DoubleQuoted,
+        ] {
+            for block_scalar_style in [
+                yaml::BlockScalarStyle::Literal,
+                yaml::BlockScalarStyle::Folded,
+            ] {
+                for collection_style in [
+                    yaml::EmitCollectionStyle::Block,
+                    yaml::EmitCollectionStyle::Flow,
+                ] {
+                    matrix.push(
+                        yaml::EmitOptions::structural()
+                            .with_key_order(key_order)
+                            .with_scalar_quote_style(scalar_quote_style)
+                            .with_block_scalar_style(block_scalar_style)
+                            .with_collection_style(collection_style),
+                    );
+                }
+            }
+        }
+    }
+    matrix
 }
 
 fn assert_optioned_value_roundtrip(value: &Value, options: yaml::EmitOptions) {

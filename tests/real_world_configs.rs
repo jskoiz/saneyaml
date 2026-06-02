@@ -1787,6 +1787,146 @@ fn rw_parse_upstream_and_adapted_real_world_snapshots() {
     assert_eq!(ansible[2]["roles"][0].as_str(), Some("db"));
 }
 
+#[test]
+fn rw_parse_goal05_cloudformation_symfony_and_ci_fixtures() {
+    let cloudformation: yaml::Value = yaml::from_str(include_str!(
+        "fixtures/real-world/cloudformation/sam-api.yaml"
+    ))
+    .expect("deserialize synthetic SAM template");
+    assert_eq!(
+        cloudformation["Transform"].as_str(),
+        Some("AWS::Serverless-2016-10-31")
+    );
+    assert_eq!(
+        cloudformation["Resources"]["Function"]["Type"].as_str(),
+        Some("AWS::Serverless::Function")
+    );
+    let table_ref = cloudformation["Resources"]["Function"]["Properties"]["Environment"]
+        ["Variables"]["TABLE_NAME"]
+        .as_tagged()
+        .expect("TABLE_NAME !Ref tag");
+    assert_eq!(table_ref.tag, yaml::Tag::new("Ref"));
+    assert_eq!(table_ref.value.as_str(), Some("Table"));
+    let inline_code = cloudformation["Resources"]["Function"]["Properties"]["InlineCode"]
+        .as_tagged()
+        .expect("InlineCode !Sub tag");
+    assert_eq!(inline_code.tag, yaml::Tag::new("Sub"));
+    assert!(
+        inline_code
+            .value
+            .as_str()
+            .expect("inline code")
+            .contains("exports.handler")
+    );
+    let function_arn = cloudformation["Outputs"]["FunctionArn"]["Value"]
+        .as_tagged()
+        .expect("FunctionArn !GetAtt tag");
+    assert_eq!(function_arn.tag, yaml::Tag::new("GetAtt"));
+    assert_eq!(function_arn.value.as_str(), Some("Function.Arn"));
+
+    let symfony: yaml::Value =
+        yaml::from_str(include_str!("fixtures/real-world/symfony/services.yaml"))
+            .expect("deserialize synthetic Symfony services");
+    assert_eq!(
+        symfony["parameters"]["app.secret"].as_str(),
+        Some("%env(APP_SECRET)%")
+    );
+    assert_eq!(
+        symfony["services"]["_defaults"]["bind"]["string $projectDir"].as_str(),
+        Some("%kernel.project_dir%")
+    );
+    assert_eq!(
+        symfony["services"]["App\\"]["exclude"][1].as_str(),
+        Some("../src/Entity/")
+    );
+    let tagged_iterator =
+        symfony["services"]["App\\Controller\\HealthController"]["arguments"]["$iterator"]
+            .as_tagged()
+            .expect("Symfony tagged iterator");
+    assert_eq!(tagged_iterator.tag, yaml::Tag::new("tagged_iterator"));
+    assert_eq!(tagged_iterator.value.as_str(), Some("app.health_check"));
+    assert_eq!(
+        symfony["when@test"]["services"]["App\\Tests\\FakeMailer"]["arguments"][0].as_str(),
+        Some("@.inner")
+    );
+
+    let gitlab: yaml::Value = yaml::from_str(include_str!(
+        "fixtures/real-world/gitlab-ci/basic-pipeline.yml"
+    ))
+    .expect("deserialize synthetic GitLab CI");
+    assert_eq!(gitlab["stages"][2].as_str(), Some("deploy"));
+    assert_eq!(gitlab["lint"]["image"].as_str(), Some("rust:1.85"));
+    assert_eq!(
+        gitlab["test"]["parallel"]["matrix"][0]["FEATURES"][1].as_str(),
+        Some("serde")
+    );
+    assert_eq!(
+        gitlab["deploy"]["rules"][0]["if"].as_str(),
+        Some("$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH")
+    );
+
+    let circle: yaml::Value =
+        yaml::from_str(include_str!("fixtures/real-world/circleci/config.yml"))
+            .expect("deserialize synthetic CircleCI config");
+    assert_eq!(circle["orbs"]["node"].as_str(), Some("circleci/node@5.2.0"));
+    assert_eq!(
+        circle["executors"]["rust"]["docker"][0]["image"].as_str(),
+        Some("cimg/rust:1.85")
+    );
+    assert!(
+        circle["jobs"]["test"]["steps"][2]["run"]["command"]
+            .as_str()
+            .expect("CircleCI command")
+            .contains("real_world_configs")
+    );
+
+    let azure: yaml::Value = yaml::from_str(include_str!(
+        "fixtures/real-world/azure-pipelines/azure-pipelines.yml"
+    ))
+    .expect("deserialize synthetic Azure Pipelines config");
+    assert_eq!(
+        azure["trigger"]["branches"]["include"][1].as_str(),
+        Some("releases/*")
+    );
+    assert_eq!(
+        azure["variables"]["isMain"].as_str(),
+        Some("$[eq(variables['Build.SourceBranch'], 'refs/heads/main')]")
+    );
+    assert_eq!(
+        azure["stages"][0]["jobs"][0]["strategy"]["matrix"]["beta"]["toolchain"].as_str(),
+        Some("beta")
+    );
+    assert!(
+        azure["stages"][0]["jobs"][0]["steps"][0]["script"]
+            .as_str()
+            .expect("Azure script")
+            .contains("cargo test --locked")
+    );
+
+    let github: yaml::Value = yaml::from_str(include_str!(
+        "fixtures/real-world/github-actions/reusable-service-workflow.yaml"
+    ))
+    .expect("deserialize synthetic reusable GitHub Actions workflow");
+    assert_eq!(
+        github["on"]["workflow_call"]["inputs"]["image-tag"]["type"].as_str(),
+        Some("string")
+    );
+    assert_eq!(
+        github["jobs"]["integration"]["services"]["postgres"]["ports"][0].as_str(),
+        Some("5432:5432")
+    );
+    assert!(
+        github["jobs"]["integration"]["services"]["postgres"]["options"]
+            .as_str()
+            .expect("service options")
+            .contains("--health-cmd pg_isready")
+    );
+    assert_eq!(
+        github["jobs"]["integration"]["steps"][2]["env"]["IMAGE_TAG"].as_str(),
+        Some("${{ inputs.image-tag }}")
+    );
+}
+
 #[derive(Debug, Deserialize, PartialEq)]
 struct EnumConfig {
     mode: Mode,

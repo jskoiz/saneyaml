@@ -405,7 +405,7 @@ cargo clippy --all-targets -- -D warnings
 ## Performance Evidence
 
 `examples/real_world_benchmark.rs` benchmarks parse/load cost over the same
-27-file / 33-document real-world registry without timing file I/O:
+33-file / 39-document real-world registry without timing file I/O:
 
 ```sh
 cargo run --release --example real_world_benchmark
@@ -415,7 +415,7 @@ The latest captured table is recorded in `BENCHMARKS.md`.
 
 ## Real-World Fixture Coverage
 
-Current real-world gates cover 27 files / 33 YAML documents across:
+Current real-world gates cover 33 files / 39 YAML documents across:
 
 - GitHub Actions
 - Docker Compose
@@ -424,6 +424,11 @@ Current real-world gates cover 27 files / 33 YAML documents across:
 - OpenAPI
 - Wrangler
 - Ansible
+- CloudFormation/SAM
+- Symfony services
+- GitLab CI
+- CircleCI
+- Azure Pipelines
 
 These fixtures prove config-shaped parsing, Serde reads, event/tree parity, and
 reference acceptance for the selected suite. Docker Compose merge-anchor

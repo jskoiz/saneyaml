@@ -1,0 +1,65 @@
+schema = "cross-ecosystem-vectors-v1"
+capture_policy = "Pinned offline status vectors only; tests validate metadata and do not execute Go, Python, or C++ runtimes."
+
+[[vector]]
+row = "ci-dialect-scalars"
+implementation = "go-yaml"
+version = "gopkg.in/yaml.v3 v3.0.1"
+status = "accept"
+provenance = "Offline spot-check vector for ordinary mapping, quoted expression, and literal script scalars; no copied source fixture."
+
+[[vector]]
+row = "ci-dialect-scalars"
+implementation = "PyYAML"
+version = "6.0.2"
+status = "accept"
+provenance = "Offline spot-check vector for ordinary mapping, quoted expression, and literal script scalars; no copied source fixture."
+
+[[vector]]
+row = "ci-dialect-scalars"
+implementation = "yaml-cpp"
+version = "0.8.0"
+status = "accept"
+provenance = "Offline spot-check vector for ordinary mapping, quoted expression, and literal script scalars; no copied source fixture."
+
+[[vector]]
+row = "anchors-and-merge"
+implementation = "go-yaml"
+version = "gopkg.in/yaml.v3 v3.0.1"
+status = "accept"
+provenance = "Offline spot-check vector for anchor, alias, and merge-key syntax acceptance; no copied source fixture."
+
+[[vector]]
+row = "anchors-and-merge"
+implementation = "PyYAML"
+version = "6.0.2"
+status = "accept"
+provenance = "Offline spot-check vector for anchor, alias, and merge-key syntax acceptance; no copied source fixture."
+
+[[vector]]
+row = "anchors-and-merge"
+implementation = "yaml-cpp"
+version = "0.8.0"
+status = "accept"
+provenance = "Offline spot-check vector for anchor, alias, and merge-key syntax acceptance; no copied source fixture."
+
+[[vector]]
+row = "document-streams"
+implementation = "go-yaml"
+version = "gopkg.in/yaml.v3 v3.0.1"
+status = "accept"
+provenance = "Offline spot-check vector for explicit multi-document stream acceptance; no copied source fixture."
+
+[[vector]]
+row = "document-streams"
+implementation = "PyYAML"
+version = "6.0.2"
+status = "accept"
+provenance = "Offline spot-check vector for explicit multi-document stream acceptance; no copied source fixture."
+
+[[vector]]
+row = "document-streams"
+implementation = "yaml-cpp"
+version = "0.8.0"
+status = "accept"
+provenance = "Offline spot-check vector for explicit multi-document stream acceptance; no copied source fixture."

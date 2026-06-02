@@ -14,7 +14,7 @@ Environment for the latest captured run:
 
 - Workspace: `/Users/jk/Desktop/yaml`
 - Reference crates: `yaml-rust2 0.11.0`, `saphyr 0.0.6`
-- Small fixture set: 27 files / 33 YAML documents / 19,727 bytes
+- Small fixture set: 33 files / 39 YAML documents / 25,362 bytes
 - Large fixture set: pinned downstream fixtures plus generated 1 MiB inputs
 - Captured: 2026-06-01 on the local `release` profile
 
@@ -65,6 +65,18 @@ large-input corpus while preserving the owning parser's spans and scalar-source
 behavior.
 
 ## Real-World Config Corpus
+
+Goal 05 corpus-expansion re-capture after adding CloudFormation/SAM, Symfony,
+GitLab CI, CircleCI, Azure Pipelines, and an additional reusable GitHub Actions
+workflow:
+
+| parser/load path | iterations | bytes per iteration | docs per iteration | elapsed ms | ns/byte |
+|---|---:|---:|---:|---:|---:|
+| `yaml::parse_documents` | 200 | 25,362 | 39 | 94.316 | 18.59 |
+| `yaml::from_documents_str::<Value>` | 200 | 25,362 | 39 | 127.839 | 25.20 |
+| `serde_yaml::Value` stream | 200 | 25,362 | 39 | 135.863 | 26.78 |
+| `yaml_rust2::YamlLoader` | 200 | 25,362 | 39 | 108.641 | 21.42 |
+| `saphyr::Yaml::load_from_str` | 200 | 25,362 | 39 | 100.915 | 19.89 |
 
 Same-turn pre-optimization baseline, captured before this milestone with the
 default 200 iterations:

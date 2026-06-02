@@ -465,6 +465,7 @@ fn real_world_lossless_graph_manifest_cases_match_reference_parser_events() {
             "docker-compose/adapted-compose-spec-fragments.yaml",
             "docker-compose/compose-anchors.yaml",
             "docker-compose/compose-polymorphic.yaml",
+            "gitlab-ci/basic-pipeline.yml",
         ])
     );
 

@@ -69,6 +69,25 @@ surface that this crate can or should emulate.
 | Arbitrary byte-identical libyaml emitter output | Not preservable | The default writer is structural. Byte-compatible output is only promised for the documented structural corpus. |
 | Comments, directives, anchors, and graph identity in semantic `Value` | Not preservable | Semantic loaders discard source formatting; use `LosslessStream` for source-backed replay and graph inspection. |
 
+## Reproducible loader matrix
+
+The table below is generated from
+`tests/fixtures/compatibility-matrix/manifest.toml` and checked by
+`tests/compatibility_matrix.rs`. Cross-ecosystem entries are pinned offline
+vectors; the Rust test validates their metadata and does not execute Go,
+Python, or C++ runtimes.
+
+<!-- compatibility-matrix:start -->
+| Behavior family | Proof source | `yaml` policy | `yaml` | `serde_yaml` | `serde_yml` | `serde_yaml_ng` | `yaml-rust2` | `saphyr` | Cross-ecosystem vector | Divergence / migration impact |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Typed Serde config entrypoints | tests/compatibility_matrix.rs typed AppConfig probe | YAML 1.2 default typed reads preserve common config scalars. | accept | accept | accept | accept | n/a | n/a | n/a | Serde-only Rust API row; parser-only loaders are intentionally marked n/a instead of given adapter shims. |
+| Registered real-world fixtures | tests/fixtures/real-world/SOURCE.toml, 33 files / 39 documents | Every registered fixture must parse with the five Rust reference loaders. | accept | accept | n/a | accept | accept | accept | n/a | Config migration smoke coverage includes CloudFormation/SAM, Symfony, GitLab CI, CircleCI, Azure Pipelines, GitHub Actions, Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and Ansible without compatibility fallbacks. |
+| CI expression and script scalars | GitHub Actions, CircleCI, and Azure Pipelines synthetic scalar shapes | Treat CI expressions as plain or quoted strings under the default schema. | accept | accept | accept | accept | accept | accept | go-yaml gopkg.in/yaml.v3 v3.0.1: accept<br>PyYAML 6.0.2: accept<br>yaml-cpp 0.8.0: accept | CI users can migrate expression-heavy config without enabling YAML 1.1 compatibility or expression-specific parsing. |
+| Anchors, aliases, and merge keys | GitLab CI-style defaults and merge expansion fixture | Semantic loaders expand acyclic merge keys; raw/lossless surfaces preserve anchor and merge syntax. | accept | accept | accept | accept | accept | accept | go-yaml gopkg.in/yaml.v3 v3.0.1: accept<br>PyYAML 6.0.2: accept<br>yaml-cpp 0.8.0: accept | tests/fixtures/divergences/records/merge-keys.toml; Graph-sensitive callers should use lossless graph APIs; semantic config callers get effective merged mappings. |
+| Application custom tags | CloudFormation/SAM and Symfony short-form tags | Retain application tags in this crate's Value/event/lossless surfaces while allowing common loader acceptance. | accept | accept | accept | accept | accept | accept | n/a | tests/fixtures/divergences/records/custom-tags.toml; Tagged config users should assert tag-retention behavior directly because some reference trees accept syntax while dropping or reshaping tag metadata. |
+| Multi-document streams | Kubernetes-style explicit document stream | Explicit stream boundaries are accepted and document counts stay stable. | accept | accept | n/a | accept | accept | accept | go-yaml gopkg.in/yaml.v3 v3.0.1: accept<br>PyYAML 6.0.2: accept<br>yaml-cpp 0.8.0: accept | Stream-processing callers should keep asserting document counts when migrating Kubernetes-style manifests. |
+<!-- compatibility-matrix:end -->
+
 | Area | Prototype policy | libyaml / YAML 1.1 paths | yaml-rust2 / saphyr | serde_yaml |
 |---|---|---|---|---|
 | YAML version | Numeric `%YAML` version directives are accepted as syntax metadata; scalar resolution remains YAML 1.2/core-config oriented unless the caller selects `LoadOptions::yaml_1_1()` or `LoadOptions::yaml_version_directive()` for per-document `%YAML 1.1` opt-in | Often YAML 1.1 heritage | Compare as YAML 1.2-oriented Rust parsers | Serde data model |
@@ -728,17 +747,19 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
 - Ansible-style playbooks, including `!vault` and `!unsafe` tagged values and
   raw event coverage for tag/style metadata
 - the real-world fixture registry in `tests/fixtures/real-world/SOURCE.toml`,
-  currently 27 files and 33 YAML documents, with per-fixture domain, source
+  currently 33 files and 39 YAML documents, with per-fixture domain, source
   type, version surface, license/redaction note, reduction note, expected
   document count, and gate coverage; every registered domain must include
-  non-synthetic upstream/adapted provenance, currently covering GitHub Actions,
-  Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and Ansible
+  non-synthetic upstream/adapted provenance or an explicit local synthetic
+  fixture note, currently covering GitHub Actions, Docker Compose, Kubernetes,
+  Helm, OpenAPI, Wrangler, Ansible, CloudFormation/SAM, Symfony, GitLab CI,
+  CircleCI, and Azure Pipelines
 - shared-reference acceptance for every registered real-world fixture against
   this crate, `serde_yaml` 0.9.34, `yaml-rust2` 0.11.0, and `saphyr` 0.0.6
   as pinned in `Cargo.toml`
 - normalized loaded-tree parity for the registered real-world fixtures against
-  `yaml-rust2` 0.11.0 and `saphyr` 0.0.6, covering the same GitHub Actions,
-  Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and Ansible fixture set
+  `yaml-rust2` 0.11.0 and `saphyr` 0.0.6, covering the same expanded
+  real-world fixture set
   used by event parity; Docker Compose merge-anchor fixtures compare reference
   loader trees after applying this crate's default merge-expansion policy
 - manifest-owned lossless replay checks for GitHub Actions comments,

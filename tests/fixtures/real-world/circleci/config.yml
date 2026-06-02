@@ -1,0 +1,36 @@
+version: 2.1
+orbs:
+  node: circleci/node@5.2.0
+executors:
+  rust:
+    docker:
+      - image: cimg/rust:1.85
+    resource_class: medium
+commands:
+  restore-deps:
+    steps:
+      - restore_cache:
+          keys:
+            - cargo-v1-{{ checksum "Cargo.lock" }}
+jobs:
+  test:
+    executor: rust
+    steps:
+      - checkout
+      - restore-deps
+      - run:
+          name: Test crate
+          command: |
+            cargo test --locked
+            cargo test --locked --test real_world_configs
+      - save_cache:
+          key: cargo-v1-{{ checksum "Cargo.lock" }}
+          paths:
+            - ~/.cargo/registry
+workflows:
+  build-and-test:
+    jobs:
+      - test:
+          filters:
+            branches:
+              only: [main, release]

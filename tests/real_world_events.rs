@@ -421,6 +421,158 @@ fn rw_events_ansible__explicit_boundaries_preserve_tags_and_styles() {
 }
 
 #[test]
+fn rw_events_goal05_cloudformation_symfony_and_ci_metadata() {
+    let cloudformation = include_str!("fixtures/real-world/cloudformation/sam-api.yaml");
+    let cloudformation_events = parse_events(cloudformation).expect("SAM events");
+    for expected_tag in ["Ref", "Sub", "GetAtt"] {
+        assert!(
+            cloudformation_events.iter().any(|event| {
+                matches!(
+                    event,
+                    Event::Scalar { meta, .. }
+                        if meta
+                            .tag
+                            .as_ref()
+                            .is_some_and(|tag| tag.tag == yaml::Tag::new(expected_tag))
+                )
+            }),
+            "SAM fixture should preserve !{expected_tag} tag"
+        );
+    }
+    assert!(cloudformation_events.iter().any(|event| {
+        matches!(
+            event,
+            Event::Scalar {
+                value,
+                style: ScalarStyle::Literal,
+                meta,
+                ..
+            } if value.contains("exports.handler")
+                && meta.tag.as_ref().is_some_and(|tag| tag.tag == yaml::Tag::new("Sub"))
+        )
+    }));
+
+    let symfony = include_str!("fixtures/real-world/symfony/services.yaml");
+    let symfony_events = parse_events(symfony).expect("Symfony events");
+    assert!(symfony_events.iter().any(|event| {
+        matches!(
+            event,
+            Event::Scalar {
+                value,
+                style: ScalarStyle::Plain,
+                meta,
+                ..
+            } if value == "app.health_check"
+                && meta
+                    .tag
+                    .as_ref()
+                    .is_some_and(|tag| tag.tag == yaml::Tag::new("tagged_iterator"))
+        )
+    }));
+    assert_scalar_at(
+        symfony,
+        &symfony_events,
+        "@cache.app",
+        ScalarStyle::SingleQuoted,
+        21,
+        15,
+        "'@cache.app'",
+    );
+
+    let gitlab = include_str!("fixtures/real-world/gitlab-ci/basic-pipeline.yml");
+    let gitlab_events = parse_events(gitlab).expect("GitLab CI events");
+    assert!(gitlab_events.iter().any(|event| {
+        matches!(
+            event,
+            Event::MappingStart { meta, .. }
+                if meta.anchor.as_ref().is_some_and(|anchor| anchor.name == "default_job")
+        )
+    }));
+    assert!(gitlab_events.iter().any(|event| {
+        matches!(
+            event,
+            Event::Alias { anchor } if anchor.name == "default_job"
+        )
+    }));
+    assert!(
+        gitlab_events
+            .iter()
+            .filter(|event| matches!(event, Event::Scalar { value, .. } if value == "<<"))
+            .count()
+            >= 2
+    );
+
+    let circle = include_str!("fixtures/real-world/circleci/config.yml");
+    let circle_events = parse_events(circle).expect("CircleCI events");
+    assert!(circle_events.iter().any(|event| {
+        matches!(
+            event,
+            Event::Scalar {
+                value,
+                style: ScalarStyle::Literal,
+                ..
+            } if value.contains("cargo test --locked --test real_world_configs")
+        )
+    }));
+    assert!(circle_events.iter().any(|event| {
+        matches!(
+            event,
+            Event::Scalar {
+                value,
+                style: ScalarStyle::Plain,
+                ..
+            } if value == "cargo-v1-{{ checksum \"Cargo.lock\" }}"
+        )
+    }));
+
+    let azure = include_str!("fixtures/real-world/azure-pipelines/azure-pipelines.yml");
+    let azure_events = parse_events(azure).expect("Azure Pipelines events");
+    assert!(azure_events.iter().any(|event| {
+        matches!(
+            event,
+            Event::Scalar {
+                value,
+                style: ScalarStyle::Literal,
+                ..
+            } if value.contains("rustup default $(toolchain)")
+        )
+    }));
+    assert!(azure_events.iter().any(|event| {
+        matches!(
+            event,
+            Event::Scalar {
+                value,
+                style: ScalarStyle::Plain,
+                ..
+            } if value == "${{ if eq(variables.isMain, true) }}"
+        )
+    }));
+
+    let github = include_str!("fixtures/real-world/github-actions/reusable-service-workflow.yaml");
+    let github_events = parse_events(github).expect("reusable GitHub Actions events");
+    assert!(github_events.iter().any(|event| {
+        matches!(
+            event,
+            Event::Scalar {
+                value,
+                style: ScalarStyle::Folded,
+                ..
+            } if value.contains("--health-cmd pg_isready")
+        )
+    }));
+    assert!(github_events.iter().any(|event| {
+        matches!(
+            event,
+            Event::Scalar {
+                value,
+                style: ScalarStyle::Plain,
+                ..
+            } if value == "${{ inputs.image-tag }}"
+        )
+    }));
+}
+
+#[test]
 fn rw_events_common_configs__source_spans_and_styles_are_stable() {
     let github = include_str!("fixtures/real-world/github-actions/matrix-ci.yaml");
     let github_events = parse_events(github).expect("GitHub Actions events");

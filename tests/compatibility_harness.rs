@@ -570,6 +570,11 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
         docs: 1,
     },
     Case {
+        name: "github_actions_reusable_service_workflow",
+        input: include_str!("fixtures/real-world/github-actions/reusable-service-workflow.yaml"),
+        docs: 1,
+    },
+    Case {
         name: "docker_compose",
         input: include_str!("fixtures/real-world/docker-compose/compose.yaml"),
         docs: 1,
@@ -671,6 +676,31 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
     Case {
         name: "wrangler_adapted_durable_objects",
         input: include_str!("fixtures/real-world/cloudflare/adapted-durable-objects-wrangler.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "cloudformation_sam_api",
+        input: include_str!("fixtures/real-world/cloudformation/sam-api.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "symfony_services",
+        input: include_str!("fixtures/real-world/symfony/services.yaml"),
+        docs: 1,
+    },
+    Case {
+        name: "gitlab_ci_basic_pipeline",
+        input: include_str!("fixtures/real-world/gitlab-ci/basic-pipeline.yml"),
+        docs: 1,
+    },
+    Case {
+        name: "circleci_config",
+        input: include_str!("fixtures/real-world/circleci/config.yml"),
+        docs: 1,
+    },
+    Case {
+        name: "azure_pipelines",
+        input: include_str!("fixtures/real-world/azure-pipelines/azure-pipelines.yml"),
         docs: 1,
     },
     Case {
@@ -1511,6 +1541,7 @@ const SHARED_ACCEPT_CASES: &[Case] = &[
 ];
 
 #[test]
+#[allow(deprecated)]
 fn compatibility_shared_acceptance_cases_parse_with_reference_crates() {
     for case in SHARED_ACCEPT_CASES {
         let ours = parse_documents(case.input)
@@ -1521,6 +1552,18 @@ fn compatibility_shared_acceptance_cases_parse_with_reference_crates() {
         assert_eq!(
             serde_docs, case.docs,
             "serde_yaml doc count for {}",
+            case.name
+        );
+
+        if case.docs == 1 {
+            serde_yml::from_str::<serde_yml::Value>(case.input)
+                .unwrap_or_else(|error| panic!("serde_yml failed {}: {error}", case.name));
+        }
+
+        let serde_yaml_ng_docs = serde_yaml_ng::Deserializer::from_str(case.input).count();
+        assert_eq!(
+            serde_yaml_ng_docs, case.docs,
+            "serde_yaml_ng doc count for {}",
             case.name
         );
 

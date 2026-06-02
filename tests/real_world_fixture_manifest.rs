@@ -30,7 +30,7 @@ struct FixtureRecord {
 fn real_world_fixture_manifest_covers_files_counts_and_reference_gates() {
     let manifest: FixtureManifest =
         toml::from_str(SOURCE).expect("real-world fixture source manifest parses");
-    assert_eq!(manifest.fixture.len(), 27);
+    assert_eq!(manifest.fixture.len(), 33);
 
     let root = Path::new(FIXTURE_ROOT);
     let manifest_paths: BTreeSet<_> = manifest
@@ -76,16 +76,21 @@ fn real_world_fixture_manifest_covers_files_counts_and_reference_gates() {
         }
     }
 
-    assert_eq!(total_docs, 33);
+    assert_eq!(total_docs, 39);
     assert_eq!(
         domain_counts,
         BTreeMap::from([
             ("ansible", 3),
+            ("azure-pipelines", 1),
+            ("circleci", 1),
+            ("cloudformation", 1),
             ("docker-compose", 6),
-            ("github-actions", 4),
+            ("github-actions", 5),
+            ("gitlab-ci", 1),
             ("helm", 3),
             ("kubernetes", 6),
             ("openapi", 3),
+            ("symfony", 1),
             ("wrangler", 2),
         ])
     );
@@ -126,6 +131,7 @@ fn real_world_fixture_manifest_covers_files_counts_and_reference_gates() {
             "docker-compose/adapted-compose-spec-fragments.yaml".to_owned(),
             "docker-compose/compose-anchors.yaml".to_owned(),
             "docker-compose/compose-polymorphic.yaml".to_owned(),
+            "gitlab-ci/basic-pipeline.yml".to_owned(),
         ])
     );
 }
@@ -206,11 +212,24 @@ fn assert_metadata_is_complete(fixture: &FixtureRecord) {
     }
 }
 
+#[allow(deprecated)]
 fn assert_shared_reference_acceptance(fixture: &FixtureRecord, input: &str) {
     let serde_docs = serde_yaml::Deserializer::from_str(input).count();
     assert_eq!(
         serde_docs, fixture.expected_docs,
         "serde_yaml document count for {}",
+        fixture.path
+    );
+
+    if fixture.expected_docs == 1 {
+        serde_yml::from_str::<serde_yml::Value>(input)
+            .unwrap_or_else(|error| panic!("serde_yml parses {}: {error}", fixture.path));
+    }
+
+    let serde_yaml_ng_docs = serde_yaml_ng::Deserializer::from_str(input).count();
+    assert_eq!(
+        serde_yaml_ng_docs, fixture.expected_docs,
+        "serde_yaml_ng document count for {}",
         fixture.path
     );
 

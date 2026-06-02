@@ -42,6 +42,13 @@ const FIXTURES: &[Fixture] = &[
         docs: 1,
     },
     Fixture {
+        path: "github-actions/reusable-service-workflow.yaml",
+        input: include_str!(
+            "../tests/fixtures/real-world/github-actions/reusable-service-workflow.yaml"
+        ),
+        docs: 1,
+    },
+    Fixture {
         path: "docker-compose/compose.yaml",
         input: include_str!("../tests/fixtures/real-world/docker-compose/compose.yaml"),
         docs: 1,
@@ -153,6 +160,31 @@ const FIXTURES: &[Fixture] = &[
         input: include_str!(
             "../tests/fixtures/real-world/cloudflare/adapted-durable-objects-wrangler.yaml"
         ),
+        docs: 1,
+    },
+    Fixture {
+        path: "cloudformation/sam-api.yaml",
+        input: include_str!("../tests/fixtures/real-world/cloudformation/sam-api.yaml"),
+        docs: 1,
+    },
+    Fixture {
+        path: "symfony/services.yaml",
+        input: include_str!("../tests/fixtures/real-world/symfony/services.yaml"),
+        docs: 1,
+    },
+    Fixture {
+        path: "gitlab-ci/basic-pipeline.yml",
+        input: include_str!("../tests/fixtures/real-world/gitlab-ci/basic-pipeline.yml"),
+        docs: 1,
+    },
+    Fixture {
+        path: "circleci/config.yml",
+        input: include_str!("../tests/fixtures/real-world/circleci/config.yml"),
+        docs: 1,
+    },
+    Fixture {
+        path: "azure-pipelines/azure-pipelines.yml",
+        input: include_str!("../tests/fixtures/real-world/azure-pipelines/azure-pipelines.yml"),
         docs: 1,
     },
     Fixture {

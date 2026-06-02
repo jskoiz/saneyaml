@@ -1267,6 +1267,10 @@ const REAL_WORLD_TREE_CASES: &[TreeCase] = &[
         input: include_str!("fixtures/real-world/github-actions/polymorphic-workflow.yaml"),
     },
     TreeCase {
+        name: "github_actions_reusable_service_workflow",
+        input: include_str!("fixtures/real-world/github-actions/reusable-service-workflow.yaml"),
+    },
+    TreeCase {
         name: "docker_compose",
         input: include_str!("fixtures/real-world/docker-compose/compose.yaml"),
     },
@@ -1349,6 +1353,26 @@ const REAL_WORLD_TREE_CASES: &[TreeCase] = &[
     TreeCase {
         name: "wrangler_adapted_durable_objects",
         input: include_str!("fixtures/real-world/cloudflare/adapted-durable-objects-wrangler.yaml"),
+    },
+    TreeCase {
+        name: "cloudformation_sam_api",
+        input: include_str!("fixtures/real-world/cloudformation/sam-api.yaml"),
+    },
+    TreeCase {
+        name: "symfony_services",
+        input: include_str!("fixtures/real-world/symfony/services.yaml"),
+    },
+    TreeCase {
+        name: "gitlab_ci_basic_pipeline",
+        input: include_str!("fixtures/real-world/gitlab-ci/basic-pipeline.yml"),
+    },
+    TreeCase {
+        name: "circleci_config",
+        input: include_str!("fixtures/real-world/circleci/config.yml"),
+    },
+    TreeCase {
+        name: "azure_pipelines",
+        input: include_str!("fixtures/real-world/azure-pipelines/azure-pipelines.yml"),
     },
     TreeCase {
         name: "ansible_playbook",

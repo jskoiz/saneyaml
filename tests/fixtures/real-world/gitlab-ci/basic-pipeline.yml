@@ -1,0 +1,30 @@
+stages: [lint, test, deploy]
+variables:
+  DOCKER_TLS_CERTDIR: disabled
+  CARGO_TERM_COLOR: always
+.default_job: &default_job
+  image: rust:1.85
+  before_script:
+    - rustc --version
+    - cargo --version
+lint:
+  <<: *default_job
+  stage: lint
+  script:
+    - cargo fmt --all -- --check
+    - cargo clippy --all-targets -- -D warnings
+test:
+  <<: *default_job
+  stage: test
+  parallel:
+    matrix:
+      - FEATURES: [default, serde]
+  script:
+    - cargo test --locked --features "$FEATURES"
+deploy:
+  stage: deploy
+  image: alpine:3.20
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  script:
+    - echo "deploy ${CI_COMMIT_SHA}"

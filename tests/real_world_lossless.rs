@@ -30,13 +30,18 @@ fn real_world_lossless_replay_gate_is_manifest_owned() {
         lossless_paths,
         BTreeSet::from([
             "ansible/vault-and-unsafe-tags.yaml",
+            "azure-pipelines/azure-pipelines.yml",
+            "circleci/config.yml",
             "cloudflare/wrangler.yaml",
+            "cloudformation/sam-api.yaml",
             "docker-compose/awesome-nginx-flask-mysql.yaml",
+            "github-actions/reusable-service-workflow.yaml",
             "github-actions/starter-node-ci.yml",
             "helm/upstream-hello-world-Chart.yaml",
             "kubernetes/configmap-block-scalars.yaml",
             "kubernetes/helm-rendered-stream.yaml",
             "openapi/operations-and-polymorphism.yaml",
+            "symfony/services.yaml",
         ])
     );
 

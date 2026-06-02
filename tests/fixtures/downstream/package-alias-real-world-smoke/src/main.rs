@@ -11,6 +11,7 @@ const REAL_WORLD_FIXTURE_PATHS: &[&str] = &[
     "github-actions/matrix-ci.yaml",
     "github-actions/starter-node-ci.yml",
     "github-actions/polymorphic-workflow.yaml",
+    "github-actions/reusable-service-workflow.yaml",
     "docker-compose/compose.yaml",
     "docker-compose/awesome-nginx-flask-mysql.yaml",
     "docker-compose/compose-anchors.yaml",
@@ -34,6 +35,11 @@ const REAL_WORLD_FIXTURE_PATHS: &[&str] = &[
     "ansible/playbook.yaml",
     "ansible/upstream-lamp-simple-site.yml",
     "ansible/vault-and-unsafe-tags.yaml",
+    "cloudformation/sam-api.yaml",
+    "symfony/services.yaml",
+    "gitlab-ci/basic-pipeline.yml",
+    "circleci/config.yml",
+    "azure-pipelines/azure-pipelines.yml",
 ];
 
 #[derive(Debug, Deserialize)]
@@ -307,6 +313,7 @@ struct CopyTask {
 fn main() {
     manifest_fixtures_parse_through_package_alias();
     github_actions_matrix_uses_package_alias();
+    github_actions_reusable_service_workflow_reads_through_package_alias();
     docker_compose_merge_anchor_expands_through_package_alias();
     kubernetes_stream_uses_package_alias_deserializer();
     kubernetes_crd_schema_reads_through_package_alias();
@@ -319,6 +326,11 @@ fn main() {
     wrangler_durable_objects_read_through_package_alias();
     ansible_playbook_reads_through_package_alias();
     ansible_vault_and_unsafe_tags_read_through_package_alias();
+    cloudformation_sam_tags_read_through_package_alias();
+    symfony_services_read_through_package_alias();
+    gitlab_ci_merge_defaults_read_through_package_alias();
+    circleci_config_reads_through_package_alias();
+    azure_pipelines_reads_through_package_alias();
 }
 
 fn manifest_fixtures_parse_through_package_alias() {
@@ -334,7 +346,7 @@ fn manifest_fixtures_parse_through_package_alias() {
         .copied()
         .collect::<BTreeSet<_>>();
     assert_eq!(manifest_paths, expected_paths);
-    assert_eq!(manifest.fixture.len(), 27);
+    assert_eq!(manifest.fixture.len(), 33);
 
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/real-world");
     let mut domains = BTreeSet::new();
@@ -351,16 +363,21 @@ fn manifest_fixtures_parse_through_package_alias() {
         total_docs += docs.len();
     }
 
-    assert_eq!(total_docs, 33);
+    assert_eq!(total_docs, 39);
     assert_eq!(
         domains,
         BTreeSet::from([
             "ansible",
+            "azure-pipelines",
+            "circleci",
+            "cloudformation",
             "docker-compose",
             "github-actions",
+            "gitlab-ci",
             "helm",
             "kubernetes",
             "openapi",
+            "symfony",
             "wrangler",
         ])
     );
@@ -399,6 +416,30 @@ fn github_actions_matrix_uses_package_alias() {
     assert_eq!(job.strategy.matrix.node_version, [20, 22]);
     assert!(job.strategy.matrix.include[0].coverage);
     assert_eq!(job.steps[1].with.as_ref().unwrap()["cache"], "npm");
+}
+
+fn github_actions_reusable_service_workflow_reads_through_package_alias() {
+    let input =
+        include_str!("../fixtures/real-world/github-actions/reusable-service-workflow.yaml");
+    let value: serde_yaml::Value = serde_yaml::from_str(input).expect("reusable workflow parses");
+    assert_eq!(
+        value["on"]["workflow_call"]["inputs"]["image-tag"]["type"].as_str(),
+        Some("string")
+    );
+    assert_eq!(
+        value["jobs"]["integration"]["services"]["postgres"]["ports"][0].as_str(),
+        Some("5432:5432")
+    );
+    assert!(
+        value["jobs"]["integration"]["services"]["postgres"]["options"]
+            .as_str()
+            .expect("service options")
+            .contains("--health-cmd pg_isready")
+    );
+    assert_eq!(
+        value["jobs"]["integration"]["steps"][2]["env"]["IMAGE_TAG"].as_str(),
+        Some("${{ inputs.image-tag }}")
+    );
 }
 
 fn docker_compose_merge_anchor_expands_through_package_alias() {
@@ -582,6 +623,118 @@ fn wrangler_durable_objects_read_through_package_alias() {
     assert_eq!(
         wrangler.migrations[0].new_sqlite_classes,
         ["SQLiteDurableObject"]
+    );
+}
+
+fn cloudformation_sam_tags_read_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/cloudformation/sam-api.yaml");
+    let value: serde_yaml::Value = serde_yaml::from_str(input).expect("SAM template parses");
+    assert_eq!(
+        value["Transform"].as_str(),
+        Some("AWS::Serverless-2016-10-31")
+    );
+    let table_ref = value["Resources"]["Function"]["Properties"]["Environment"]["Variables"]
+        ["TABLE_NAME"]
+        .as_tagged()
+        .expect("TABLE_NAME !Ref tag");
+    assert_eq!(table_ref.tag, serde_yaml::Tag::new("Ref"));
+    assert_eq!(table_ref.value.as_str(), Some("Table"));
+    let inline_code = value["Resources"]["Function"]["Properties"]["InlineCode"]
+        .as_tagged()
+        .expect("InlineCode !Sub tag");
+    assert_eq!(inline_code.tag, serde_yaml::Tag::new("Sub"));
+    assert!(
+        inline_code
+            .value
+            .as_str()
+            .expect("inline code")
+            .contains("exports.handler")
+    );
+    let function_arn = value["Outputs"]["FunctionArn"]["Value"]
+        .as_tagged()
+        .expect("FunctionArn !GetAtt tag");
+    assert_eq!(function_arn.tag, serde_yaml::Tag::new("GetAtt"));
+    assert_eq!(function_arn.value.as_str(), Some("Function.Arn"));
+}
+
+fn symfony_services_read_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/symfony/services.yaml");
+    let value: serde_yaml::Value = serde_yaml::from_str(input).expect("Symfony services parse");
+    assert_eq!(
+        value["parameters"]["app.secret"].as_str(),
+        Some("%env(APP_SECRET)%")
+    );
+    assert_eq!(
+        value["services"]["_defaults"]["bind"]["string $projectDir"].as_str(),
+        Some("%kernel.project_dir%")
+    );
+    assert_eq!(
+        value["services"]["App\\"]["exclude"][1].as_str(),
+        Some("../src/Entity/")
+    );
+    let iterator = value["services"]["App\\Controller\\HealthController"]["arguments"]
+        ["$iterator"]
+        .as_tagged()
+        .expect("Symfony tagged iterator");
+    assert_eq!(iterator.tag, serde_yaml::Tag::new("tagged_iterator"));
+    assert_eq!(iterator.value.as_str(), Some("app.health_check"));
+}
+
+fn gitlab_ci_merge_defaults_read_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/gitlab-ci/basic-pipeline.yml");
+    let value: serde_yaml::Value = serde_yaml::from_str(input).expect("GitLab CI parses");
+    assert_eq!(value["stages"][2].as_str(), Some("deploy"));
+    assert_eq!(value["lint"]["image"].as_str(), Some("rust:1.85"));
+    assert!(value["lint"]["<<"].is_null());
+    assert_eq!(
+        value["test"]["parallel"]["matrix"][0]["FEATURES"][1].as_str(),
+        Some("serde")
+    );
+    assert_eq!(
+        value["deploy"]["rules"][0]["if"].as_str(),
+        Some("$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH")
+    );
+}
+
+fn circleci_config_reads_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/circleci/config.yml");
+    let value: serde_yaml::Value = serde_yaml::from_str(input).expect("CircleCI config parses");
+    assert_eq!(
+        value["orbs"]["node"].as_str(),
+        Some("circleci/node@5.2.0")
+    );
+    assert_eq!(
+        value["executors"]["rust"]["docker"][0]["image"].as_str(),
+        Some("cimg/rust:1.85")
+    );
+    assert!(
+        value["jobs"]["test"]["steps"][2]["run"]["command"]
+            .as_str()
+            .expect("CircleCI command")
+            .contains("real_world_configs")
+    );
+}
+
+fn azure_pipelines_reads_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/azure-pipelines/azure-pipelines.yml");
+    let value: serde_yaml::Value = serde_yaml::from_str(input).expect("Azure Pipelines parses");
+    assert_eq!(
+        value["trigger"]["branches"]["include"][1].as_str(),
+        Some("releases/*")
+    );
+    assert_eq!(
+        value["variables"]["isMain"].as_str(),
+        Some("$[eq(variables['Build.SourceBranch'], 'refs/heads/main')]")
+    );
+    assert_eq!(
+        value["stages"][0]["jobs"][0]["strategy"]["matrix"]["beta"]["toolchain"].as_str(),
+        Some("beta")
+    );
+    assert!(
+        value["stages"][0]["jobs"][0]["steps"][0]["script"]
+            .as_str()
+            .expect("Azure script")
+            .contains("cargo test --locked")
     );
 }
 

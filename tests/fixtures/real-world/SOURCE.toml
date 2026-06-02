@@ -294,3 +294,69 @@ license = "Local test fixture; no copied production data."
 reduction = "Tagged value fixture preserving vault block scalar and unsafe template tags."
 expected_docs = 1
 gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance", "lossless-replay"]
+
+[[fixture]]
+path = "cloudformation/sam-api.yaml"
+domain = "cloudformation"
+source_type = "synthetic"
+source = "Locally synthesized from AWS CloudFormation and AWS SAM template conventions."
+version = "AWS CloudFormation/SAM template syntax, 2026-06 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "SAM API fixture preserving Transform, Serverless resource types, short-form intrinsic tags, tagged folded and literal scalars, policies, events, and outputs."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance", "lossless-replay"]
+
+[[fixture]]
+path = "symfony/services.yaml"
+domain = "symfony"
+source_type = "synthetic"
+source = "Locally synthesized from Symfony services.yaml and package configuration conventions."
+version = "Symfony service container YAML, 2026-06 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "Service-container fixture preserving parameters, _defaults, _instanceof, backslash service ids, quoted env/service references, service tags, calls, decoration, and a custom tagged iterator scalar."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance", "lossless-replay"]
+
+[[fixture]]
+path = "gitlab-ci/basic-pipeline.yml"
+domain = "gitlab-ci"
+source_type = "synthetic"
+source = "Locally synthesized from GitLab CI pipeline syntax conventions."
+version = "GitLab CI YAML, 2026-06 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "CI fixture preserving stages, hidden default jobs, anchors, aliases, merge keys, matrix-like parallel entries, rules expressions, and script lists."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance", "lossless-graph"]
+
+[[fixture]]
+path = "circleci/config.yml"
+domain = "circleci"
+source_type = "synthetic"
+source = "Locally synthesized from CircleCI config.yml conventions."
+version = "CircleCI 2.1 configuration YAML, 2026-06 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "CI fixture preserving orbs, executors, commands, restore/save cache keys with template expressions, workflows, filters, and literal block scalar run commands."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance", "lossless-replay"]
+
+[[fixture]]
+path = "azure-pipelines/azure-pipelines.yml"
+domain = "azure-pipelines"
+source_type = "synthetic"
+source = "Locally synthesized from Azure Pipelines YAML conventions."
+version = "Azure Pipelines YAML, 2026-06 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "CI fixture preserving trigger/pr branch filters, variable expressions, stages, matrix strategy, template expressions, and block scalar script steps."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance", "lossless-replay"]
+
+[[fixture]]
+path = "github-actions/reusable-service-workflow.yaml"
+domain = "github-actions"
+source_type = "synthetic"
+source = "Locally synthesized from GitHub Actions reusable workflow and service-container conventions."
+version = "GitHub Actions workflow syntax, 2026-06 fixture surface"
+license = "Local test fixture; no copied production data."
+reduction = "Reusable workflow fixture preserving workflow_call inputs/secrets, concurrency expressions, service containers, folded block scalar options, and literal block scalar run steps."
+expected_docs = 1
+gates = ["typed-config", "event-parity", "tree-parity", "parser-properties", "shared-reference-acceptance", "lossless-replay"]

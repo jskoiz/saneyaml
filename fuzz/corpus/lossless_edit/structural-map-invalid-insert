@@ -1,0 +1,6 @@
+mode=map-insert index=0
+service:
+  image: nginx:latest
+=== yaml replacement ===
+one: 1
+two: 2

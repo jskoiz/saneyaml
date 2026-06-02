@@ -1,0 +1,5 @@
+first: &first {shared: first, a: 1}
+second: &second {shared: second, b: 2}
+target:
+  <<: [*first, *second]
+  shared: explicit

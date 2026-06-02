@@ -1,0 +1,6 @@
+# Force LF on checkout for text files so fixtures and tests behave identically
+# on Windows (CRLF checkouts previously broke source-replay assertions).
+* text=auto eol=lf
+
+# Fuzz corpus inputs are byte-exact; never normalize their line endings.
+fuzz/corpus/** -text

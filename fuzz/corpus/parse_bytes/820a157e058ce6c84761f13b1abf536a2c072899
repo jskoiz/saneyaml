@@ -1,0 +1,10 @@
+version: "3.9"
+services:
+  api:
+   image: ghcr.io/example/api:0.2.3
+    platform: linu|/amd64
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M

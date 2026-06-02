@@ -1,0 +1,4 @@
+defaults: &defaults
+  retries: 3
+  timeout: 10
+job: *defaults

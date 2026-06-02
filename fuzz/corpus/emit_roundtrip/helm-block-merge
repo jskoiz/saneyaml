@@ -1,0 +1,9 @@
+defaults: &defaults
+  image: example/app:latest
+  resources:
+    limits: {cpu: "500m", memory: "256Mi"}
+deployment:
+  <<: *defaults
+  script: |
+    set -e
+    echo deploy

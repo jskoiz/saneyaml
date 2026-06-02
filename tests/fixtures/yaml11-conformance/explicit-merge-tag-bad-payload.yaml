@@ -1,0 +1,4 @@
+base: &base {image: app:v1}
+service:
+  !!merge <<: scalar
+  image: app:bad

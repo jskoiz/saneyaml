@@ -1,0 +1,8 @@
+%TAG !y! tag:yaml.org,2002:
+---
+set: !y!set {admin: null, operator: null}
+omap: !y!omap [{first: 1}, {second: 2}]
+pairs: !y!pairs [{repeat: 1}, {repeat: 2}]
+seq: !y!seq [1, 2]
+map: !y!map {limit: 10}
+value: !y!value =

@@ -1,0 +1,6 @@
+base: &base {retries: 3, timeout: 10}
+jobs:
+  - name: build
+    config:
+      <<: *base
+      timeout: 20

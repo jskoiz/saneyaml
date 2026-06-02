@@ -1,0 +1,8 @@
+case = "empty-implicit-keys"
+policy = "YAML 1.2 empty implicit mapping keys are accepted with null-key tree semantics"
+prototype = "Accepts YAML-suite S3PD, CFD4, M2N8/00, and UKK6/00 as YAML 1.2 empty implicit key forms. Tree loading keeps the resulting key as null, while raw event parity now emits the compact explicit mapping's missing null value event for M2N8/00."
+serde_yaml = "serde_yaml 0.9.34 rejects S3PD, CFD4, M2N8/00, and UKK6/00 through libyaml empty-key parsing."
+yaml_rust2 = "yaml-rust2 0.11.0 accepts S3PD, CFD4, M2N8/00, and UKK6/00, with an event-shape difference for M2N8/00."
+saphyr = "saphyr 0.0.6 accepts S3PD, CFD4, M2N8/00, and UKK6/00, with an event-shape difference for M2N8/00."
+decision = "Keep the YAML 1.2 Rust-reference behavior for tree loading and include M2N8/00 in normalized event parity by emitting the same null value event shape as yaml-rust2 and saphyr. Keep M2N8/00 out of shared-reference parity because serde_yaml/libyaml rejects this empty-key form."
+migration_impact = "Migration impact: callers moving from serde_yaml may newly accept YAML 1.2 empty-key forms, so migration tests should verify null-key semantics explicitly."

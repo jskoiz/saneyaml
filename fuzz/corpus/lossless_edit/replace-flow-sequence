@@ -1,0 +1,6 @@
+mode=node index=4
+root:
+  list: [one, two, three] # keep
+  other: yes
+=== yaml replacement ===
+[alpha, beta, gamma]

@@ -1,0 +1,2 @@
+scalar: &scalar scalar-key
+root: {? *scalar : ali

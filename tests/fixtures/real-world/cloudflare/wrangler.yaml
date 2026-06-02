@@ -1,0 +1,14 @@
+name: yaml-demo
+main: src/index.ts
+# Cloudflare Worker runtime settings stay string-shaped.
+compatibility_date: "2026-05-23"
+compatibility_flags: [nodejs_compat]
+vars:
+  ENVIRONMENT: production
+routes:
+  - pattern: example.com/*
+    zone_name: example.com
+d1_databases:
+  - binding: DB
+    database_name: yaml-demo
+    database_id: 00000000-0000-0000-0000-000000000000

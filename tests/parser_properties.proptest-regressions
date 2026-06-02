@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 5fd08a78c112ed73e74cec5187a7d1613f7b3674dd43c298865f0b2c356800a5 # shrinks to node = Node { value: Tagged(TaggedNode { tag: Tag { handle: "!!", suffix: "str" }, tag_span: Span { start: 0, end: 0, line: 0, column: 0 }, value: Node { value: Null, span: Span { start: 0, end: 0, line: 0, column: 0 }, source: None } }), span: Span { start: 0, end: 0, line: 0, column: 0 }, source: None }
+cc 1044bf751a16da6a0f1054caf0827845aed6834e7da4aff54565db753f167253 # shrinks to node = Node { value: Mapping([(Node { value: Sequence([]), span: Span { start: 0, end: 0, line: 0, column: 0 }, source: None }, Node { value: Mapping([(Node { value: Tagged(TaggedNode { tag: Tag { handle: "!", suffix: "Thing" }, tag_span: Span { start: 0, end: 0, line: 0, column: 0 }, value: Node { value: String("A"), span: Span { start: 0, end: 0, line: 0, column: 0 }, source: None } }), span: Span { start: 0, end: 0, line: 0, column: 0 }, source: None }, Node { value: Null, span: Span { start: 0, end: 0, line: 0, column: 0 }, source: None })]), span: Span { start: 0, end: 0, line: 0, column: 0 }, source: None })]), span: Span { start: 0, end: 0, line: 0, column: 0 }, source: None }

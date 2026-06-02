@@ -1,0 +1,6 @@
+a: &a one
+b: &b two
+? *a
+: first
+? *b
+: second

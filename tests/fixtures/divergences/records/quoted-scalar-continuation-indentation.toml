@@ -1,0 +1,7 @@
+case = "quoted-scalar-continuation-indentation"
+policy = "YAML 1.2 quoted scalar continuation indentation"
+prototype = "Rejects YAML-suite QB6E, where a multiline quoted mapping value continues at the parent mapping indentation; DK95/01, where a tab is used as indentation-looking content for a multiline quoted mapping value; and DK95/06, where a tab is used as indentation-looking content under a nested mapping. parse_events rejects the same inputs because the malformed continuation is syntax, not loader policy."
+serde_yaml_libyaml = "serde_yaml 0.9.34 accepts YAML-suite QB6E and DK95/01 but rejects DK95/06 with a tab-character scanner diagnostic."
+yaml_rust2_saphyr = "yaml-rust2 0.11.0 and saphyr 0.0.6 reject these YAML-suite error fixtures."
+decision = "Reject under-indented and tab-indented multiline quoted scalar continuations to follow YAML 1.2 conformance and the Rust parser compatibility target. Do not add a serde_yaml compatibility bridge for these malformed inputs."
+migration_impact = "Migration impact: migrations from permissive serde_yaml/libyaml paths may fail malformed quoted continuations, and callers should repair indentation rather than rely on tolerance."

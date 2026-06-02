@@ -1,0 +1,4 @@
+root:
+  ? !Thing &a tagged-key
+  : first
+alias_value: *a

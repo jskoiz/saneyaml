@@ -1,0 +1,6 @@
+case = "alias-graph-identity"
+policy = "libyaml alias graph identity divergence"
+prototype = "Semantic Node and Value loading expands acyclic aliases into cloned values and rejects recursive aliases. LosslessStream preserves alias-to-anchor identity with stable graph ids, anchor redefinitions, raw merge alias references, recursive alias references, and post-edit graph parity for graph-sensitive callers."
+libyaml = "Ruby Psych 3.1.0/libyaml 0.2.1 constructs aliases as shared Ruby object identity: mutating one alias-visible mapping is visible through a sibling alias, anchor redefinition points later aliases at later definitions, and recursive aliases reference the containing object."
+decision = "Keep semantic loaders value-oriented and non-graph-preserving as the final contract; use LosslessStream for graph-sensitive migration and document the divergence instead of copying libyaml object identity into Node or Value."
+migration_impact = "Migration impact: callers relying on libyaml shared alias object identity, recursive aliases, or mutation through aliases must migrate those flows to LosslessStream or an explicit graph-aware layer rather than semantic Node or Value."

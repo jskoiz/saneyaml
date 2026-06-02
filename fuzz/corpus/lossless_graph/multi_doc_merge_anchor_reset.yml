@@ -1,0 +1,13 @@
+---
+# first document anchor scope
+base: &base {name: first, enabled: true}
+item:
+  <<: *base
+  role: api
+...
+---
+# second document reuses the anchor name with a new target
+base: &base
+  name: second
+  enabled: false
+item: *base

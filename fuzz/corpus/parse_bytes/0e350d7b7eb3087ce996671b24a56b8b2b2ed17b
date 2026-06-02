@@ -1,0 +1,6 @@
+a!"#$%&'(z{|}~: safe
+?foo: safe question mark
+:foo: safe colon
+-foo: safe dash
+this is#not: a commedash
+this is#not: a comment

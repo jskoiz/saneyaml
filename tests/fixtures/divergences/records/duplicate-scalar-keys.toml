@@ -1,0 +1,8 @@
+case = "duplicate-scalar-keys"
+policy = "config safety duplicate scalar key rejection"
+prototype = "Tree loading rejects duplicate resolved scalar mapping keys at any nesting depth and reports the duplicate span plus a related previous-key span. parse_events exposes duplicate keys as raw events because duplicate-key detection is a tree-loader policy."
+serde_yaml = "serde_yaml 0.9.34 rejects duplicate scalar keys, including nested config keys such as env.FEATURE_FLAG and services.web.image."
+libyaml = "Ruby Psych 3.1.0/libyaml 0.2.1 silently keeps the later value for duplicate scalar keys, so env.FEATURE_FLAG false then true constructs true, and services.web.image nginx then redis constructs redis. YAML 1.1 scalar resolution can also collapse on and yes to boolean true, 010 and 8 to the same integer, 0.0 and -0.0 to the same float key, and alias-expanded keys to the same constructed key, causing last-wins key loss."
+yaml_rust2_saphyr = "Collection-key duplicate behavior is recorded separately in complex-key-duplicate-policy. This record is about ordinary scalar keys in common config maps."
+decision = "Keep strict duplicate scalar key rejection with spans for adoption-grade config safety. Do not add libyaml/Psych last-wins compatibility."
+migration_impact = "Migration impact: migrations from last-wins YAML loaders may fail on duplicate config keys by design, including YAML 1.1 alias-expanded, boolean, numeric, and signed-zero collisions, with spans guiding users to repair ambiguous input."

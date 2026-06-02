@@ -1,0 +1,7 @@
+case = "yaml-suite-stream-marker-shared-deferrals"
+policy = "Keep remaining YAML-suite stream marker and empty-key document-shape shared-reference deferrals explicit."
+prototype = "YAML-suite 7Z25, HWV9, NHX8, QT73, and SM9W/01 remain accepted by this crate and covered by event/tree/Serde gates. They exercise bare content after document-end markers, document-end-only streams, comments before document end, empty lines at document tail, and single-character empty-key streams."
+serde_yaml = "serde_yaml 0.9.34/libyaml rejects or diverges on these selected stream-marker or empty-key document shapes, while this crate preserves parser acceptance and exact raw-event spans where markers are present."
+yaml_rust2_saphyr = "yaml-rust2 0.11.0 and saphyr 0.0.6 provide parser/tree comparison context for the selected accepted cases; empty/comment-only null-document API splits remain in yaml-suite-null-document-counts instead of this record."
+decision = "Keep 7Z25, HWV9, NHX8, QT73, and SM9W/01 selected as accepted while deferring shared-reference parity until the project intentionally changes stream/document-marker or empty-key reference policy."
+migration_impact = "Migration impact: callers relying on document-end markers or empty-key document shapes should test this crate's accepted YAML-suite behavior directly rather than treating serde_yaml/libyaml rejection as the compatibility contract."

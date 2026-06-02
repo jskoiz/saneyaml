@@ -1,0 +1,6 @@
+---
+defaults: &defaults
+  port: !Port 8080
+service: *œš™Š“‹”
+---
+bad: *missing

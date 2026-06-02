@@ -1,0 +1,84 @@
+[package]
+name = "yaml-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9.34"
+saneyaml = { path = ".." }
+
+[[bin]]
+name = "parse_bytes"
+path = "fuzz_targets/parse_bytes.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "serde_entrypoints"
+path = "fuzz_targets/serde_entrypoints.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "serde_serializer"
+path = "fuzz_targets/serde_serializer.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "event_stream"
+path = "fuzz_targets/event_stream.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "streaming_parse"
+path = "fuzz_targets/streaming_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "emit_roundtrip"
+path = "fuzz_targets/emit_roundtrip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "apply_merge"
+path = "fuzz_targets/apply_merge.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "schema_modes"
+path = "fuzz_targets/schema_modes.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "lossless_graph"
+path = "fuzz_targets/lossless_graph.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "lossless_edit"
+path = "fuzz_targets/lossless_edit.rs"
+test = false
+doc = false
+bench = false

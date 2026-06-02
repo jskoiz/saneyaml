@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yaml-demo
+  labels:
+    app: yaml-demo
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: yaml-demo
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.25
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi

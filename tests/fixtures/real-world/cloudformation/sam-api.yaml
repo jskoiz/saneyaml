@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Synthetic SAM API exercising short-form CloudFormation intrinsic tags.
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 10
+    MemorySize: 256
+Resources:
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Variables:
+        TABLE_NAME: !Ref Table
+  Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handler.main
+      CodeUri: src/
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Table
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Table
+          API_URL: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/Prod"
+      Events:
+        GetItem:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /items/{id}
+            Method: get
+      InlineCode: !Sub |
+        exports.handler = async () => {
+          return { statusCode: 200, body: "${AWS::StackName}" };
+        };
+  Table:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+  Permission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt Function.Arn
+      Principal: apigateway.amazonaws.com
+Outputs:
+  ApiEndpoint:
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/Prod"
+  FunctionArn:
+    Value: !GetAtt Function.Arn

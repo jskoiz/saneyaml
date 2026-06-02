@@ -1,0 +1,45 @@
+name: Matrix CI
+on:
+  push:
+    branches:
+      - main
+      - release/**
+    paths:
+      - src/**
+      - Cargo.toml
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Skip publish steps
+        required: false
+        default: "false"
+permissions:
+  contents: read
+  id-token: write
+env:
+  CARGO_TERM_COLOR: always
+jobs:
+  test:
+    name: Test ${{ matrix.os }} / Node ${{ matrix.node-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node-version: [20, 22]
+        include:
+          - os: ubuntu-latest
+            node-version: "22"
+            coverage: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Test
+        if: ${{ matrix.coverage == true }}
+        run: npm test -- --coverage

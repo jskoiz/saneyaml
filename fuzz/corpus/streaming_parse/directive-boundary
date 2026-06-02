@@ -1,0 +1,5 @@
+%TAG !e! tag:example.com,2026:
+---
+root: !e!Thing [x, &y y, *y]
+---
+plain: value

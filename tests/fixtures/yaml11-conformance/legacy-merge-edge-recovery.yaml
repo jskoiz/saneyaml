@@ -1,0 +1,36 @@
+%YAML 1.1
+---
+first: &first
+  shared: first
+  image: app:first
+  retries: 3
+second: &second
+  shared: second
+  image: app:second
+  timeout: 10
+repeated_merge:
+  <<: *first
+  <<: *second
+  keep: value
+repeated_tagged_merge:
+  !!merge <<: *first
+  !<tag:yaml.org,2002:merge> <<: *second
+  keep: value
+override_merge:
+  <<: *first
+  <<: *second
+  shared: explicit
+  keep: value
+scalar_merge:
+  <<: scalar
+  keep: value
+tagged_scalar_merge:
+  !!merge <<: literal
+  keep: value
+sequence_scalar_merge:
+  <<: [scalar]
+  keep: value
+literal_and_merge:
+  !!str <<: literal
+  <<: *first
+  image: explicit

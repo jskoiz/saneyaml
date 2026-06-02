@@ -1,0 +1,6 @@
+%YAML 1.1
+%TAG !yaml! tag:yaml.org,2002:
+---
+set: !yaml!set {alpha: null, beta: null}
+omap: !yaml!omap [{first: 1}, {second: 2}]
+pairs: !yaml!pairs [{repeat: 1}, {repeat: 2}]

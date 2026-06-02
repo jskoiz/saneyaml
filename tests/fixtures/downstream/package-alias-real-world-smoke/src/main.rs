@@ -1,0 +1,789 @@
+#![allow(dead_code)]
+
+use serde::Deserialize;
+use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
+use std::path::{Path, PathBuf};
+
+const REAL_WORLD_SOURCE: &str = include_str!("../fixtures/real-world/SOURCE.toml");
+const REAL_WORLD_FIXTURE_PATHS: &[&str] = &[
+    "github-actions/minimal-ci.yaml",
+    "github-actions/matrix-ci.yaml",
+    "github-actions/starter-node-ci.yml",
+    "github-actions/polymorphic-workflow.yaml",
+    "github-actions/reusable-service-workflow.yaml",
+    "docker-compose/compose.yaml",
+    "docker-compose/awesome-nginx-flask-mysql.yaml",
+    "docker-compose/compose-anchors.yaml",
+    "docker-compose/compose-platform-resources.yaml",
+    "docker-compose/compose-polymorphic.yaml",
+    "docker-compose/adapted-compose-spec-fragments.yaml",
+    "kubernetes/deployment.yaml",
+    "kubernetes/multi-doc.yaml",
+    "kubernetes/custom-resource-definition.yaml",
+    "kubernetes/helm-rendered-stream.yaml",
+    "kubernetes/configmap-block-scalars.yaml",
+    "kubernetes/upstream-guestbook-frontend-deployment.yaml",
+    "helm/values.yaml",
+    "helm/Chart.yaml",
+    "helm/upstream-hello-world-Chart.yaml",
+    "openapi/petstore-fragment.yaml",
+    "openapi/operations-and-polymorphism.yaml",
+    "openapi/upstream-petstore.yaml",
+    "cloudflare/wrangler.yaml",
+    "cloudflare/adapted-durable-objects-wrangler.yaml",
+    "ansible/playbook.yaml",
+    "ansible/upstream-lamp-simple-site.yml",
+    "ansible/vault-and-unsafe-tags.yaml",
+    "cloudformation/sam-api.yaml",
+    "symfony/services.yaml",
+    "gitlab-ci/basic-pipeline.yml",
+    "circleci/config.yml",
+    "azure-pipelines/azure-pipelines.yml",
+];
+
+#[derive(Debug, Deserialize)]
+struct FixtureManifest {
+    fixture: Vec<FixtureRecord>,
+}
+
+#[derive(Debug, Deserialize)]
+struct FixtureRecord {
+    path: String,
+    domain: String,
+    expected_docs: usize,
+}
+
+#[derive(Debug, Deserialize)]
+struct Workflow {
+    name: String,
+    on: WorkflowTriggers,
+    permissions: BTreeMap<String, String>,
+    jobs: BTreeMap<String, MatrixJob>,
+}
+
+#[derive(Debug, Deserialize)]
+struct WorkflowTriggers {
+    push: PushTrigger,
+    workflow_dispatch: WorkflowDispatch,
+}
+
+#[derive(Debug, Deserialize)]
+struct PushTrigger {
+    branches: Vec<String>,
+    paths: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct WorkflowDispatch {
+    inputs: BTreeMap<String, WorkflowInput>,
+}
+
+#[derive(Debug, Deserialize)]
+struct WorkflowInput {
+    description: String,
+    required: bool,
+    default: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct MatrixJob {
+    name: String,
+    #[serde(rename = "runs-on")]
+    runs_on: String,
+    strategy: Strategy,
+    steps: Vec<WorkflowStep>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Strategy {
+    #[serde(rename = "fail-fast")]
+    fail_fast: bool,
+    matrix: Matrix,
+}
+
+#[derive(Debug, Deserialize)]
+struct Matrix {
+    os: Vec<String>,
+    #[serde(rename = "node-version")]
+    node_version: Vec<u16>,
+    include: Vec<MatrixInclude>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MatrixInclude {
+    os: String,
+    #[serde(rename = "node-version")]
+    node_version: String,
+    coverage: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct WorkflowStep {
+    uses: Option<String>,
+    name: Option<String>,
+    run: Option<String>,
+    #[serde(rename = "if")]
+    r#if: Option<String>,
+    with: Option<BTreeMap<String, String>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Resource {
+    #[serde(rename = "apiVersion")]
+    api_version: String,
+    kind: String,
+    metadata: Metadata,
+}
+
+#[derive(Debug, Deserialize)]
+struct Metadata {
+    name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Chart {
+    #[serde(rename = "apiVersion")]
+    api_version: String,
+    name: String,
+    description: String,
+    #[serde(rename = "type")]
+    r#type: String,
+    version: String,
+    #[serde(rename = "appVersion")]
+    app_version: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct HelmValues {
+    #[serde(rename = "replicaCount")]
+    replica_count: u32,
+    image: HelmImage,
+    service: HelmService,
+    resources: HelmResources,
+    env: Vec<NameValue>,
+    config: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct HelmImage {
+    repository: String,
+    tag: String,
+    #[serde(rename = "pullPolicy")]
+    pull_policy: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct HelmService {
+    #[serde(rename = "type")]
+    kind: String,
+    port: u16,
+}
+
+#[derive(Debug, Deserialize)]
+struct HelmResources {
+    requests: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct NameValue {
+    name: String,
+    value: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct HelmChartWithDependencies {
+    #[serde(rename = "apiVersion")]
+    api_version: String,
+    name: String,
+    #[serde(rename = "appVersion")]
+    app_version: String,
+    #[serde(rename = "kubeVersion")]
+    kube_version: String,
+    annotations: BTreeMap<String, String>,
+    maintainers: Vec<HelmMaintainer>,
+    dependencies: Vec<HelmDependency>,
+}
+
+#[derive(Debug, Deserialize)]
+struct HelmMaintainer {
+    name: String,
+    email: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct HelmDependency {
+    name: String,
+    version: String,
+    repository: String,
+    condition: Option<String>,
+    alias: Option<String>,
+    #[serde(rename = "import-values")]
+    import_values: Option<Vec<HelmImportValue>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum HelmImportValue {
+    Scalar(String),
+    ChildParent { child: String, parent: String },
+}
+
+#[derive(Debug, Deserialize)]
+struct Wrangler {
+    name: String,
+    main: String,
+    compatibility_date: String,
+    compatibility_flags: Vec<String>,
+    vars: BTreeMap<String, String>,
+    routes: Vec<Route>,
+    d1_databases: Vec<D1Database>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Route {
+    pattern: String,
+    zone_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct D1Database {
+    binding: String,
+    database_name: String,
+    database_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct DurableWrangler {
+    name: String,
+    main: String,
+    durable_objects: DurableObjects,
+    migrations: Vec<WranglerMigration>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DurableObjects {
+    bindings: Vec<DurableObjectBinding>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DurableObjectBinding {
+    name: String,
+    class_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct WranglerMigration {
+    tag: String,
+    #[serde(default)]
+    new_classes: Vec<String>,
+    #[serde(default)]
+    new_sqlite_classes: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Play {
+    name: String,
+    hosts: String,
+    remote_user: String,
+    roles: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TaggedPlay {
+    name: String,
+    hosts: String,
+    vars: BTreeMap<String, String>,
+    tasks: Vec<TaggedTask>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TaggedTask {
+    name: String,
+    #[serde(rename = "ansible.builtin.copy")]
+    copy: CopyTask,
+}
+
+#[derive(Debug, Deserialize)]
+struct CopyTask {
+    dest: String,
+    content: String,
+}
+
+fn main() {
+    manifest_fixtures_parse_through_package_alias();
+    github_actions_matrix_uses_package_alias();
+    github_actions_reusable_service_workflow_reads_through_package_alias();
+    docker_compose_merge_anchor_expands_through_package_alias();
+    kubernetes_stream_uses_package_alias_deserializer();
+    kubernetes_crd_schema_reads_through_package_alias();
+    helm_values_read_through_package_alias();
+    helm_chart_reads_through_package_alias();
+    helm_chart_dependencies_read_through_package_alias();
+    openapi_value_reads_through_package_alias();
+    openapi_polymorphism_reads_through_package_alias();
+    wrangler_reads_through_package_alias();
+    wrangler_durable_objects_read_through_package_alias();
+    ansible_playbook_reads_through_package_alias();
+    ansible_vault_and_unsafe_tags_read_through_package_alias();
+    cloudformation_sam_tags_read_through_package_alias();
+    symfony_services_read_through_package_alias();
+    gitlab_ci_merge_defaults_read_through_package_alias();
+    circleci_config_reads_through_package_alias();
+    azure_pipelines_reads_through_package_alias();
+}
+
+fn manifest_fixtures_parse_through_package_alias() {
+    let manifest: FixtureManifest =
+        toml::from_str(REAL_WORLD_SOURCE).expect("real-world SOURCE.toml parses");
+    let manifest_paths = manifest
+        .fixture
+        .iter()
+        .map(|fixture| fixture.path.as_str())
+        .collect::<BTreeSet<_>>();
+    let expected_paths = REAL_WORLD_FIXTURE_PATHS
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    assert_eq!(manifest_paths, expected_paths);
+    assert_eq!(manifest.fixture.len(), 33);
+
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/real-world");
+    let mut domains = BTreeSet::new();
+    let mut total_docs = 0usize;
+    for fixture in &manifest.fixture {
+        domains.insert(fixture.domain.as_str());
+        let docs = parse_fixture_documents(&root, fixture);
+        assert_eq!(
+            docs.len(),
+            fixture.expected_docs,
+            "document count drifted for {}",
+            fixture.path
+        );
+        total_docs += docs.len();
+    }
+
+    assert_eq!(total_docs, 39);
+    assert_eq!(
+        domains,
+        BTreeSet::from([
+            "ansible",
+            "azure-pipelines",
+            "circleci",
+            "cloudformation",
+            "docker-compose",
+            "github-actions",
+            "gitlab-ci",
+            "helm",
+            "kubernetes",
+            "openapi",
+            "symfony",
+            "wrangler",
+        ])
+    );
+}
+
+fn parse_fixture_documents(root: &Path, fixture: &FixtureRecord) -> Vec<serde_yaml::Value> {
+    let path: PathBuf = root.join(&fixture.path);
+    let input = fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("read real-world fixture {}: {error}", fixture.path));
+    serde_yaml::Deserializer::from_str(&input)
+        .map(serde_yaml::Value::deserialize)
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap_or_else(|error| panic!("parse real-world fixture {}: {error}", fixture.path))
+}
+
+fn github_actions_matrix_uses_package_alias() {
+    let input = include_str!("../fixtures/real-world/github-actions/matrix-ci.yaml");
+    let workflow: Workflow = serde_yaml::from_str(input).expect("matrix workflow parses");
+    assert_eq!(workflow.name, "Matrix CI");
+    assert_eq!(workflow.on.push.branches[1], "release/**");
+    assert_eq!(
+        workflow
+            .on
+            .workflow_dispatch
+            .inputs
+            .get("dry-run")
+            .expect("dry-run input")
+            .default,
+        "false"
+    );
+    assert_eq!(workflow.permissions["id-token"], "write");
+    let job = &workflow.jobs["test"];
+    assert_eq!(job.runs_on, "${{ matrix.os }}");
+    assert!(!job.strategy.fail_fast);
+    assert_eq!(job.strategy.matrix.os[1], "macos-latest");
+    assert_eq!(job.strategy.matrix.node_version, [20, 22]);
+    assert!(job.strategy.matrix.include[0].coverage);
+    assert_eq!(job.steps[1].with.as_ref().unwrap()["cache"], "npm");
+}
+
+fn github_actions_reusable_service_workflow_reads_through_package_alias() {
+    let input =
+        include_str!("../fixtures/real-world/github-actions/reusable-service-workflow.yaml");
+    let value: serde_yaml::Value = serde_yaml::from_str(input).expect("reusable workflow parses");
+    assert_eq!(
+        value["on"]["workflow_call"]["inputs"]["image-tag"]["type"].as_str(),
+        Some("string")
+    );
+    assert_eq!(
+        value["jobs"]["integration"]["services"]["postgres"]["ports"][0].as_str(),
+        Some("5432:5432")
+    );
+    assert!(
+        value["jobs"]["integration"]["services"]["postgres"]["options"]
+            .as_str()
+            .expect("service options")
+            .contains("--health-cmd pg_isready")
+    );
+    assert_eq!(
+        value["jobs"]["integration"]["steps"][2]["env"]["IMAGE_TAG"].as_str(),
+        Some("${{ inputs.image-tag }}")
+    );
+}
+
+fn docker_compose_merge_anchor_expands_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/docker-compose/compose-anchors.yaml");
+    let value: serde_yaml::Value = serde_yaml::from_str(input).expect("compose parses");
+    let web = &value["services"]["web"];
+    let worker = &value["services"]["worker"];
+    assert!(web["<<"].is_null());
+    assert!(worker["<<"].is_null());
+    assert_eq!(web["restart"].as_str(), Some("unless-stopped"));
+    assert_eq!(web["logging"]["driver"].as_str(), Some("json-file"));
+    assert_eq!(web["environment"]["RUST_LOG"].as_str(), Some("info"));
+    assert_eq!(web["image"].as_str(), Some("nginx:latest"));
+    assert_eq!(worker["command"][2].as_str(), Some("default"));
+    assert_eq!(worker["restart"].as_str(), Some("unless-stopped"));
+}
+
+fn kubernetes_stream_uses_package_alias_deserializer() {
+    let input = include_str!("../fixtures/real-world/kubernetes/multi-doc.yaml");
+    let docs = serde_yaml::Deserializer::from_str(input)
+        .map(Resource::deserialize)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("kubernetes stream parses");
+    assert_eq!(docs.len(), 2);
+    assert_eq!(docs[0].api_version, "v1");
+    assert_eq!(docs[0].kind, "Service");
+    assert_eq!(docs[1].kind, "Deployment");
+    assert_eq!(docs[1].metadata.name, "yaml-demo");
+}
+
+fn kubernetes_crd_schema_reads_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/kubernetes/custom-resource-definition.yaml");
+    let docs = serde_yaml::Deserializer::from_str(input)
+        .map(serde_yaml::Value::deserialize)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("kubernetes crd stream parses");
+    assert_eq!(docs.len(), 2);
+    assert_eq!(docs[0]["kind"].as_str(), Some("CustomResourceDefinition"));
+    assert_eq!(
+        docs[0]["spec"]["versions"][0]["schema"]["openAPIV3Schema"]["properties"]["spec"]
+            ["properties"]["rules"]["items"]["properties"]["enabled"]["default"]
+            .as_bool(),
+        Some(true)
+    );
+    assert_eq!(docs[1]["kind"].as_str(), Some("Widget"));
+    assert_eq!(docs[1]["spec"]["replicas"].as_u64(), Some(2));
+    assert_eq!(docs[1]["spec"]["rules"][1]["enabled"].as_bool(), Some(false));
+}
+
+fn helm_values_read_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/helm/values.yaml");
+    let values: HelmValues = serde_yaml::from_str(input).expect("helm values parse");
+    assert_eq!(values.replica_count, 2);
+    assert_eq!(values.image.repository, "ghcr.io/example/app");
+    assert_eq!(values.image.tag, "1.2.3");
+    assert_eq!(values.image.pull_policy, "IfNotPresent");
+    assert_eq!(values.service.kind, "ClusterIP");
+    assert_eq!(values.service.port, 8080);
+    assert_eq!(values.resources.requests["memory"], "128Mi");
+    assert_eq!(values.env[1].name, "FEATURE_FLAG");
+    assert_eq!(values.env[1].value, "true");
+    assert!(values.config.contains("feature.enabled=true"));
+}
+
+fn helm_chart_reads_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/helm/upstream-hello-world-Chart.yaml");
+    let chart: Chart = serde_yaml::from_str(input).expect("chart parses");
+    assert_eq!(chart.api_version, "v2");
+    assert_eq!(chart.name, "hello-world");
+    assert_eq!(chart.r#type, "application");
+    assert_eq!(chart.version, "0.1.0");
+    assert_eq!(chart.app_version, "1.16.0");
+}
+
+fn helm_chart_dependencies_read_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/helm/Chart.yaml");
+    let chart: HelmChartWithDependencies = serde_yaml::from_str(input).expect("chart parses");
+    assert_eq!(chart.api_version, "v2");
+    assert_eq!(chart.name, "yaml-demo");
+    assert_eq!(chart.app_version, "2026.5.24");
+    assert_eq!(chart.kube_version, ">=1.28.0-0");
+    assert_eq!(
+        chart.annotations["artifacthub.io/containsSecurityUpdates"],
+        "false"
+    );
+    assert_eq!(chart.maintainers[0].name, "Platform Team");
+    assert_eq!(chart.maintainers[0].email, "platform@example.com");
+    assert_eq!(chart.dependencies[0].name, "postgresql");
+    assert_eq!(chart.dependencies[0].version, "15.5.0");
+    assert_eq!(
+        chart.dependencies[0].repository,
+        "oci://registry-1.docker.io/bitnamicharts"
+    );
+    assert_eq!(
+        chart.dependencies[0].condition.as_deref(),
+        Some("postgresql.enabled")
+    );
+    assert_eq!(chart.dependencies[0].alias.as_deref(), Some("app-db"));
+    match chart.dependencies[1]
+        .import_values
+        .as_deref()
+        .expect("redis import-values")
+    {
+        [
+            HelmImportValue::Scalar(defaults),
+            HelmImportValue::ChildParent { child, parent },
+        ] => {
+            assert_eq!(defaults, "defaults");
+            assert_eq!(child, "exports");
+            assert_eq!(parent, "redis");
+        }
+        actual => panic!("unexpected import-values: {actual:?}"),
+    }
+}
+
+fn openapi_value_reads_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/openapi/upstream-petstore.yaml");
+    let value: serde_yaml::Value = serde_yaml::from_str(input).expect("openapi parses");
+    assert_eq!(value["openapi"].as_str(), Some("3.0.0"));
+    assert_eq!(
+        value["paths"]["/pets"]["get"]["operationId"].as_str(),
+        Some("listPets")
+    );
+    assert_eq!(
+        value["paths"]["/pets/{petId}"]["get"]["parameters"][0]["name"].as_str(),
+        Some("petId")
+    );
+    assert_eq!(
+        value["components"]["schemas"]["Pet"]["required"][1].as_str(),
+        Some("name")
+    );
+}
+
+fn openapi_polymorphism_reads_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/openapi/operations-and-polymorphism.yaml");
+    let value: serde_yaml::Value = serde_yaml::from_str(input).expect("openapi parses");
+    assert_eq!(value["openapi"].as_str(), Some("3.1.0"));
+    assert_eq!(
+        value["paths"]["/orders/{orderId}"]["parameters"][0]["required"].as_bool(),
+        Some(true)
+    );
+    assert_eq!(
+        value["paths"]["/orders/{orderId}"]["get"]["operationId"].as_str(),
+        Some("getOrder")
+    );
+    assert_eq!(
+        value["components"]["schemas"]["Order"]["properties"]["status"]["enum"][2].as_str(),
+        Some("refunded")
+    );
+    assert_eq!(
+        value["components"]["schemas"]["LineItem"]["properties"]["quantity"]["default"].as_u64(),
+        Some(1)
+    );
+    assert_eq!(value["x-tagGroups"][0]["tags"][0].as_str(), Some("orders"));
+}
+
+fn wrangler_reads_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/cloudflare/wrangler.yaml");
+    let wrangler: Wrangler = serde_yaml::from_str(input).expect("wrangler parses");
+    assert_eq!(wrangler.name, "yaml-demo");
+    assert_eq!(wrangler.compatibility_date, "2026-05-23");
+    assert_eq!(wrangler.compatibility_flags, ["nodejs_compat"]);
+    assert_eq!(wrangler.vars["ENVIRONMENT"], "production");
+    assert_eq!(wrangler.routes[0].zone_name, "example.com");
+    assert_eq!(wrangler.d1_databases[0].binding, "DB");
+}
+
+fn wrangler_durable_objects_read_through_package_alias() {
+    let input =
+        include_str!("../fixtures/real-world/cloudflare/adapted-durable-objects-wrangler.yaml");
+    let wrangler: DurableWrangler = serde_yaml::from_str(input).expect("wrangler parses");
+    assert_eq!(wrangler.name, "durable-objects");
+    assert_eq!(wrangler.main, "src/index.ts");
+    assert_eq!(wrangler.durable_objects.bindings[0].name, "COUNTER");
+    assert_eq!(
+        wrangler.durable_objects.bindings[1].class_name,
+        "SQLiteDurableObject"
+    );
+    assert_eq!(wrangler.migrations[0].tag, "v1");
+    assert_eq!(wrangler.migrations[0].new_classes, ["Counter"]);
+    assert_eq!(
+        wrangler.migrations[0].new_sqlite_classes,
+        ["SQLiteDurableObject"]
+    );
+}
+
+fn cloudformation_sam_tags_read_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/cloudformation/sam-api.yaml");
+    let value: serde_yaml::Value = serde_yaml::from_str(input).expect("SAM template parses");
+    assert_eq!(
+        value["Transform"].as_str(),
+        Some("AWS::Serverless-2016-10-31")
+    );
+    let table_ref = value["Resources"]["Function"]["Properties"]["Environment"]["Variables"]
+        ["TABLE_NAME"]
+        .as_tagged()
+        .expect("TABLE_NAME !Ref tag");
+    assert_eq!(table_ref.tag, serde_yaml::Tag::new("Ref"));
+    assert_eq!(table_ref.value.as_str(), Some("Table"));
+    let inline_code = value["Resources"]["Function"]["Properties"]["InlineCode"]
+        .as_tagged()
+        .expect("InlineCode !Sub tag");
+    assert_eq!(inline_code.tag, serde_yaml::Tag::new("Sub"));
+    assert!(
+        inline_code
+            .value
+            .as_str()
+            .expect("inline code")
+            .contains("exports.handler")
+    );
+    let function_arn = value["Outputs"]["FunctionArn"]["Value"]
+        .as_tagged()
+        .expect("FunctionArn !GetAtt tag");
+    assert_eq!(function_arn.tag, serde_yaml::Tag::new("GetAtt"));
+    assert_eq!(function_arn.value.as_str(), Some("Function.Arn"));
+}
+
+fn symfony_services_read_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/symfony/services.yaml");
+    let value: serde_yaml::Value = serde_yaml::from_str(input).expect("Symfony services parse");
+    assert_eq!(
+        value["parameters"]["app.secret"].as_str(),
+        Some("%env(APP_SECRET)%")
+    );
+    assert_eq!(
+        value["services"]["_defaults"]["bind"]["string $projectDir"].as_str(),
+        Some("%kernel.project_dir%")
+    );
+    assert_eq!(
+        value["services"]["App\\"]["exclude"][1].as_str(),
+        Some("../src/Entity/")
+    );
+    let iterator = value["services"]["App\\Controller\\HealthController"]["arguments"]
+        ["$iterator"]
+        .as_tagged()
+        .expect("Symfony tagged iterator");
+    assert_eq!(iterator.tag, serde_yaml::Tag::new("tagged_iterator"));
+    assert_eq!(iterator.value.as_str(), Some("app.health_check"));
+}
+
+fn gitlab_ci_merge_defaults_read_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/gitlab-ci/basic-pipeline.yml");
+    let value: serde_yaml::Value = serde_yaml::from_str(input).expect("GitLab CI parses");
+    assert_eq!(value["stages"][2].as_str(), Some("deploy"));
+    assert_eq!(value["lint"]["image"].as_str(), Some("rust:1.85"));
+    assert!(value["lint"]["<<"].is_null());
+    assert_eq!(
+        value["test"]["parallel"]["matrix"][0]["FEATURES"][1].as_str(),
+        Some("serde")
+    );
+    assert_eq!(
+        value["deploy"]["rules"][0]["if"].as_str(),
+        Some("$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH")
+    );
+}
+
+fn circleci_config_reads_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/circleci/config.yml");
+    let value: serde_yaml::Value = serde_yaml::from_str(input).expect("CircleCI config parses");
+    assert_eq!(
+        value["orbs"]["node"].as_str(),
+        Some("circleci/node@5.2.0")
+    );
+    assert_eq!(
+        value["executors"]["rust"]["docker"][0]["image"].as_str(),
+        Some("cimg/rust:1.85")
+    );
+    assert!(
+        value["jobs"]["test"]["steps"][2]["run"]["command"]
+            .as_str()
+            .expect("CircleCI command")
+            .contains("real_world_configs")
+    );
+}
+
+fn azure_pipelines_reads_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/azure-pipelines/azure-pipelines.yml");
+    let value: serde_yaml::Value = serde_yaml::from_str(input).expect("Azure Pipelines parses");
+    assert_eq!(
+        value["trigger"]["branches"]["include"][1].as_str(),
+        Some("releases/*")
+    );
+    assert_eq!(
+        value["variables"]["isMain"].as_str(),
+        Some("$[eq(variables['Build.SourceBranch'], 'refs/heads/main')]")
+    );
+    assert_eq!(
+        value["stages"][0]["jobs"][0]["strategy"]["matrix"]["beta"]["toolchain"].as_str(),
+        Some("beta")
+    );
+    assert!(
+        value["stages"][0]["jobs"][0]["steps"][0]["script"]
+            .as_str()
+            .expect("Azure script")
+            .contains("cargo test --locked")
+    );
+}
+
+fn ansible_playbook_reads_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/ansible/upstream-lamp-simple-site.yml");
+    let plays: Vec<Play> = serde_yaml::from_str(input).expect("ansible playbook parses");
+    assert_eq!(plays.len(), 3);
+    assert_eq!(plays[0].hosts, "all");
+    assert_eq!(plays[1].roles, ["web"]);
+    assert_eq!(plays[2].name, "deploy MySQL and configure the databases");
+}
+
+fn ansible_vault_and_unsafe_tags_read_through_package_alias() {
+    let input = include_str!("../fixtures/real-world/ansible/vault-and-unsafe-tags.yaml");
+    let value: serde_yaml::Value = serde_yaml::from_str(input).expect("ansible value parses");
+    let vault = value[0]["vars"]["db_password"]
+        .as_tagged()
+        .expect("vault tag");
+    assert_eq!(vault.tag, serde_yaml::Tag::new("vault"));
+    assert!(
+        vault
+            .value
+            .as_str()
+            .expect("vault scalar")
+            .contains("$ANSIBLE_VAULT;1.1;AES256")
+    );
+    let unsafe_template = value[0]["vars"]["raw_template"]
+        .as_tagged()
+        .expect("unsafe tag");
+    assert_eq!(unsafe_template.tag, serde_yaml::Tag::new("unsafe"));
+    assert_eq!(
+        unsafe_template.value.as_str(),
+        Some("{{ literal_must_not_render }}")
+    );
+
+    let plays: Vec<TaggedPlay> = serde_yaml::from_str(input).expect("ansible play parses");
+    assert_eq!(plays[0].name, "Deploy app with tagged secrets");
+    assert_eq!(plays[0].hosts, "all");
+    assert!(plays[0].vars["db_password"].contains("$ANSIBLE_VAULT"));
+    assert_eq!(
+        plays[0].vars["raw_template"],
+        "{{ literal_must_not_render }}"
+    );
+    assert_eq!(plays[0].tasks[0].name, "Write env");
+    assert_eq!(plays[0].tasks[0].copy.dest, "/etc/yaml-demo/.env");
+    assert!(
+        plays[0].tasks[0]
+            .copy
+            .content
+            .contains("TEMPLATE={{ raw_template }}")
+    );
+}

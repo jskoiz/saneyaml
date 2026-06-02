@@ -1,0 +1,5 @@
+base1: &base1 {a: 1, shared: first}
+base2: &base2 {b: 2, shared: second}
+merged:
+  <<: [*base1, *base2]
+  shared: explicit

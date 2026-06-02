@@ -1,0 +1,5 @@
+components:
+  schemas:
+    Base: &base !Schema {type: object, required: [id], properties: {id: {type: string}}}
+    User:
+      allOf: [*base, {type: object, properties: {email: {type: string}}}]

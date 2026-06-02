@@ -1,0 +1,11 @@
+responses:
+  200: ok
+  404: missing
+  default: fallback
+vars:
+  BOOL_TRUE: true
+  BOOL_FALSE: FALSE
+  INT: 1_000
+  FLOAT: 1.5
+  LEADING_ZERO: 0123
+  CPU: 100m

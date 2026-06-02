@@ -1,0 +1,4 @@
+mode=map-delete index=1
+service: {image: nginx, ports: [80], labels: {role: web}}
+=== yaml replacement ===
+ignored

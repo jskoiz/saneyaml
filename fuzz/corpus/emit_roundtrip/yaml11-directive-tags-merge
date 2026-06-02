@@ -1,0 +1,9 @@
+%YAML 1.1
+---
+defaults: &defaults
+  enabled: ON
+  count: 0123
+job:
+  <<: *defaults
+  enabled: OFF
+  stamp: !!timestamp "2026-05-28 15:00:00 -10:00"

@@ -1,0 +1,5 @@
+octal: 0123
+invalid_octal: 09
+hex: 0x7B
+binary: 0b1010
+sexagesimal: 1:20:30

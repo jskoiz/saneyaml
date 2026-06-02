@@ -1,0 +1,779 @@
+use saneyaml::{Date, LoadOptions, Schema, Tag, Time, TimeZoneOffset, Timestamp, Value};
+use serde::Deserialize;
+use std::collections::{BTreeMap, BTreeSet};
+use std::io::Cursor;
+
+#[test]
+fn schema_mode_defaults_to_yaml_12_config_behavior() {
+    let input = "%YAML 1.1\n---\non: push\nyes: deploy\nflag: ON\nhex: 0x7B\noctal: 0123\nsex: 1:20\ndate: 2026-05-24\n";
+    let value: Value = saneyaml::from_str(input).expect("default schema parses");
+
+    assert_eq!(value["on"].as_str(), Some("push"));
+    assert_eq!(value["yes"].as_str(), Some("deploy"));
+    assert_eq!(value["flag"].as_str(), Some("ON"));
+    assert_eq!(value["hex"].as_str(), Some("0x7B"));
+    assert_eq!(value["octal"].as_i64(), Some(123));
+    assert_eq!(value["sex"].as_str(), Some("1:20"));
+    assert_eq!(value["date"].as_str(), Some("2026-05-24"));
+    assert!(value["date"].as_tagged().is_none());
+}
+
+#[derive(Clone, Copy)]
+enum ExpectedScalar<'a> {
+    Null,
+    Bool(bool),
+    I64(i64),
+    F64(f64),
+    Nan,
+    Str(&'a str),
+    Timestamp(&'a str),
+}
+
+#[test]
+fn load_options_default_carries_schema_and_input_limit_defaults() {
+    assert_eq!(LoadOptions::default(), LoadOptions::new());
+    assert_eq!(saneyaml::DEFAULT_ALIAS_EXPANSION_FACTOR, 64);
+    assert_eq!(saneyaml::DEFAULT_MIN_ALIAS_EXPANSION_NODES, 1024);
+    assert_eq!(LoadOptions::new().selected_schema(), Schema::Yaml12);
+    assert_eq!(LoadOptions::core().selected_schema(), Schema::Core);
+    assert_eq!(LoadOptions::json().selected_schema(), Schema::Json);
+    assert_eq!(LoadOptions::failsafe().selected_schema(), Schema::Failsafe);
+    assert_eq!(LoadOptions::yaml_1_1().selected_schema(), Schema::Yaml11);
+    assert_eq!(
+        LoadOptions::legacy_serde_yaml().selected_schema(),
+        Schema::LegacySerdeYaml
+    );
+    assert_eq!(
+        LoadOptions::new().selected_max_input_bytes(),
+        Some(saneyaml::DEFAULT_MAX_INPUT_BYTES)
+    );
+    assert_eq!(
+        LoadOptions::new().selected_max_scalar_bytes(),
+        Some(saneyaml::DEFAULT_MAX_SCALAR_BYTES)
+    );
+    assert_eq!(
+        LoadOptions::new().selected_max_collection_items(),
+        Some(saneyaml::DEFAULT_MAX_COLLECTION_ITEMS)
+    );
+    assert_eq!(
+        LoadOptions::new().selected_max_alias_expansion_nodes(),
+        None
+    );
+    assert_eq!(
+        LoadOptions::yaml_1_1().selected_max_input_bytes(),
+        Some(saneyaml::DEFAULT_MAX_INPUT_BYTES)
+    );
+    assert_eq!(
+        LoadOptions::yaml_1_1().selected_max_alias_expansion_nodes(),
+        None
+    );
+    assert_eq!(
+        LoadOptions::yaml_version_directive().selected_max_input_bytes(),
+        Some(saneyaml::DEFAULT_MAX_INPUT_BYTES)
+    );
+    assert_eq!(
+        LoadOptions::yaml_version_directive().selected_max_alias_expansion_nodes(),
+        None
+    );
+    assert_eq!(
+        LoadOptions::new()
+            .max_input_bytes(16)
+            .selected_max_input_bytes(),
+        Some(16)
+    );
+    assert_eq!(
+        LoadOptions::new()
+            .without_input_limit()
+            .selected_max_input_bytes(),
+        None
+    );
+    assert_eq!(
+        LoadOptions::new()
+            .max_alias_expansion_nodes(32)
+            .selected_max_alias_expansion_nodes(),
+        Some(32)
+    );
+}
+
+#[test]
+fn named_schema_modes_resolve_scalars_from_authoritative_table() {
+    let rows = [
+        (
+            "",
+            ExpectedScalar::Null,
+            ExpectedScalar::Null,
+            ExpectedScalar::Null,
+            ExpectedScalar::Null,
+        ),
+        (
+            "~",
+            ExpectedScalar::Null,
+            ExpectedScalar::Str("~"),
+            ExpectedScalar::Str("~"),
+            ExpectedScalar::Null,
+        ),
+        (
+            "null",
+            ExpectedScalar::Null,
+            ExpectedScalar::Null,
+            ExpectedScalar::Str("null"),
+            ExpectedScalar::Null,
+        ),
+        (
+            "Null",
+            ExpectedScalar::Null,
+            ExpectedScalar::Str("Null"),
+            ExpectedScalar::Str("Null"),
+            ExpectedScalar::Null,
+        ),
+        (
+            "true",
+            ExpectedScalar::Bool(true),
+            ExpectedScalar::Bool(true),
+            ExpectedScalar::Str("true"),
+            ExpectedScalar::Bool(true),
+        ),
+        (
+            "True",
+            ExpectedScalar::Bool(true),
+            ExpectedScalar::Str("True"),
+            ExpectedScalar::Str("True"),
+            ExpectedScalar::Bool(true),
+        ),
+        (
+            "false",
+            ExpectedScalar::Bool(false),
+            ExpectedScalar::Bool(false),
+            ExpectedScalar::Str("false"),
+            ExpectedScalar::Bool(false),
+        ),
+        (
+            "FALSE",
+            ExpectedScalar::Bool(false),
+            ExpectedScalar::Str("FALSE"),
+            ExpectedScalar::Str("FALSE"),
+            ExpectedScalar::Bool(false),
+        ),
+        (
+            "yes",
+            ExpectedScalar::Str("yes"),
+            ExpectedScalar::Str("yes"),
+            ExpectedScalar::Str("yes"),
+            ExpectedScalar::Bool(true),
+        ),
+        (
+            "NO",
+            ExpectedScalar::Str("NO"),
+            ExpectedScalar::Str("NO"),
+            ExpectedScalar::Str("NO"),
+            ExpectedScalar::Bool(false),
+        ),
+        (
+            "on",
+            ExpectedScalar::Str("on"),
+            ExpectedScalar::Str("on"),
+            ExpectedScalar::Str("on"),
+            ExpectedScalar::Bool(true),
+        ),
+        (
+            "Off",
+            ExpectedScalar::Str("Off"),
+            ExpectedScalar::Str("Off"),
+            ExpectedScalar::Str("Off"),
+            ExpectedScalar::Bool(false),
+        ),
+        (
+            "123",
+            ExpectedScalar::I64(123),
+            ExpectedScalar::I64(123),
+            ExpectedScalar::Str("123"),
+            ExpectedScalar::I64(123),
+        ),
+        (
+            "+12",
+            ExpectedScalar::I64(12),
+            ExpectedScalar::Str("+12"),
+            ExpectedScalar::Str("+12"),
+            ExpectedScalar::I64(12),
+        ),
+        (
+            "0123",
+            ExpectedScalar::I64(123),
+            ExpectedScalar::Str("0123"),
+            ExpectedScalar::Str("0123"),
+            ExpectedScalar::I64(83),
+        ),
+        (
+            "0x7B",
+            ExpectedScalar::Str("0x7B"),
+            ExpectedScalar::Str("0x7B"),
+            ExpectedScalar::Str("0x7B"),
+            ExpectedScalar::I64(123),
+        ),
+        (
+            "0b1010",
+            ExpectedScalar::Str("0b1010"),
+            ExpectedScalar::Str("0b1010"),
+            ExpectedScalar::Str("0b1010"),
+            ExpectedScalar::I64(10),
+        ),
+        (
+            "0o77",
+            ExpectedScalar::Str("0o77"),
+            ExpectedScalar::Str("0o77"),
+            ExpectedScalar::Str("0o77"),
+            ExpectedScalar::Str("0o77"),
+        ),
+        (
+            "1_000",
+            ExpectedScalar::I64(1000),
+            ExpectedScalar::Str("1_000"),
+            ExpectedScalar::Str("1_000"),
+            ExpectedScalar::I64(1000),
+        ),
+        (
+            "1:20",
+            ExpectedScalar::Str("1:20"),
+            ExpectedScalar::Str("1:20"),
+            ExpectedScalar::Str("1:20"),
+            ExpectedScalar::I64(4800),
+        ),
+        (
+            "1.5",
+            ExpectedScalar::F64(1.5),
+            ExpectedScalar::F64(1.5),
+            ExpectedScalar::Str("1.5"),
+            ExpectedScalar::F64(1.5),
+        ),
+        (
+            ".inf",
+            ExpectedScalar::F64(f64::INFINITY),
+            ExpectedScalar::Str(".inf"),
+            ExpectedScalar::Str(".inf"),
+            ExpectedScalar::F64(f64::INFINITY),
+        ),
+        (
+            "-.Inf",
+            ExpectedScalar::F64(f64::NEG_INFINITY),
+            ExpectedScalar::Str("-.Inf"),
+            ExpectedScalar::Str("-.Inf"),
+            ExpectedScalar::F64(f64::NEG_INFINITY),
+        ),
+        (
+            ".NAN",
+            ExpectedScalar::Nan,
+            ExpectedScalar::Str(".NAN"),
+            ExpectedScalar::Str(".NAN"),
+            ExpectedScalar::Nan,
+        ),
+        (
+            "2026-05-24",
+            ExpectedScalar::Str("2026-05-24"),
+            ExpectedScalar::Str("2026-05-24"),
+            ExpectedScalar::Str("2026-05-24"),
+            ExpectedScalar::Timestamp("2026-05-24"),
+        ),
+    ];
+
+    for (scalar, core, json, failsafe, legacy) in rows {
+        assert_scalar(LoadOptions::core(), scalar, core);
+        assert_scalar(LoadOptions::json(), scalar, json);
+        assert_scalar(LoadOptions::failsafe(), scalar, failsafe);
+        assert_scalar(LoadOptions::legacy_serde_yaml(), scalar, legacy);
+    }
+}
+
+#[test]
+fn retained_schema_names_match_named_modes() {
+    let input = "flag: ON\nhex: 0x10\noctal: 0123\nclock: 1:20\ndate: 2026-05-24\n";
+    let yaml12: Value = LoadOptions::new()
+        .schema(Schema::Yaml12)
+        .from_str(input)
+        .expect("YAML 1.2 spelling parses");
+    let core: Value = LoadOptions::core()
+        .from_str(input)
+        .expect("Core spelling parses");
+    assert_eq!(yaml12, core);
+
+    let yaml11: Value = LoadOptions::new()
+        .schema(Schema::Yaml11)
+        .from_str(input)
+        .expect("YAML 1.1 spelling parses");
+    let legacy: Value = LoadOptions::legacy_serde_yaml()
+        .from_str(input)
+        .expect("Legacy spelling parses");
+    assert_eq!(yaml11, legacy);
+}
+
+#[test]
+fn schema_modes_keep_input_limit_before_resolution() {
+    for options in [
+        LoadOptions::core(),
+        LoadOptions::json(),
+        LoadOptions::failsafe(),
+        LoadOptions::legacy_serde_yaml(),
+    ] {
+        let error = options
+            .max_input_bytes(4)
+            .from_reader::<_, Value>(Cursor::new("value: 123\n"))
+            .expect_err("input limit applies before schema resolution");
+        assert!(
+            error
+                .to_string()
+                .contains("YAML input exceeds configured limit")
+        );
+    }
+}
+
+#[test]
+fn yaml_version_directive_schema_switches_each_document() {
+    let input = "\
+%YAML 1.1
+---
+flag: ON
+count: 0x10
+octal: 0123
+clock: 1:20
+...
+---
+flag: ON
+count: 0x10
+octal: 0123
+clock: 1:20
+...
+%YAML 1.3
+---
+flag: ON
+count: 0x10
+octal: 0123
+clock: 1:20
+";
+    let options = LoadOptions::yaml_version_directive();
+    let docs: Vec<Value> = options
+        .from_documents_str(input)
+        .expect("directive-driven documents deserialize");
+
+    assert_eq!(docs.len(), 3);
+    assert_eq!(docs[0]["flag"].as_bool(), Some(true));
+    assert_eq!(docs[0]["count"].as_i64(), Some(16));
+    assert_eq!(docs[0]["octal"].as_i64(), Some(83));
+    assert_eq!(docs[0]["clock"].as_i64(), Some(4800));
+    assert_eq!(docs[1]["flag"].as_str(), Some("ON"));
+    assert_eq!(docs[1]["count"].as_str(), Some("0x10"));
+    assert_eq!(docs[1]["octal"].as_i64(), Some(123));
+    assert_eq!(docs[1]["clock"].as_str(), Some("1:20"));
+    assert_eq!(docs[2]["flag"].as_str(), Some("ON"));
+    assert_eq!(docs[2]["count"].as_str(), Some("0x10"));
+    assert_eq!(docs[2]["octal"].as_i64(), Some(123));
+    assert_eq!(docs[2]["clock"].as_str(), Some("1:20"));
+
+    let streamed = options
+        .deserializer_from_str(input)
+        .map(Value::deserialize)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("directive-driven stream deserializes");
+    assert_eq!(streamed, docs);
+
+    let parsed = options
+        .parse_documents(input)
+        .expect("directive-driven parser documents");
+    assert_eq!(Value::from(&parsed[0])["flag"].as_bool(), Some(true));
+    assert_eq!(Value::from(&parsed[0])["octal"].as_i64(), Some(83));
+    assert_eq!(Value::from(&parsed[1])["flag"].as_str(), Some("ON"));
+    assert_eq!(Value::from(&parsed[1])["octal"].as_i64(), Some(123));
+    assert_eq!(Value::from(&parsed[2])["flag"].as_str(), Some("ON"));
+    assert_eq!(Value::from(&parsed[2])["octal"].as_i64(), Some(123));
+}
+
+#[test]
+fn yaml_version_directive_schema_switches_flow_collection_scalars() {
+    let input = "\
+%YAML 1.1
+---
+items: [ON, 012, 0x10, 1:20, 2026-05-24]
+";
+    let default: Value = saneyaml::from_str(input).expect("default flow collection scalars");
+    assert_eq!(default["items"][0].as_str(), Some("ON"));
+    assert_eq!(default["items"][1].as_i64(), Some(12));
+    assert_eq!(default["items"][2].as_str(), Some("0x10"));
+    assert_eq!(default["items"][3].as_str(), Some("1:20"));
+    assert_eq!(default["items"][4].as_str(), Some("2026-05-24"));
+
+    let directive: Value = LoadOptions::yaml_version_directive()
+        .from_str(input)
+        .expect("directive flow collection scalars");
+    assert_eq!(directive["items"][0].as_bool(), Some(true));
+    assert_eq!(directive["items"][1].as_i64(), Some(10));
+    assert_eq!(directive["items"][2].as_i64(), Some(16));
+    assert_eq!(directive["items"][3].as_i64(), Some(4800));
+    assert_eq!(
+        directive["items"][4].as_timestamp(),
+        Timestamp::parse_yaml_1_1("2026-05-24")
+    );
+}
+
+#[test]
+fn yaml_version_directive_schema_supports_resolved_canonical_core_tags() {
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct ResolvedCoreTags {
+        flag: bool,
+        count: i64,
+        clock: f64,
+        date: Timestamp,
+    }
+
+    let input = "\
+%YAML 1.1
+%TAG !yaml! tag:yaml.org,2002:
+---
+flag: !yaml!bool ON
+count: !yaml!int 0x10
+clock: !yaml!float 1:20:30.5
+date: !yaml!timestamp 2026-05-24
+";
+    let expected = ResolvedCoreTags {
+        flag: true,
+        count: 16,
+        clock: 4830.5,
+        date: Timestamp::parse_yaml_1_1("2026-05-24").expect("timestamp"),
+    };
+
+    let typed: ResolvedCoreTags = LoadOptions::yaml_version_directive()
+        .from_str(input)
+        .expect("directive-driven canonical core tags");
+    let direct = ResolvedCoreTags::deserialize(
+        LoadOptions::yaml_version_directive().deserializer_from_str(input),
+    )
+    .expect("direct directive-driven canonical core tags");
+    let value: Value = LoadOptions::yaml_version_directive()
+        .from_str(input)
+        .expect("canonical core tag values");
+
+    assert_eq!(typed, expected);
+    assert_eq!(direct, expected);
+    assert_eq!(value["flag"].as_bool(), Some(true));
+    assert_eq!(value["count"].as_i64(), Some(16));
+    assert_eq!(value["clock"].as_f64(), Some(4830.5));
+    assert_eq!(value["date"].as_timestamp(), Some(expected.date));
+
+    let tagged = value["count"].as_tagged().expect("resolved int tag");
+    assert_eq!(tagged.tag.handle, "!");
+    assert_eq!(tagged.tag.suffix, "tag:yaml.org,2002:int");
+}
+
+#[test]
+fn yaml11_schema_modes_support_collection_core_tags() {
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct CollectionTags {
+        set: BTreeSet<String>,
+        omap: BTreeMap<String, i64>,
+        pairs: Vec<(String, i64)>,
+        seq: Vec<i64>,
+        map: BTreeMap<String, i64>,
+        value: String,
+    }
+
+    let input = "\
+%YAML 1.1
+%TAG !yaml! tag:yaml.org,2002:
+---
+set: !yaml!set {alpha: null, beta: null}
+omap: !yaml!omap [{first: 1}, {second: 2}]
+pairs: !yaml!pairs [{repeat: 1}, {repeat: 2}]
+seq: !yaml!seq [1, 2]
+map: !yaml!map {a: 1, b: 2}
+value: !yaml!value =
+";
+    let expected = CollectionTags {
+        set: BTreeSet::from(["alpha".to_string(), "beta".to_string()]),
+        omap: BTreeMap::from([("first".to_string(), 1), ("second".to_string(), 2)]),
+        pairs: vec![("repeat".to_string(), 1), ("repeat".to_string(), 2)],
+        seq: vec![1, 2],
+        map: BTreeMap::from([("a".to_string(), 1), ("b".to_string(), 2)]),
+        value: "=".to_string(),
+    };
+
+    let yaml11: CollectionTags = LoadOptions::yaml_1_1()
+        .from_str(input)
+        .expect("YAML 1.1 collection tags in YAML 1.1 mode");
+    let directive: CollectionTags = LoadOptions::yaml_version_directive()
+        .from_str(input)
+        .expect("YAML 1.1 collection tags in directive-driven mode");
+    let default: CollectionTags =
+        saneyaml::from_str(input).expect("explicit collection tags in default mode");
+
+    assert_eq!(yaml11, expected);
+    assert_eq!(directive, expected);
+    assert_eq!(default, expected);
+}
+
+#[test]
+fn yaml_version_directive_schema_reports_legacy_duplicate_key_collisions() {
+    let error = LoadOptions::yaml_version_directive()
+        .parse_str("%YAML 1.1\n---\non: push\nyes: deploy\n")
+        .expect_err("directive-driven YAML 1.1 keys collide");
+
+    assert!(error.to_string().contains("duplicate mapping key `true`"));
+    assert_eq!(error.span().line, 4);
+    assert_eq!(error.span().column, 1);
+}
+
+#[test]
+fn yaml_11_schema_resolves_legacy_boolean_aliases() {
+    let input = "flags: [y, Y, yes, Yes, YES, n, N, no, No, NO, on, On, ON, off, Off, OFF]\n";
+    let value: Value = LoadOptions::yaml_1_1()
+        .from_str(input)
+        .expect("YAML 1.1 booleans parse");
+    let flags = value["flags"].as_sequence().expect("flags sequence");
+    let resolved = flags
+        .iter()
+        .map(|value| value.as_bool().expect("boolean alias"))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        resolved,
+        vec![
+            true, true, true, true, true, false, false, false, false, false, true, true, true,
+            false, false, false
+        ]
+    );
+}
+
+#[test]
+fn yaml_11_schema_resolves_legacy_numeric_forms_that_fit_value_model() {
+    let input = "\
+octal: 0123
+negative_octal: -0123
+invalid_octal: 09
+hex: 0x7B
+binary: 0b1010
+sexagesimal: 1:20:30
+short_sexagesimal: 1:20
+negative_sexagesimal: -1:20
+float_sexagesimal: 1:20.5
+float_seconds: 1:20:30.5
+invalid_sexagesimal: 1:60
+too_many_sexagesimal: 1:20:30:40
+underscored: 1_000
+";
+    let value: Value = LoadOptions::new()
+        .schema(Schema::Yaml11)
+        .from_str(input)
+        .expect("YAML 1.1 numerics parse");
+
+    assert_eq!(value["octal"].as_i64(), Some(83));
+    assert_eq!(value["negative_octal"].as_i64(), Some(-83));
+    assert_eq!(value["invalid_octal"].as_str(), Some("09"));
+    assert_eq!(value["hex"].as_i64(), Some(123));
+    assert_eq!(value["binary"].as_i64(), Some(10));
+    assert_eq!(value["sexagesimal"].as_i64(), Some(4830));
+    assert_eq!(value["short_sexagesimal"].as_i64(), Some(4800));
+    assert_eq!(value["negative_sexagesimal"].as_i64(), Some(-2400));
+    assert_eq!(value["float_sexagesimal"].as_f64(), Some(4830.0));
+    assert_eq!(value["float_seconds"].as_f64(), Some(4830.5));
+    assert_eq!(value["invalid_sexagesimal"].as_str(), Some("1:60"));
+    assert_eq!(value["too_many_sexagesimal"].as_str(), Some("1:20:30:40"));
+    assert_eq!(value["underscored"].as_i64(), Some(1000));
+}
+
+#[test]
+fn yaml_11_schema_exposes_native_timestamp_api() {
+    let default: Value = saneyaml::from_str("%YAML 1.1\n---\ndate: 2026-05-24\n")
+        .expect("default schema accepts YAML 1.1 directive");
+    assert_eq!(default["date"].as_str(), Some("2026-05-24"));
+    assert!(default["date"].as_tagged().is_none());
+    assert!(default["date"].as_timestamp().is_none());
+
+    let value: Value = LoadOptions::yaml_1_1()
+        .from_str(
+            "\
+date: 2026-05-24
+short: 2026-5-4
+datetime: 2026-05-24T12:34:56Z
+spaced: 2026-05-24 12:34:56 -7
+fractional: 2026-05-24t12:34:56.789+05:30
+invalid_month: 2026-13-24
+invalid_day: 2026-02-30
+invalid_time: 2026-05-24T24:34:56Z
+",
+        )
+        .expect("timestamp-shaped scalars parse");
+
+    assert_yaml11_timestamp(
+        &value["date"],
+        "2026-05-24",
+        Timestamp::new(Date::from_ymd(2026, 5, 24).expect("valid date"), None),
+    );
+    assert_yaml11_timestamp(
+        &value["short"],
+        "2026-5-4",
+        Timestamp::new(Date::from_ymd(2026, 5, 4).expect("valid date"), None),
+    );
+    assert_yaml11_timestamp(
+        &value["datetime"],
+        "2026-05-24T12:34:56Z",
+        Timestamp::new(
+            Date::from_ymd(2026, 5, 24).expect("valid date"),
+            Some(
+                Time::from_hms_nano_offset(
+                    12,
+                    34,
+                    56,
+                    0,
+                    Some(TimeZoneOffset::from_minutes(0).expect("valid offset")),
+                )
+                .expect("valid time"),
+            ),
+        ),
+    );
+    assert_yaml11_timestamp(
+        &value["spaced"],
+        "2026-05-24 12:34:56 -7",
+        Timestamp::new(
+            Date::from_ymd(2026, 5, 24).expect("valid date"),
+            Some(
+                Time::from_hms_nano_offset(
+                    12,
+                    34,
+                    56,
+                    0,
+                    Some(TimeZoneOffset::from_minutes(-7 * 60).expect("valid offset")),
+                )
+                .expect("valid time"),
+            ),
+        ),
+    );
+    assert_yaml11_timestamp(
+        &value["fractional"],
+        "2026-05-24t12:34:56.789+05:30",
+        Timestamp::new(
+            Date::from_ymd(2026, 5, 24).expect("valid date"),
+            Some(
+                Time::from_hms_nano_offset(
+                    12,
+                    34,
+                    56,
+                    789_000_000,
+                    Some(TimeZoneOffset::from_minutes(5 * 60 + 30).expect("valid offset")),
+                )
+                .expect("valid time"),
+            ),
+        ),
+    );
+    assert_eq!(value["invalid_month"].as_str(), Some("2026-13-24"));
+    assert!(value["invalid_month"].as_tagged().is_none());
+    assert_eq!(value["invalid_day"].as_str(), Some("2026-02-30"));
+    assert!(value["invalid_day"].as_tagged().is_none());
+    assert_eq!(value["invalid_time"].as_str(), Some("2026-05-24T24:34:56Z"));
+    assert!(value["invalid_time"].as_tagged().is_none());
+
+    #[derive(Deserialize)]
+    struct Schedule {
+        date: Timestamp,
+        datetime: Timestamp,
+    }
+    let schedule: Schedule = LoadOptions::yaml_1_1()
+        .from_str("date: 2026-05-24\ndatetime: 2026-05-24T12:34:56Z\n")
+        .expect("typed timestamp fields deserialize");
+    assert_eq!(
+        schedule.date,
+        value["date"].as_timestamp().expect("date timestamp")
+    );
+    assert_eq!(
+        schedule.datetime,
+        value["datetime"]
+            .as_timestamp()
+            .expect("datetime timestamp")
+    );
+}
+
+#[test]
+fn yaml_11_schema_reports_duplicate_key_collisions_with_spans() {
+    let error = LoadOptions::yaml_1_1()
+        .parse_str("on: push\nyes: deploy\n")
+        .expect_err("YAML 1.1 boolean aliases collide");
+
+    assert!(error.to_string().contains("duplicate mapping key `true`"));
+    assert_eq!(error.span().line, 2);
+    assert_eq!(error.span().column, 1);
+    let related = &error.diagnostic().related;
+    assert_eq!(related.len(), 1);
+    assert_eq!(related[0].span.line, 1);
+    assert_eq!(related[0].span.column, 1);
+}
+
+#[test]
+fn yaml_11_schema_options_cover_streaming_deserializer_and_documents() {
+    let input = "---\nflag: ON\n---\ncount: 0x10\n";
+    let options = LoadOptions::yaml_1_1();
+    let docs: Vec<Value> = options
+        .from_documents_str(input)
+        .expect("YAML 1.1 document stream parses");
+
+    assert_eq!(docs[0]["flag"].as_bool(), Some(true));
+    assert_eq!(docs[1]["count"].as_i64(), Some(16));
+
+    let streamed = options
+        .deserializer_from_str(input)
+        .map(Value::deserialize)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("streaming deserializer parses");
+    assert_eq!(streamed, docs);
+}
+
+#[test]
+fn yaml_11_schema_preserves_source_spelling_for_string_targets() {
+    #[derive(Deserialize)]
+    struct Config<'a> {
+        flag: &'a str,
+        count: &'a str,
+        date: &'a str,
+    }
+
+    let config: Config<'_> = LoadOptions::yaml_1_1()
+        .from_str("flag: ON\ncount: 0x10\ndate: 2026-05-24\n")
+        .expect("source-backed strings deserialize");
+    assert_eq!(config.flag, "ON");
+    assert_eq!(config.count, "0x10");
+    assert_eq!(config.date, "2026-05-24");
+}
+
+fn assert_scalar(options: LoadOptions, scalar: &str, expected: ExpectedScalar<'_>) {
+    let input = if scalar.is_empty() {
+        "value:\n".to_string()
+    } else {
+        format!("value: {scalar}\n")
+    };
+    let value: Value = options.from_str(&input).expect("schema scalar parses");
+    let value = &value["value"];
+    match expected {
+        ExpectedScalar::Null => assert!(value.is_null(), "{scalar:?} should be null"),
+        ExpectedScalar::Bool(expected) => assert_eq!(value.as_bool(), Some(expected), "{scalar:?}"),
+        ExpectedScalar::I64(expected) => assert_eq!(value.as_i64(), Some(expected), "{scalar:?}"),
+        ExpectedScalar::F64(expected) => {
+            assert_eq!(value.as_f64(), Some(expected), "{scalar:?}");
+        }
+        ExpectedScalar::Nan => {
+            assert!(
+                value.as_f64().is_some_and(f64::is_nan),
+                "{scalar:?} should be NaN"
+            );
+        }
+        ExpectedScalar::Str(expected) => assert_eq!(value.as_str(), Some(expected), "{scalar:?}"),
+        ExpectedScalar::Timestamp(expected) => {
+            assert_eq!(value.as_str(), Some(expected), "{scalar:?}");
+            assert_eq!(
+                value.as_timestamp(),
+                Timestamp::parse_yaml_1_1(expected),
+                "{scalar:?}"
+            );
+        }
+    }
+}
+
+fn assert_yaml11_timestamp(value: &Value, expected: &str, timestamp: Timestamp) {
+    assert_eq!(value.as_str(), Some(expected));
+    assert_eq!(value.as_timestamp(), Some(timestamp));
+    let tagged = value.as_tagged().expect("YAML 1.1 timestamp tag");
+    assert_eq!(tagged.tag, Tag::new("!!timestamp"));
+    assert_eq!(tagged.value.as_str(), Some(expected));
+}

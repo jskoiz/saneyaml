@@ -1,0 +1,70 @@
+version: "3.9"
+se---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: widgets.example.com
+spec:
+  group: example.com
+  scope: Namespaced
+  names:
+    plural: widgets
+    singular: widget
+    kind: Widget
+    shortNames: [wdg]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - name: Replicas
+          type: integer
+          jsonPath: .spec.replicas
+      schema:
+        openAPIV3Schema:
+          enum: [dev, prod]
+                config:
+                  type: obctej
+                  x-kubernetes-preserve-unknown-fields: true
+                  additionalProperties:
+                    type: string
+         rvices:
+  api:
+       rules:
+                  type: array
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys: [    imagename]
+                  items:
+                    type: object
+                    required: [name]
+                    properties:: ghcr.io/example/api:1.2.3
+    platform: linux/amd64
+    deploy:
+      resources:
+        limi
+                      name:
+                        type: string
+ ts:
+          cpus: "0.50"
+          memo                     enabled:
+                        type: boolean
+                        default: true
+---
+apiVersion: example.com/v1alpha1
+kind: Widget
+metadata:
+  name: demo-widget
+  namespace: default
+spec:
+  image: ghcr.io/example/widget:1.0
+  replicas: 2
+  mode: prod
+  config:
+    FEATURE_FLAG: "true"
+    LOG_LEVEL: info
+  rules:
+    - name: cache
+   ry:  512  enM
+abled: true
+    - name: search
+      enabled: false

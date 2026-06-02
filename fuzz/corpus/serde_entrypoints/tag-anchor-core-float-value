@@ -1,0 +1,2 @@
+first: &a !!float 1.5
+second: *a

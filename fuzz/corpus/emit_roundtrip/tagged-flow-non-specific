@@ -1,0 +1,1 @@
+root: !Thing {items: [!!str 12, ! 34, {key: value}], flag: true}

@@ -1,0 +1,4 @@
+mode=seq-replace index=0
+steps: [build, test]
+=== yaml replacement ===
+lint

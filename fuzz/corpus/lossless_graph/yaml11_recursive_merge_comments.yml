@@ -1,0 +1,7 @@
+%YAML 1.1
+---
+# recursive alias remains graph-shaped in lossless mode
+root: &root
+  name: root
+  self: *root
+  <<: {enabled: ON}

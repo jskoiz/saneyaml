@@ -1,0 +1,37 @@
+name: Fuzz crash
+description: Report a minimized, non-sensitive fuzz or property-test failure.
+title: "[fuzz]: "
+labels:
+  - fuzz
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: "If the crash is security-sensitive or denial-of-service relevant, report it privately through SECURITY.md first."
+  - type: input
+    id: target
+    attributes:
+      label: Target
+      description: Fuzz target, property test, or corpus replay path.
+    validations:
+      required: true
+  - type: textarea
+    id: artifact
+    attributes:
+      label: Minimized artifact
+      description: Include only non-sensitive minimized input.
+      render: yaml
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: Exact command that reproduces the failure.
+      render: sh
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Failure output
+      description: Include the shortest useful error output.
+      render: text

@@ -1,0 +1,7 @@
+case = "custom-tags"
+policy = "Serde/tree support now; raw event metadata for scalar and collection nodes"
+prototype = "Preserves explicit application, core, and verbatim tags on Node and Value, including flow mapping keys. Keeps tags visible for Value and YAML-tagged enum reads, treats tags as transparent metadata for ordinary typed Serde reads, exposes tag metadata on scalar and collection-start parse_events events, resolves %TAG handles for the following explicit document, and rejects undeclared named tag handles."
+libyaml = "libyaml exposes tags on scalar, sequence-start, and mapping-start events; %TAG directives can affect handle expansion."
+saphyr_yaml_rust2 = "yaml-rust2 Event::Scalar, SequenceStart, and MappingStart carry Option<Tag>; saphyr parser events and Yaml::Tagged preserve tag metadata depending on loader mode."
+decision = "Support %TAG handle resolution and reject undeclared named handles without broad schema coercion. Explicit core tags remain retained metadata; typed Serde reads only coerce scoped core targets such as !!int, !!float, and byte targets for !!binary."
+migration_impact = "Migration impact: tagged configuration can retain application metadata during migration, but callers expecting undeclared handles to survive must fix tag directives."

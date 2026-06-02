@@ -1,0 +1,4 @@
+mode=map-insert index=0
+service: {image: nginx, ports: [80]}
+=== yaml replacement ===
+replicas: 2

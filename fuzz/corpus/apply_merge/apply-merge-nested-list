@@ -1,0 +1,6 @@
+defaults: &defaults {a: 1, shared: defaults}
+first: &first {<<: *defaults, shared: first}
+second: &second {b: 2, shared: second}
+target:
+  <<: [*first, *second]
+  b: explicit

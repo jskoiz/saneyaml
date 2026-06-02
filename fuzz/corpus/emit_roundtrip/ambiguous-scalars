@@ -1,0 +1,5 @@
+on: workflow
+truthy: "yes"
+float: .nan
+zero: 0.0
+path: "a:b"

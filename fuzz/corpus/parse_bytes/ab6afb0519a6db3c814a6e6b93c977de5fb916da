@@ -1,0 +1,17 @@
+Iversion: "3.9"
+services:
+  api:
+    image: ghcr.io/example/api:1.2.3
+    platform: linux/amd64 api:
+    image: ghcr.io/example/api:1.2.3
+    platform: linux/amd64
+    deploy:
+      resourcMs:
+        limits:
+          cpus: "0.50"
+   
+    deploy:
+      resourcMs:
+        limits:
+          cpus: "0.50"
+          memory: 512M

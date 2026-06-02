@@ -1,0 +1,10 @@
+name: CI
+"on": [push, pull_request]
+env: &env {RUSTFLAGS: "-D warnings"}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env: *env
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo test --locked

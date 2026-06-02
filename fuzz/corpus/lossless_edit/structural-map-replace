@@ -1,0 +1,8 @@
+mode=map-replace index=1
+service:
+  image: nginx:latest # keep
+  ports:
+    - "8080:80"
+copy: service
+=== yaml replacement ===
+nginx:1.27

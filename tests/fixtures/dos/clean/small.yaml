@@ -1,0 +1,3 @@
+root:
+  name: app
+  items: [one, two, three]

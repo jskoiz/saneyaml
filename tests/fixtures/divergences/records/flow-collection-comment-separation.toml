@@ -1,0 +1,7 @@
+case = "flow-collection-comment-separation"
+policy = "YAML 1.2 comment separation in and after flow collections"
+prototype = "Rejects YAML-suite 9JBA, where a comment-like suffix appears immediately after a flow sequence end marker as `[ a, b, c, ]#invalid` without required separation whitespace. Also rejects YAML-suite CVW2, where `#invalid` appears as a comment-looking flow sequence item after a comma. parse_events rejects the same inputs because the malformed comment-looking text is syntax, not loader policy."
+serde_yaml = "serde_yaml 0.9.34 accepts these inputs as three-item sequences, matching some libyaml-era tolerance for adjacent comment-looking text in and after flow collections."
+yaml_rust2_saphyr = "yaml-rust2 0.11.0 and saphyr 0.0.6 reject these YAML-suite error fixtures."
+decision = "Reject adjacent comment-looking text in and after flow collections to follow YAML 1.2 conformance and the Rust parser compatibility target. Do not add a libyaml/serde_yaml compatibility bridge for this malformed input."
+migration_impact = "Migration impact: migrations from tolerant libyaml paths may surface syntax errors for malformed adjacent comments, and callers should fix inputs rather than request fallback parsing."

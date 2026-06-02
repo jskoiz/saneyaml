@@ -1,0 +1,13 @@
+x-service-defaults: &service-defaults
+  image: nginx:1.27
+  environment:
+    RUST_LOG: info
+
+services:
+  web:
+    <<: *service-defaults
+    ports:
+      - "8080:80"
+  worker:
+    <<: *service-defaults
+    command: ["run-worker"]

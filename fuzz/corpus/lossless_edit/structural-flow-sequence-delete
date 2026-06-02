@@ -1,0 +1,4 @@
+mode=seq-delete index=1
+steps: [build, test, deploy]
+=== yaml replacement ===
+ignored

@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !yaml! tag:yaml.org,2002:
+---
+nulls:
+  tilde: ~
+  lower: null
+  upper: NULL
+floats:
+  inf: .inf
+  neg_inf: -.Inf
+  nan: .NaN
+  sexagesimal: 1:20:30.5
+numbers:
+  invalid_octal: 09
+  binary: 0b1010
+timestamps:
+  date: 2026-05-24
+  datetime_z: 2026-05-24T12:34:56Z
+  spaced_offset: 2026-05-24 12:34:56 -7
+  fractional: 2026-05-24t12:34:56.789+05:30
+payload: !yaml!binary SGVsbG8=
+...
+---
+flag: ON
+octal: 0123
+timestamp: 2026-05-24

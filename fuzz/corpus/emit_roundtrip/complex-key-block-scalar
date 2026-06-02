@@ -1,0 +1,8 @@
+? [service, !!str 01]
+: &target
+  script: |
+    echo hello
+    echo world
+  env:
+    <<: &defaults {RUST_LOG: info}
+    PORT: 8080

@@ -1,0 +1,6 @@
+%TAG !yaml! tag:yaml.org,2002:
+---
+set: &set !yaml!set {alpha: null, beta: null}
+omap: &omap !yaml!omap [{first: 1}, {second: 2}]
+pairs: &pairs !yaml!pairs [{repeat: 1}, {repeat: 2}]
+aliases: [*set, *omap, *pairs]

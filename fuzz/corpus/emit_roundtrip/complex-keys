@@ -1,0 +1,5 @@
+root:
+  ? [a, b]
+  : {x: y}
+  ? {left: 1, right: 2}
+  : pair

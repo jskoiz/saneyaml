@@ -1,0 +1,5 @@
+---
+name: app
+path: /srv/app
+---
+bad: *missing

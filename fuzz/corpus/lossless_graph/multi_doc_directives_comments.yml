@@ -1,0 +1,11 @@
+%YAML 1.1
+%TAG !e! tag:example.com,2026:
+---
+# first
+value: !e!Thing &thing yes
+ref: *thing
+...
+---
+# second
+- !!str null
+- !!bool OFF

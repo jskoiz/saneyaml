@@ -1,0 +1,7 @@
+case = "raw-event-anchors-aliases"
+policy = "raw event milestone"
+prototype = "parse_events exposes anchor definitions on scalar and collection-start events and emits Alias events without expanding aliases, including YAML-suite 6M2F scalar block aliases and flow mapping-key aliases. Recursive aliases remain valid raw events, while unknown aliases are rejected. Tree loading continues acyclic clone-on-alias expansion and rejects recursive or unknown aliases."
+libyaml = "libyaml parser events expose anchors on scalar, sequence-start, and mapping-start events, and expose aliases as alias events for ordinary anchor/alias inputs, but rejects YAML-suite 6M2F's scalar block alias form."
+yaml_rust2_saphyr = "yaml-rust2 events carry numeric anchor ids on scalar/collection starts and Alias(id); saphyr parser/loader has equivalent event-level alias handling before tree insertion."
+decision = "Raw events must expose anchor definitions and alias references without expansion. The tree loader may continue clone-on-alias expansion and no graph identity."
+migration_impact = "Migration impact: graph-sensitive callers should migrate to raw events or LosslessStream for alias identity; semantic tree callers still receive expanded values."

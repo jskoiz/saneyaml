@@ -1,0 +1,10 @@
+Fold#$%&'()*ld#$%&'()*+,-./09:;<=>?@AZ[\]^_`aoo
+safe colon: :foo
+safe dash: -foo
+	[[=="
+Chomping: |
+  Clipped empty
+Chom |gn
+:pi  Clipped empty lines
+ 
+

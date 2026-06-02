@@ -1,0 +1,7 @@
+case = "yaml-suite-flow-collection-shared-deferrals"
+policy = "Keep remaining YAML-suite flow collection shared-reference deferrals grouped by flow syntax behavior instead of a final catch-all."
+prototype = "YAML-suite 4ABK, 4MUZ/00, 4MUZ/01, 4MUZ/02, DBG4, FRK4, HM87/00, K3WX, NJ66, NKF9, and VJP3/01 remain accepted by this crate and covered by event/tree/Serde gates. They exercise flow mapping separators, multi-line flow keys, plain scalars inside flow collections, empty flow nodes, adjacent values after comments, and empty keys across block/flow mapping forms."
+serde_yaml = "serde_yaml 0.9.34/libyaml rejects or diverges on these accepted YAML-suite flow collection forms, so they stay outside shared-reference acceptance even though this crate's parser and Serde entrypoints accept them."
+yaml_rust2_saphyr = "yaml-rust2 0.11.0 and saphyr 0.0.6 provide parser/tree comparison context for the selected accepted cases; this record scopes only the remaining serde_yaml/libyaml shared-reference mismatch."
+decision = "Keep these flow collection cases selected as accepted while deferring shared-reference parity until the project intentionally changes the serde_yaml/libyaml compatibility policy for flow separators, plain flow scalars, empty flow nodes, or multi-line flow keys."
+migration_impact = "Migration impact: callers moving flow-heavy YAML through this crate may see accepted YAML 1.2 behavior for inputs that serde_yaml/libyaml rejects, so compatibility-sensitive migrations should assert this flow-collection family explicitly."

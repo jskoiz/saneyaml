@@ -1,0 +1,6 @@
+base: &base
+  retries: 3
+  timeout: 10
+target:
+  <<: *base
+  timeout: 20

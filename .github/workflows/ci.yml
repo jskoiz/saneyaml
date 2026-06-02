@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  rust:
+    name: Rust checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install stable Rust components
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+          rustup default stable
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Check patch whitespace
+        run: git diff --check
+
+      - name: Run targeted proof stack
+        run: |
+          cargo test --locked --test serde_yaml_swap_harness
+          cargo test --locked --test downstream_migration_harness
+          cargo test --locked --test real_world_lossless
+          cargo test --locked --test compatibility_harness --test serde_value_api --test event_parity --test tree_parity --test divergence_manifest --test divergences --test real_world_fixture_manifest --test parser_properties --test emitter --test emitter_tagged
+
+      - name: Run full tests
+        run: cargo test --locked
+
+      - name: Run doctests
+        run: cargo test --locked --doc
+
+      - name: Check public docs
+        run: RUSTDOCFLAGS='-D missing_docs' cargo doc --locked --no-deps
+
+      - name: Check package contents
+        run: cargo package --locked --allow-dirty --list >/dev/null
+
+      - name: Run trust guard tests
+        run: |
+          cargo test --locked --test runtime_dependency_closure
+          cargo test --locked --test trust_metadata
+
+      - name: Run clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+  msrv:
+    name: Rust 1.88 MSRV
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust 1.88
+        run: rustup toolchain install 1.88.0 --profile minimal
+
+      - name: Check all targets on MSRV
+        run: rustup run 1.88.0 cargo check --locked --all-targets
+
+      - name: Test on MSRV
+        run: rustup run 1.88.0 cargo test --locked
+
+  ubuntu-release-evidence:
+    name: Ubuntu release evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install stable Rust components
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+          rustup default stable
+
+      - name: Install public API tooling
+        run: |
+          rustup toolchain install nightly --profile minimal
+          cargo install cargo-public-api --version 0.52.0 --locked
+
+      - name: Check public API snapshot
+        run: scripts/check-public-api.sh
+
+      - name: Run runtime dependency closure check
+        run: cargo test --locked --test runtime_dependency_closure
+
+      - name: Run trust metadata check
+        run: cargo test --locked --test trust_metadata
+
+      - name: Run package-alias smoke
+        run: scripts/downstream-build-trials.sh smoke-only
+
+      - name: Run fuzz target clippy
+        run: cargo clippy --locked --manifest-path fuzz/Cargo.toml --all-targets -- -D warnings
+
+      - name: Run fuzz target smoke
+        run: |
+          rustup toolchain install nightly --profile minimal
+          cargo install cargo-fuzz --locked
+          YAML_FUZZ_RUNS=1 scripts/fuzz-smoke-nonmutating.sh

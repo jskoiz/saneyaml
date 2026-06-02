@@ -1,0 +1,8 @@
+mode=insert index=11
+%YAML 1.2
+---
+name: first
+---
+name: second
+=== yaml replacement ===
+# inserted between directive and document

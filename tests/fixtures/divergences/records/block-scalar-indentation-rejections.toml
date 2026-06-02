@@ -1,0 +1,7 @@
+case = "block-scalar-indentation-rejections"
+policy = "YAML 1.2 block scalar content must satisfy the detected indentation"
+prototype = "Rejects YAML-suite 5LLU, S98Z, and W9L4, where block scalar content indentation is inconsistent with the detected or declared block scalar indentation. parse_events rejects the same inputs because the malformed block scalar indentation is syntax, not loader policy."
+serde_yaml = "serde_yaml 0.9.34 accepts YAML-suite S98Z through libyaml block-scalar recovery, while rejecting the selected 5LLU and W9L4 forms."
+yaml_rust2_saphyr = "yaml-rust2 0.11.0 and saphyr 0.0.6 reject these YAML-suite error fixtures."
+decision = "Reject malformed block scalar indentation to follow YAML 1.2 conformance and preserve deterministic span diagnostics. Do not add a libyaml recovery bridge for over-indented first content lines."
+migration_impact = "Migration impact: callers migrating malformed block scalars from libyaml may see syntax errors and should normalize block scalar indentation before loading."

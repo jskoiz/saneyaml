@@ -1,0 +1,32 @@
+parameters:
+  app.supported_locales: ['en', 'fr']
+  app.secret: '%env(APP_SECRET)%'
+services:
+  _defaults:
+    autowire: true
+    autoconfigure: true
+    bind:
+      string $projectDir: '%kernel.project_dir%'
+  _instanceof:
+    App\MessageHandler\HandlerInterface:
+      tags:
+        - { name: messenger.message_handler, bus: command.bus }
+  App\:
+    resource: '../src/'
+    exclude:
+      - '../src/DependencyInjection/'
+      - '../src/Entity/'
+  App\Controller\HealthController:
+    arguments:
+      $cache: '@cache.app'
+      $iterator: !tagged_iterator app.health_check
+    tags: ['controller.service_arguments']
+  App\Service\Mailer:
+    factory: ['@App\Factory\MailerFactory', create]
+    calls:
+      - [setLogger, ['@logger']]
+when@test:
+  services:
+    App\Tests\FakeMailer:
+      decorates: App\Service\Mailer
+      arguments: ['@.inner']

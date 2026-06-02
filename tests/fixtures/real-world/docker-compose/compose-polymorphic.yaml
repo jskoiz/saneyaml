@@ -1,0 +1,42 @@
+version: "3.9"
+
+x-healthcheck: &http-healthcheck
+  test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+  interval: 10s
+  timeout: 3s
+  retries: 5
+
+services:
+  web:
+    image: ghcr.io/example/web:1.2.3
+    profiles: ["web"]
+    env_file:
+      - .env
+      - .env.local
+    environment:
+      - RUST_LOG=info
+      - FEATURE_FLAG=true
+      - EMPTY_VALUE=
+    healthcheck: *http-healthcheck
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./config
+        target: /etc/yaml-demo
+  worker:
+    image: ghcr.io/example/worker:1.2.3
+    command: "bundle exec sidekiq"
+    environment:
+      - QUEUE=default
+    healthcheck:
+      test: "pgrep -f sidekiq"
+  db:
+    image: postgres:16
+    command: ["postgres", "-c", "shared_buffers=256MB"]
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_PASSWORD: "example"
+    healthcheck:
+      test: "pg_isready -U postgres"

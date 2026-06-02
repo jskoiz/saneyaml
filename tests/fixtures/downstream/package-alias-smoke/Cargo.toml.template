@@ -1,0 +1,9 @@
+[package]
+name = "serde-yaml-alias-smoke"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = { package = "saneyaml", path = "__YAML_PACKAGE_DIR__" }

@@ -1,0 +1,8 @@
+case = "colon-anchor-names"
+policy = "YAML 1.2 anchor and alias names in parser/tree support"
+prototype = "Accepts colon-bearing anchor and alias names such as root: [&a:, *a:] as null sequence entries and YAML-suite 2SXE block anchor/alias names while preserving raw event anchor and alias names."
+libyaml = "Ruby Psych 3.1.0/libyaml 0.2.1 constructs root: [&a:, *a:] as sequence entries containing mapping-shaped null keys rather than the null scalar entries produced for root: [&empty, *empty], and rejects YAML-suite 2SXE with `mapping values are not allowed in this context`."
+yaml_rust2 = "yaml-rust2 0.11.0 accepts colon-bearing anchor and alias names as null sequence entries."
+saphyr = "saphyr 0.0.6 accepts colon-bearing anchor and alias names as null sequence entries."
+decision = "Keep colon-bearing anchor names for YAML 1.2/Rust-reference compatibility and record the libyaml/Psych tree-shape divergence."
+migration_impact = "Migration impact: callers depending on Psych's colon-anchor tree shape need fixture coverage, while ordinary YAML 1.2 anchor/alias uses migrate without a compatibility bridge."

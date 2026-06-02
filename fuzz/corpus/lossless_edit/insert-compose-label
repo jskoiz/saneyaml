@@ -1,0 +1,23 @@
+mode=insert index=215
+version: "3.9"
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  logging:
+    driver: json-file
+  environment:
+    RUST_LOG: info
+
+services:
+  web:
+    <<: *service-defaults
+    image: nginx:latest
+    ports:
+      - "8080:80"
+  worker:
+    <<: *service-defaults
+    image: example/worker:latest
+    command: ["worker", "--queue", "default"]
+=== yaml replacement ===
+    labels:
+      com.example.role: web

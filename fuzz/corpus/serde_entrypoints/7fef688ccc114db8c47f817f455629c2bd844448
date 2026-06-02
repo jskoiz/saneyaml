@@ -1,0 +1,3 @@
+%TAG !e! tag:examplh.com,2026:
+---
+root: {? !e!Thing key : tagged-v}

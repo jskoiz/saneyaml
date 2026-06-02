@@ -1,0 +1,141 @@
+schema = "compatibility-matrix-v1"
+render_start = "<!-- compatibility-matrix:start -->"
+render_end = "<!-- compatibility-matrix:end -->"
+
+[[row]]
+id = "typed-serde-config"
+behavior = "Typed Serde config entrypoints"
+probe = "typed-serde-config"
+proof = "tests/compatibility_matrix.rs typed AppConfig probe"
+input = """
+name: api
+enabled: true
+ports: [80, 443]
+"""
+expected_docs = 1
+yaml_policy = "YAML 1.2 default typed reads preserve common config scalars."
+yaml = "accept"
+serde_yaml = "accept"
+serde_yml = "accept"
+serde_yaml_ng = "accept"
+yaml_rust2 = "n/a"
+saphyr = "n/a"
+cross_ecosystem = []
+divergence_record = "none"
+migration_impact = "Serde-only Rust API row; parser-only loaders are intentionally marked n/a instead of given adapter shims."
+
+[[row]]
+id = "real-world-registry"
+behavior = "Registered real-world fixtures"
+probe = "real-world-registry"
+proof = "tests/fixtures/real-world/SOURCE.toml, 33 files / 39 documents"
+expected_docs = 39
+yaml_policy = "Every registered fixture must parse with the five Rust reference loaders."
+yaml = "accept"
+serde_yaml = "accept"
+serde_yml = "n/a"
+serde_yaml_ng = "accept"
+yaml_rust2 = "accept"
+saphyr = "accept"
+cross_ecosystem = []
+divergence_record = "none"
+migration_impact = "Config migration smoke coverage includes CloudFormation/SAM, Symfony, GitLab CI, CircleCI, Azure Pipelines, GitHub Actions, Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and Ansible without compatibility fallbacks."
+
+[[row]]
+id = "ci-dialect-scalars"
+behavior = "CI expression and script scalars"
+probe = "parse-documents"
+proof = "GitHub Actions, CircleCI, and Azure Pipelines synthetic scalar shapes"
+input = """
+github: ${{ inputs.image-tag }}
+circleci: cargo-v1-{{ checksum "Cargo.lock" }}
+azure: "$[eq(variables['Build.SourceBranch'], 'refs/heads/main')]"
+script: |
+  cargo test --locked
+"""
+expected_docs = 1
+yaml_policy = "Treat CI expressions as plain or quoted strings under the default schema."
+yaml = "accept"
+serde_yaml = "accept"
+serde_yml = "accept"
+serde_yaml_ng = "accept"
+yaml_rust2 = "accept"
+saphyr = "accept"
+cross_ecosystem = ["ci-dialect-scalars"]
+divergence_record = "none"
+migration_impact = "CI users can migrate expression-heavy config without enabling YAML 1.1 compatibility or expression-specific parsing."
+
+[[row]]
+id = "anchors-and-merge"
+behavior = "Anchors, aliases, and merge keys"
+probe = "parse-documents"
+proof = "GitLab CI-style defaults and merge expansion fixture"
+input = """
+default: &default
+  image: rust:1.85
+lint:
+  <<: *default
+  script:
+    - cargo fmt --all -- --check
+"""
+expected_docs = 1
+yaml_policy = "Semantic loaders expand acyclic merge keys; raw/lossless surfaces preserve anchor and merge syntax."
+yaml = "accept"
+serde_yaml = "accept"
+serde_yml = "accept"
+serde_yaml_ng = "accept"
+yaml_rust2 = "accept"
+saphyr = "accept"
+cross_ecosystem = ["anchors-and-merge"]
+divergence_record = "tests/fixtures/divergences/records/merge-keys.toml"
+migration_impact = "Graph-sensitive callers should use lossless graph APIs; semantic config callers get effective merged mappings."
+
+[[row]]
+id = "custom-tags"
+behavior = "Application custom tags"
+probe = "parse-documents"
+proof = "CloudFormation/SAM and Symfony short-form tags"
+input = """
+table: !Ref Table
+iterator: !tagged_iterator app.health_check
+script: !Sub |
+  echo "${AWS::StackName}"
+"""
+expected_docs = 1
+yaml_policy = "Retain application tags in this crate's Value/event/lossless surfaces while allowing common loader acceptance."
+yaml = "accept"
+serde_yaml = "accept"
+serde_yml = "accept"
+serde_yaml_ng = "accept"
+yaml_rust2 = "accept"
+saphyr = "accept"
+cross_ecosystem = []
+divergence_record = "tests/fixtures/divergences/records/custom-tags.toml"
+migration_impact = "Tagged config users should assert tag-retention behavior directly because some reference trees accept syntax while dropping or reshaping tag metadata."
+
+[[row]]
+id = "document-streams"
+behavior = "Multi-document streams"
+probe = "parse-documents"
+proof = "Kubernetes-style explicit document stream"
+input = """
+---
+kind: ConfigMap
+metadata:
+  name: one
+---
+kind: Service
+metadata:
+  name: two
+"""
+expected_docs = 2
+yaml_policy = "Explicit stream boundaries are accepted and document counts stay stable."
+yaml = "accept"
+serde_yaml = "accept"
+serde_yml = "n/a"
+serde_yaml_ng = "accept"
+yaml_rust2 = "accept"
+saphyr = "accept"
+cross_ecosystem = ["document-streams"]
+divergence_record = "none"
+migration_impact = "Stream-processing callers should keep asserting document counts when migrating Kubernetes-style manifests."

@@ -1,0 +1,16 @@
+%YAML 1.1
+---
+# Helm-style defaults with block scalars and merge aliases
+defaults: &defaults
+  annotations:
+    checksum/config: !!str 0123
+  script: |+
+    set -e
+    echo deploy
+release:
+  <<: *defaults
+  annotations:
+    note: >-
+      folded
+      release note
+copy: *defaults

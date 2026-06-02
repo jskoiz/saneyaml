@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !yaml! tag:yaml.org,2002:
+---
+base: &base
+  mode: 0644
+  enabled: ON
+  retries: 0x3
+service:
+  <<: *base
+  enabled: no
+  owner: ops
+flags:
+  deploy: ON
+numbers:
+  hex_limit: 0x10
+  session: 1:20:30
+  invalid_octal: 09
+payload: !yaml!binary SGVsbG8=

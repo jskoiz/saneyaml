@@ -1,0 +1,54 @@
+[package]
+name = "saneyaml"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Pure-Rust YAML parser, emitter, and Serde compatibility layer for developer configuration files."
+readme = "README.md"
+license = "MIT"
+repository = "https://github.com/jskoiz/yaml"
+keywords = ["yaml", "serde", "parser", "configuration"]
+categories = ["config", "encoding", "parser-implementations"]
+include = [
+    "/Cargo.lock",
+    "/Cargo.toml",
+    "/README.md",
+    "/ARCHITECTURE.md",
+    "/LICENSE.md",
+    "/BENCHMARKS.md",
+    "/CHANGELOG.md",
+    "/COMPATIBILITY.md",
+    "/CONTRIBUTING.md",
+    "/MIGRATION.md",
+    "/PUBLIC_API.txt",
+    "/SECURITY.md",
+    "/examples/serde_yaml_migration.rs",
+    "/src/**",
+]
+
+[lib]
+name = "saneyaml"
+path = "src/lib.rs"
+
+[features]
+default = ["serde", "emit", "lossless"]
+serde = []
+emit = []
+lossless = []
+
+[dependencies]
+ryu = "1.0"
+serde = "1.0"
+
+[dev-dependencies]
+proptest = "1.6"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9.34"
+saphyr = "0.0.6"
+saphyr-parser = "0.0.6"
+sha2 = "0.10"
+toml = "0.8"
+yaml-rust2 = "0.11.0"
+serde_yml = "0.0.13"
+serde_yaml_ng = "0.10.0"

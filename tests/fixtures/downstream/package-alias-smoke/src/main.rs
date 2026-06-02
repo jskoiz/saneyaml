@@ -1,0 +1,484 @@
+use serde::{Deserialize, Serialize};
+use std::io::Cursor;
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+struct Config {
+    name: String,
+    ports: Vec<u16>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct LargePayload {
+    payload: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+enum Action {
+    Unit,
+    Shell { run: String },
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+struct SingletonConfig {
+    #[serde(with = "serde_yaml::with::singleton_map")]
+    action: Action,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+struct RecursiveSingletonConfig {
+    #[serde(with = "serde_yaml::with::singleton_map_recursive")]
+    actions: Vec<Action>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct LegacyDocument {
+    flag: bool,
+    octal: i64,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct LegacyScalarDenominator {
+    bools: Vec<bool>,
+    nulls: LegacyNullAliases,
+    numbers: LegacyScalarNumbers,
+    timestamps: LegacyTimestampDenominator,
+    binary_spaced: Vec<u8>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct LegacyNullAliases {
+    empty: Option<String>,
+    tilde: Option<String>,
+    mixed: Option<String>,
+    upper: Option<String>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct LegacyScalarNumbers {
+    plus_octal: i64,
+    hex: i64,
+    binary: i64,
+    decimal_overflow: String,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct LegacyTimestampDenominator {
+    lower_z: serde_yaml::Timestamp,
+    leap_second: serde_yaml::Timestamp,
+    invalid_zone: String,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct MergeRoot {
+    job: MergeJob,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct MergeJob {
+    retries: u64,
+    timeout: u64,
+}
+
+fn main() {
+    let config: Config = serde_yaml::from_str("name: api\nports: [80, 443]\n").unwrap();
+    assert_eq!(config.name, "api");
+    assert_eq!(config.ports, [80, 443]);
+
+    let from_slice: Config = serde_yaml::from_slice(b"name: worker\nports: [8080]\n").unwrap();
+    assert_eq!(from_slice.name, "worker");
+
+    let from_reader: Config =
+        serde_yaml::from_reader(Cursor::new(b"name: reader\nports: [9000]\n")).unwrap();
+    assert_eq!(from_reader.ports, [9000]);
+    bounded_reader_smoke_uses_package_alias();
+
+    let direct_from_str =
+        Config::deserialize(serde_yaml::Deserializer::from_str("name: direct\nports: [7000]\n"))
+            .unwrap();
+    let direct_from_slice = Config::deserialize(serde_yaml::Deserializer::from_slice(
+        b"name: slice-direct\nports: [7001]\n",
+    ))
+    .unwrap();
+    let direct_from_reader = Config::deserialize(serde_yaml::Deserializer::from_reader(
+        Cursor::new(b"name: reader-direct\nports: [7002]\n"),
+    ))
+    .unwrap();
+    assert_eq!(direct_from_str.ports, [7000]);
+    assert_eq!(direct_from_slice.ports, [7001]);
+    assert_eq!(direct_from_reader.ports, [7002]);
+
+    let stream_docs = serde_yaml::Deserializer::from_str(
+        "---\nname: first\nports: [1]\n---\nname: second\nports: [2]\n",
+    )
+    .map(Config::deserialize)
+    .collect::<Result<Vec<_>, _>>()
+    .unwrap();
+    assert_eq!(stream_docs.len(), 2);
+    assert_eq!(stream_docs[1].name, "second");
+
+    let reader_stream_docs = serde_yaml::Deserializer::from_reader(Cursor::new(
+        b"---\nname: first-reader\nports: [3]\n---\nname: second-reader\nports: [4]\n",
+    ))
+    .map(Config::deserialize)
+    .collect::<Result<Vec<_>, _>>()
+    .unwrap();
+    assert_eq!(reader_stream_docs[0].ports, [3]);
+    assert_eq!(reader_stream_docs[1].ports, [4]);
+
+    let document_values: Vec<Config> =
+        serde_yaml::from_documents_str("---\nname: root-one\nports: [5]\n---\nname: root-two\nports: [6]\n")
+            .unwrap();
+    let document_values_from_slice: Vec<Config> = serde_yaml::from_documents_slice(
+        b"---\nname: slice-one\nports: [7]\n---\nname: slice-two\nports: [8]\n",
+    )
+    .unwrap();
+    let document_values_from_reader: Vec<Config> = serde_yaml::from_documents_reader(Cursor::new(
+        b"---\nname: reader-one\nports: [9]\n---\nname: reader-two\nports: [10]\n",
+    ))
+    .unwrap();
+    assert_eq!(document_values[1].name, "root-two");
+    assert_eq!(document_values_from_slice[0].ports, [7]);
+    assert_eq!(document_values_from_reader[1].ports, [10]);
+
+    let legacy_docs: Vec<LegacyDocument> = serde_yaml::LoadOptions::yaml_version_directive()
+        .from_documents_str(
+            "%YAML 1.1\n---\nflag: ON\noctal: 012\n---\nflag: true\noctal: 12\n",
+        )
+        .unwrap();
+    assert_eq!(
+        legacy_docs,
+        vec![
+            LegacyDocument {
+                flag: true,
+                octal: 10,
+            },
+            LegacyDocument {
+                flag: true,
+                octal: 12,
+            },
+        ]
+    );
+    let legacy_reader: LegacyDocument = serde_yaml::LoadOptions::yaml_version_directive()
+        .from_reader(Cursor::new(b"%YAML 1.1\n---\nflag: ON\noctal: 012\n"))
+        .unwrap();
+    assert_eq!(
+        legacy_reader,
+        LegacyDocument {
+            flag: true,
+            octal: 10,
+        }
+    );
+
+    let directive_boundary: Vec<serde_yaml::Value> =
+        serde_yaml::LoadOptions::yaml_version_directive()
+            .from_documents_str(
+                "%YAML 1.1\n%TAG !yaml! tag:yaml.org,2002:\n---\n\
+doc: first\nflag: ON\noctal: 012\ntagged: !yaml!str ON\n...\n\
+---\ndoc: second\nflag: ON\noctal: 012\n...\n\
+%YAML 1.1\n---\ndoc: third\nflag: OFF\noctal: 012\n",
+            )
+            .unwrap();
+    assert_eq!(directive_boundary.len(), 3);
+    assert_eq!(directive_boundary[0]["flag"].as_bool(), Some(true));
+    assert_eq!(directive_boundary[0]["octal"].as_i64(), Some(10));
+    assert_eq!(directive_boundary[0]["tagged"].as_str(), Some("ON"));
+    assert_eq!(directive_boundary[1]["flag"].as_str(), Some("ON"));
+    assert_eq!(directive_boundary[1]["octal"].as_i64(), Some(12));
+    assert_eq!(directive_boundary[2]["flag"].as_bool(), Some(false));
+    assert_eq!(directive_boundary[2]["octal"].as_i64(), Some(10));
+
+    assert!(
+        serde_yaml::parse_events(
+            "%TAG !e! tag:example.com,2026:\n--- !e!Thing first\n...\n--- !e!Thing second\n",
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("undeclared TAG directive handle")
+    );
+
+    let scalar_denominator: LegacyScalarDenominator =
+        serde_yaml::LoadOptions::yaml_version_directive()
+            .from_str(
+                "%YAML 1.1\n%TAG !yaml! tag:yaml.org,2002:\n---\n\
+bools: [y, YES, true, n, NO, false]\n\
+nulls: {empty: , tilde: ~, mixed: Null, upper: NULL}\n\
+numbers: {plus_octal: +0123, hex: 0x2A, binary: 0b1010, decimal_overflow: 340282366920938463463374607431768211456}\n\
+timestamps: {lower_z: 2026-05-24t12:34:56z, leap_second: 2026-05-24T23:59:60Z, invalid_zone: 2026-05-24T12:34:56+24}\n\
+binary_spaced: !yaml!binary \"SGVs bG8=\"\n",
+            )
+            .unwrap();
+    assert_eq!(
+        scalar_denominator.bools,
+        vec![true, true, true, false, false, false]
+    );
+    assert_eq!(scalar_denominator.nulls.empty, None);
+    assert_eq!(scalar_denominator.nulls.tilde, None);
+    assert_eq!(scalar_denominator.nulls.mixed, None);
+    assert_eq!(scalar_denominator.nulls.upper, None);
+    assert_eq!(scalar_denominator.numbers.plus_octal, 83);
+    assert_eq!(scalar_denominator.numbers.hex, 42);
+    assert_eq!(scalar_denominator.numbers.binary, 10);
+    assert_eq!(
+        scalar_denominator.numbers.decimal_overflow,
+        "340282366920938463463374607431768211456"
+    );
+    assert_eq!(
+        scalar_denominator.timestamps.lower_z,
+        serde_yaml::Timestamp::parse_yaml_1_1("2026-05-24t12:34:56z").unwrap()
+    );
+    assert_eq!(
+        scalar_denominator.timestamps.leap_second,
+        serde_yaml::Timestamp::parse_yaml_1_1("2026-05-24T23:59:60Z").unwrap()
+    );
+    assert_eq!(
+        scalar_denominator.timestamps.invalid_zone,
+        "2026-05-24T12:34:56+24"
+    );
+    assert_eq!(scalar_denominator.binary_spaced, b"Hello");
+
+    let value: serde_yaml::Value =
+        serde_yaml::from_str("defaults: &defaults\n  retries: 3\njob:\n  <<: *defaults\n")
+            .unwrap();
+    assert_eq!(value["job"]["retries"].as_u64(), Some(3));
+
+    let mut mapping = serde_yaml::Mapping::new();
+    mapping.insert(
+        serde_yaml::Value::from("answer"),
+        serde_yaml::Value::Number(serde_yaml::Number::from(42u64)),
+    );
+    let mapped = serde_yaml::Value::Mapping(mapping);
+    assert_eq!(mapped["answer"].as_u64(), Some(42));
+
+    let mut entry_mapping = serde_yaml::Mapping::new();
+    entry_mapping.insert("image".into(), "nginx".into());
+    match entry_mapping.entry("replicas".into()) {
+        serde_yaml::mapping::Entry::Vacant(entry) => {
+            assert_eq!(entry.key().as_str(), Some("replicas"));
+            entry.insert(serde_yaml::Value::from(2u64));
+        }
+        serde_yaml::mapping::Entry::Occupied(_) => panic!("replicas should start vacant"),
+    }
+    match entry_mapping.entry("image".into()) {
+        serde_yaml::mapping::Entry::Occupied(mut entry) => {
+            assert_eq!(entry.key().as_str(), Some("image"));
+            assert_eq!(entry.get().as_str(), Some("nginx"));
+            assert_eq!(entry.insert("nginx:latest".into()).as_str(), Some("nginx"));
+        }
+        serde_yaml::mapping::Entry::Vacant(_) => panic!("image should start occupied"),
+    }
+    assert_eq!(entry_mapping["image"].as_str(), Some("nginx:latest"));
+    assert_eq!(entry_mapping.get("replicas").and_then(|value| value.as_u64()), Some(2));
+    let keys = entry_mapping
+        .keys()
+        .filter_map(|key| key.as_str())
+        .collect::<Vec<_>>();
+    assert!(keys.contains(&"image"));
+    assert!(keys.contains(&"replicas"));
+
+    let sequence: serde_yaml::Sequence = vec!["api".into(), "worker".into()];
+    assert_eq!(sequence[1].as_str(), Some("worker"));
+    let sequenced = serde_yaml::Value::Sequence(sequence);
+    assert_eq!(sequenced[0].as_str(), Some("api"));
+
+    let mut merge_source = serde_yaml::Mapping::new();
+    merge_source.insert("retries".into(), 3u64.into());
+    merge_source.insert("timeout".into(), 30u64.into());
+    let mut caller_built_job = serde_yaml::Mapping::new();
+    caller_built_job.insert("<<".into(), serde_yaml::Value::Mapping(merge_source));
+    caller_built_job.insert("timeout".into(), 10u64.into());
+    let caller_built = serde_yaml::Value::Mapping(
+        [("job".into(), serde_yaml::Value::Mapping(caller_built_job))]
+            .into_iter()
+            .collect(),
+    );
+    let decoded_merge: MergeRoot = serde_yaml::from_value(caller_built.clone()).unwrap();
+    let decoded_merge_module: MergeRoot =
+        serde_yaml::value::from_value(caller_built.clone()).unwrap();
+    let decoded_merge_ref = MergeRoot::deserialize(&caller_built).unwrap();
+    assert_eq!(decoded_merge.job.retries, 3);
+    assert_eq!(decoded_merge.job.timeout, 10);
+    assert_eq!(decoded_merge_module, decoded_merge);
+    assert_eq!(decoded_merge_ref, decoded_merge);
+    assert!(caller_built["job"]["<<"].is_mapping());
+
+    let mut action_payload = serde_yaml::Mapping::new();
+    action_payload.insert("run".into(), "cargo test".into());
+    let mut action_source = serde_yaml::Mapping::new();
+    action_source.insert("Shell".into(), serde_yaml::Value::Mapping(action_payload));
+    let caller_built_action = serde_yaml::Value::Mapping(
+        [("<<".into(), serde_yaml::Value::Mapping(action_source))]
+            .into_iter()
+            .collect(),
+    );
+    let decoded_action = Action::deserialize(&caller_built_action).unwrap();
+    assert_eq!(
+        decoded_action,
+        Action::Shell {
+            run: "cargo test".into()
+        }
+    );
+    assert!(caller_built_action["<<"].is_mapping());
+
+    let mut explicit_merge = caller_built.clone();
+    explicit_merge.apply_merge().unwrap();
+    assert_eq!(explicit_merge["job"]["retries"].as_u64(), Some(3));
+    assert_eq!(explicit_merge["job"]["timeout"].as_u64(), Some(10));
+    assert!(explicit_merge["job"]["<<"].is_null());
+
+    let lossless = serde_yaml::parse_lossless("base: &base\n  item: 1\ncopy: *base\n").unwrap();
+    assert_eq!(lossless.aliases().len(), 1);
+    let alias = &lossless.aliases()[0];
+    let target = lossless.anchor(alias.target()).unwrap();
+    assert_eq!(alias.name(), "base");
+    assert_eq!(target.name(), "base");
+    assert!(matches!(
+        lossless.node(alias.node()).unwrap().kind(),
+        serde_yaml::LosslessNodeKind::Alias { target: alias_target, .. }
+            if *alias_target == target.id()
+    ));
+
+    let value_from_root = serde_yaml::to_value(&config).unwrap();
+    let value_from_module = serde_yaml::value::to_value(&config).unwrap();
+    let value_from_serializer = config.serialize(serde_yaml::value::Serializer).unwrap();
+    let config_from_value: Config = serde_yaml::from_value(value_from_root.clone()).unwrap();
+    let config_from_value_module: Config =
+        serde_yaml::value::from_value(value_from_module.clone()).unwrap();
+    assert_eq!(value_from_root["name"].as_str(), Some("api"));
+    assert_eq!(value_from_module["ports"][1].as_u64(), Some(443));
+    assert_eq!(value_from_serializer["name"].as_str(), Some("api"));
+    assert_eq!(config_from_value, config);
+    assert_eq!(config_from_value_module, config);
+
+    let singleton: SingletonConfig =
+        serde_yaml::from_str("action:\n  Shell:\n    run: cargo test\n").unwrap();
+    assert_eq!(
+        singleton.action,
+        Action::Shell {
+            run: "cargo test".to_string()
+        }
+    );
+    let singleton_value = serde_yaml::to_value(&singleton).unwrap();
+    assert_eq!(
+        singleton_value["action"]["Shell"]["run"].as_str(),
+        Some("cargo test")
+    );
+    assert!(
+        serde_yaml::from_str::<SingletonConfig>("action: !Shell\n  run: cargo test\n").is_err(),
+        "singleton_map helper must reject tag-style enum shorthand"
+    );
+
+    let recursive: RecursiveSingletonConfig =
+        serde_yaml::from_str("actions:\n  - Shell:\n      run: cargo test\n  - Unit\n").unwrap();
+    assert_eq!(
+        recursive.actions,
+        vec![
+            Action::Shell {
+                run: "cargo test".to_string()
+            },
+            Action::Unit,
+        ]
+    );
+    let recursive_value = serde_yaml::to_value(&recursive).unwrap();
+    assert_eq!(
+        recursive_value["actions"][0]["Shell"]["run"].as_str(),
+        Some("cargo test")
+    );
+    assert!(
+        serde_yaml::from_str::<RecursiveSingletonConfig>(
+            "actions:\n  - !Shell\n    run: cargo test\n"
+        )
+        .is_err(),
+        "recursive singleton_map helper must reject nested tag-style enum shorthand"
+    );
+
+    let emitted = serde_yaml::to_string(&config).unwrap();
+    assert!(emitted.contains("name: api"));
+    let mut writer = Vec::new();
+    serde_yaml::to_writer(&mut writer, &config).unwrap();
+    assert!(String::from_utf8(writer).unwrap().contains("ports"));
+
+    let mut stream = serde_yaml::Serializer::new(Vec::new());
+    config.serialize(&mut stream).unwrap();
+    singleton.serialize(&mut stream).unwrap();
+    let stream_output = String::from_utf8(stream.into_inner().unwrap()).unwrap();
+    assert!(stream_output.contains("---\n"));
+
+    let error: serde_yaml::Error = serde_yaml::from_str::<Config>("name: [").unwrap_err();
+    let location: serde_yaml::Location = error.location().unwrap();
+    assert_eq!(location.line(), 1);
+    assert_eq!(location.column(), 8);
+    assert_eq!(location.index(), 7);
+    assert_eq!(error.line(), Some(1));
+    assert_eq!(error.column(), Some(8));
+}
+
+fn bounded_reader_smoke_uses_package_alias() {
+    let input = large_payload_yaml(serde_yaml::DEFAULT_MAX_INPUT_BYTES + 1);
+    assert_eq!(input.len(), serde_yaml::DEFAULT_MAX_INPUT_BYTES + 1);
+
+    assert_default_reader_limit(serde_yaml::from_reader::<_, LargePayload>(Cursor::new(
+        &input,
+    )));
+    assert_default_reader_limit(
+        serde_yaml::from_documents_reader::<LargePayload, _>(Cursor::new(&input)).map(|_| {
+            LargePayload {
+                payload: String::new(),
+            }
+        }),
+    );
+    assert_default_reader_limit(
+        LargePayload::deserialize(
+            serde_yaml::Deserializer::from_reader(Cursor::new(&input))
+                .next()
+                .expect("reader limit document"),
+        ),
+    );
+
+    let options = serde_yaml::LoadOptions::new()
+        .max_input_bytes(input.len())
+        .without_scalar_limit();
+    let decoded: LargePayload = options.from_reader(Cursor::new(&input)).unwrap();
+    assert_eq!(decoded.payload.len(), large_payload_len(input.len()));
+
+    let docs: Vec<LargePayload> = options.from_documents_reader(Cursor::new(&input)).unwrap();
+    assert_eq!(docs.len(), 1);
+    assert_eq!(docs[0].payload.len(), large_payload_len(input.len()));
+
+    let streamed = LargePayload::deserialize(
+        options
+            .deserializer_from_reader(Cursor::new(&input))
+            .next()
+            .expect("large reader document"),
+    )
+    .unwrap();
+    assert_eq!(streamed.payload.len(), large_payload_len(input.len()));
+}
+
+fn large_payload_yaml(target_len: usize) -> Vec<u8> {
+    let prefix = b"payload: ";
+    let suffix = b"\n";
+    assert!(target_len > prefix.len() + suffix.len());
+    let payload_len = target_len - prefix.len() - suffix.len();
+    let mut input = Vec::with_capacity(target_len);
+    input.extend_from_slice(prefix);
+    input.resize(prefix.len() + payload_len, b'a');
+    input.extend_from_slice(suffix);
+    input
+}
+
+fn large_payload_len(input_len: usize) -> usize {
+    input_len - b"payload: ".len() - b"\n".len()
+}
+
+fn assert_default_reader_limit(result: Result<LargePayload, serde_yaml::Error>) {
+    let error = result.expect_err("default reader input limit");
+    let display = error.to_string();
+    assert!(
+        display.contains(&format!(
+            "YAML input exceeds configured limit of {} bytes",
+            serde_yaml::DEFAULT_MAX_INPUT_BYTES
+        )),
+        "{display}"
+    );
+    assert_eq!(error.location(), None);
+}

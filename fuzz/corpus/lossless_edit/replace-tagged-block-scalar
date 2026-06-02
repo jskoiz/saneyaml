@@ -1,0 +1,11 @@
+mode=scalar index=2
+%TAG !e! tag:example.com,2026:
+---
+job: &job
+  script: !e!Script |
+    echo build
+    echo test
+  ref: *job
+=== yaml replacement ===
+|-
+  echo deploy

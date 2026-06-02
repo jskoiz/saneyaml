@@ -1,0 +1,13 @@
+version: "3.9"
+services:
+  web:
+    image: nginx:latest
+    ports: ["8080:80", "127.0.0.1:8081:80"]
+    environment:
+      RUST_LOG: info
+      FEATURE_FLAG: "true"
+    deploy:
+      replicas: 2
+  worker:
+    image: example/worker:latest
+    command: ["worker", "--queue", "default"]

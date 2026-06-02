@@ -1,0 +1,3 @@
+
+: {? &seq [oot: {? &seq [a, b] : sa, b] : seq-v}
+[!

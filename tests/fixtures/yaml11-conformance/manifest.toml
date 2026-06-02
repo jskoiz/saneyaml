@@ -1,0 +1,195 @@
+[[case]]
+id = "set-short"
+path = "set-short.yaml"
+kind = "set"
+tag = "!!set"
+expected = "accept"
+
+[[case]]
+id = "set-canonical"
+path = "set-canonical.yaml"
+kind = "set"
+tag = "tag:yaml.org,2002:set"
+expected = "accept"
+
+[[case]]
+id = "omap-short"
+path = "omap-short.yaml"
+kind = "omap"
+tag = "!!omap"
+expected = "accept"
+
+[[case]]
+id = "pairs-short"
+path = "pairs-short.yaml"
+kind = "pairs"
+tag = "!!pairs"
+expected = "accept"
+
+[[case]]
+id = "resolved-tag-handle"
+path = "resolved-tag-handle.yaml"
+kind = "bundle"
+tag = "%TAG !yaml! tag:yaml.org,2002:"
+expected = "accept"
+
+[[case]]
+id = "custom-handle-tags"
+path = "custom-handle-tags.yaml"
+kind = "bundle"
+tag = "%TAG !y! tag:yaml.org,2002:"
+expected = "accept"
+
+[[case]]
+id = "core-structural-tags"
+path = "core-structural-tags.yaml"
+kind = "core-structural-tags"
+tag = "%TAG !yaml! tag:yaml.org,2002:"
+expected = "accept"
+
+[[case]]
+id = "value-resolved-handle"
+path = "value-resolved-handle.yaml"
+kind = "core-structural-tags"
+tag = "%TAG !yaml! tag:yaml.org,2002:"
+expected = "accept"
+
+[[case]]
+id = "value-duplicate-key"
+path = "value-duplicate-key.yaml"
+kind = "duplicate-key"
+tag = "%TAG !yaml! tag:yaml.org,2002:"
+expected = "error"
+
+[[case]]
+id = "set-rejects-non-null-values"
+path = "set-rejects-non-null-values.yaml"
+kind = "set"
+tag = "!!set"
+expected = "error"
+
+[[case]]
+id = "omap-rejects-non-singleton-entry"
+path = "omap-rejects-non-singleton-entry.yaml"
+kind = "omap"
+tag = "!!omap"
+expected = "error"
+
+[[case]]
+id = "pairs-rejects-scalar-entry"
+path = "pairs-rejects-scalar-entry.yaml"
+kind = "pairs"
+tag = "!!pairs"
+expected = "error"
+
+[[case]]
+id = "legacy-migration-pack"
+path = "legacy-migration-pack.yaml"
+kind = "scalar-matrix"
+tag = "%YAML 1.1"
+expected = "accept"
+
+[[case]]
+id = "legacy-scalar-denominator"
+path = "legacy-scalar-denominator.yaml"
+kind = "scalar-denominator"
+tag = "%YAML 1.1"
+expected = "accept"
+
+[[case]]
+id = "legacy-merge-directive"
+path = "legacy-merge-directive.yaml"
+kind = "merge"
+tag = "%YAML 1.1"
+expected = "accept"
+
+[[case]]
+id = "legacy-merge-edge-recovery"
+path = "legacy-merge-edge-recovery.yaml"
+kind = "merge"
+tag = "%YAML 1.1"
+expected = "accept"
+
+[[case]]
+id = "explicit-merge-tags"
+path = "explicit-merge-tags.yaml"
+kind = "merge"
+tag = "%TAG !yaml! tag:yaml.org,2002:"
+expected = "accept"
+
+[[case]]
+id = "explicit-merge-tag-bad-payload"
+path = "explicit-merge-tag-bad-payload.yaml"
+kind = "merge"
+tag = "!!merge"
+expected = "error"
+
+[[case]]
+id = "legacy-bool-key-collision"
+path = "legacy-bool-key-collision.yaml"
+kind = "duplicate-key"
+tag = "%YAML 1.1"
+expected = "error"
+
+[[case]]
+id = "legacy-scalar-edge-stream"
+path = "legacy-scalar-edge-stream.yaml"
+kind = "multi-doc"
+tag = "%YAML 1.1"
+expected = "accept"
+
+[[case]]
+id = "directive-boundary-stream"
+path = "directive-boundary-stream.yaml"
+kind = "directive-boundary"
+tag = "%YAML 1.1"
+expected = "accept"
+
+[[case]]
+id = "legacy-flow-scalar-directive"
+path = "legacy-flow-scalar-directive.yaml"
+kind = "flow-scalar-matrix"
+tag = "%YAML 1.1"
+expected = "accept"
+
+[[case]]
+id = "legacy-invalid-binary"
+path = "legacy-invalid-binary.yaml"
+kind = "binary"
+tag = "%YAML 1.1"
+expected = "error"
+
+[[case]]
+id = "legacy-numeric-key-collision"
+path = "legacy-numeric-key-collision.yaml"
+kind = "duplicate-key"
+tag = "%YAML 1.1"
+expected = "error"
+
+[[case]]
+id = "legacy-signed-zero-key-collision"
+path = "legacy-signed-zero-key-collision.yaml"
+kind = "duplicate-key"
+tag = "%YAML 1.1"
+expected = "error"
+
+[[case]]
+id = "legacy-alias-key-collision"
+path = "legacy-alias-key-collision.yaml"
+kind = "duplicate-key"
+tag = "%YAML 1.1"
+expected = "error"
+
+[[case]]
+id = "lossless-merge-graph"
+path = "lossless-merge-graph.yaml"
+kind = "lossless-graph-merge"
+tag = "%YAML 1.1"
+expected = "accept"
+
+[[case]]
+id = "lossless-recursive-graph"
+path = "lossless-recursive-graph.yaml"
+kind = "lossless-graph-merge"
+tag = "%YAML 1.1"
+expected = "accept"

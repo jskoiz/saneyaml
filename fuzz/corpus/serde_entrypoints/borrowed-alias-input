@@ -1,0 +1,4 @@
+n: &n app
+p: &p /srv/app
+name: *n
+path: *p

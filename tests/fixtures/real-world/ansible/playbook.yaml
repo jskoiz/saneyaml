@@ -1,0 +1,17 @@
+- name: Deploy app
+  hosts: all
+  become: true
+  vars:
+    app_name: yaml-demo
+    app_port: 8080
+  tasks:
+    - name: Render config
+      ansible.builtin.copy:
+        dest: /etc/yaml-demo/config.ini
+        content: |
+          name={{ app_name }}
+          port={{ app_port }}
+    - name: Restart service
+      ansible.builtin.service:
+        name: yaml-demo
+        state: restarted

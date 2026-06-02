@@ -1,0 +1,6 @@
+mode=node index=2
+# service config
+root: &root {name: api, ports: [80, 443]}
+copy: *root
+=== yaml replacement ===
+{name: worker, ports: [8080], enabled: true}

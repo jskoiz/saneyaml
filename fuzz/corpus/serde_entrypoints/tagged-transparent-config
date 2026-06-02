@@ -1,0 +1,5 @@
+name: !Env prod
+ports: !Ports [80, 443]
+limits: !Limits {cpu: "1"}
+enabled: !Flag true
+optional: !Maybe null

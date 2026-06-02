@@ -1,0 +1,32 @@
+trigger:
+  branches:
+    include:
+      - main
+      - releases/*
+pr:
+  branches:
+    include:
+      - main
+variables:
+  RUSTFLAGS: "-Dwarnings"
+  isMain: "$[eq(variables['Build.SourceBranch'], 'refs/heads/main')]"
+stages:
+  - stage: Build
+    jobs:
+      - job: linux
+        pool:
+          vmImage: ubuntu-latest
+        strategy:
+          matrix:
+            stable:
+              toolchain: stable
+            beta:
+              toolchain: beta
+        steps:
+          - script: |
+              rustup default $(toolchain)
+              cargo test --locked
+            displayName: Test $(toolchain)
+          - ${{ if eq(variables.isMain, true) }}:
+              - script: cargo publish --dry-run
+                displayName: Dry-run publish

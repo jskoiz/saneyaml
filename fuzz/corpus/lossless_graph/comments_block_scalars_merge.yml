@@ -1,0 +1,12 @@
+# service defaults with retained comments
+defaults: &defaults
+  # shell setup
+  script: |
+    set -e
+    echo ready
+job:
+  <<: *defaults
+  name: api
+  notes: >-
+    folded
+    text

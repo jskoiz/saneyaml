@@ -1,0 +1,7 @@
+case = "yaml-suite-anchor-character-shared-deferrals"
+policy = "Keep unusual YAML-suite anchor and alias character acceptance separate from serde_yaml/libyaml shared-reference acceptance."
+prototype = "YAML-suite 8XYN and W5VH are accepted by this crate and remain event/tree covered while exercising Unicode anchors and punctuation-heavy alias names. These cases stay selected as parser-accepted inputs, but their shared-reference ledger entries remain deferred because serde_yaml/libyaml does not provide the same accepted surface for these anchor spellings."
+serde_yaml = "serde_yaml 0.9.34/libyaml rejects these unusual anchor or alias names, while this crate accepts them and keeps exact anchor/alias source spans in raw events."
+yaml_rust2_saphyr = "yaml-rust2 0.11.0 and saphyr 0.0.6 provide parser/tree comparison context for accepted anchor shapes, but the shared-reference decision is intentionally driven separately from serde_yaml/libyaml acceptance."
+decision = "Keep 8XYN and W5VH selected and event/tree covered, but defer shared-reference parity until the project intentionally narrows or changes the serde_yaml/libyaml compatibility surface for unusual anchor characters."
+migration_impact = "Migration impact: callers can load YAML using Unicode anchors or punctuation-heavy alias names through this crate, but migrations that need serde_yaml/libyaml-equivalent acceptance must keep these anchor-character cases behind an explicit compatibility check."

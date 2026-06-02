@@ -1,0 +1,40 @@
+name: Reusable Service CI
+on:
+  workflow_call:
+    inputs:
+      image-tag:
+        required: true
+        type: string
+    secrets:
+      registry-token:
+        required: true
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+  packages: write
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login
+        run: echo "${{ secrets.registry-token }}" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Test image
+        env:
+          IMAGE_TAG: ${{ inputs.image-tag }}
+        run: |
+          docker pull ghcr.io/example/app:${IMAGE_TAG}
+          cargo test --locked --test integration

@@ -1,0 +1,2 @@
+name: !Env borrowed
+path: !Path /srv/tagged

@@ -1,0 +1,6 @@
+---
+first: &shared {name: one}
+alias: *shared
+---
+second: &shared {name: two}
+alias: *shared

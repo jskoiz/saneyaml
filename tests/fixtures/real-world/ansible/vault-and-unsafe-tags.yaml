@@ -1,0 +1,14 @@
+- name: Deploy app with tagged secrets
+  hosts: all
+  vars:
+    db_password: !vault |
+      $ANSIBLE_VAULT;1.1;AES256
+      663864353130
+    raw_template: !unsafe "{{ literal_must_not_render }}"
+  tasks:
+    - name: Write env
+      ansible.builtin.copy:
+        dest: /etc/yaml-demo/.env
+        content: |
+          PASSWORD={{ db_password }}
+          TEMPLATE={{ raw_template }}

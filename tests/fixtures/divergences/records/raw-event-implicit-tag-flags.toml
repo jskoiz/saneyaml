@@ -1,0 +1,7 @@
+case = "raw-event-implicit-tag-flags"
+policy = "raw event milestone"
+prototype = "parse_events exposes explicit tag metadata when a tag token is present, but it does not expose libyaml-style scalar or collection implicit tag flags."
+libyaml = "libyaml parser events expose plain_implicit and quoted_implicit flags for scalar events, plus implicit tag flags for sequence and mapping start events."
+yaml_rust2_saphyr = "yaml-rust2 and saphyr parser layers expose practical tag/style metadata but do not model every libyaml implicit tag flag as a stable public replacement surface."
+decision = "Do not add implicit tag flags to the first replacement event API. Keep schema construction separate from raw parser events and record this as a deliberate libyaml metadata omission."
+migration_impact = "Migration impact: libyaml event consumers that inspect implicit tag flags need an API redesign or local adapter before migration, not silent compatibility fields."

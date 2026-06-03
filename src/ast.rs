@@ -3016,12 +3016,25 @@ fn merge_error(message: &'static str) -> Error {
     Error::new(message, Span::default())
 }
 
+/// Caps recursion through nested merge sources so that pathological merge
+/// graphs (introduced post-parse via alias expansion) cannot exhaust the stack.
+///
+/// The parser already bounds *static* nesting via `LoadOptions::max_nesting_depth`,
+/// but merge keys can splice already-parsed (and aliased) subtrees together,
+/// producing merge chains deeper than the original source text. This guard
+/// reuses the same default cap the rest of the crate applies to nesting depth.
+const MAX_MERGE_DEPTH: usize = crate::schema::DEFAULT_MAX_NESTING_DEPTH;
+
+fn merge_depth_exceeded(span: Span) -> Error {
+    Error::limit("maximum YAML nesting depth exceeded", span)
+}
+
 fn apply_merge_keys_in_node(root: &mut Node, policy: MergePolicy) -> crate::Result<()> {
     let mut values = vec![root];
     while let Some(node) = values.pop() {
         match &mut node.value {
             NodeValue::Mapping(entries) => {
-                apply_merge_entries(entries, policy)?;
+                apply_merge_entries(entries, policy, 0)?;
                 values.extend(entries.iter_mut().map(|(_, value)| value));
             }
             NodeValue::Sequence(items) => values.extend(items),
@@ -3032,16 +3045,20 @@ fn apply_merge_keys_in_node(root: &mut Node, policy: MergePolicy) -> crate::Resu
     Ok(())
 }
 
-fn apply_merge_entries(entries: &mut Vec<(Node, Node)>, policy: MergePolicy) -> crate::Result<()> {
+fn apply_merge_entries(
+    entries: &mut Vec<(Node, Node)>,
+    policy: MergePolicy,
+    depth: usize,
+) -> crate::Result<()> {
     match policy {
-        MergePolicy::Strict => apply_strict_merge_entries(entries),
-        MergePolicy::Yaml11Compatible => apply_yaml11_merge_entries(entries),
+        MergePolicy::Strict => apply_strict_merge_entries(entries, depth),
+        MergePolicy::Yaml11Compatible => apply_yaml11_merge_entries(entries, depth),
     }
 }
 
-fn apply_strict_merge_entries(entries: &mut Vec<(Node, Node)>) -> crate::Result<()> {
+fn apply_strict_merge_entries(entries: &mut Vec<(Node, Node)>, depth: usize) -> crate::Result<()> {
     if let Some(merge) = shift_remove_merge_node(entries) {
-        merge_node_mapping(entries, merge, MergePolicy::Strict)?;
+        merge_node_mapping(entries, merge, MergePolicy::Strict, depth)?;
     }
     Ok(())
 }
@@ -3093,11 +3110,15 @@ fn merge_node_mapping(
     entries: &mut Vec<(Node, Node)>,
     merge: Node,
     policy: MergePolicy,
+    depth: usize,
 ) -> crate::Result<()> {
     let span = merge.span;
+    let Some(next_depth) = depth.checked_add(1).filter(|next| *next <= MAX_MERGE_DEPTH) else {
+        return Err(merge_depth_exceeded(span));
+    };
     match merge.value {
         NodeValue::Mapping(mut merge_entries) => {
-            apply_merge_entries(&mut merge_entries, policy)?;
+            apply_merge_entries(&mut merge_entries, policy, next_depth)?;
             insert_missing_node_entries(entries, merge_entries)
         }
         NodeValue::Sequence(sequence) => {
@@ -3105,7 +3126,7 @@ fn merge_node_mapping(
                 let span = value.span;
                 match value.value {
                     NodeValue::Mapping(mut merge_entries) => {
-                        apply_merge_entries(&mut merge_entries, policy)?;
+                        apply_merge_entries(&mut merge_entries, policy, next_depth)?;
                         insert_missing_node_entries(entries, merge_entries)?
                     }
                     NodeValue::Sequence(_) => {
@@ -3135,14 +3156,18 @@ fn merge_node_mapping(
     }
 }
 
-fn apply_yaml11_merge_entries(entries: &mut Vec<(Node, Node)>) -> crate::Result<()> {
+fn apply_yaml11_merge_entries(entries: &mut Vec<(Node, Node)>, depth: usize) -> crate::Result<()> {
     let original = mem::take(entries);
     let mut explicit_entries = Vec::with_capacity(original.len());
     let mut merged_entries = Vec::new();
 
     for (key, value) in original {
         if node_is_merge_key(&key) {
-            match yaml11_merge_entries(value)? {
+            // The recursion budget is charged inside `yaml11_merge_entries`, and
+            // only when the payload is genuinely mergeable. A non-mergeable
+            // literal `<<` payload must be preserved as an explicit entry under
+            // YAML 1.1 semantics, so it must not consume depth here.
+            match yaml11_merge_entries(value, depth)? {
                 Yaml11MergeEntries::Merge(merge_entries) => {
                     upsert_node_entries(&mut merged_entries, merge_entries)?;
                 }
@@ -3162,11 +3187,10 @@ enum Yaml11MergeEntries {
     Literal(Node),
 }
 
-fn yaml11_merge_entries(mut merge: Node) -> crate::Result<Yaml11MergeEntries> {
+fn yaml11_merge_entries(mut merge: Node, depth: usize) -> crate::Result<Yaml11MergeEntries> {
+    let span = merge.span;
     match &mut merge.value {
-        NodeValue::Mapping(merge_entries) => {
-            apply_yaml11_merge_entries(merge_entries)?;
-        }
+        NodeValue::Mapping(_) => {}
         NodeValue::Sequence(sequence) => {
             if !sequence
                 .iter()
@@ -3184,15 +3208,25 @@ fn yaml11_merge_entries(mut merge: Node) -> crate::Result<Yaml11MergeEntries> {
         }
     }
 
+    // Only genuinely mergeable sources (a mapping, or a sequence of mappings)
+    // recurse, so the depth budget is charged here — after the literal payloads
+    // above have already returned and been preserved.
+    let Some(next_depth) = depth.checked_add(1).filter(|next| *next <= MAX_MERGE_DEPTH) else {
+        return Err(merge_depth_exceeded(span));
+    };
+
     match merge.value {
-        NodeValue::Mapping(merge_entries) => Ok(Yaml11MergeEntries::Merge(merge_entries)),
+        NodeValue::Mapping(mut merge_entries) => {
+            apply_yaml11_merge_entries(&mut merge_entries, next_depth)?;
+            Ok(Yaml11MergeEntries::Merge(merge_entries))
+        }
         NodeValue::Sequence(sequence) => {
             let mut merged_entries = Vec::new();
             for value in sequence {
                 let NodeValue::Mapping(mut merge_entries) = value.value else {
                     unreachable!("sequence merge entries were prevalidated");
                 };
-                apply_yaml11_merge_entries(&mut merge_entries)?;
+                apply_yaml11_merge_entries(&mut merge_entries, next_depth)?;
                 insert_missing_node_entries(&mut merged_entries, merge_entries)?;
             }
             Ok(Yaml11MergeEntries::Merge(merged_entries))

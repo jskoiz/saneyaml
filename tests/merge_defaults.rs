@@ -370,6 +370,43 @@ fn default_merge_accepts_shallow_merge_chains() {
     assert_eq!(value["top"]["v"].as_u64(), Some(0));
 }
 
+/// Builds an `n`-deep chain of mergeable mappings whose deepest `<<` payload is
+/// a *scalar* — a non-mergeable literal that YAML 1.1 preserves rather than
+/// expands. `a0` is the scalar; `a1: {<<: *a0}` keeps `<<` as a literal entry.
+fn deep_merge_chain_with_literal_base(n: usize) -> String {
+    let mut input = String::from("a0: &a0 \"literal-merge-payload\"\n");
+    for i in 1..=n {
+        input.push_str(&format!("a{i}: &a{i} {{<<: *a{}}}\n", i - 1));
+    }
+    input.push_str(&format!("top: {{<<: *a{n}}}\n"));
+    input
+}
+
+/// A non-mergeable literal `<<` payload is a leaf under YAML 1.1: it is
+/// preserved as an explicit entry and does not recurse, so it must not consume
+/// the merge-depth backstop. A deep mergeable chain that bottoms out in such a
+/// literal therefore expands successfully — the literal does not tip the chain
+/// over the depth limit — and the literal survives in the resolved tree.
+#[test]
+fn yaml11_merge_preserves_literal_payload_without_consuming_depth() {
+    let input = deep_merge_chain_with_literal_base(128);
+    let node = LoadOptions::yaml_1_1()
+        .without_nesting_depth_limit()
+        .parse_str(&input)
+        .expect("literal merge payload must not consume the merge-depth budget");
+
+    let root = top_mapping(&node);
+    let top = mapping_value(root, "top");
+    let NodeValue::Mapping(entries) = &top.value else {
+        panic!("expected top mapping");
+    };
+    let merge_literal = entries
+        .iter()
+        .find_map(|(key, value)| (key.as_str() == Some("<<")).then_some(value))
+        .expect("literal merge key is preserved verbatim");
+    assert_eq!(merge_literal.as_str(), Some("literal-merge-payload"));
+}
+
 /// Merged entries are appended in source order after the explicit entries, and
 /// keys already present in the target are never reordered or duplicated. This
 /// documents the deterministic, source-stable insertion order that lossless

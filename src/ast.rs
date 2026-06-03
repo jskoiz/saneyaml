@@ -3163,12 +3163,11 @@ fn apply_yaml11_merge_entries(entries: &mut Vec<(Node, Node)>, depth: usize) -> 
 
     for (key, value) in original {
         if node_is_merge_key(&key) {
-            let span = value.span;
-            let Some(next_depth) = depth.checked_add(1).filter(|next| *next <= MAX_MERGE_DEPTH)
-            else {
-                return Err(merge_depth_exceeded(span));
-            };
-            match yaml11_merge_entries(value, next_depth)? {
+            // The recursion budget is charged inside `yaml11_merge_entries`, and
+            // only when the payload is genuinely mergeable. A non-mergeable
+            // literal `<<` payload must be preserved as an explicit entry under
+            // YAML 1.1 semantics, so it must not consume depth here.
+            match yaml11_merge_entries(value, depth)? {
                 Yaml11MergeEntries::Merge(merge_entries) => {
                     upsert_node_entries(&mut merged_entries, merge_entries)?;
                 }
@@ -3189,10 +3188,9 @@ enum Yaml11MergeEntries {
 }
 
 fn yaml11_merge_entries(mut merge: Node, depth: usize) -> crate::Result<Yaml11MergeEntries> {
+    let span = merge.span;
     match &mut merge.value {
-        NodeValue::Mapping(merge_entries) => {
-            apply_yaml11_merge_entries(merge_entries, depth)?;
-        }
+        NodeValue::Mapping(_) => {}
         NodeValue::Sequence(sequence) => {
             if !sequence
                 .iter()
@@ -3210,15 +3208,25 @@ fn yaml11_merge_entries(mut merge: Node, depth: usize) -> crate::Result<Yaml11Me
         }
     }
 
+    // Only genuinely mergeable sources (a mapping, or a sequence of mappings)
+    // recurse, so the depth budget is charged here — after the literal payloads
+    // above have already returned and been preserved.
+    let Some(next_depth) = depth.checked_add(1).filter(|next| *next <= MAX_MERGE_DEPTH) else {
+        return Err(merge_depth_exceeded(span));
+    };
+
     match merge.value {
-        NodeValue::Mapping(merge_entries) => Ok(Yaml11MergeEntries::Merge(merge_entries)),
+        NodeValue::Mapping(mut merge_entries) => {
+            apply_yaml11_merge_entries(&mut merge_entries, next_depth)?;
+            Ok(Yaml11MergeEntries::Merge(merge_entries))
+        }
         NodeValue::Sequence(sequence) => {
             let mut merged_entries = Vec::new();
             for value in sequence {
                 let NodeValue::Mapping(mut merge_entries) = value.value else {
                     unreachable!("sequence merge entries were prevalidated");
                 };
-                apply_yaml11_merge_entries(&mut merge_entries, depth)?;
+                apply_yaml11_merge_entries(&mut merge_entries, next_depth)?;
                 insert_missing_node_entries(&mut merged_entries, merge_entries)?;
             }
             Ok(Yaml11MergeEntries::Merge(merged_entries))

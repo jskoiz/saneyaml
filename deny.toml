@@ -1,0 +1,59 @@
+# cargo-deny configuration for saneyaml.
+#
+# Runtime dependencies are only `ryu` and `serde`, both under permissive
+# licenses. cargo-deny's default graph for this library resolves to the
+# runtime closure plus the `serde` derive proc-macro chain enabled by the
+# dev-dependencies (serde_yaml, saphyr, yaml-rust2, proptest, dhat, sha2,
+# toml, serde_json). The allow-list below is the union of permissive
+# licenses found across that lockfile closure rather than a guess; entries
+# that the currently-resolved graph does not exercise are tolerated via
+# `unused-allowed-license` so the policy stays stable as the graph evolves.
+#
+# Schema targets cargo-deny 0.16+ (validated against 0.19). The advisories
+# section intentionally omits the deprecated per-severity keys
+# (`vulnerability`, `unmaintained`, `yanked`, ...) that newer cargo-deny
+# rejects; unflagged advisories default to "deny", the desired strict
+# behavior.
+
+[graph]
+# Evaluate the dependency graph with all crate features enabled.
+all-features = true
+
+[advisories]
+# Use the default advisory database (RustSec). Any reported advisory that is
+# not explicitly ignored below causes the check to fail.
+ignore = []
+
+[licenses]
+# Permissive licenses found across the lockfile dependency closure.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "0BSD",
+    "BSL-1.0",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+]
+# Require a high confidence when matching license text to an SPDX identifier.
+confidence-threshold = 0.93
+# Do not fail the check for allowed licenses the current graph does not use;
+# they document the policy for the broader dev-dependency closure.
+unused-allowed-license = "allow"
+
+[bans]
+# Surface accidental duplicate dependency versions without failing the build.
+multiple-versions = "warn"
+# Prefer the highest semver-compatible version when collapsing duplicates.
+highlight = "all"
+wildcards = "allow"
+
+[sources]
+# Only allow crates pulled from the public crates.io registry.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

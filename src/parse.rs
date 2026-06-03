@@ -24,7 +24,6 @@ use std::{
     collections::{HashMap, VecDeque},
     io::Read,
     mem,
-    ops::Deref,
     rc::Rc,
 };
 
@@ -194,85 +193,131 @@ enum LineKind {
 
 #[derive(Clone, Debug)]
 struct LineText {
-    source: Rc<str>,
-    start: usize,
-    end: usize,
+    start: u32,
+    end: u32,
 }
 
 impl LineText {
-    fn new(source: &Rc<str>, start: usize, end: usize) -> Self {
-        Self {
-            source: Rc::clone(source),
-            start,
-            end,
-        }
+    fn new(start: usize, end: usize) -> Result<Self> {
+        Ok(Self {
+            start: compact_offset(start)?,
+            end: compact_offset(end)?,
+        })
     }
-}
 
-impl Deref for LineText {
-    type Target = str;
+    fn len(&self) -> usize {
+        (self.end - self.start) as usize
+    }
 
-    fn deref(&self) -> &Self::Target {
-        &self.source[self.start..self.end]
+    fn as_str<'a>(&self, source: &'a str) -> &'a str {
+        &source[self.start as usize..self.end as usize]
     }
 }
 
 #[derive(Clone, Debug)]
 struct Line {
-    no: usize,
-    start: usize,
     raw: LineText,
-    indent: usize,
-    content_start: usize,
-    content: LineText,
+    no: u32,
+    indent: u32,
+    content_start: u32,
+    content_end: u32,
     kind: LineKind,
     had_comment: bool,
 }
 
 impl Line {
+    fn start(&self) -> usize {
+        self.raw.start as usize
+    }
+
+    fn no(&self) -> usize {
+        self.no as usize
+    }
+
+    fn indent(&self) -> usize {
+        self.indent as usize
+    }
+
+    fn content_start(&self) -> usize {
+        self.content_start as usize
+    }
+
+    fn content_end(&self) -> usize {
+        self.content_end as usize
+    }
+
+    fn raw<'a>(&self, source: &'a str) -> &'a str {
+        self.raw.as_str(source)
+    }
+
+    fn content<'a>(&self, source: &'a str) -> &'a str {
+        &self.raw(source)[self.content_start()..self.content_end()]
+    }
+
+    fn raw_len(&self) -> usize {
+        self.raw.len()
+    }
+
+    fn content_len(&self) -> usize {
+        self.content_end() - self.content_start()
+    }
+
     fn span(&self) -> Span {
         Span::new(
-            self.start + self.content_start,
-            self.start + self.content_start + self.content.len(),
-            self.no,
-            self.content_start + 1,
+            self.start() + self.content_start(),
+            self.start() + self.content_start() + self.content_len(),
+            self.no(),
+            self.content_start() + 1,
         )
     }
 
     fn local_span(&self, start: usize, end: usize) -> Span {
         Span::new(
-            self.start + self.content_start + start,
-            self.start + self.content_start + end,
-            self.no,
-            self.content_start + start + 1,
+            self.start() + self.content_start() + start,
+            self.start() + self.content_start() + end,
+            self.no(),
+            self.content_start() + start + 1,
         )
     }
 
-    fn raw_from(&self, indent: usize) -> &str {
-        if indent >= self.raw.len() {
+    fn raw_from<'a>(&self, source: &'a str, indent: usize) -> &'a str {
+        let raw = self.raw(source);
+        if indent >= self.raw_len() {
             ""
         } else {
-            &self.raw[indent..]
+            &raw[indent..]
         }
     }
 
-    fn raw_content_from(&self, local_start: usize) -> &str {
-        let start = self.content_start + local_start;
-        if start >= self.raw.len() {
+    fn raw_content_from<'a>(&self, source: &'a str, local_start: usize) -> &'a str {
+        let raw = self.raw(source);
+        let start = self.content_start() + local_start;
+        if start >= self.raw_len() {
             ""
         } else {
-            &self.raw[start..]
+            &raw[start..]
         }
     }
 }
 
-fn quoted_line_text(line: &Line, local_start: usize, trimmed_text: &str, quote: char) -> String {
+fn compact_offset(offset: usize) -> Result<u32> {
+    u32::try_from(offset)
+        .map_err(|_| Error::limit("input is too large for the compact parser line table", None))
+}
+
+fn quoted_line_text(
+    source: &str,
+    line: &Line,
+    local_start: usize,
+    trimmed_text: &str,
+    quote: char,
+) -> String {
     let mut text = trimmed_text.to_string();
     if quote != '"' || trailing_backslash_count(&text).is_multiple_of(2) {
         return text;
     }
 
-    let raw_text = line.raw_content_from(local_start);
+    let raw_text = line.raw_content_from(source, local_start);
     let Some(stripped) = raw_text.strip_prefix(trimmed_text) else {
         return text;
     };
@@ -285,7 +330,7 @@ fn quoted_line_text(line: &Line, local_start: usize, trimmed_text: &str, quote: 
 fn tab_indentation_error(line: &Line) -> Error {
     Error::syntax(
         "tabs are not allowed for indentation",
-        Span::point(line.start + line.indent, line.no, line.indent + 1),
+        Span::point(line.start() + line.indent(), line.no(), line.indent() + 1),
     )
 }
 
@@ -702,6 +747,7 @@ struct DocumentParseState {
 }
 
 struct Parser {
+    source: Rc<str>,
     lines: Vec<Line>,
     pos: usize,
     input_len: usize,
@@ -889,10 +935,13 @@ impl AnchorRegistry {
 impl Parser {
     fn new_with_options(input: &str, options: LoadOptions) -> Result<Self> {
         options.check_input_len(input.len())?;
+        let source = Rc::<str>::from(input);
         let schema = options.selected_schema();
         let alias_expansion_budget = options.alias_expansion_budget(input.len());
+        let lines = preprocess(&source)?;
         Ok(Self {
-            lines: preprocess(input)?,
+            source,
+            lines,
             pos: 0,
             input_len: input.len(),
             options,
@@ -1118,7 +1167,9 @@ impl Parser {
                     state.pending_directive_span = None;
                     let marker_span = line.local_span(0, 3);
                     self.pos += 1;
-                    if let Some((rest_start, rest)) = document_start_rest(&line.content) {
+                    let source = Rc::clone(&self.source);
+                    let content = line.content(&source);
+                    if let Some((rest_start, rest)) = document_start_rest(content) {
                         self.activate_document_schema(&directives);
                         self.emit_document_start(true, directives, marker_span);
                         self.anchors.reset_document();
@@ -1126,7 +1177,7 @@ impl Parser {
                             &line,
                             rest_start,
                             rest,
-                            line.indent,
+                            line.indent(),
                             0,
                         ) {
                             Ok(doc) => doc,
@@ -1214,7 +1265,7 @@ impl Parser {
     }
 
     fn parse_directive(&mut self, line: &Line) -> Result<()> {
-        let fields = directive_fields(line);
+        let fields = directive_fields(line, &self.source);
         match fields.as_slice() {
             [name, version] if name.text == "%YAML" => {
                 let Some((major, minor)) = parse_yaml_version(version.text) else {
@@ -1445,47 +1496,50 @@ impl Parser {
     fn parse_node(&mut self, depth: usize) -> Result<Node> {
         self.check_depth(depth)?;
         let line = self.current_content()?.clone();
-        if line.content.starts_with('\t') {
-            if line.indent == 0 && root_tab_separated_flow_collection(&line.content) {
+        let source = Rc::clone(&self.source);
+        let content = line.content(&source);
+        if content.starts_with('\t') {
+            if line.indent() == 0 && root_tab_separated_flow_collection(content) {
                 self.pos += 1;
                 return self.parse_document_root_inline_value(
-                    &line.content,
+                    content,
                     &line,
                     0,
-                    line.indent,
+                    line.indent(),
                     depth,
                 );
             }
             return Err(tab_indentation_error(&line));
         }
-        if sequence_rest(&line.content).is_some() {
-            return self.parse_sequence(line.indent, depth);
+        if sequence_rest(content).is_some() {
+            return self.parse_sequence(line.indent(), depth);
         }
-        if starts_mapping_entry(&line.content) {
-            return self.parse_mapping(line.indent, depth);
+        if starts_mapping_entry(content) {
+            return self.parse_mapping(line.indent(), depth);
         }
         self.pos += 1;
-        if let Some(header) = parse_block_scalar_header(&line.content, &line, 0)? {
+        if let Some(header) = parse_block_scalar_header(content, &line, 0)? {
             return self.parse_block_scalar(
                 header,
-                line.indent,
+                line.indent(),
                 line.span(),
                 depth + 1,
-                line.indent == 0,
+                line.indent() == 0,
             );
         }
-        if is_plain_scalar_text(&line.content) {
-            return self.parse_plain_scalar(&line.content, &line, 0, line.indent, depth, true);
+        if is_plain_scalar_text(content) {
+            return self.parse_plain_scalar(content, &line, 0, line.indent(), depth, true);
         }
-        if line.indent == 0 {
-            self.parse_document_root_inline_value(&line.content, &line, 0, line.indent, depth)
+        if line.indent() == 0 {
+            self.parse_document_root_inline_value(content, &line, 0, line.indent(), depth)
         } else {
-            self.parse_inline_value(&line.content, &line, 0, line.indent, depth)
+            self.parse_inline_value(content, &line, 0, line.indent(), depth)
         }
     }
 
     fn parse_sequence(&mut self, indent: usize, depth: usize) -> Result<Node> {
         self.check_depth(depth)?;
+        let source = Rc::clone(&self.source);
         let start = self.current_content()?.span();
         self.emit_sequence_start(CollectionStyle::Block, start);
         let mut items = Vec::new();
@@ -1496,13 +1550,14 @@ impl Parser {
                 break;
             };
             let line = line.clone();
-            if line.indent != indent {
+            if line.indent() != indent {
                 break;
             }
-            if line.content.starts_with('\t') {
+            let content = line.content(&source);
+            if content.starts_with('\t') {
                 return Err(tab_indentation_error(&line));
             }
-            let Some((rest_start, rest)) = sequence_rest(&line.content) else {
+            let Some((rest_start, rest)) = sequence_rest(content) else {
                 break;
             };
             self.pos += 1;
@@ -1522,14 +1577,14 @@ impl Parser {
             } else if rest_trim.is_empty() {
                 self.parse_nested_or_null(
                     indent,
-                    line.local_span(line.content.len(), line.content.len()),
+                    line.local_span(content.len(), content.len()),
                     depth + 1,
                 )?
             } else if let Some(header) = parse_block_scalar_header(rest_trim, &line, value_start)? {
                 self.parse_block_scalar(
                     header,
                     indent,
-                    line.local_span(value_start, line.content.len()),
+                    line.local_span(value_start, content.len()),
                     depth + 1,
                     false,
                 )?
@@ -1554,6 +1609,7 @@ impl Parser {
 
     fn parse_mapping(&mut self, indent: usize, depth: usize) -> Result<Node> {
         self.check_depth(depth)?;
+        let source = Rc::clone(&self.source);
         let start = self.current_content()?.span();
         self.emit_mapping_start(CollectionStyle::Block, start);
         let mut entries = Vec::new();
@@ -1565,19 +1621,21 @@ impl Parser {
             let Some(line) = self.peek_content() else {
                 break;
             };
-            if line.indent != indent || sequence_rest(&line.content).is_some() {
+            let content = line.content(&source);
+            if line.indent() != indent || sequence_rest(content).is_some() {
                 break;
             }
-            if line.content.starts_with('\t') {
+            if content.starts_with('\t') {
                 return Err(tab_indentation_error(line));
             }
-            if !starts_mapping_entry(&line.content) {
+            if !starts_mapping_entry(content) {
                 break;
             }
             let line = line.clone();
+            let content = line.content(&source);
             self.pos += 1;
 
-            let (key, value) = if let Some((rest_start, rest)) = explicit_key_rest(&line.content) {
+            let (key, value) = if let Some((rest_start, rest)) = explicit_key_rest(content) {
                 if let Some((key, span)) = pending_key.take() {
                     self.emit_null_scalar(span);
                     let value = Node::null(span);
@@ -1589,7 +1647,7 @@ impl Parser {
                     self.parse_explicit_block_key(&line, rest_start, rest, indent, depth + 1)?;
                 pending_key = Some((key, line.local_span(0, 1)));
                 continue;
-            } else if let Some((rest_start, rest)) = explicit_value_rest(&line.content) {
+            } else if let Some((rest_start, rest)) = explicit_value_rest(content) {
                 let key = pending_key.take().map(|(key, _)| key).unwrap_or_else(|| {
                     let span = line.local_span(0, 1);
                     self.emit_null_scalar(span);
@@ -1606,7 +1664,7 @@ impl Parser {
                     entries.push((key, value));
                     self.check_collection_items(entries.len(), line.span())?;
                 }
-                self.parse_mapping_pair(&line, 0, &line.content, indent, depth + 1)?
+                self.parse_mapping_pair(&line, 0, content, indent, depth + 1)?
             };
             self.check_duplicate_key(&mut seen, &key)?;
             entries.push((key, value));
@@ -1637,7 +1695,8 @@ impl Parser {
         depth: usize,
     ) -> Result<Node> {
         self.check_depth(depth)?;
-        let item_indent = line.indent + rest_start;
+        let source = Rc::clone(&self.source);
+        let item_indent = line.indent() + rest_start;
         self.emit_mapping_start(
             CollectionStyle::Block,
             line.local_span(rest_start, rest_start + rest.len()),
@@ -1658,29 +1717,31 @@ impl Parser {
             let Some(next) = self.peek_content() else {
                 break;
             };
-            if next.indent != item_indent {
+            if next.indent() != item_indent {
                 break;
             }
-            if sequence_rest(&next.content).is_some() || find_mapping_col(&next.content).is_none() {
+            let content = next.content(&source);
+            if sequence_rest(content).is_some() || find_mapping_col(content).is_none() {
                 break;
             }
             let next = next.clone();
+            let content = next.content(&source);
             self.pos += 1;
             let (key, value) =
-                self.parse_mapping_pair(&next, 0, &next.content, item_indent, depth + 1)?;
+                self.parse_mapping_pair(&next, 0, content, item_indent, depth + 1)?;
             self.check_duplicate_key(&mut seen, &key)?;
             entries.push((key, value));
             self.check_collection_items(entries.len(), next.span())?;
         }
 
         let span = Span::new(
-            line.start + line.indent + rest_start,
+            line.start() + line.indent() + rest_start,
             entries
                 .last()
                 .map(|(_, value)| value.span.end)
-                .unwrap_or(line.start + line.indent + rest_start + rest.len()),
-            line.no,
-            line.indent + rest_start + 1,
+                .unwrap_or(line.start() + line.indent() + rest_start + rest.len()),
+            line.no(),
+            line.indent() + rest_start + 1,
         );
         self.emit_mapping_end(span);
         Ok(mapping_node(entries, span))
@@ -1722,7 +1783,7 @@ impl Parser {
             self.parse_block_scalar(
                 header,
                 parent_indent,
-                line.local_span(value_start, line.content.len()),
+                line.local_span(value_start, line.content(&self.source).len()),
                 depth + 1,
                 false,
             )
@@ -1772,7 +1833,7 @@ impl Parser {
             self.parse_block_scalar(
                 header,
                 parent_indent,
-                line.local_span(value_start, line.content.len()),
+                line.local_span(value_start, line.content(&self.source).len()),
                 depth + 1,
                 false,
             )
@@ -1799,7 +1860,8 @@ impl Parser {
         depth: usize,
     ) -> Result<Node> {
         self.check_depth(depth)?;
-        let sequence_indent = line.indent + sequence_start;
+        let source = Rc::clone(&self.source);
+        let sequence_indent = line.indent() + sequence_start;
         self.emit_sequence_start(
             CollectionStyle::Block,
             line.local_span(sequence_start, sequence_start + sequence_text.len()),
@@ -1823,21 +1885,18 @@ impl Parser {
             let Some(next) = self.peek_content() else {
                 break;
             };
-            if next.indent != sequence_indent {
+            if next.indent() != sequence_indent {
                 break;
             }
-            let Some((_, _)) = sequence_rest(&next.content) else {
+            let content = next.content(&source);
+            let Some((_, _)) = sequence_rest(content) else {
                 break;
             };
             let next = next.clone();
+            let content = next.content(&source);
             self.pos += 1;
-            let item = self.parse_sequence_value_from_line(
-                &next,
-                0,
-                &next.content,
-                sequence_indent,
-                depth + 1,
-            )?;
+            let item =
+                self.parse_sequence_value_from_line(&next, 0, content, sequence_indent, depth + 1)?;
             items.push(item);
             self.check_collection_items(items.len(), next.span())?;
         }
@@ -1845,12 +1904,12 @@ impl Parser {
         let end = items
             .last()
             .map(|item| item.span.end)
-            .unwrap_or_else(|| line.start + line.indent + sequence_start + sequence_text.len());
+            .unwrap_or_else(|| line.start() + line.indent() + sequence_start + sequence_text.len());
         let span = Span::new(
-            line.start + line.indent + sequence_start,
+            line.start() + line.indent() + sequence_start,
             end,
-            line.no,
-            line.indent + sequence_start + 1,
+            line.no(),
+            line.indent() + sequence_start + 1,
         );
         self.emit_sequence_end(span);
         Ok(sequence_node(items, span))
@@ -1940,11 +1999,13 @@ impl Parser {
         )?;
         let mut value = Node::null(line.local_span(marker_start, marker_start + 1));
         let mut emitted_value = false;
+        let source = Rc::clone(&self.source);
         self.skip_blanks();
         if let Some((next, value_rest_start, value_rest)) = self.peek_content().and_then(|next| {
-            (next.indent == item_indent)
+            let content = next.content(&source);
+            (next.indent() == item_indent)
                 .then(|| {
-                    explicit_value_rest(&next.content).map(|(value_rest_start, value_rest)| {
+                    explicit_value_rest(content).map(|(value_rest_start, value_rest)| {
                         (next.clone(), value_rest_start, value_rest.to_string())
                     })
                 })
@@ -1964,10 +2025,10 @@ impl Parser {
             self.emit_null_scalar(value.span);
         }
         let span = Span::new(
-            line.start + line.indent + marker_start,
+            line.start() + line.indent() + marker_start,
             value.span.end,
-            line.no,
-            line.indent + marker_start + 1,
+            line.no(),
+            line.indent() + marker_start + 1,
         );
         self.emit_mapping_end(span);
         self.record_merge_key(&key);
@@ -2246,7 +2307,7 @@ impl Parser {
         local_start: usize,
         depth: usize,
     ) -> Result<Node> {
-        self.parse_inline_value(text, line, local_start, line.indent, depth)
+        self.parse_inline_value(text, line, local_start, line.indent(), depth)
     }
 
     fn parse_mapping_value_or_null(
@@ -2257,28 +2318,25 @@ impl Parser {
     ) -> Result<Node> {
         self.check_depth(depth)?;
         self.skip_blanks();
+        let source = Rc::clone(&self.source);
         match self.peek_content() {
             Some(next)
-                if next.indent == parent_indent && sequence_rest(&next.content).is_some() =>
+                if next.indent() == parent_indent
+                    && sequence_rest(next.content(&source)).is_some() =>
             {
                 self.parse_sequence(parent_indent, depth)
             }
             Some(next)
-                if next.indent > parent_indent
+                if next.indent() > parent_indent
                     && self.empty_node_property_before_indentless_sequence(parent_indent)? =>
             {
                 let line = next.clone();
+                let content = line.content(&source);
                 self.pos += 1;
-                self.parse_mapping_value_properties(
-                    &line.content,
-                    &line,
-                    0,
-                    parent_indent,
-                    depth + 1,
-                )?
-                .ok_or_else(|| {
-                    Error::new("expected mapping value after node property", line.span())
-                })
+                self.parse_mapping_value_properties(content, &line, 0, parent_indent, depth + 1)?
+                    .ok_or_else(|| {
+                        Error::new("expected mapping value after node property", line.span())
+                    })
             }
             _ => self.parse_nested_or_null(parent_indent, span, depth),
         }
@@ -2293,20 +2351,23 @@ impl Parser {
     ) -> Result<Node> {
         self.check_depth(depth)?;
         self.skip_blanks();
+        let source = Rc::clone(&self.source);
         match self.peek_content() {
             Some(next)
-                if next.indent == parent_indent && sequence_rest(&next.content).is_some() =>
+                if next.indent() == parent_indent
+                    && sequence_rest(next.content(&source)).is_some() =>
             {
                 self.parse_sequence(parent_indent, depth)
             }
             Some(next)
-                if next.indent > parent_indent
+                if next.indent() > parent_indent
                     && self.empty_node_property_before_indentless_sequence(parent_indent)? =>
             {
                 let line = next.clone();
+                let content = line.content(&source);
                 self.pos += 1;
                 self.parse_mapping_value_properties_with(
-                    &line.content,
+                    content,
                     &line,
                     0,
                     parent_indent,
@@ -2318,16 +2379,17 @@ impl Parser {
                 })
             }
             Some(next)
-                if next.indent > parent_indent
-                    && sequence_rest(&next.content).is_none()
-                    && !starts_mapping_entry(&next.content) =>
+                if next.indent() > parent_indent
+                    && sequence_rest(next.content(&source)).is_none()
+                    && !starts_mapping_entry(next.content(&source)) =>
             {
                 let next = next.clone();
+                let content = next.content(&source);
                 self.pos += 1;
-                if is_plain_scalar_text(&next.content) {
-                    self.parse_plain_scalar(&next.content, &next, 0, parent_indent, depth, false)
+                if is_plain_scalar_text(content) {
+                    self.parse_plain_scalar(content, &next, 0, parent_indent, depth, false)
                 } else if let Some(node) = self.parse_mapping_value_properties_with(
-                    &next.content,
+                    content,
                     &next,
                     0,
                     parent_indent,
@@ -2336,10 +2398,10 @@ impl Parser {
                 )? {
                     Ok(node)
                 } else {
-                    self.parse_inline_value(&next.content, &next, 0, parent_indent, depth)
+                    self.parse_inline_value(content, &next, 0, parent_indent, depth)
                 }
             }
-            Some(next) if next.indent > parent_indent => self.parse_node(depth),
+            Some(next) if next.indent() > parent_indent => self.parse_node(depth),
             _ => {
                 self.emit_null_scalar(span);
                 Ok(Node::empty_scalar(span))
@@ -2355,9 +2417,11 @@ impl Parser {
     ) -> Result<Node> {
         self.check_depth(depth)?;
         self.skip_blanks();
+        let source = Rc::clone(&self.source);
         match self.peek_content() {
             Some(next)
-                if next.indent == parent_indent && sequence_rest(&next.content).is_some() =>
+                if next.indent() == parent_indent
+                    && sequence_rest(next.content(&source)).is_some() =>
             {
                 self.parse_sequence(parent_indent, depth)
             }
@@ -2373,21 +2437,23 @@ impl Parser {
     ) -> Result<Node> {
         self.check_depth(depth)?;
         self.skip_blanks();
+        let source = Rc::clone(&self.source);
         match self.peek_content() {
             Some(next)
-                if next.indent > parent_indent
-                    && sequence_rest(&next.content).is_none()
-                    && !starts_mapping_entry(&next.content) =>
+                if next.indent() > parent_indent
+                    && sequence_rest(next.content(&source)).is_none()
+                    && !starts_mapping_entry(next.content(&source)) =>
             {
                 let next = next.clone();
+                let content = next.content(&source);
                 self.pos += 1;
-                if is_plain_scalar_text(&next.content) {
-                    self.parse_plain_scalar(&next.content, &next, 0, parent_indent, depth, false)
+                if is_plain_scalar_text(content) {
+                    self.parse_plain_scalar(content, &next, 0, parent_indent, depth, false)
                 } else {
-                    self.parse_inline_value(&next.content, &next, 0, parent_indent, depth)
+                    self.parse_inline_value(content, &next, 0, parent_indent, depth)
                 }
             }
-            Some(next) if next.indent > parent_indent => self.parse_node(depth),
+            Some(next) if next.indent() > parent_indent => self.parse_node(depth),
             _ => {
                 self.emit_null_scalar(span);
                 Ok(Node::empty_scalar(span))
@@ -2409,9 +2475,10 @@ impl Parser {
         let first_ws = first_text.len() - first_text.trim_start().len();
         let first_start = first_start + first_ws;
         let mut out = None::<String>;
-        let mut end = first_line.start + first_line.indent + first_start + first_trimmed.len();
+        let mut end = first_line.start() + first_line.indent() + first_start + first_trimmed.len();
         let mut continued = false;
         let mut comment_terminated = first_line.had_comment;
+        let source = Rc::clone(&self.source);
 
         loop {
             if comment_terminated {
@@ -2435,14 +2502,15 @@ impl Parser {
             }
             let Some(next) = self.lines.get(lookahead).filter(|line| {
                 matches!(line.kind, LineKind::Content | LineKind::Directive)
-                    && is_plain_scalar_continuation_text(&line.content)
+                    && is_plain_scalar_continuation_text(line.content(&source))
             }) else {
                 break;
             };
-            if next.indent < parent_indent
-                || (next.indent == parent_indent && !allow_same_indent_continuation)
-                || (next.indent <= parent_indent && sequence_rest(&next.content).is_some())
-                || starts_mapping_entry(&next.content)
+            let next_content = next.content(&source);
+            if next.indent() < parent_indent
+                || (next.indent() == parent_indent && !allow_same_indent_continuation)
+                || (next.indent() <= parent_indent && sequence_rest(next_content).is_some())
+                || starts_mapping_entry(next_content)
             {
                 break;
             }
@@ -2450,7 +2518,7 @@ impl Parser {
             self.pos = lookahead + 1;
             continued = true;
             comment_terminated = next.had_comment;
-            let trimmed = next.content.trim();
+            let trimmed = next.content(&source).trim();
             if !trimmed.is_empty() {
                 let out = out.get_or_insert_with(|| first_trimmed.to_string());
                 if blank_breaks > 0 {
@@ -2462,7 +2530,7 @@ impl Parser {
                 }
                 out.push_str(trimmed);
             }
-            end = next.start + next.raw.len();
+            end = next.start() + next.raw_len();
         }
 
         if !continued {
@@ -2479,10 +2547,10 @@ impl Parser {
         let node = Node::new(
             Value::String(out),
             Span::new(
-                first_line.start + first_line.indent + first_start,
+                first_line.start() + first_line.indent() + first_start,
                 end,
-                first_line.no,
-                first_line.indent + first_start + 1,
+                first_line.no(),
+                first_line.indent() + first_start + 1,
             ),
         );
         self.check_scalar_node(&node)?;
@@ -2503,38 +2571,41 @@ impl Parser {
         let mut lines = Vec::new();
         let mut end = marker_span.end;
         let mut max_leading_blank_indent = 0usize;
+        let source = Rc::clone(&self.source);
 
         while let Some(line) = self.lines.get(self.pos) {
+            let raw = line.raw(&source);
             if matches!(line.kind, LineKind::DocumentStart | LineKind::DocumentEnd) {
                 break;
             }
             if line.kind != LineKind::Blank
-                && (line.indent < parent_indent
-                    || (line.indent == parent_indent && !allow_same_indent_content))
+                && (line.indent() < parent_indent
+                    || (line.indent() == parent_indent && !allow_same_indent_content))
             {
                 break;
             }
             if line.kind == LineKind::Blank
-                && !line.raw.trim().is_empty()
-                && block_indent.is_some_and(|indent| line.indent < indent)
+                && !raw.trim().is_empty()
+                && block_indent.is_some_and(|indent| line.indent() < indent)
             {
                 break;
             }
             let line = line.clone();
+            let raw = line.raw(&source);
             self.pos += 1;
-            let text = if line.raw.trim().is_empty() {
-                if let Some(tab_offset) = line.raw.bytes().position(|byte| byte == b'\t') {
+            let text = if raw.trim().is_empty() {
+                if let Some(tab_offset) = raw.bytes().position(|byte| byte == b'\t') {
                     if tab_offset == 0 {
                         return Err(Error::new(
                             "block scalar content cannot start with a tab",
-                            Span::point(line.start + tab_offset, line.no, tab_offset + 1),
+                            Span::point(line.start() + tab_offset, line.no(), tab_offset + 1),
                         ));
                     }
                     let indent = *block_indent.get_or_insert(tab_offset);
                     if tab_offset < indent {
                         return Err(Error::new(
                             "block scalar content cannot start with a tab",
-                            Span::point(line.start + tab_offset, line.no, tab_offset + 1),
+                            Span::point(line.start() + tab_offset, line.no(), tab_offset + 1),
                         ));
                     }
                     if max_leading_blank_indent > indent {
@@ -2543,29 +2614,29 @@ impl Parser {
                             line.local_span(0, 0),
                         ));
                     }
-                    line.raw_from(indent).to_string()
+                    line.raw_from(&source, indent).to_string()
                 } else {
                     if let Some(indent) = block_indent {
-                        line.raw_from(indent).to_string()
+                        line.raw_from(&source, indent).to_string()
                     } else {
-                        max_leading_blank_indent = max_leading_blank_indent.max(line.raw.len());
+                        max_leading_blank_indent = max_leading_blank_indent.max(line.raw_len());
                         String::new()
                     }
                 }
             } else {
-                let indent = *block_indent.get_or_insert(line.indent);
+                let indent = *block_indent.get_or_insert(line.indent());
                 if max_leading_blank_indent > indent {
                     return Err(Error::new(
                         "block scalar content is less indented than a preceding blank line",
                         line.local_span(0, 0),
                     ));
                 }
-                if line.indent < indent {
+                if line.indent() < indent {
                     break;
                 }
-                line.raw_from(indent).to_string()
+                line.raw_from(&source, indent).to_string()
             };
-            end = line.start + line.raw.len();
+            end = line.start() + line.raw_len();
             lines.push(text);
         }
 
@@ -2738,7 +2809,7 @@ impl Parser {
             self.push_anchor_meta(anchor.name.clone(), anchor.span);
             let generation = self.anchors.begin(anchor.name.clone(), anchor.span);
             let node = if anchor.rest.trim().is_empty() {
-                if properties.allow_document_root_continuation && line.indent == 0 {
+                if properties.allow_document_root_continuation && line.indent() == 0 {
                     self.parse_document_root_or_null(anchor.span, depth + 1)?
                 } else {
                     self.parse_nested_or_null(parent_indent, anchor.span, depth + 1)?
@@ -2767,7 +2838,7 @@ impl Parser {
             reject_same_line_block_sequence_after_property(tag.rest, line, tag.rest_start)?;
             self.push_tag_meta(tag_value.clone(), tag.span);
             let node = if tag.rest.trim().is_empty() {
-                if properties.allow_document_root_continuation && line.indent == 0 {
+                if properties.allow_document_root_continuation && line.indent() == 0 {
                     self.parse_document_root_or_null(tag.span, depth + 1)?
                 } else {
                     self.parse_nested_or_null(parent_indent, tag.span, depth + 1)?
@@ -2843,10 +2914,11 @@ impl Parser {
         quote: char,
         allow_parent_indent_continuation: bool,
     ) -> Result<Node> {
-        let mut text = quoted_line_text(first_line, first_start, first_text, quote);
-        let mut end = first_line.start + first_line.indent + first_start + first_text.len();
+        let source = Rc::clone(&self.source);
+        let mut text = quoted_line_text(&source, first_line, first_start, first_text, quote);
+        let mut end = first_line.start() + first_line.indent() + first_start + first_text.len();
         let require_indented_continuation =
-            !allow_parent_indent_continuation && first_line.indent + first_start > parent_indent;
+            !allow_parent_indent_continuation && first_line.indent() + first_start > parent_indent;
 
         while quoted_scalar_accepted_end(&text, quote).is_none() {
             let Some(line) = self.lines.get(self.pos).cloned() else {
@@ -2856,11 +2928,11 @@ impl Parser {
                 LineKind::Blank => {
                     self.pos += 1;
                     text.push('\n');
-                    end = line.start + line.raw.len();
+                    end = line.start() + line.raw_len();
                 }
-                LineKind::Content if line.indent >= parent_indent => {
-                    if require_indented_continuation && line.indent <= parent_indent {
-                        if line.content.starts_with('\t') {
+                LineKind::Content if line.indent() >= parent_indent => {
+                    if require_indented_continuation && line.indent() <= parent_indent {
+                        if line.content(&source).starts_with('\t') {
                             return Err(tab_indentation_error(&line));
                         }
                         return Err(Error::new(
@@ -2871,14 +2943,15 @@ impl Parser {
                     self.pos += 1;
                     let line_text_start = text.len() + 1;
                     text.push('\n');
-                    let line_text = quoted_line_text(&line, 0, &line.content, quote);
+                    let content = line.content(&source);
+                    let line_text = quoted_line_text(&source, &line, 0, content, quote);
                     text.push_str(&line_text);
                     end = quoted_scalar_accepted_end(&text, quote)
                         .filter(|close_end| *close_end >= line_text_start)
                         .map(|close_end| {
-                            line.start + line.content_start + close_end - line_text_start
+                            line.start() + line.content_start() + close_end - line_text_start
                         })
-                        .unwrap_or_else(|| line.start + line.content_start + line_text.len());
+                        .unwrap_or_else(|| line.start() + line.content_start() + line_text.len());
                 }
                 LineKind::Content
                 | LineKind::Directive
@@ -2888,10 +2961,10 @@ impl Parser {
         }
 
         let span = Span::new(
-            first_line.start + first_line.indent + first_start,
+            first_line.start() + first_line.indent() + first_start,
             end,
-            first_line.no,
-            first_line.indent + first_start + 1,
+            first_line.no(),
+            first_line.indent() + first_start + 1,
         );
         let text_end = quoted_scalar_accepted_end(&text, quote).unwrap_or(text.len());
         let text = fold_flow_quoted_scalar(&text[..text_end], quote);
@@ -2914,23 +2987,29 @@ impl Parser {
         parent_indent: usize,
     ) -> Result<FlowBuffer> {
         let mut buffer = FlowBuffer::single(first_text, first_line, first_start);
+        let source = Rc::clone(&self.source);
         let require_continuation_indent =
-            (first_line.indent + first_start > parent_indent).then_some(parent_indent);
+            (first_line.indent() + first_start > parent_indent).then_some(parent_indent);
         while !flow_collection_is_closed(&buffer.text) {
             let Some(line) = self.lines.get(self.pos).cloned() else {
                 break;
             };
             match line.kind {
                 LineKind::Blank => {
-                    let mark =
-                        SourceMark::new(line.start + line.raw.len(), line.no, line.raw.len() + 1);
+                    let mark = SourceMark::new(
+                        line.start() + line.raw_len(),
+                        line.no(),
+                        line.raw_len() + 1,
+                    );
                     buffer.push_virtual_separator(mark);
                     self.pos += 1;
                 }
                 LineKind::Content | LineKind::Directive => {
                     if require_continuation_indent.is_some_and(|indent| {
-                        line.indent <= indent
-                            && !flow_continuation_may_start_at_parent_indent_after_ws(&line.content)
+                        line.indent() <= indent
+                            && !flow_continuation_may_start_at_parent_indent_after_ws(
+                                line.content(&source),
+                            )
                     }) {
                         return Err(Error::new(
                             "flow collection continuation is not sufficiently indented",
@@ -2938,7 +3017,8 @@ impl Parser {
                         ));
                     }
                     buffer.push_virtual_separator(SourceMark::for_line_content(&line, 0));
-                    buffer.push_source_text(&line.content, &line, 0);
+                    let content = line.content(&source);
+                    buffer.push_source_text(content, &line, 0);
                     self.pos += 1;
                 }
                 LineKind::DocumentStart | LineKind::DocumentEnd => break,
@@ -2998,12 +3078,14 @@ impl Parser {
         let Some(line) = self.peek_content() else {
             return Ok(false);
         };
-        if !empty_node_property_line(line)? {
+        if !empty_node_property_line(line, &self.source)? {
             return Ok(false);
         }
         Ok(matches!(
             self.peek_content_from(self.pos + 1),
-            Some(next) if next.indent == parent_indent && sequence_rest(&next.content).is_some()
+            Some(next)
+                if next.indent() == parent_indent
+                    && sequence_rest(next.content(&self.source)).is_some()
         ))
     }
 
@@ -3022,7 +3104,6 @@ fn block_scalar_line_is_more_indented(line: &str) -> bool {
 }
 
 fn preprocess(input: &str) -> Result<Vec<Line>> {
-    let source = Rc::<str>::from(input);
     // Pre-size to the exact line count so the table is allocated once instead
     // of growing through ~log2(n) doublings (which churn ~2x the final size).
     let line_estimate = input.bytes().filter(|&byte| byte == b'\n').count() + 1;
@@ -3030,7 +3111,7 @@ fn preprocess(input: &str) -> Result<Vec<Line>> {
     let mut offset = 0;
     for (idx, chunk) in input.split_inclusive('\n').enumerate() {
         let raw_len = chunk.trim_end_matches('\n').trim_end_matches('\r').len();
-        push_preprocessed_line(&mut out, &source, idx + 1, offset, raw_len)?;
+        push_preprocessed_line(&mut out, input, idx + 1, offset, raw_len)?;
         offset += chunk.len();
     }
     if !input.is_empty() && !input.ends_with('\n') {
@@ -3043,11 +3124,12 @@ fn preprocess(input: &str) -> Result<Vec<Line>> {
 
 fn push_preprocessed_line(
     out: &mut Vec<Line>,
-    source: &Rc<str>,
+    source: &str,
     no: usize,
     start: usize,
     raw_len: usize,
 ) -> Result<()> {
+    let no = compact_offset(no)?;
     let raw = &source[start..start + raw_len];
     let bom_len = if start == 0 && raw.starts_with('\u{feff}') {
         '\u{feff}'.len_utf8()
@@ -3058,16 +3140,11 @@ fn push_preprocessed_line(
     let raw_indent = raw_body.bytes().take_while(|byte| *byte == b' ').count();
     if raw_body.trim().is_empty() {
         out.push(Line {
+            raw: LineText::new(start, start + raw.len())?,
             no,
-            start,
-            raw: LineText::new(source, start, start + raw.len()),
-            indent: raw_indent,
-            content_start: bom_len + raw_indent,
-            content: LineText::new(
-                source,
-                start + bom_len + raw_indent,
-                start + bom_len + raw_indent,
-            ),
+            indent: compact_offset(raw_indent)?,
+            content_start: compact_offset(bom_len + raw_indent)?,
+            content_end: compact_offset(bom_len + raw_indent)?,
             kind: LineKind::Blank,
             had_comment: false,
         });
@@ -3088,23 +3165,18 @@ fn push_preprocessed_line(
             "tabs are not allowed as separation after block indicators",
             Span::point(
                 start + content_start + tab_offset,
-                no,
+                no as usize,
                 content_start + tab_offset + 1,
             ),
         ));
     }
     if content.trim().is_empty() {
         out.push(Line {
+            raw: LineText::new(start, start + raw.len())?,
             no,
-            start,
-            raw: LineText::new(source, start, start + raw.len()),
-            indent: raw_indent,
-            content_start: bom_len + raw_indent,
-            content: LineText::new(
-                source,
-                start + bom_len + raw_indent,
-                start + bom_len + raw_indent,
-            ),
+            indent: compact_offset(raw_indent)?,
+            content_start: compact_offset(bom_len + raw_indent)?,
+            content_end: compact_offset(bom_len + raw_indent)?,
             kind: LineKind::Blank,
             had_comment,
         });
@@ -3120,7 +3192,7 @@ fn push_preprocessed_line(
                 Span::new(
                     start + content_start,
                     start + content_start + content.len(),
-                    no,
+                    no as usize,
                     content_start + 1,
                 ),
             ));
@@ -3129,12 +3201,11 @@ fn push_preprocessed_line(
         _ => LineKind::Content,
     };
     out.push(Line {
+        raw: LineText::new(start, start + raw.len())?,
         no,
-        start,
-        raw: LineText::new(source, start, start + raw.len()),
-        indent,
-        content_start,
-        content: LineText::new(source, start + content_start, start + content_end),
+        indent: compact_offset(indent)?,
+        content_start: compact_offset(content_start)?,
+        content_end: compact_offset(content_end)?,
         kind,
         had_comment,
     });
@@ -3184,16 +3255,17 @@ struct DirectiveField<'a> {
     end: usize,
 }
 
-fn directive_fields(line: &Line) -> Vec<DirectiveField<'_>> {
+fn directive_fields<'a>(line: &Line, source: &'a str) -> Vec<DirectiveField<'a>> {
     let mut fields = Vec::new();
     let mut start = None;
-    for (idx, ch) in line.content.char_indices() {
+    let content = line.content(source);
+    for (idx, ch) in content.char_indices() {
         if ch == '#' && start.is_none() {
             break;
         } else if ch.is_whitespace() {
             if let Some(field_start) = start.take() {
                 fields.push(DirectiveField {
-                    text: &line.content[field_start..idx],
+                    text: &content[field_start..idx],
                     start: field_start,
                     end: idx,
                 });
@@ -3204,9 +3276,9 @@ fn directive_fields(line: &Line) -> Vec<DirectiveField<'_>> {
     }
     if let Some(field_start) = start {
         fields.push(DirectiveField {
-            text: &line.content[field_start..],
+            text: &content[field_start..],
             start: field_start,
-            end: line.content.len(),
+            end: content.len(),
         });
     }
     fields
@@ -3738,9 +3810,10 @@ fn reject_same_line_block_sequence_after_property(
     Ok(())
 }
 
-fn empty_node_property_line(line: &Line) -> Result<bool> {
-    let text = line.content.trim();
-    let local_start = line.content.len() - line.content.trim_start().len();
+fn empty_node_property_line(line: &Line, source: &str) -> Result<bool> {
+    let content = line.content(source);
+    let text = content.trim();
+    let local_start = content.len() - content.trim_start().len();
     if let Some(anchor) = parse_metadata_token(text, line, local_start, '&')? {
         return Ok(anchor.rest.trim().is_empty());
     }
@@ -4385,9 +4458,9 @@ impl SourceMark {
 
     fn for_line_content(line: &Line, local_start: usize) -> Self {
         Self::new(
-            line.start + line.indent + local_start,
-            line.no,
-            line.indent + local_start + 1,
+            line.start() + line.indent() + local_start,
+            line.no(),
+            line.indent() + local_start + 1,
         )
     }
 }
@@ -4419,8 +4492,8 @@ impl FlowBuffer {
         for offset in 1..=text.len() {
             self.marks.push(SourceMark::new(
                 start.offset + offset,
-                line.no,
-                line.indent + local_start + offset + 1,
+                line.no(),
+                line.indent() + local_start + offset + 1,
             ));
         }
     }
@@ -5460,6 +5533,20 @@ fn skip_flow_line_indent(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parser_line_table_entries_stay_compact() {
+        assert!(
+            std::mem::size_of::<Line>() <= 40,
+            "Line is {} bytes",
+            std::mem::size_of::<Line>()
+        );
+        assert!(
+            std::mem::size_of::<LineText>() <= 8,
+            "LineText is {} bytes",
+            std::mem::size_of::<LineText>()
+        );
+    }
 
     #[test]
     fn streaming_parser_tracks_current_schema_without_accumulating_schema_history() {

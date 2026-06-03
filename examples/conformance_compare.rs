@@ -105,9 +105,10 @@ impl Tally {
 }
 
 fn main() {
-    let manifest: SuiteManifest =
-        toml::from_str(include_str!("../tests/fixtures/yaml-test-suite/manifest.toml"))
-            .expect("manifest is valid TOML");
+    let manifest: SuiteManifest = toml::from_str(include_str!(
+        "../tests/fixtures/yaml-test-suite/manifest.toml"
+    ))
+    .expect("manifest is valid TOML");
 
     let libraries: &[(&str, fn(&str) -> bool)] = &[
         ("saneyaml", saneyaml_accepts),

@@ -115,9 +115,11 @@ fn measure(lib: &str, corpus: &str) {
         ),
         "serde_yaml" => {
             use serde::Deserialize;
-            measure_arm!(serde_yaml::Deserializer::from_str(&input)
-                .map(|d| serde_yaml::Value::deserialize(d).expect("serde_yaml value"))
-                .collect::<Vec<serde_yaml::Value>>())
+            measure_arm!(
+                serde_yaml::Deserializer::from_str(&input)
+                    .map(|d| serde_yaml::Value::deserialize(d).expect("serde_yaml value"))
+                    .collect::<Vec<serde_yaml::Value>>()
+            )
         }
         "yaml-rust2" => {
             measure_arm!(yaml_rust2::YamlLoader::load_from_str(&input).expect("yaml-rust2 load"))
@@ -155,7 +157,10 @@ fn main() {
 
     if args.first().map(String::as_str) == Some("--profile") {
         // Writes dhat-heap.json with per-call-site allocation stats.
-        let lib = args.get(1).map(String::as_str).unwrap_or("saneyaml-borrowed");
+        let lib = args
+            .get(1)
+            .map(String::as_str)
+            .unwrap_or("saneyaml-borrowed");
         let corpus = args.get(2).map(String::as_str).unwrap_or("multidoc");
         let _profiler = dhat::Profiler::new_heap();
         let input = corpus_input(corpus);
@@ -173,7 +178,10 @@ fn main() {
         return;
     }
 
-    let lib = args.first().map(String::as_str).unwrap_or("saneyaml-borrowed");
+    let lib = args
+        .first()
+        .map(String::as_str)
+        .unwrap_or("saneyaml-borrowed");
     let corpus = args.get(1).map(String::as_str).unwrap_or("multidoc");
 
     let _profiler = dhat::Profiler::builder().testing().build();

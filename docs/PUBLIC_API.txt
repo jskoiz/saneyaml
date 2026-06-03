@@ -141,6 +141,9 @@ impl saneyaml::lossless::LosslessTrivia
 pub fn saneyaml::lossless::LosslessTrivia::kind(&self) -> saneyaml::lossless::LosslessTriviaKind
 pub fn saneyaml::lossless::LosslessTrivia::span(&self) -> saneyaml::Span
 pub fn saneyaml::lossless::LosslessTrivia::text(&self) -> &str
+impl core::cmp::Eq for saneyaml::lossless::LosslessTrivia
+impl core::cmp::PartialEq for saneyaml::lossless::LosslessTrivia
+pub fn saneyaml::lossless::LosslessTrivia::eq(&self, &Self) -> bool
 pub struct saneyaml::lossless::NodeId(_)
 impl saneyaml::lossless::NodeId
 pub fn saneyaml::lossless::NodeId::index(self) -> usize
@@ -1933,6 +1936,9 @@ impl saneyaml::lossless::LosslessTrivia
 pub fn saneyaml::lossless::LosslessTrivia::kind(&self) -> saneyaml::lossless::LosslessTriviaKind
 pub fn saneyaml::lossless::LosslessTrivia::span(&self) -> saneyaml::Span
 pub fn saneyaml::lossless::LosslessTrivia::text(&self) -> &str
+impl core::cmp::Eq for saneyaml::lossless::LosslessTrivia
+impl core::cmp::PartialEq for saneyaml::lossless::LosslessTrivia
+pub fn saneyaml::lossless::LosslessTrivia::eq(&self, &Self) -> bool
 pub struct saneyaml::Mapping
 impl saneyaml::Mapping
 pub fn saneyaml::Mapping::as_slice(&self) -> &[(saneyaml::Value, saneyaml::Value)]

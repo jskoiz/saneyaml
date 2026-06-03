@@ -1835,12 +1835,24 @@ pub enum LosslessTriviaKind {
 /// The trivia text is not stored as an independent copy; instead the trivia
 /// holds a shared handle to the retained source and borrows its text from the
 /// [`span`](LosslessTrivia::span). This keeps the document bytes stored once.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct LosslessTrivia {
     kind: LosslessTriviaKind,
     span: Span,
     source: Arc<str>,
 }
+
+// Equality is defined over the observable fields (`kind`, `span`, `text()`)
+// rather than the backing `source` handle, so two trivia with the same kind,
+// span, and text compare equal regardless of which document's bytes back them.
+// Deriving `PartialEq` would instead compare the entire shared source.
+impl PartialEq for LosslessTrivia {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind && self.span == other.span && self.text() == other.text()
+    }
+}
+
+impl Eq for LosslessTrivia {}
 
 impl LosslessTrivia {
     /// Returns the trivia kind.

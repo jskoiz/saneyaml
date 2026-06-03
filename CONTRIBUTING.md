@@ -32,7 +32,6 @@ Run the strongest relevant subset for the files you changed:
 cargo fmt --all --check
 git diff --check
 cargo test --locked
-cargo test --locked --test baseline_audit
 cargo clippy --locked --all-targets -- -D warnings
 RUSTDOCFLAGS='-D missing_docs' cargo doc --locked --no-deps
 cargo test --locked --doc
@@ -45,21 +44,9 @@ Parser, emitter, Serde, compatibility, fuzz, and fixture changes need targeted
 tests in addition to the general stack. Security-sensitive fixes should include
 the smallest safe regression artifact and should follow `SECURITY.md`.
 
-## Baseline Refresh
-
-`BASELINE.md` is an evidence ledger, not a changelog. If a substantive commit
-changes tracked artifacts, follow it with a baseline refresh commit and verify:
-
-```sh
-cargo test --locked --test baseline_audit
-```
-
-Do not widen the allowed baseline drift list to hide unrelated changes.
-
 ## Public API and Stability
 
-The pre-1.0 preview surface is documented in `DEVELOPER_PREVIEW.md` and
-`COMPATIBILITY.md`. Public exports, public enum variants, public struct fields,
+The pre-1.0 preview surface is documented in `COMPATIBILITY.md`. Public exports, public enum variants, public struct fields,
 and public constants are SemVer-visible. If a change would alter the public API
 snapshot, update `PUBLIC_API.txt` only when the API change is intentional and
 documented.

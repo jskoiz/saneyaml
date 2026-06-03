@@ -38,7 +38,6 @@ fn changelog_and_contributing_do_not_claim_publication() {
 
     for term in [
         "Rust 1.85",
-        "cargo test --locked --test baseline_audit",
         "scripts/check-public-api.sh",
         "Runtime dependencies remain limited to direct `ryu` and `serde`",
         "hosted macOS/Windows runs",

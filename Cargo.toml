@@ -19,7 +19,6 @@ include = [
     "/CHANGELOG.md",
     "/COMPATIBILITY.md",
     "/CONTRIBUTING.md",
-    "/DEVELOPER_PREVIEW.md",
     "/MIGRATION.md",
     "/PUBLIC_API.txt",
     "/RELEASE_NOTES.md",

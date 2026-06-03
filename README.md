@@ -1,8 +1,8 @@
 # saneyaml
 
-[![CI configured](https://img.shields.io/badge/CI-configured%20local%20proof-informational)](DEVELOPER_PREVIEW.md)
-[![Fuzzing](https://img.shields.io/badge/fuzzing-10%20targets-informational)](DEVELOPER_PREVIEW.md)
-[![rustdoc](https://img.shields.io/badge/rustdoc-local%20missing--docs%20gate-informational)](DEVELOPER_PREVIEW.md)
+[![CI configured](https://img.shields.io/badge/CI-configured%20local%20proof-informational)](CONTRIBUTING.md)
+[![Fuzzing](https://img.shields.io/badge/fuzzing-10%20targets-informational)](SECURITY.md)
+[![rustdoc](https://img.shields.io/badge/rustdoc-local%20missing--docs%20gate-informational)](CONTRIBUTING.md)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE.md)
 
 `saneyaml` is a pure-Rust YAML parser/emitter package for common developer
@@ -12,9 +12,8 @@ and Serde-compatible migration paths under local proof.
 Status: package-ready candidate awaiting explicit crates.io publish approval.
 The package name is `saneyaml`, the license is MIT, the version is `0.1.0`, and
 the Rust library target intentionally remains `yaml`. Start with
-[ARCHITECTURE.md](ARCHITECTURE.md), [DEVELOPER_PREVIEW.md](DEVELOPER_PREVIEW.md),
-[MIGRATION.md](MIGRATION.md), [COMPATIBILITY.md](COMPATIBILITY.md), and
-[BASELINE.md](BASELINE.md) before evaluating it in another project. Trust and
+[ARCHITECTURE.md](ARCHITECTURE.md), [MIGRATION.md](MIGRATION.md), and
+[COMPATIBILITY.md](COMPATIBILITY.md) before evaluating it in another project. Trust and
 release-process docs live in [SECURITY.md](SECURITY.md),
 [CHANGELOG.md](CHANGELOG.md), and [CONTRIBUTING.md](CONTRIBUTING.md).
 The Cargo package include list is explicit: it packages source, examples,
@@ -195,7 +194,6 @@ scripts/downstream-build-trials.sh navi
 scripts/downstream-build-trials.sh stackable-operator
 scripts/downstream-build-trials.sh figment
 scripts/downstream-build-trials.sh uaparser
-cargo test --test baseline_audit
 scripts/check-public-api.sh
 cargo test --locked --test runtime_dependency_closure
 cargo test --locked --test trust_metadata
@@ -211,9 +209,7 @@ scripts/fuzz-smoke-nonmutating.sh
 scripts/fuzz-release-sweep.sh
 ```
 
-`tests/baseline_audit.rs` verifies that `BASELINE.md` matches the committed
-manifest, registry, migration report, package boundary, public API snapshot,
-runtime dependency closure, trust metadata, corpus, and command evidence. `cargo
+`cargo
 fuzz` is optional for ordinary development; the script copies corpora to a
 temporary directory before running all ten targets so it does not grow tracked
 corpus files. Configured CI declares Linux/macOS/Windows Rust checks, an Ubuntu

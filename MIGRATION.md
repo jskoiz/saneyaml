@@ -398,7 +398,7 @@ Broader migration proof:
 ```sh
 cargo test --test serde_yaml_swap_harness --test serde_value_api --test compatibility_harness --test real_world_configs
 cargo test --test yaml_test_suite --test event_parity --test tree_parity --test parity_manifest
-cargo test --test divergence_manifest --test divergences --test baseline_audit
+cargo test --test divergence_manifest --test divergences
 cargo clippy --all-targets -- -D warnings
 ```
 
@@ -536,7 +536,7 @@ testing each adopter's own YAML corpus.
 - Full upstream YAML test-suite coverage is now classified; the pinned coverage
   ledger records 402 upstream cases, 402 selected cases, and 0 not-imported
   cases, while selected-suite scope and deferred parity cases remain documented
-  in `BASELINE.md` and `COMPATIBILITY.md`. `cargo test --test
+  in `COMPATIBILITY.md`. `cargo test --test
   conformance_dashboard -- --nocapture` prints the current 402-case dashboard
   and keeps documented divergence overlays separate from accepted/rejected
   outcome counts.

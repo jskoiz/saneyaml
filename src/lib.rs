@@ -5,8 +5,8 @@
 //! document streaming, loaded document trees with default merge-key expansion,
 //! explicit and directive-driven YAML 1.1 scalar construction options, `serde_yaml`-style
 //! `Value`/`Mapping`/`Number` workflows, typed Serde reads, structural writes,
-//! explicit emission fidelity tiers, and line/column diagnostics. See `MIGRATION.md`,
-//! `COMPATIBILITY.md`, and `DEVELOPER_PREVIEW.md` for the current adoption
+//! explicit emission fidelity tiers, and line/column diagnostics. See `MIGRATION.md`
+//! and `COMPATIBILITY.md` for the current adoption
 //! contract and intentional non-goals.
 //!
 //! ```rust

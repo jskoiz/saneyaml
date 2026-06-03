@@ -212,12 +212,11 @@ Notable completed release-candidate behavior:
   counts, statuses, elapsed time, and artifact directories, while
   `parser_properties` gates corpus target parity, release floors, and named
   safety seeds.
-- The committed hygiene fuzz summary at `goals/hygiene-and-polish.fuzz.md`
-  records clean checkout `ecbf61be5661`, all ten configured targets, 1000
-  requested runs per target, and zero crash artifacts.
+- A hygiene fuzz sweep over a clean checkout exercised all ten configured
+  targets at 1000 requested runs per target, with zero crash artifacts.
 
-Known release-candidate gaps remain tracked in `BASELINE.md`,
-`COMPATIBILITY.md`, and `MIGRATION.md`: complete YAML 1.1 ecosystem parity,
+Known release-candidate gaps remain tracked in `COMPATIBILITY.md`
+and `MIGRATION.md`: complete YAML 1.1 ecosystem parity,
 arbitrary `serde_yaml` byte parity outside the supported `ByteCompatible`
 structural writer corpus, full arbitrary structural lossless formatting beyond
 targeted block/flow mapping entry and sequence item helpers,

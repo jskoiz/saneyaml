@@ -44,7 +44,6 @@ jobs:
         run: |
           cargo test --locked --test serde_yaml_swap_harness
           cargo test --locked --test downstream_migration_harness
-          cargo test --locked --test baseline_audit
           cargo test --locked --test real_world_lossless
           cargo test --locked --test compatibility_harness --test serde_value_api --test event_parity --test tree_parity --test divergence_manifest --test divergences --test real_world_fixture_manifest --test parser_properties --test emitter --test emitter_tagged
 

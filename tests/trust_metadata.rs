@@ -1,5 +1,7 @@
 use std::collections::BTreeSet;
 
+use saneyaml::Value;
+
 const CARGO_TOML: &str = include_str!("../Cargo.toml");
 const CI_WORKFLOW: &str = include_str!("../.github/workflows/ci.yml");
 const MIGRATION: &str = include_str!("../docs/MIGRATION.md");
@@ -92,12 +94,20 @@ fn github_templates_parse_as_yaml_and_route_sensitive_reports() {
 
 #[test]
 fn ci_triggers_on_public_package_claim_inputs() {
-    saneyaml::parse_str(CI_WORKFLOW)
-        .unwrap_or_else(|err| panic!(".github/workflows/ci.yml parses as YAML: {err}"));
+    let workflow = ci_workflow();
+    let push_filters = ci_path_filters_for(&workflow, "push");
+    let pull_request_filters = ci_path_filters_for(&workflow, "pull_request");
 
     let required_filters = public_package_claim_filters();
     for filter in required_filters {
-        assert_ci_path_filter_present_for_push_and_pull_request(&filter);
+        assert!(
+            push_filters.contains(&filter),
+            "expected {filter:?} in push CI path filters"
+        );
+        assert!(
+            pull_request_filters.contains(&filter),
+            "expected {filter:?} in pull_request CI path filters"
+        );
     }
 }
 
@@ -138,17 +148,27 @@ fn package_include_entries() -> BTreeSet<String> {
         .collect()
 }
 
-fn assert_ci_path_filter_present_for_push_and_pull_request(filter: &str) {
-    let needle = format!("- \"{filter}\"");
-    let occurrences = CI_WORKFLOW
-        .lines()
-        .filter(|line| line.trim() == needle)
-        .count();
+fn ci_workflow() -> Value {
+    saneyaml::parse_str(CI_WORKFLOW)
+        .unwrap_or_else(|err| panic!(".github/workflows/ci.yml parses as YAML: {err}"))
+        .into_value()
+}
 
-    assert_eq!(
-        occurrences, 2,
-        "expected {filter:?} in both push and pull_request CI path filters"
-    );
+fn ci_path_filters_for(workflow: &Value, trigger: &str) -> BTreeSet<String> {
+    workflow
+        .get("on")
+        .and_then(|on| on.get(trigger))
+        .and_then(|trigger_config| trigger_config.get("paths"))
+        .and_then(Value::as_sequence)
+        .unwrap_or_else(|| panic!("CI workflow has on.{trigger}.paths"))
+        .iter()
+        .map(|filter| {
+            filter
+                .as_str()
+                .unwrap_or_else(|| panic!("CI workflow on.{trigger}.paths entries are strings"))
+                .to_owned()
+        })
+        .collect()
 }
 
 fn package_manifest() -> toml::Value {

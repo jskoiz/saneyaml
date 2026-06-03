@@ -95,8 +95,15 @@ fn github_templates_parse_as_yaml_and_route_sensitive_reports() {
 #[test]
 fn ci_triggers_on_public_package_claim_inputs() {
     let workflow = ci_workflow();
+    let push_branches = ci_string_sequence_for(&workflow, &["on", "push", "branches"]);
     let push_filters = ci_path_filters_for(&workflow, "push");
     let pull_request_filters = ci_path_filters_for(&workflow, "pull_request");
+
+    assert_eq!(
+        push_branches,
+        BTreeSet::from(["main".to_owned()]),
+        "push CI must stay limited to main so PR branch updates do not duplicate pull_request runs"
+    );
 
     let required_filters = public_package_claim_filters();
     for filter in required_filters {
@@ -155,17 +162,19 @@ fn ci_workflow() -> Value {
 }
 
 fn ci_path_filters_for(workflow: &Value, trigger: &str) -> BTreeSet<String> {
-    workflow
-        .get("on")
-        .and_then(|on| on.get(trigger))
-        .and_then(|trigger_config| trigger_config.get("paths"))
+    ci_string_sequence_for(workflow, &["on", trigger, "paths"])
+}
+
+fn ci_string_sequence_for(workflow: &Value, path: &[&str]) -> BTreeSet<String> {
+    path.iter()
+        .try_fold(workflow, |value, key| value.get(*key))
         .and_then(Value::as_sequence)
-        .unwrap_or_else(|| panic!("CI workflow has on.{trigger}.paths"))
+        .unwrap_or_else(|| panic!("CI workflow has {}", path.join(".")))
         .iter()
-        .map(|filter| {
-            filter
+        .map(|value| {
+            value
                 .as_str()
-                .unwrap_or_else(|| panic!("CI workflow on.{trigger}.paths entries are strings"))
+                .unwrap_or_else(|| panic!("CI workflow {} entries are strings", path.join(".")))
                 .to_owned()
         })
         .collect()

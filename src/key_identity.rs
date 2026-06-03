@@ -2,7 +2,9 @@ use crate::{
     Error, ErrorCategory, Node, NodeValue as Value, Number, Result, Span,
     schema::DEFAULT_MAX_NESTING_DEPTH,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, hash_map::Entry};
+
+const INLINE_LIMIT: usize = 4;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub(crate) enum DuplicateKey {
@@ -14,6 +16,45 @@ pub(crate) enum DuplicateKey {
     String(String),
     Sequence(Vec<DuplicateKey>),
     Mapping(Vec<(DuplicateKey, DuplicateKey)>),
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct DuplicateKeyTracker {
+    inline: [Option<(DuplicateKey, Span)>; INLINE_LIMIT],
+    overflow: Option<HashMap<DuplicateKey, Span>>,
+}
+
+impl DuplicateKeyTracker {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    fn insert(&mut self, key_identity: DuplicateKey, span: Span) -> Option<(DuplicateKey, Span)> {
+        if let Some(seen) = &mut self.overflow {
+            return insert_into_hashmap(seen, key_identity, span);
+        }
+
+        for entry in self.inline.iter_mut().flatten() {
+            if entry.0 == key_identity {
+                return Some((key_identity, entry.1));
+            }
+        }
+
+        if let Some(slot) = self.inline.iter_mut().find(|slot| slot.is_none()) {
+            *slot = Some((key_identity, span));
+            return None;
+        }
+
+        let mut seen = HashMap::with_capacity(INLINE_LIMIT + 1);
+        for slot in &mut self.inline {
+            if let Some((key, span)) = slot.take() {
+                seen.insert(key, span);
+            }
+        }
+        let duplicate = insert_into_hashmap(&mut seen, key_identity, span);
+        self.overflow = Some(seen);
+        duplicate
+    }
 }
 
 impl DuplicateKey {
@@ -66,17 +107,50 @@ pub(crate) fn check_duplicate_at_depth_limit(
     let Some(key_identity) = duplicate_key_identity_with_limit(key, depth, max_depth)? else {
         return Ok(());
     };
-    if let Some(previous) = seen.insert(key_identity.clone(), key.span) {
-        let key_text = key_identity.label();
-        return Err(Error::with_related_category(
-            format!("duplicate mapping key `{key_text}`"),
-            key.span,
-            "previous key is here",
-            previous,
-            ErrorCategory::DuplicateKey,
-        ));
+    if let Some((duplicate, previous)) = insert_into_hashmap(seen, key_identity, key.span) {
+        return duplicate_key_error(&duplicate, key.span, previous);
     }
     Ok(())
+}
+
+pub(crate) fn check_duplicate_with_tracker_at_depth_limit(
+    seen: &mut DuplicateKeyTracker,
+    key: &Node,
+    depth: usize,
+    max_depth: Option<usize>,
+) -> Result<()> {
+    let Some(key_identity) = duplicate_key_identity_with_limit(key, depth, max_depth)? else {
+        return Ok(());
+    };
+    if let Some((duplicate, previous)) = seen.insert(key_identity, key.span) {
+        return duplicate_key_error(&duplicate, key.span, previous);
+    }
+    Ok(())
+}
+
+fn insert_into_hashmap(
+    seen: &mut HashMap<DuplicateKey, Span>,
+    key_identity: DuplicateKey,
+    span: Span,
+) -> Option<(DuplicateKey, Span)> {
+    match seen.entry(key_identity) {
+        Entry::Vacant(entry) => {
+            entry.insert(span);
+            None
+        }
+        Entry::Occupied(entry) => Some((entry.key().clone(), *entry.get())),
+    }
+}
+
+fn duplicate_key_error(duplicate: &DuplicateKey, span: Span, previous: Span) -> Result<()> {
+    let key_text = duplicate.label();
+    Err(Error::with_related_category(
+        format!("duplicate mapping key `{key_text}`"),
+        span,
+        "previous key is here",
+        previous,
+        ErrorCategory::DuplicateKey,
+    ))
 }
 
 fn duplicate_key_identity_at(key: &Node, depth: usize) -> Result<Option<DuplicateKey>> {

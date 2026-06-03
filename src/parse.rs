@@ -15,7 +15,7 @@ use crate::{
     ast::MergePolicy,
     de::read_to_end_with_options,
     error::utf8_error_span,
-    key_identity::{DuplicateKey, check_duplicate_at_depth_limit},
+    key_identity::{DuplicateKeyTracker, check_duplicate_with_tracker_at_depth_limit},
     schema::{LoadOptions, Schema},
     yaml11,
 };
@@ -434,6 +434,134 @@ fn apply_merge_keys_to_document_results(
             })
         })
         .collect()
+}
+
+const INLINE_COLLECTION_LIMIT: usize = 4;
+
+struct NodeItems {
+    inline: [Option<Node>; INLINE_COLLECTION_LIMIT],
+    len: usize,
+    overflow: Option<Vec<Node>>,
+}
+
+impl NodeItems {
+    fn new() -> Self {
+        Self {
+            inline: [None, None, None, None],
+            len: 0,
+            overflow: None,
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.overflow.as_ref().map_or(self.len, |items| items.len())
+    }
+
+    fn last(&self) -> Option<&Node> {
+        if let Some(items) = &self.overflow {
+            return items.last();
+        }
+        self.len
+            .checked_sub(1)
+            .and_then(|index| self.inline[index].as_ref())
+    }
+
+    fn push(&mut self, item: Node) {
+        if let Some(items) = &mut self.overflow {
+            items.push(item);
+            return;
+        }
+        if self.len < INLINE_COLLECTION_LIMIT {
+            self.inline[self.len] = Some(item);
+            self.len += 1;
+            return;
+        }
+        let mut items = Vec::with_capacity(INLINE_COLLECTION_LIMIT * 2);
+        for slot in &mut self.inline {
+            if let Some(item) = slot.take() {
+                items.push(item);
+            }
+        }
+        items.push(item);
+        self.overflow = Some(items);
+    }
+
+    fn into_vec(mut self) -> Vec<Node> {
+        if let Some(items) = self.overflow {
+            return items;
+        }
+        let mut items = Vec::with_capacity(self.len);
+        for slot in &mut self.inline {
+            if let Some(item) = slot.take() {
+                items.push(item);
+            }
+        }
+        items
+    }
+}
+
+struct NodeEntries {
+    inline: [Option<(Node, Node)>; INLINE_COLLECTION_LIMIT],
+    len: usize,
+    overflow: Option<Vec<(Node, Node)>>,
+}
+
+impl NodeEntries {
+    fn new() -> Self {
+        Self {
+            inline: [None, None, None, None],
+            len: 0,
+            overflow: None,
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.overflow
+            .as_ref()
+            .map_or(self.len, |entries| entries.len())
+    }
+
+    fn last(&self) -> Option<&(Node, Node)> {
+        if let Some(entries) = &self.overflow {
+            return entries.last();
+        }
+        self.len
+            .checked_sub(1)
+            .and_then(|index| self.inline[index].as_ref())
+    }
+
+    fn push(&mut self, entry: (Node, Node)) {
+        if let Some(entries) = &mut self.overflow {
+            entries.push(entry);
+            return;
+        }
+        if self.len < INLINE_COLLECTION_LIMIT {
+            self.inline[self.len] = Some(entry);
+            self.len += 1;
+            return;
+        }
+        let mut entries = Vec::with_capacity(INLINE_COLLECTION_LIMIT * 2);
+        for slot in &mut self.inline {
+            if let Some(entry) = slot.take() {
+                entries.push(entry);
+            }
+        }
+        entries.push(entry);
+        self.overflow = Some(entries);
+    }
+
+    fn into_vec(mut self) -> Vec<(Node, Node)> {
+        if let Some(entries) = self.overflow {
+            return entries;
+        }
+        let mut entries = Vec::with_capacity(self.len);
+        for slot in &mut self.inline {
+            if let Some(entry) = slot.take() {
+                entries.push(entry);
+            }
+        }
+        entries
+    }
 }
 
 fn sequence_node(mut items: Vec<Node>, span: Span) -> Node {
@@ -1026,21 +1154,25 @@ impl Parser {
     }
 
     fn emit_null_scalar(&mut self, span: Span) {
-        self.emit_scalar("null".to_string(), ScalarStyle::Plain, span);
-    }
-
-    fn emit_scalar_node(&mut self, node: &Node, style: ScalarStyle) {
-        self.emit_scalar(event_scalar_value(node), style, node.span);
-    }
-
-    fn emit_scalar(&mut self, value: String, style: ScalarStyle, span: Span) {
         if let Some(recorder) = &mut self.events {
             let meta = recorder.take_meta();
             recorder.events.push(Event::Scalar {
-                value,
-                style,
+                value: "null".to_string(),
+                style: ScalarStyle::Plain,
                 meta,
                 span,
+            });
+        }
+    }
+
+    fn emit_scalar_node(&mut self, node: &Node, style: ScalarStyle) {
+        if let Some(recorder) = &mut self.events {
+            let meta = recorder.take_meta();
+            recorder.events.push(Event::Scalar {
+                value: event_scalar_value(node),
+                style,
+                meta,
+                span: node.span,
             });
         }
     }
@@ -1071,11 +1203,7 @@ impl Parser {
         }
     }
 
-    fn check_duplicate_key(
-        &mut self,
-        seen: &mut HashMap<DuplicateKey, Span>,
-        key: &Node,
-    ) -> Result<()> {
+    fn check_duplicate_key(&mut self, seen: &mut DuplicateKeyTracker, key: &Node) -> Result<()> {
         self.record_merge_key(key);
         check_duplicate_for_schema(
             self.recording_events(),
@@ -1542,7 +1670,7 @@ impl Parser {
         let source = Rc::clone(&self.source);
         let start = self.current_content()?.span();
         self.emit_sequence_start(CollectionStyle::Block, start);
-        let mut items = Vec::new();
+        let mut items = NodeItems::new();
 
         loop {
             self.skip_blanks();
@@ -1604,7 +1732,7 @@ impl Parser {
         let end = items.last().map(|item| item.span.end).unwrap_or(start.end);
         let span = Span::new(start.start, end, start.line, start.column);
         self.emit_sequence_end(span);
-        Ok(sequence_node(items, span))
+        Ok(sequence_node(items.into_vec(), span))
     }
 
     fn parse_mapping(&mut self, indent: usize, depth: usize) -> Result<Node> {
@@ -1612,8 +1740,8 @@ impl Parser {
         let source = Rc::clone(&self.source);
         let start = self.current_content()?.span();
         self.emit_mapping_start(CollectionStyle::Block, start);
-        let mut entries = Vec::new();
-        let mut seen = HashMap::<DuplicateKey, Span>::new();
+        let mut entries = NodeEntries::new();
+        let mut seen = DuplicateKeyTracker::new();
         let mut pending_key: Option<(Node, Span)> = None;
 
         loop {
@@ -1684,7 +1812,7 @@ impl Parser {
             .unwrap_or(start.end);
         let span = Span::new(start.start, end, start.line, start.column);
         self.emit_mapping_end(span);
-        Ok(mapping_node(entries, span))
+        Ok(mapping_node(entries.into_vec(), span))
     }
 
     fn parse_inline_mapping_item(
@@ -1701,8 +1829,8 @@ impl Parser {
             CollectionStyle::Block,
             line.local_span(rest_start, rest_start + rest.len()),
         );
-        let mut entries = Vec::new();
-        let mut seen = HashMap::<DuplicateKey, Span>::new();
+        let mut entries = NodeEntries::new();
+        let mut seen = DuplicateKeyTracker::new();
         let (key, value) =
             self.parse_mapping_pair(line, rest_start, rest, item_indent, depth + 1)?;
         self.check_duplicate_key(&mut seen, &key)?;
@@ -1744,7 +1872,7 @@ impl Parser {
             line.indent() + rest_start + 1,
         );
         self.emit_mapping_end(span);
-        Ok(mapping_node(entries, span))
+        Ok(mapping_node(entries.into_vec(), span))
     }
 
     fn parse_explicit_block_key(
@@ -1866,7 +1994,7 @@ impl Parser {
             CollectionStyle::Block,
             line.local_span(sequence_start, sequence_start + sequence_text.len()),
         );
-        let mut items = Vec::new();
+        let mut items = NodeItems::new();
         let first = self.parse_sequence_value_from_line(
             line,
             sequence_start,
@@ -1912,7 +2040,7 @@ impl Parser {
             line.indent() + sequence_start + 1,
         );
         self.emit_sequence_end(span);
-        Ok(sequence_node(items, span))
+        Ok(sequence_node(items.into_vec(), span))
     }
 
     fn parse_sequence_value_from_line(
@@ -2048,7 +2176,7 @@ impl Parser {
             CollectionStyle::Block,
             line.local_span(local_start, local_start + text.len()),
         );
-        let mut seen = HashMap::<DuplicateKey, Span>::new();
+        let mut seen = DuplicateKeyTracker::new();
         let (key, value) =
             self.parse_mapping_pair(line, local_start, text, pair_indent, depth + 1)?;
         self.check_duplicate_key(&mut seen, &key)?;
@@ -3330,13 +3458,13 @@ fn check_duplicate_for_schema(
     recording_events: bool,
     schema: Schema,
     options: LoadOptions,
-    seen: &mut HashMap<DuplicateKey, Span>,
+    seen: &mut DuplicateKeyTracker,
     key: &Node,
 ) -> Result<()> {
     if recording_events || (schema.is_legacy_compatible() && node_is_merge_key(key)) {
         return Ok(());
     }
-    check_duplicate_at_depth_limit(seen, key, 1, options.selected_max_nesting_depth())
+    check_duplicate_with_tracker_at_depth_limit(seen, key, 1, options.selected_max_nesting_depth())
 }
 
 fn node_is_merge_key(key: &Node) -> bool {
@@ -4657,11 +4785,7 @@ impl<'a> FlowParser<'a> {
         }
     }
 
-    fn check_duplicate_key(
-        &mut self,
-        seen: &mut HashMap<DuplicateKey, Span>,
-        key: &Node,
-    ) -> Result<()> {
+    fn check_duplicate_key(&mut self, seen: &mut DuplicateKeyTracker, key: &Node) -> Result<()> {
         self.record_merge_key(key);
         check_duplicate_for_schema(
             self.recording_events(),
@@ -4725,13 +4849,13 @@ impl<'a> FlowParser<'a> {
         let start = self.pos;
         self.expect('[')?;
         self.emit_sequence_start(CollectionStyle::Flow, self.span(start, self.pos));
-        let mut items = Vec::new();
+        let mut items = NodeItems::new();
         loop {
             self.skip_ws();
             if self.consume(']') {
                 let span = self.span(start, self.pos);
                 self.emit_sequence_end(span);
-                return Ok(sequence_node(items, span));
+                return Ok(sequence_node(items.into_vec(), span));
             }
             if self.peek() == Some(',') {
                 return Err(Error::new(
@@ -4750,7 +4874,7 @@ impl<'a> FlowParser<'a> {
                 if self.consume(']') {
                     let span = self.span(start, self.pos);
                     self.emit_sequence_end(span);
-                    return Ok(sequence_node(items, span));
+                    return Ok(sequence_node(items.into_vec(), span));
                 }
                 if self.peek() == Some(',') {
                     return Err(Error::new(
@@ -4766,7 +4890,7 @@ impl<'a> FlowParser<'a> {
             self.expect(']')?;
             let span = self.span(start, self.pos);
             self.emit_sequence_end(span);
-            return Ok(sequence_node(items, span));
+            return Ok(sequence_node(items.into_vec(), span));
         }
     }
 
@@ -4843,14 +4967,14 @@ impl<'a> FlowParser<'a> {
         let start = self.pos;
         self.expect('{')?;
         self.emit_mapping_start(CollectionStyle::Flow, self.span(start, self.pos));
-        let mut entries = Vec::new();
-        let mut seen = HashMap::<DuplicateKey, Span>::new();
+        let mut entries = NodeEntries::new();
+        let mut seen = DuplicateKeyTracker::new();
         loop {
             self.skip_ws();
             if self.consume('}') {
                 let span = self.span(start, self.pos);
                 self.emit_mapping_end(span);
-                return Ok(mapping_node(entries, span));
+                return Ok(mapping_node(entries.into_vec(), span));
             }
             if self.peek() == Some(',') {
                 return Err(Error::new(
@@ -4868,7 +4992,7 @@ impl<'a> FlowParser<'a> {
                 if self.consume('}') {
                     let span = self.span(start, self.pos);
                     self.emit_mapping_end(span);
-                    return Ok(mapping_node(entries, span));
+                    return Ok(mapping_node(entries.into_vec(), span));
                 }
                 if self.peek() == Some(',') {
                     return Err(Error::new(
@@ -4881,7 +5005,7 @@ impl<'a> FlowParser<'a> {
             self.expect('}')?;
             let span = self.span(start, self.pos);
             self.emit_mapping_end(span);
-            return Ok(mapping_node(entries, span));
+            return Ok(mapping_node(entries.into_vec(), span));
         }
     }
 

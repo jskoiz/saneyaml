@@ -2,7 +2,16 @@
 
 This changelog follows the shape of Keep a Changelog.
 
+Policy: user-visible changes land under `Unreleased` as they merge, grouped by
+the standard `Added`/`Changed`/`Deprecated`/`Removed`/`Fixed`/`Security`
+headings. On release, the `Unreleased` heading is renamed to the new version
+number and a fresh, empty `Unreleased` section is added at the top. Entries
+describe the human-visible change only; internal refactors with no observable
+effect are omitted.
+
 ## Unreleased
+
+<!-- Add entries here as changes merge; this section graduates to a version on release. -->
 
 No changes yet.
 

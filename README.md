@@ -1,5 +1,6 @@
 # saneyaml
 
+[![CI](https://github.com/jskoiz/saneyaml/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jskoiz/saneyaml/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE.md)
 [![rust](https://img.shields.io/badge/rust-1.88%2B-blue)](Cargo.toml)
 [![unsafe](https://img.shields.io/badge/unsafe-forbidden-success)](src/lib.rs)

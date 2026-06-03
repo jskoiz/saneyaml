@@ -955,7 +955,12 @@ fn take_yaml11_singleton_pair_node(
     match node.value {
         NodeValue::Mapping(entries) if entries.len() == 1 => {
             let mut entries = entries.into_iter();
-            Ok(entries.next().expect("length checked"))
+            entries.next().ok_or_else(|| {
+                Error::new(
+                    "internal: singleton mapping lost its entry",
+                    Some(node.span),
+                )
+            })
         }
         NodeValue::Mapping(_) => Err(Error::new(
             format!("expected explicit !!{suffix} entry to contain exactly one pair"),
@@ -975,7 +980,9 @@ fn take_yaml11_singleton_pair_value(
     match untag_value_owned(value) {
         Value::Mapping(entries) if entries.len() == 1 => {
             let mut entries = entries.into_iter();
-            Ok(entries.next().expect("length checked"))
+            entries
+                .next()
+                .ok_or_else(|| Error::new("internal: singleton mapping lost its entry", None))
         }
         Value::Mapping(_) => Err(Error::new(
             format!("expected explicit !!{suffix} entry to contain exactly one pair"),
@@ -1101,9 +1108,15 @@ where
         }
         Number::Unsigned(value) => match i64::try_from(value) {
             Ok(value) => with_optional_span(visitor.visit_i64(value), span),
-            Err(_) => Err(Error::new("expected integer, found unsigned integer", span)),
+            Err(_) => Err(Error::new(
+                format!("expected integer, found unsigned integer: {value}"),
+                span,
+            )),
         },
-        Number::Float(_) => Err(Error::new("expected integer, found float", span)),
+        Number::Float(f) => Err(Error::new(
+            format!("expected integer, found float: {f}"),
+            span,
+        )),
     }
 }
 
@@ -1126,8 +1139,14 @@ where
                 .map_err(|_| Error::new("integer scalar is out of range for u64", span))?;
             with_optional_span(visitor.visit_u64(value), span)
         }
-        Number::Integer(_) => Err(Error::new("expected unsigned integer, found integer", span)),
-        Number::Float(_) => Err(Error::new("expected unsigned integer, found float", span)),
+        Number::Integer(value) => Err(Error::new(
+            format!("expected unsigned integer, found integer: {value}"),
+            span,
+        )),
+        Number::Float(f) => Err(Error::new(
+            format!("expected unsigned integer, found float: {f}"),
+            span,
+        )),
     }
 }
 
@@ -1145,7 +1164,10 @@ where
             Ok(value) => with_optional_span(visitor.visit_i128(value), span),
             Err(_) => Err(Error::new("integer scalar is out of range for i128", span)),
         },
-        Number::Float(_) => Err(Error::new("expected integer, found float", span)),
+        Number::Float(f) => Err(Error::new(
+            format!("expected integer, found float: {f}"),
+            span,
+        )),
     }
 }
 
@@ -1163,8 +1185,14 @@ where
             span,
         ),
         Number::Unsigned(value) => with_optional_span(visitor.visit_u128(value), span),
-        Number::Integer(_) => Err(Error::new("expected unsigned integer, found integer", span)),
-        Number::Float(_) => Err(Error::new("expected unsigned integer, found float", span)),
+        Number::Integer(value) => Err(Error::new(
+            format!("expected unsigned integer, found integer: {value}"),
+            span,
+        )),
+        Number::Float(f) => Err(Error::new(
+            format!("expected unsigned integer, found float: {f}"),
+            span,
+        )),
     }
 }
 
@@ -2338,7 +2366,7 @@ impl<'de> de::Deserializer<'de> for Node {
             NodeValue::Number(Number::Unsigned(value)) => match i64::try_from(value) {
                 Ok(value) => with_span(visitor.visit_i64(value), node.span),
                 Err(_) => Err(Error::new(
-                    "expected integer, found unsigned integer",
+                    format!("expected integer, found unsigned integer: {value}"),
                     Some(node.span),
                 )),
             },
@@ -2822,7 +2850,10 @@ impl<'de> de::Deserializer<'de> for Value {
             }
             Value::Number(Number::Unsigned(value)) => match i64::try_from(value) {
                 Ok(value) => visitor.visit_i64(value),
-                Err(_) => Err(Error::new("expected integer, found unsigned integer", None)),
+                Err(_) => Err(Error::new(
+                    format!("expected integer, found unsigned integer: {value}"),
+                    None,
+                )),
             },
             other => Err(type_error_value("integer", &other)),
         }
@@ -4231,7 +4262,10 @@ impl<'de> de::Deserializer<'de> for &'de Value {
             }
             Value::Number(Number::Unsigned(value)) => match i64::try_from(*value) {
                 Ok(value) => visitor.visit_i64(value),
-                Err(_) => Err(Error::new("expected integer, found unsigned integer", None)),
+                Err(_) => Err(Error::new(
+                    format!("expected integer, found unsigned integer: {value}"),
+                    None,
+                )),
             },
             other => Err(type_error_value("integer", other)),
         }

@@ -3,6 +3,7 @@ use crate::{
     schema::DEFAULT_MAX_NESTING_DEPTH,
 };
 use std::collections::{HashMap, hash_map::Entry};
+use std::fmt::{self, Write as _};
 
 const INLINE_LIMIT: usize = 4;
 
@@ -57,30 +58,34 @@ impl DuplicateKeyTracker {
     }
 }
 
-impl DuplicateKey {
-    fn label(&self) -> String {
+impl fmt::Display for DuplicateKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DuplicateKey::Null => "null".to_string(),
-            DuplicateKey::Bool(value) => value.to_string(),
-            DuplicateKey::Integer(value) => value.to_string(),
-            DuplicateKey::Unsigned(value) => value.to_string(),
-            DuplicateKey::Float(bits) => f64::from_bits(*bits).to_string(),
-            DuplicateKey::String(value) => value.as_str().to_string(),
+            DuplicateKey::Null => f.write_str("null"),
+            DuplicateKey::Bool(value) => write!(f, "{value}"),
+            DuplicateKey::Integer(value) => write!(f, "{value}"),
+            DuplicateKey::Unsigned(value) => write!(f, "{value}"),
+            DuplicateKey::Float(bits) => write!(f, "{}", f64::from_bits(*bits)),
+            DuplicateKey::String(value) => f.write_str(value.as_str()),
             DuplicateKey::Sequence(items) => {
-                let items = items
-                    .iter()
-                    .map(DuplicateKey::label)
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                format!("[{items}]")
+                f.write_str("[")?;
+                for (index, item) in items.iter().enumerate() {
+                    if index > 0 {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "{item}")?;
+                }
+                f.write_str("]")
             }
             DuplicateKey::Mapping(entries) => {
-                let entries = entries
-                    .iter()
-                    .map(|(key, value)| format!("{}: {}", key.label(), value.label()))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                format!("{{{entries}}}")
+                f.write_str("{")?;
+                for (index, (key, value)) in entries.iter().enumerate() {
+                    if index > 0 {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "{key}: {value}")?;
+                }
+                f.write_str("}")
             }
         }
     }
@@ -143,9 +148,11 @@ fn insert_into_hashmap(
 }
 
 fn duplicate_key_error(duplicate: &DuplicateKey, span: Span, previous: Span) -> Result<()> {
-    let key_text = duplicate.label();
+    let mut message = String::from("duplicate mapping key `");
+    let _ = write!(message, "{duplicate}");
+    message.push('`');
     Err(Error::with_related_category(
-        format!("duplicate mapping key `{key_text}`"),
+        message,
         span,
         "previous key is here",
         previous,

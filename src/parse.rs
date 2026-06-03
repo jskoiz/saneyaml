@@ -3286,16 +3286,33 @@ fn preprocess(input: &str) -> Result<Vec<Line>> {
     // of growing through ~log2(n) doublings (which churn ~2x the final size).
     let line_estimate = input.bytes().filter(|&byte| byte == b'\n').count() + 1;
     let mut out = Vec::with_capacity(line_estimate);
-    let mut offset = 0;
-    for (idx, chunk) in input.split_inclusive('\n').enumerate() {
-        let raw_len = chunk.trim_end_matches('\n').trim_end_matches('\r').len();
-        push_preprocessed_line(&mut out, input, idx + 1, offset, raw_len)?;
-        offset += chunk.len();
-    }
-    if !input.is_empty() && !input.ends_with('\n') {
-        // The last line was already yielded by split_inclusive.
-    } else if input.is_empty() {
+    if input.is_empty() {
         return Ok(out);
+    }
+
+    let bytes = input.as_bytes();
+    let mut line_start = 0usize;
+    let mut line_no = 1usize;
+    for (idx, byte) in bytes.iter().enumerate() {
+        if *byte != b'\n' {
+            continue;
+        }
+        let mut raw_len = idx - line_start;
+        if raw_len > 0 && bytes[idx - 1] == b'\r' {
+            raw_len -= 1;
+        }
+        push_preprocessed_line(&mut out, input, line_no, line_start, raw_len)?;
+        line_start = idx + 1;
+        line_no += 1;
+    }
+    if line_start < input.len() {
+        push_preprocessed_line(
+            &mut out,
+            input,
+            line_no,
+            line_start,
+            input.len() - line_start,
+        )?;
     }
     Ok(out)
 }
@@ -3315,29 +3332,24 @@ fn push_preprocessed_line(
         0
     };
     let raw_body = &raw[bom_len..];
-    let raw_indent = raw_body.bytes().take_while(|byte| *byte == b' ').count();
-    if raw_body.trim().is_empty() {
+    let scan = scan_line(raw_body);
+    if scan.blank {
         out.push(Line {
             raw: LineText::new(start, start + raw.len())?,
             no,
-            indent: compact_offset(raw_indent)?,
-            content_start: compact_offset(bom_len + raw_indent)?,
-            content_end: compact_offset(bom_len + raw_indent)?,
+            indent: compact_offset(scan.indent)?,
+            content_start: compact_offset(bom_len + scan.indent)?,
+            content_end: compact_offset(bom_len + scan.indent)?,
             kind: LineKind::Blank,
-            had_comment: false,
+            had_comment: scan.had_comment,
         });
         return Ok(());
     }
-    let comment = comment_start(raw_body).map(|idx| bom_len + idx);
-    let end = comment.unwrap_or(raw.len());
-    let had_comment = comment.is_some();
-    let no_comment = raw[bom_len..end].trim_end();
-    let indent = no_comment.bytes().take_while(|byte| *byte == b' ').count();
-    let content_start = bom_len + indent;
-    let content_end = bom_len + no_comment.len();
+    let content_start = bom_len + scan.indent;
+    let content_end = bom_len + scan.content_end;
     let content = &raw[content_start..content_end];
     if let Some(tab_offset) =
-        block_indicator_tab_separation_offset(&no_comment.as_bytes()[indent..])
+        block_indicator_tab_separation_offset(&raw_body.as_bytes()[scan.indent..scan.content_end])
     {
         return Err(Error::new(
             "tabs are not allowed as separation after block indicators",
@@ -3347,18 +3359,6 @@ fn push_preprocessed_line(
                 content_start + tab_offset + 1,
             ),
         ));
-    }
-    if content.trim().is_empty() {
-        out.push(Line {
-            raw: LineText::new(start, start + raw.len())?,
-            no,
-            indent: compact_offset(raw_indent)?,
-            content_start: compact_offset(bom_len + raw_indent)?,
-            content_end: compact_offset(bom_len + raw_indent)?,
-            kind: LineKind::Blank,
-            had_comment,
-        });
-        return Ok(());
     }
     let kind = match content {
         "---" => LineKind::DocumentStart,
@@ -3381,36 +3381,99 @@ fn push_preprocessed_line(
     out.push(Line {
         raw: LineText::new(start, start + raw.len())?,
         no,
-        indent: compact_offset(indent)?,
+        indent: compact_offset(scan.indent)?,
         content_start: compact_offset(content_start)?,
         content_end: compact_offset(content_end)?,
         kind,
-        had_comment,
+        had_comment: scan.had_comment,
     });
     Ok(())
+}
+
+struct LineScan {
+    indent: usize,
+    content_end: usize,
+    blank: bool,
+    had_comment: bool,
+}
+
+fn scan_line(raw_body: &str) -> LineScan {
+    let mut indent = 0usize;
+    let mut in_indent = true;
+    let mut single = false;
+    let mut double = false;
+    let mut escaped = false;
+    let mut previous_whitespace = true;
+    let mut content_end = None;
+
+    for (idx, ch) in raw_body.char_indices() {
+        if in_indent {
+            if ch == ' ' {
+                indent += 1;
+            } else {
+                in_indent = false;
+            }
+        }
+
+        if double && escaped {
+            escaped = false;
+            if !ch.is_whitespace() {
+                content_end = Some(idx + ch.len_utf8());
+            }
+            previous_whitespace = ch.is_whitespace();
+            continue;
+        }
+
+        match ch {
+            '\\' if double => escaped = true,
+            '"' if !single => double = !double,
+            '\'' if !double => single = !single,
+            '#' if !single && !double && previous_whitespace => {
+                return LineScan {
+                    indent,
+                    content_end: content_end.unwrap_or(indent),
+                    blank: content_end.is_none(),
+                    had_comment: true,
+                };
+            }
+            _ => {}
+        }
+
+        if !ch.is_whitespace() {
+            content_end = Some(idx + ch.len_utf8());
+        }
+        previous_whitespace = ch.is_whitespace();
+    }
+
+    LineScan {
+        indent,
+        content_end: content_end.unwrap_or(indent),
+        blank: content_end.is_none(),
+        had_comment: false,
+    }
 }
 
 pub(crate) fn comment_start(raw: &str) -> Option<usize> {
     let mut single = false;
     let mut double = false;
     let mut escaped = false;
+    let mut previous_whitespace = true;
     for (idx, ch) in raw.char_indices() {
         if double && escaped {
             escaped = false;
+            previous_whitespace = ch.is_whitespace();
             continue;
         }
         match ch {
             '\\' if double => escaped = true,
             '"' if !single => double = !double,
             '\'' if !double => single = !single,
-            '#' if !single
-                && !double
-                && (idx == 0 || raw[..idx].chars().last().is_some_and(char::is_whitespace)) =>
-            {
+            '#' if !single && !double && previous_whitespace => {
                 return Some(idx);
             }
             _ => {}
         }
+        previous_whitespace = ch.is_whitespace();
     }
     None
 }

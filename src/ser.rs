@@ -612,13 +612,20 @@ impl ser::Serializer for ValueSerializer {
         Ok(Value::from(value))
     }
 
+    /// Serializes a 128-bit signed integer losslessly.
+    ///
+    /// Values that fit in `u64` or `i64` are narrowed to match the
+    /// corresponding fixed-width serialization, and anything outside that range
+    /// is preserved as a full-width [`Number::Integer`], so a
+    /// serialize/deserialize round-trip keeps the integer type instead of
+    /// degrading to a string.
     fn serialize_i128(self, value: i128) -> Result<Value> {
         if let Ok(value) = u64::try_from(value) {
             self.serialize_u64(value)
         } else if let Ok(value) = i64::try_from(value) {
             self.serialize_i64(value)
         } else {
-            Ok(Value::String(value.to_string()))
+            Ok(Value::from(value))
         }
     }
 
@@ -638,11 +645,17 @@ impl ser::Serializer for ValueSerializer {
         Ok(Value::from(value))
     }
 
+    /// Serializes a 128-bit unsigned integer losslessly.
+    ///
+    /// Values that fit in `u64` are narrowed to match the corresponding
+    /// fixed-width serialization, and anything larger is preserved as a
+    /// full-width [`Number::Unsigned`], so a serialize/deserialize round-trip
+    /// keeps the integer type instead of degrading to a string.
     fn serialize_u128(self, value: u128) -> Result<Value> {
         if let Ok(value) = u64::try_from(value) {
             self.serialize_u64(value)
         } else {
-            Ok(Value::String(value.to_string()))
+            Ok(Value::from(value))
         }
     }
 
@@ -2394,5 +2407,70 @@ impl Serialize for TaggedNode {
             value: Value::from(&self.value),
         };
         tagged.serialize(serializer)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::to_value;
+    use crate::{Number, Value};
+
+    #[test]
+    fn serialize_i128_above_u64_max_is_lossless_number() {
+        let value = i128::from(u64::MAX) + 1;
+        assert_eq!(
+            to_value(value).unwrap(),
+            Value::Number(Number::Integer(value))
+        );
+    }
+
+    #[test]
+    fn serialize_i128_below_i64_min_is_lossless_number() {
+        let value = i128::from(i64::MIN) - 1;
+        assert_eq!(
+            to_value(value).unwrap(),
+            Value::Number(Number::Integer(value))
+        );
+    }
+
+    #[test]
+    fn serialize_u128_above_u64_max_is_lossless_number() {
+        let value = u128::from(u64::MAX) + 1;
+        assert_eq!(
+            to_value(value).unwrap(),
+            Value::Number(Number::Unsigned(value))
+        );
+    }
+
+    #[test]
+    fn serialize_i128_in_u64_range_narrows_to_unsigned() {
+        assert_eq!(to_value(7i128).unwrap(), Value::Number(Number::Unsigned(7)));
+    }
+
+    #[test]
+    fn i128_above_u64_max_round_trips_through_yaml() {
+        let value = i128::from(u64::MAX) + 1;
+        let yaml = crate::to_string(&value).unwrap();
+        assert_eq!(yaml.trim(), value.to_string());
+        let restored: i128 = crate::from_str(&yaml).unwrap();
+        assert_eq!(restored, value);
+    }
+
+    #[test]
+    fn i128_below_i64_min_round_trips_through_yaml() {
+        let value = i128::from(i64::MIN) - 1;
+        let yaml = crate::to_string(&value).unwrap();
+        assert_eq!(yaml.trim(), value.to_string());
+        let restored: i128 = crate::from_str(&yaml).unwrap();
+        assert_eq!(restored, value);
+    }
+
+    #[test]
+    fn u128_above_u64_max_round_trips_through_yaml() {
+        let value = u128::from(u64::MAX) + 1;
+        let yaml = crate::to_string(&value).unwrap();
+        assert_eq!(yaml.trim(), value.to_string());
+        let restored: u128 = crate::from_str(&yaml).unwrap();
+        assert_eq!(restored, value);
     }
 }

@@ -290,12 +290,18 @@ impl LoadOptions {
     }
 
     pub(crate) fn input_limit_error(self) -> Error {
-        let max = self
-            .max_input_bytes
-            .expect("input_limit_error requires a configured limit");
+        // Callers only invoke this once `max_input_bytes` is known to be `Some`
+        // and exceeded, but fall back to the default limit rather than panicking
+        // so the message stays meaningful even if that invariant ever changes.
+        let max = self.max_input_bytes.unwrap_or(DEFAULT_MAX_INPUT_BYTES);
+        // The limit is a total byte count, not a position inside the document,
+        // so there is no meaningful line/column to report. We still record the
+        // boundary byte offset (`start`/`end`) for callers that inspect the raw
+        // span, but leave line/column at zero so `Error::location` reports no
+        // location instead of a misleading 1:1 or 0:0 source position.
         Error::limit(
             format!("YAML input exceeds configured limit of {max} bytes"),
-            Span::default(),
+            Span::new(max, max, 0, 0),
         )
     }
 

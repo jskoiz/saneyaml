@@ -283,10 +283,10 @@ impl LoadOptions {
     }
 
     pub(crate) fn check_input_len(self, len: usize) -> Result<()> {
-        if let Some(max) = self.max_input_bytes {
-            if len > max {
-                return Err(self.input_limit_error());
-            }
+        if let Some(max) = self.max_input_bytes
+            && len > max
+        {
+            return Err(self.input_limit_error());
         }
         Ok(())
     }
@@ -309,25 +309,25 @@ impl LoadOptions {
     }
 
     pub(crate) fn check_scalar_bytes(self, len: usize, span: Span) -> Result<()> {
-        if let Some(max) = self.max_scalar_bytes {
-            if len > max {
-                return Err(Error::limit(
-                    format!("YAML scalar exceeds configured limit of {max} bytes"),
-                    span,
-                ));
-            }
+        if let Some(max) = self.max_scalar_bytes
+            && len > max
+        {
+            return Err(Error::limit(
+                format!("YAML scalar exceeds configured limit of {max} bytes"),
+                span,
+            ));
         }
         Ok(())
     }
 
     pub(crate) fn check_collection_items(self, len: usize, span: Span) -> Result<()> {
-        if let Some(max) = self.max_collection_items {
-            if len > max {
-                return Err(Error::limit(
-                    format!("YAML collection exceeds configured limit of {max} entries"),
-                    span,
-                ));
-            }
+        if let Some(max) = self.max_collection_items
+            && len > max
+        {
+            return Err(Error::limit(
+                format!("YAML collection exceeds configured limit of {max} entries"),
+                span,
+            ));
         }
         Ok(())
     }

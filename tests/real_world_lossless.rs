@@ -10,6 +10,10 @@ use yaml::{
 const FIXTURE_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/real-world");
 const SOURCE: &str = include_str!("fixtures/real-world/SOURCE.toml");
 
+fn normalized_newlines(source: &str) -> String {
+    source.replace("\r\n", "\n")
+}
+
 #[derive(Debug, Deserialize)]
 struct FixtureManifest {
     fixture: Vec<FixtureRecord>,
@@ -181,7 +185,7 @@ fn lossless_replay_preserves_compose_comments_and_flow_healthchecks() {
             .any(|comment| comment.contains("mariadb image"))
     );
     assert!(comments.iter().any(|comment| comment == &"#image: mysql:8"));
-    assert!(stream.as_source().contains("depends_on: \n"));
+    assert!(normalized_newlines(stream.as_source()).contains("depends_on: \n"));
 
     let flow_sequence_sources = collection_sources(&stream, CollectionStyle::Flow);
     assert!(
@@ -272,11 +276,10 @@ fn lossless_replay_keeps_configmap_block_scalar_data() {
             .iter()
             .any(|source| source.starts_with("|-") && source.contains("# this comment is data"))
     );
-    assert!(
-        literal_sources
-            .iter()
-            .any(|source| source.starts_with('|') && source.contains("hello\n\n    world"))
-    );
+    assert!(literal_sources.iter().any(|source| {
+        let source = normalized_newlines(source);
+        source.starts_with('|') && source.contains("hello\n\n    world")
+    }));
 
     let literal_values = literal_scalar_values(&stream);
     assert!(

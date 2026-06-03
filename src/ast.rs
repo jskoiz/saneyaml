@@ -501,7 +501,7 @@ fn days_in_month(year: u16, month: u8) -> u8 {
 }
 
 fn leap_year(year: u16) -> bool {
-    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+    (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400)
 }
 
 impl From<Node> for Value {

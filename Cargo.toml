@@ -2,7 +2,7 @@
 name = "saneyaml"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 description = "Pure-Rust YAML parser, emitter, and Serde compatibility layer for developer configuration files."
 readme = "README.md"
 license = "MIT"

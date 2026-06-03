@@ -268,7 +268,7 @@ impl Line {
 
 fn quoted_line_text(line: &Line, local_start: usize, trimmed_text: &str, quote: char) -> String {
     let mut text = trimmed_text.to_string();
-    if quote != '"' || trailing_backslash_count(&text) % 2 == 0 {
+    if quote != '"' || trailing_backslash_count(&text).is_multiple_of(2) {
         return text;
     }
 

@@ -13,6 +13,10 @@ const CROSS_ECOSYSTEM: &str =
 const REAL_WORLD_SOURCE: &str = include_str!("fixtures/real-world/SOURCE.toml");
 const REAL_WORLD_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/real-world");
 
+fn normalized_newlines(source: &str) -> String {
+    source.replace("\r\n", "\n")
+}
+
 #[derive(Debug, Deserialize)]
 struct MatrixManifest {
     schema: String,
@@ -188,7 +192,7 @@ fn compatibility_matrix_block_in_docs_is_generated() {
         manifest.render_start.as_str(),
         manifest.render_end.as_str(),
     );
-    assert_eq!(actual, expected);
+    assert_eq!(normalized_newlines(&actual), expected);
 }
 
 fn assert_typed_serde_row(row: &MatrixRow) {

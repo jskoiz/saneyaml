@@ -61,9 +61,13 @@ fn tagged_to_singleton_map(value: Value, recursive: bool) -> Value {
 /// Deserialize enum values from a singleton mapping representation.
 ///
 /// The read-side helper mirrors `serde_yaml::with::singleton_map`: scalar unit
-/// variants remain accepted, data-carrying variants must be represented as a
-/// mapping with exactly one variant key, and YAML tag-style enum input is not
-/// treated as a singleton map.
+/// variants are accepted as identifiers, and data-carrying variants must be
+/// represented as a mapping with exactly one variant key. Native YAML tag-style
+/// enum input (for example `!Variant value`) is *not* accepted: `deserialize_enum`
+/// drives the underlying value through `Deserializer::deserialize_any` with a
+/// visitor that only handles scalars and single-key maps, so a tagged value is
+/// rejected with an `invalid type: enum` error rather than being interpreted as
+/// a singleton map.
 pub mod singleton_map {
     use crate::with::tagged_to_singleton_map;
     use serde::de::{

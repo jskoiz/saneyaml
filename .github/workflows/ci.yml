@@ -100,9 +100,15 @@ jobs:
         run: cargo clippy --locked --all-targets -- -D warnings
 
   supply-chain:
-    name: Supply-chain audit
+    name: Supply-chain audit (${{ matrix.manifest }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # Audit every CI-built Rust manifest, including the separate
+        # non-workspace fuzz crate, which has its own dependency closure.
+        manifest: ["./Cargo.toml", "./fuzz/Cargo.toml"]
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -110,6 +116,7 @@ jobs:
       - name: Run cargo-deny
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
+          manifest-path: ${{ matrix.manifest }}
           command: check advisories bans licenses sources
 
   msrv:

@@ -38,12 +38,17 @@ allow = [
     "BSL-1.0",
     "Unicode-3.0",
     "Unicode-DFS-2016",
+    # Pulled in by `libfuzzer-sys` when auditing the `fuzz/` manifest.
+    "NCSA",
 ]
 # Require a high confidence when matching license text to an SPDX identifier.
 confidence-threshold = 0.93
 # Do not fail the check for allowed licenses the current graph does not use;
 # they document the policy for the broader dev-dependency closure.
 unused-allowed-license = "allow"
+# Skip unpublished local crates (e.g. the `publish = false` `yaml-fuzz` fuzz
+# crate), which carry no license field of their own.
+private = { ignore = true }
 
 [bans]
 # Surface accidental duplicate dependency versions without failing the build.

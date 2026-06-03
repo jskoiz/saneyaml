@@ -1,4 +1,15 @@
-use saneyaml::{Event, NodeValue, Value};
+use saneyaml::{ErrorCategory, Event, LoadOptions, NodeValue, Value};
+
+/// Builds a `target` mapping whose merge source is an `n`-deep chain of
+/// `<<`-referencing anchors, e.g. `a1: {<<: *a0}`, `a2: {<<: *a1}`, ...
+fn deep_merge_chain(n: usize) -> String {
+    let mut input = String::from("a0: &a0 {v: 0}\n");
+    for i in 1..=n {
+        input.push_str(&format!("a{i}: &a{i} {{<<: *a{}}}\n", i - 1));
+    }
+    input.push_str(&format!("top: {{<<: *a{n}}}\n"));
+    input
+}
 
 fn top_mapping(node: &saneyaml::Node) -> &[(saneyaml::Node, saneyaml::Node)] {
     let NodeValue::Mapping(entries) = &node.value else {
@@ -327,4 +338,68 @@ fn default_merge_keeps_explicit_string_merge_key_literal() {
                 && tagged.value.as_str() == Some("<<"))),
         "explicit string << key must not be default-expanded"
     );
+}
+
+/// Merge-key expansion recurses through nested merge sources. Even when the
+/// caller disables the parser's static nesting-depth limit, the merge traversal
+/// must keep its own depth backstop so a pathological merge chain cannot exhaust
+/// the stack. The error must be reported as a limit error.
+#[test]
+fn default_merge_rejects_unbounded_merge_chains_without_nesting_limit() {
+    let input = deep_merge_chain(200);
+    let options = LoadOptions::new().without_nesting_depth_limit();
+    let error = options
+        .parse_str(&input)
+        .expect_err("deep merge chain must be rejected even without a static nesting limit");
+
+    assert_eq!(error.category(), ErrorCategory::Limit);
+    assert!(
+        error
+            .to_string()
+            .contains("maximum YAML nesting depth exceeded"),
+        "unexpected error: {error}"
+    );
+}
+
+/// Shallow merge chains stay within the depth backstop and expand normally,
+/// so the guard only rejects pathological inputs.
+#[test]
+fn default_merge_accepts_shallow_merge_chains() {
+    let input = deep_merge_chain(8);
+    let value: Value = saneyaml::from_str(&input).expect("shallow merge chain expands");
+    assert_eq!(value["top"]["v"].as_u64(), Some(0));
+}
+
+/// Merged entries are appended in source order after the explicit entries, and
+/// keys already present in the target are never reordered or duplicated. This
+/// documents the deterministic, source-stable insertion order that lossless
+/// round-trips depend on.
+#[test]
+fn default_merge_preserves_deterministic_source_order() {
+    let input = "\
+base: &base {alpha: base, beta: base, gamma: base}
+target:
+  beta: local
+  <<: *base
+  delta: local
+";
+
+    let node = saneyaml::parse_str(input).expect("parse deterministic-order merge tree");
+    let root = top_mapping(&node);
+    let target = mapping_value(root, "target");
+    let NodeValue::Mapping(entries) = &target.value else {
+        panic!("expected target mapping");
+    };
+
+    let keys: Vec<&str> = entries
+        .iter()
+        .map(|(key, _)| key.as_str().expect("string key"))
+        .collect();
+    // Explicit entries keep their source order; the merge source only
+    // contributes keys missing from the target, appended in source order.
+    assert_eq!(keys, ["beta", "delta", "alpha", "gamma"]);
+
+    // Explicit values win over merged values for shared keys.
+    assert_eq!(mapping_value(entries, "beta").as_str(), Some("local"));
+    assert_eq!(mapping_value(entries, "alpha").as_str(), Some("base"));
 }

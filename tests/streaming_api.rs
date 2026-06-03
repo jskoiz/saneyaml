@@ -94,6 +94,55 @@ flag: true
 }
 
 #[test]
+fn document_stream_defers_later_document_preprocess_error() {
+    let input = "---\nname: one\n---\n:\tbad\n";
+    let batch_error = saneyaml::parse_documents(input).expect_err("batch parse error");
+
+    let mut stream = DocumentStream::from_str(input).expect("document stream construction");
+    let first = stream
+        .next()
+        .expect("first document")
+        .expect("first document parses before later line error");
+    assert_eq!(mapping_value(&first, "name").as_str(), Some("one"));
+
+    let second_error = stream
+        .next()
+        .expect("second document item")
+        .expect_err("later line error");
+    assert_eq!(second_error.span(), batch_error.span());
+    assert_eq!(second_error.line(), Some(4));
+    assert_eq!(second_error.column(), Some(2));
+    assert!(stream.next().is_none());
+}
+
+#[test]
+fn event_stream_defers_later_document_preprocess_error() {
+    let input = "---\nname: one\n---\n:\tbad\n";
+    let batch_error = saneyaml::parse_events(input).expect_err("batch event parse error");
+
+    let mut stream = EventStream::from_str(input).expect("event stream construction");
+    let mut saw_first_value = false;
+    let error = loop {
+        match stream.next() {
+            Some(Ok(Event::Scalar { value, .. })) if value == "one" => {
+                saw_first_value = true;
+            }
+            Some(Ok(_)) => {}
+            Some(Err(error)) => break error,
+            None => panic!("event stream ended before later line error"),
+        }
+    };
+
+    assert!(
+        saw_first_value,
+        "event stream should yield first-document events before later line error"
+    );
+    assert_eq!(error.span(), batch_error.span());
+    assert_eq!(error.line(), Some(4));
+    assert_eq!(error.column(), Some(2));
+}
+
+#[test]
 fn streaming_load_options_preserve_input_limit_and_alias_budget_contract() {
     let limited = LoadOptions::new().max_input_bytes(4);
     let event_limit = match limited.stream_events("name: app\n") {

@@ -6,6 +6,7 @@
 //!
 //!   cargo run --release --example dhat_memory -- saneyaml-borrowed multidoc
 //!   cargo run --release --example dhat_memory -- saphyr           multidoc
+//!   cargo run --release --example dhat_memory -- saneyaml-stream-docs multidoc16
 //!
 //! Or use the bundled driver that sweeps every (library, corpus) pair:
 //!
@@ -28,6 +29,8 @@ const LIBS: &[&str] = &[
     "saneyaml-borrowed",
     "saneyaml-owned",
     "saneyaml-value",
+    "saneyaml-stream-docs",
+    "saneyaml-stream-events",
     "serde_yaml",
     "yaml-rust2",
     "saphyr",
@@ -70,8 +73,9 @@ fn generated_wide_mapping(target_bytes: usize) -> String {
 fn corpus_input(corpus: &str) -> String {
     match corpus {
         "multidoc" => generated_multi_doc_stream(1024 * 1024),
+        "multidoc16" => generated_multi_doc_stream(16 * 1024 * 1024),
         "wide" => generated_wide_mapping(1024 * 1024),
-        other => panic!("unknown corpus {other:?}; use multidoc | wide"),
+        other => panic!("unknown corpus {other:?}; use multidoc | multidoc16 | wide"),
     }
 }
 
@@ -113,6 +117,36 @@ fn measure(lib: &str, corpus: &str) {
         "saneyaml-value" => measure_arm!(
             saneyaml::from_documents_str::<saneyaml::Value>(&input).expect("saneyaml value")
         ),
+        "saneyaml-stream-docs" => {
+            let before = dhat::HeapStats::get();
+            let mut stream =
+                saneyaml::DocumentStream::from_str(&input).expect("saneyaml document stream");
+            let mut documents = 0usize;
+            while let Some(document) = stream.next() {
+                let document = document.expect("saneyaml stream document");
+                black_box(&document);
+                documents += 1;
+            }
+            let after = dhat::HeapStats::get();
+            black_box(&stream);
+            black_box(documents);
+            report(lib, corpus, &before, &after);
+        }
+        "saneyaml-stream-events" => {
+            let before = dhat::HeapStats::get();
+            let mut stream =
+                saneyaml::EventStream::from_str(&input).expect("saneyaml event stream");
+            let mut events = 0usize;
+            while let Some(event) = stream.next() {
+                let event = event.expect("saneyaml stream event");
+                black_box(&event);
+                events += 1;
+            }
+            let after = dhat::HeapStats::get();
+            black_box(&stream);
+            black_box(events);
+            report(lib, corpus, &before, &after);
+        }
         "serde_yaml" => {
             use serde::Deserialize;
             measure_arm!(

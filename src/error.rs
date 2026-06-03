@@ -217,7 +217,7 @@ impl fmt::Display for EscapedPathString<'_> {
                 '\n' => f.write_str("\\n")?,
                 '\r' => f.write_str("\\r")?,
                 '\t' => f.write_str("\\t")?,
-                ch if ch.is_control() => write!(f, "\\u{{{:x}}}", ch as u32)?,
+                ch if ch.is_control() => write!(f, "\\u{:04X}", ch as u32)?,
                 ch => f.write_str(ch.encode_utf8(&mut [0; 4]))?,
             }
         }

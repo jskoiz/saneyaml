@@ -238,7 +238,7 @@ fn lossless_edit_rewrites_compose_source_spans_and_keeps_merge_graph() {
     let stream = parse_lossless(input).expect("lossless parse");
     let image_start = input.find("nginx:latest").expect("web image value");
     let image_end = image_start + "nginx:latest".len();
-    let labels_insert = input.find("    ports:\n").expect("ports entry");
+    let labels_insert = input.find("    ports:").expect("ports entry");
     let command_start = input.find("    command:").expect("worker command");
     let command_end = command_start + input[command_start..].find('\n').expect("command line") + 1;
 

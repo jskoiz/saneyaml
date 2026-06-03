@@ -512,13 +512,17 @@ fn folded_block_can_represent_literal_content(value: &str) -> bool {
 }
 
 fn ordered_entries(entries: &[(Node, Node)], options: EmitOptions) -> Vec<&(Node, Node)> {
-    let mut ordered = entries.iter().collect::<Vec<_>>();
-    if options.sorts_keys() {
-        ordered.sort_by(|(left, _), (right, _)| {
-            format_inline(left, options).cmp(&format_inline(right, options))
-        });
+    if !options.sorts_keys() {
+        return entries.iter().collect();
     }
-    ordered
+    // Format each key once up front so the sort comparator does not re-format
+    // both sides on every comparison (O(n log n) redundant formatting otherwise).
+    let mut keyed = entries
+        .iter()
+        .map(|entry| (format_inline(&entry.0, options), entry))
+        .collect::<Vec<_>>();
+    keyed.sort_by(|(left, _), (right, _)| left.cmp(right));
+    keyed.into_iter().map(|(_, entry)| entry).collect()
 }
 
 fn format_key(node: &Node, options: EmitOptions) -> String {
@@ -532,38 +536,50 @@ fn format_key(node: &Node, options: EmitOptions) -> String {
 }
 
 fn format_inline(node: &Node, options: EmitOptions) -> String {
+    let mut out = String::new();
+    write_inline(node, options, &mut out);
+    out
+}
+
+fn write_inline(node: &Node, options: EmitOptions, out: &mut String) {
     match &node.value {
-        Value::Null => "null".to_string(),
-        Value::Bool(value) => value.to_string(),
-        Value::Number(Number::Integer(value)) => value.to_string(),
-        Value::Number(Number::Unsigned(value)) => value.to_string(),
+        Value::Null => out.push_str("null"),
+        Value::Bool(value) => {
+            write!(out, "{value}").expect("writing to String cannot fail");
+        }
+        Value::Number(Number::Integer(value)) => {
+            write!(out, "{value}").expect("writing to String cannot fail");
+        }
+        Value::Number(Number::Unsigned(value)) => {
+            write!(out, "{value}").expect("writing to String cannot fail");
+        }
         Value::Number(Number::Float(value)) if value.is_finite() => {
-            let mut text = value.to_string();
+            let start = out.len();
+            write!(out, "{value}").expect("writing to String cannot fail");
+            let text = &out[start..];
             if !text.contains('.') && !text.contains('e') && !text.contains('E') {
-                text.push_str(".0");
+                out.push_str(".0");
             }
-            text
         }
-        Value::Number(Number::Float(value)) if value.is_nan() => ".nan".to_string(),
-        Value::Number(Number::Float(value)) if value.is_sign_negative() => "-.inf".to_string(),
-        Value::Number(Number::Float(_)) => ".inf".to_string(),
+        Value::Number(Number::Float(value)) if value.is_nan() => out.push_str(".nan"),
+        Value::Number(Number::Float(value)) if value.is_sign_negative() => out.push_str("-.inf"),
+        Value::Number(Number::Float(_)) => out.push_str(".inf"),
         Value::String(value) if force_byte_compatible_single_quote(node, options) => {
-            single_quote(value)
+            out.push_str(&single_quote(value));
         }
-        Value::String(value) => quote_if_needed(value, options),
+        Value::String(value) => out.push_str(&quote_if_needed(value, options)),
         Value::Sequence(items) => {
-            let mut out = String::from("[");
+            out.push('[');
             for (idx, item) in items.iter().enumerate() {
                 if idx > 0 {
                     out.push_str(", ");
                 }
-                out.push_str(&format_inline(item, options));
+                write_inline(item, options, out);
             }
             out.push(']');
-            out
         }
         Value::Mapping(entries) => {
-            let mut out = String::from("{");
+            out.push('{');
             let ordered = ordered_entries(entries, options);
             for (idx, (key, value)) in ordered.into_iter().enumerate() {
                 if idx > 0 {
@@ -571,16 +587,14 @@ fn format_inline(node: &Node, options: EmitOptions) -> String {
                 }
                 out.push_str(&format_key(key, options));
                 out.push_str(": ");
-                out.push_str(&format_inline(value, options));
+                write_inline(value, options, out);
             }
             out.push('}');
-            out
         }
         Value::Tagged(tagged) => {
-            let mut out = format_tag(&tagged.tag);
+            out.push_str(&format_tag(&tagged.tag));
             out.push(' ');
-            out.push_str(&format_inline(&tagged.value, options));
-            out
+            write_inline(&tagged.value, options, out);
         }
     }
 }
@@ -842,6 +856,10 @@ fn looks_like_number(value: &str) -> bool {
 }
 
 fn looks_like_byte_compatible_number(value: &str) -> bool {
+    // Intentional divergence from `looks_like_number`: the byte-compatible path
+    // mirrors legacy serde_yaml, which does not treat underscore-grouped scalars
+    // such as `1_000` as numbers. Reject any `_` so these scalars are emitted
+    // unquoted (matching serde_yaml) instead of being quoted as numbers.
     if value.contains('_') {
         return false;
     }

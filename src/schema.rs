@@ -294,14 +294,13 @@ impl LoadOptions {
         // and exceeded, but fall back to the default limit rather than panicking
         // so the message stays meaningful even if that invariant ever changes.
         let max = self.max_input_bytes.unwrap_or(DEFAULT_MAX_INPUT_BYTES);
-        // The limit is a total byte count, not a position inside the document,
-        // so there is no meaningful line/column to report. We still record the
-        // boundary byte offset (`start`/`end`) for callers that inspect the raw
-        // span, but leave line/column at zero so `Error::location` reports no
-        // location instead of a misleading 1:1 or 0:0 source position.
+        // The limit is a total byte count, not a position inside the document, so
+        // there is no meaningful line/column to report. Keep `Span::default()` to
+        // preserve the spanless-error contract documented on `Error::span()`
+        // (`span() == Span::default()` whenever `location()` is `None`).
         Error::limit(
             format!("YAML input exceeds configured limit of {max} bytes"),
-            Span::new(max, max, 0, 0),
+            Span::default(),
         )
     }
 

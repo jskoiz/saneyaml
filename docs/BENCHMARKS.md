@@ -206,3 +206,85 @@ spellings and is faster than `saphyr`, while the additive
 `saneyaml::parse_borrowed_documents` tree drops spans/source spellings and borrows
 sliceable scalars, retaining less heap than `saphyr` on every large-input row
 (for example, 3,047,520 vs 9,523,712 bytes on the 1 MiB wide mapping).
+
+## Streaming And Compact Line-Table Milestone
+
+This milestone adds a compact per-line table, a fused line-preprocessing scan,
+source-backed borrowed scalars, and a lazy streaming line buffer that reclaims
+consumed lines as `DocumentStream`/`EventStream` advance. Batch loaders keep an
+eager line table for speed; only the streaming entrypoints reclaim. The input
+string itself stays fully resident, so these are bounded-retention streaming
+paths, not constant-memory readers.
+
+Captured in a single `release` session against the in-repo harnesses:
+
+```sh
+YAML_BENCH_ITERS=1000 cargo run --release --example real_world_benchmark
+cargo run --release --example dhat_memory -- --all
+cargo run --release --example conformance_compare
+```
+
+### Real-world config corpus (1,000 iterations)
+
+33 files / 39 YAML documents / 25,362 bytes.
+
+| parser/load path | ns/byte |
+|---|---:|
+| `saneyaml::parse_documents` | 15.03 |
+| `saneyaml::from_documents_str::<Value>` | 21.19 |
+| `saphyr::Yaml::load_from_str` | 21.42 |
+| `yaml_rust2::YamlLoader` | 23.11 |
+| `serde_yaml::Value` stream | 24.98 |
+
+On this corpus `saneyaml::parse_documents` is the fastest load path; the owning
+`Value` path ties `saphyr` and stays ahead of `yaml_rust2` and `serde_yaml`.
+
+### Allocator-backed memory (dhat), 1 MiB multi-document stream
+
+8,020 documents. `retained blocks` is the count of live allocations at peak.
+
+| path | allocs | bytes allocated | peak | retained blocks |
+|---|---:|---:|---:|---:|
+| `saneyaml` stream docs | 184,466 | 13.64 MB | 2.10 MB | 4 |
+| `saneyaml` stream events | 232,594 | 49.28 MB | 2.11 MB | 6 |
+| `saneyaml` borrowed | 80,219 | 17.29 MB | 6.21 MB | 32,081 |
+| `saneyaml` owned | 200,537 | 18.10 MB | 17.16 MB | 128,321 |
+| `yaml-rust2` | 585,478 | 29.29 MB | 17.15 MB | 192,481 |
+| `serde_yaml` | 721,821 | 84.73 MB | 21.84 MB | 136,341 |
+| `saphyr` | 216,559 | 22.77 MB | 22.30 MB | 192,481 |
+
+On a multi-document stream the streaming loaders hold a bounded working set
+(retained blocks stay at 4–6 regardless of stream length) and post the lowest
+peak; the borrowed batch tree has the lowest peak among the non-streaming
+loaders.
+
+### Allocator-backed memory (dhat), 1 MiB wide single document
+
+| path | peak | retained blocks |
+|---|---:|---:|
+| `yaml-rust2` | 10.98 MB | 130,951 |
+| `saphyr` | 14.10 MB | 130,951 |
+| `saneyaml` borrowed | 15.32 MB | 11,907 |
+| `saneyaml` owned | 15.66 MB | 95,236 |
+| `saneyaml` stream docs | 16.16 MB | 4 |
+| `saneyaml` stream events | 62.22 MB | 6 |
+
+Streaming only helps when there are document boundaries to reclaim at. On a
+single wide document there is nothing to reclaim mid-parse, so `yaml-rust2` and
+`saphyr` post lower peaks than saneyaml on this shape, and the event-streaming
+path is the worst here because it buffers per-event output for one large
+document. Streaming is a multi-document memory win, not a universal one.
+
+### Conformance (402 curated cases)
+
+| library | spec accept/reject (400) | tree policy (2) |
+|---|---:|---:|
+| `saneyaml` | 400/400 | 2/2 |
+| `yaml-rust2` | 400/400 | 2/2 |
+| `saphyr` | 400/400 | 0/2 |
+| `serde_yaml` | 333/400 | 2/2 |
+
+saneyaml ties `yaml-rust2` and `saphyr` at 400/400 on the neutral spec set; it
+is not a sole leader there. Its differentiation is the combination of full spec
+conformance with tree-policy rejection of the duplicate-key/tree-error cases
+that `saphyr` accepts, while `serde_yaml` trails the spec set at 333/400.

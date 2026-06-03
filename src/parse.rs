@@ -15,7 +15,7 @@ use crate::{
     ast::MergePolicy,
     de::read_to_end_with_options,
     error::utf8_error_span,
-    key_identity::{DuplicateKey, check_duplicate_at_depth_limit},
+    key_identity::{DuplicateKeyTracker, check_duplicate_with_tracker_at_depth_limit},
     schema::{LoadOptions, Schema},
     yaml11,
 };
@@ -24,7 +24,6 @@ use std::{
     collections::{HashMap, VecDeque},
     io::Read,
     mem,
-    ops::Deref,
     rc::Rc,
 };
 
@@ -183,7 +182,7 @@ pub enum CollectionStyle {
     Flow,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum LineKind {
     Blank,
     Content,
@@ -192,87 +191,274 @@ enum LineKind {
     DocumentEnd,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 struct LineText {
-    source: Rc<str>,
-    start: usize,
-    end: usize,
+    start: u32,
+    end: u32,
 }
 
 impl LineText {
-    fn new(source: &Rc<str>, start: usize, end: usize) -> Self {
-        Self {
-            source: Rc::clone(source),
-            start,
-            end,
-        }
+    #[inline]
+    fn new(start: usize, end: usize) -> Result<Self> {
+        Ok(Self {
+            start: compact_offset(start)?,
+            end: compact_offset(end)?,
+        })
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        (self.end - self.start) as usize
+    }
+
+    #[inline]
+    fn as_str<'a>(&self, source: &'a str) -> &'a str {
+        &source[self.start as usize..self.end as usize]
     }
 }
 
-impl Deref for LineText {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        &self.source[self.start..self.end]
-    }
-}
-
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 struct Line {
-    no: usize,
-    start: usize,
     raw: LineText,
-    indent: usize,
-    content_start: usize,
-    content: LineText,
+    no: u32,
+    indent: u32,
+    content_start: u32,
+    content_end: u32,
     kind: LineKind,
     had_comment: bool,
 }
 
 impl Line {
+    #[inline]
+    fn start(&self) -> usize {
+        self.raw.start as usize
+    }
+
+    #[inline]
+    fn no(&self) -> usize {
+        self.no as usize
+    }
+
+    #[inline]
+    fn indent(&self) -> usize {
+        self.indent as usize
+    }
+
+    #[inline]
+    fn content_start(&self) -> usize {
+        self.content_start as usize
+    }
+
+    #[inline]
+    fn content_end(&self) -> usize {
+        self.content_end as usize
+    }
+
+    #[inline]
+    fn raw<'a>(&self, source: &'a str) -> &'a str {
+        self.raw.as_str(source)
+    }
+
+    #[inline]
+    fn content<'a>(&self, source: &'a str) -> &'a str {
+        &self.raw(source)[self.content_start()..self.content_end()]
+    }
+
+    #[inline]
+    fn raw_len(&self) -> usize {
+        self.raw.len()
+    }
+
+    #[inline]
+    fn content_len(&self) -> usize {
+        self.content_end() - self.content_start()
+    }
+
+    #[inline]
     fn span(&self) -> Span {
         Span::new(
-            self.start + self.content_start,
-            self.start + self.content_start + self.content.len(),
-            self.no,
-            self.content_start + 1,
+            self.start() + self.content_start(),
+            self.start() + self.content_start() + self.content_len(),
+            self.no(),
+            self.content_start() + 1,
         )
     }
 
+    #[inline]
     fn local_span(&self, start: usize, end: usize) -> Span {
         Span::new(
-            self.start + self.content_start + start,
-            self.start + self.content_start + end,
-            self.no,
-            self.content_start + start + 1,
+            self.start() + self.content_start() + start,
+            self.start() + self.content_start() + end,
+            self.no(),
+            self.content_start() + start + 1,
         )
     }
 
-    fn raw_from(&self, indent: usize) -> &str {
-        if indent >= self.raw.len() {
+    #[inline]
+    fn raw_from<'a>(&self, source: &'a str, indent: usize) -> &'a str {
+        let raw = self.raw(source);
+        if indent >= self.raw_len() {
             ""
         } else {
-            &self.raw[indent..]
+            &raw[indent..]
         }
     }
 
-    fn raw_content_from(&self, local_start: usize) -> &str {
-        let start = self.content_start + local_start;
-        if start >= self.raw.len() {
+    #[inline]
+    fn raw_content_from<'a>(&self, source: &'a str, local_start: usize) -> &'a str {
+        let raw = self.raw(source);
+        let start = self.content_start() + local_start;
+        if start >= self.raw_len() {
             ""
         } else {
-            &self.raw[start..]
+            &raw[start..]
         }
     }
 }
 
-fn quoted_line_text(line: &Line, local_start: usize, trimmed_text: &str, quote: char) -> String {
+struct LineBuffer {
+    lines: Vec<Line>,
+    base: usize,
+    next_start: usize,
+    next_no: usize,
+    exhausted: bool,
+    reclaim_consumed: bool,
+    #[cfg(test)]
+    max_retained: usize,
+}
+
+impl LineBuffer {
+    #[inline]
+    fn new_lazy() -> Self {
+        Self {
+            lines: Vec::new(),
+            base: 0,
+            next_start: 0,
+            next_no: 1,
+            exhausted: false,
+            reclaim_consumed: true,
+            #[cfg(test)]
+            max_retained: 0,
+        }
+    }
+
+    fn new_eager(source: &str) -> Result<Self> {
+        let line_estimate = source.bytes().filter(|&byte| byte == b'\n').count() + 1;
+        let mut buffer = Self {
+            lines: Vec::with_capacity(line_estimate),
+            base: 0,
+            next_start: 0,
+            next_no: 1,
+            exhausted: false,
+            reclaim_consumed: false,
+            #[cfg(test)]
+            max_retained: 0,
+        };
+        while !buffer.exhausted {
+            buffer.push_next(source)?;
+        }
+        Ok(buffer)
+    }
+
+    #[inline]
+    fn get(&mut self, source: &str, pos: usize) -> Result<Option<&Line>> {
+        debug_assert!(
+            pos >= self.base,
+            "line position {pos} was requested after it was discarded"
+        );
+        if pos < self.base {
+            return Err(Error::new(
+                "internal parser error: requested a source line that was already reclaimed",
+                None,
+            ));
+        }
+        self.fill_to(source, pos)?;
+        Ok(self.lines.get(pos - self.base))
+    }
+
+    #[inline]
+    fn discard_before(&mut self, pos: usize) {
+        if !self.reclaim_consumed {
+            return;
+        }
+        let drop = pos.saturating_sub(self.base).min(self.lines.len());
+        if drop > 0 {
+            self.lines.drain(..drop);
+            self.base += drop;
+        }
+    }
+
+    #[cfg(test)]
+    fn retained_len(&self) -> usize {
+        self.lines.len()
+    }
+
+    #[cfg(test)]
+    fn max_retained_len(&self) -> usize {
+        self.max_retained
+    }
+
+    #[inline]
+    fn fill_to(&mut self, source: &str, pos: usize) -> Result<()> {
+        while !self.exhausted && self.base + self.lines.len() <= pos {
+            self.push_next(source)?;
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn push_next(&mut self, source: &str) -> Result<()> {
+        if self.next_start >= source.len() {
+            self.exhausted = true;
+            return Ok(());
+        }
+
+        let bytes = source.as_bytes();
+        let start = self.next_start;
+        let mut newline = start;
+        while newline < bytes.len() && bytes[newline] != b'\n' {
+            newline += 1;
+        }
+        let (raw_len, next_start, exhausted) = if newline < bytes.len() {
+            let mut raw_len = newline - start;
+            if raw_len > 0 && bytes[newline - 1] == b'\r' {
+                raw_len -= 1;
+            }
+            (raw_len, newline + 1, false)
+        } else {
+            (source.len() - start, source.len(), true)
+        };
+        self.lines
+            .push(preprocess_line(source, self.next_no, start, raw_len)?);
+        #[cfg(test)]
+        {
+            self.max_retained = self.max_retained.max(self.lines.len());
+        }
+        self.next_start = next_start;
+        self.next_no += 1;
+        self.exhausted = exhausted;
+        Ok(())
+    }
+}
+
+fn compact_offset(offset: usize) -> Result<u32> {
+    u32::try_from(offset)
+        .map_err(|_| Error::limit("input is too large for the compact parser line table", None))
+}
+
+fn quoted_line_text(
+    source: &str,
+    line: &Line,
+    local_start: usize,
+    trimmed_text: &str,
+    quote: char,
+) -> String {
     let mut text = trimmed_text.to_string();
     if quote != '"' || trailing_backslash_count(&text).is_multiple_of(2) {
         return text;
     }
 
-    let raw_text = line.raw_content_from(local_start);
+    let raw_text = line.raw_content_from(source, local_start);
     let Some(stripped) = raw_text.strip_prefix(trimmed_text) else {
         return text;
     };
@@ -285,7 +471,7 @@ fn quoted_line_text(line: &Line, local_start: usize, trimmed_text: &str, quote: 
 fn tab_indentation_error(line: &Line) -> Error {
     Error::syntax(
         "tabs are not allowed for indentation",
-        Span::point(line.start + line.indent, line.no, line.indent + 1),
+        Span::point(line.start() + line.indent(), line.no(), line.indent() + 1),
     )
 }
 
@@ -347,10 +533,17 @@ pub(crate) fn parse_borrowed_documents_with_options(
     input: &str,
     options: LoadOptions,
 ) -> Result<Vec<BorrowedNode<'_>>> {
-    let mut docs = parse_documents_with_options(input, options)?
-        .into_iter()
-        .map(|doc| BorrowedNode::from_node(input, doc))
-        .collect::<Vec<_>>();
+    let mut parser =
+        StreamingParser::new_with_scalar_storage(input, options, ScalarStorage::SourceBacked)?;
+    let mut docs = Vec::new();
+    while let Some(result) = parser.next_raw_document() {
+        let mut node = result?;
+        let schema = parser.last_document_schema();
+        if parser.last_document_has_merge_key() {
+            node.apply_merge_keys_with_policy(merge_policy_for_schema(schema))?;
+        }
+        docs.push(BorrowedNode::from_node(input, node));
+    }
     docs.shrink_to_fit();
     Ok(docs)
 }
@@ -359,12 +552,28 @@ pub(crate) fn parse_document_results_with_options(
     input: &str,
     options: LoadOptions,
 ) -> Vec<Result<Node>> {
-    match Parser::new_with_options(input, options) {
+    parse_document_results_with_scalar_storage(input, options, ScalarStorage::Owned)
+}
+
+fn parse_document_results_with_scalar_storage(
+    input: &str,
+    options: LoadOptions,
+    scalar_storage: ScalarStorage,
+) -> Vec<Result<Node>> {
+    match Parser::new_eager_with_scalar_storage(input, options, scalar_storage) {
         Ok(mut parser) => {
             let results = parser.parse_document_results();
             let schemas = mem::take(&mut parser.document_schemas);
             let has_merge_keys = mem::take(&mut parser.document_has_merge_keys);
-            apply_merge_keys_to_document_results(results, schemas, has_merge_keys)
+            let results = apply_merge_keys_to_document_results(results, schemas, has_merge_keys);
+            if scalar_storage == ScalarStorage::Owned {
+                results
+                    .into_iter()
+                    .map(|result| result.map(Node::into_public))
+                    .collect()
+            } else {
+                results
+            }
         }
         Err(error) => vec![Err(error)],
     }
@@ -389,6 +598,134 @@ fn apply_merge_keys_to_document_results(
             })
         })
         .collect()
+}
+
+const INLINE_COLLECTION_LIMIT: usize = 4;
+
+struct NodeItems {
+    inline: [Option<Node>; INLINE_COLLECTION_LIMIT],
+    len: usize,
+    overflow: Option<Vec<Node>>,
+}
+
+impl NodeItems {
+    fn new() -> Self {
+        Self {
+            inline: [None, None, None, None],
+            len: 0,
+            overflow: None,
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.overflow.as_ref().map_or(self.len, |items| items.len())
+    }
+
+    fn last(&self) -> Option<&Node> {
+        if let Some(items) = &self.overflow {
+            return items.last();
+        }
+        self.len
+            .checked_sub(1)
+            .and_then(|index| self.inline[index].as_ref())
+    }
+
+    fn push(&mut self, item: Node) {
+        if let Some(items) = &mut self.overflow {
+            items.push(item);
+            return;
+        }
+        if self.len < INLINE_COLLECTION_LIMIT {
+            self.inline[self.len] = Some(item);
+            self.len += 1;
+            return;
+        }
+        let mut items = Vec::with_capacity(INLINE_COLLECTION_LIMIT * 2);
+        for slot in &mut self.inline {
+            if let Some(item) = slot.take() {
+                items.push(item);
+            }
+        }
+        items.push(item);
+        self.overflow = Some(items);
+    }
+
+    fn into_vec(mut self) -> Vec<Node> {
+        if let Some(items) = self.overflow {
+            return items;
+        }
+        let mut items = Vec::with_capacity(self.len);
+        for slot in &mut self.inline {
+            if let Some(item) = slot.take() {
+                items.push(item);
+            }
+        }
+        items
+    }
+}
+
+struct NodeEntries {
+    inline: [Option<(Node, Node)>; INLINE_COLLECTION_LIMIT],
+    len: usize,
+    overflow: Option<Vec<(Node, Node)>>,
+}
+
+impl NodeEntries {
+    fn new() -> Self {
+        Self {
+            inline: [None, None, None, None],
+            len: 0,
+            overflow: None,
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.overflow
+            .as_ref()
+            .map_or(self.len, |entries| entries.len())
+    }
+
+    fn last(&self) -> Option<&(Node, Node)> {
+        if let Some(entries) = &self.overflow {
+            return entries.last();
+        }
+        self.len
+            .checked_sub(1)
+            .and_then(|index| self.inline[index].as_ref())
+    }
+
+    fn push(&mut self, entry: (Node, Node)) {
+        if let Some(entries) = &mut self.overflow {
+            entries.push(entry);
+            return;
+        }
+        if self.len < INLINE_COLLECTION_LIMIT {
+            self.inline[self.len] = Some(entry);
+            self.len += 1;
+            return;
+        }
+        let mut entries = Vec::with_capacity(INLINE_COLLECTION_LIMIT * 2);
+        for slot in &mut self.inline {
+            if let Some(entry) = slot.take() {
+                entries.push(entry);
+            }
+        }
+        entries.push(entry);
+        self.overflow = Some(entries);
+    }
+
+    fn into_vec(mut self) -> Vec<(Node, Node)> {
+        if let Some(entries) = self.overflow {
+            return entries;
+        }
+        let mut entries = Vec::with_capacity(self.len);
+        for slot in &mut self.inline {
+            if let Some(entry) = slot.take() {
+                entries.push(entry);
+            }
+        }
+        entries
+    }
 }
 
 fn sequence_node(mut items: Vec<Node>, span: Span) -> Node {
@@ -643,8 +980,16 @@ struct StreamingParser {
 
 impl StreamingParser {
     fn new(input: &str, options: LoadOptions) -> Result<Self> {
+        Self::new_with_scalar_storage(input, options, ScalarStorage::Owned)
+    }
+
+    fn new_with_scalar_storage(
+        input: &str,
+        options: LoadOptions,
+        scalar_storage: ScalarStorage,
+    ) -> Result<Self> {
         Ok(Self {
-            parser: Parser::new_with_options(input, options)?,
+            parser: Parser::new_with_scalar_storage(input, options, scalar_storage)?,
             state: DocumentParseState::default(),
             current_schema: Schema::Yaml12,
             current_document_has_merge_key: false,
@@ -702,7 +1047,8 @@ struct DocumentParseState {
 }
 
 struct Parser {
-    lines: Vec<Line>,
+    source: Rc<str>,
+    lines: LineBuffer,
     pos: usize,
     input_len: usize,
     options: LoadOptions,
@@ -717,6 +1063,19 @@ struct Parser {
     document_schemas: Vec<Schema>,
     document_has_merge_keys: Vec<bool>,
     current_document_has_merge_key: bool,
+    scalar_storage: ScalarStorage,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum ScalarStorage {
+    Owned,
+    SourceBacked,
+}
+
+#[derive(Clone, Copy)]
+enum LinePreprocessing {
+    Eager,
+    Lazy,
 }
 
 #[derive(Default)]
@@ -887,12 +1246,49 @@ impl AnchorRegistry {
 }
 
 impl Parser {
-    fn new_with_options(input: &str, options: LoadOptions) -> Result<Self> {
+    fn new_eager_with_scalar_storage(
+        input: &str,
+        options: LoadOptions,
+        scalar_storage: ScalarStorage,
+    ) -> Result<Self> {
+        Self::new_with_scalar_storage_and_lines(
+            input,
+            options,
+            scalar_storage,
+            LinePreprocessing::Eager,
+        )
+    }
+
+    fn new_with_scalar_storage(
+        input: &str,
+        options: LoadOptions,
+        scalar_storage: ScalarStorage,
+    ) -> Result<Self> {
+        Self::new_with_scalar_storage_and_lines(
+            input,
+            options,
+            scalar_storage,
+            LinePreprocessing::Lazy,
+        )
+    }
+
+    fn new_with_scalar_storage_and_lines(
+        input: &str,
+        options: LoadOptions,
+        scalar_storage: ScalarStorage,
+        line_preprocessing: LinePreprocessing,
+    ) -> Result<Self> {
         options.check_input_len(input.len())?;
+        let source = Rc::<str>::from(input);
         let schema = options.selected_schema();
         let alias_expansion_budget = options.alias_expansion_budget(input.len());
+        let lines = match line_preprocessing {
+            LinePreprocessing::Eager => LineBuffer::new_eager(&source)?,
+            LinePreprocessing::Lazy => LineBuffer::new_lazy(),
+        };
         Ok(Self {
-            lines: preprocess(input)?,
+            source,
+            lines,
             pos: 0,
             input_len: input.len(),
             options,
@@ -907,6 +1303,7 @@ impl Parser {
             document_schemas: Vec::new(),
             document_has_merge_keys: Vec::new(),
             current_document_has_merge_key: false,
+            scalar_storage,
         })
     }
 
@@ -977,21 +1374,25 @@ impl Parser {
     }
 
     fn emit_null_scalar(&mut self, span: Span) {
-        self.emit_scalar("null".to_string(), ScalarStyle::Plain, span);
-    }
-
-    fn emit_scalar_node(&mut self, node: &Node, style: ScalarStyle) {
-        self.emit_scalar(event_scalar_value(node), style, node.span);
-    }
-
-    fn emit_scalar(&mut self, value: String, style: ScalarStyle, span: Span) {
         if let Some(recorder) = &mut self.events {
             let meta = recorder.take_meta();
             recorder.events.push(Event::Scalar {
-                value,
-                style,
+                value: "null".to_string(),
+                style: ScalarStyle::Plain,
                 meta,
                 span,
+            });
+        }
+    }
+
+    fn emit_scalar_node(&mut self, node: &Node, style: ScalarStyle) {
+        if let Some(recorder) = &mut self.events {
+            let meta = recorder.take_meta();
+            recorder.events.push(Event::Scalar {
+                value: event_scalar_value(node),
+                style,
+                meta,
+                span: node.span,
             });
         }
     }
@@ -1022,11 +1423,17 @@ impl Parser {
         }
     }
 
-    fn check_duplicate_key(
-        &mut self,
-        seen: &mut HashMap<DuplicateKey, Span>,
-        key: &Node,
-    ) -> Result<()> {
+    #[inline]
+    fn line_at(&mut self, pos: usize) -> Result<Option<Line>> {
+        Ok(self.lines.get(&self.source, pos)?.copied())
+    }
+
+    #[inline]
+    fn line_kind_at(&mut self, pos: usize) -> Result<Option<LineKind>> {
+        Ok(self.lines.get(&self.source, pos)?.map(|line| line.kind))
+    }
+
+    fn check_duplicate_key(&mut self, seen: &mut DuplicateKeyTracker, key: &Node) -> Result<()> {
         self.record_merge_key(key);
         check_duplicate_for_schema(
             self.recording_events(),
@@ -1056,27 +1463,33 @@ impl Parser {
         }
 
         loop {
-            self.skip_blanks();
-            let Some(line) = self.lines.get(self.pos).cloned() else {
-                if self.pending_directives {
+            let line = match self.line_after_blanks() {
+                Ok(Some(line)) => line,
+                Ok(None) => {
+                    if self.pending_directives {
+                        state.finished = true;
+                        return Some(Err(Error::new(
+                            "directives must be followed by an explicit document start marker",
+                            state.pending_directive_span.unwrap_or_default(),
+                        )));
+                    }
+                    if let Some((span, explicit, directives)) = state.pending_start.take() {
+                        self.activate_document_schema(&directives);
+                        self.emit_document_start(explicit, directives, span);
+                        self.emit_null_scalar(span);
+                        self.emit_document_end(false, span);
+                        return Some(Ok(self.finish_parsed_document(Node::null(span))));
+                    }
+                    if let Some(span) = state.open_document.take() {
+                        self.emit_document_end(false, span);
+                    }
                     state.finished = true;
-                    return Some(Err(Error::new(
-                        "directives must be followed by an explicit document start marker",
-                        state.pending_directive_span.unwrap_or_default(),
-                    )));
+                    return None;
                 }
-                if let Some((span, explicit, directives)) = state.pending_start.take() {
-                    self.activate_document_schema(&directives);
-                    self.emit_document_start(explicit, directives, span);
-                    self.emit_null_scalar(span);
-                    self.emit_document_end(false, span);
-                    return Some(Ok(self.finish_parsed_document(Node::null(span))));
+                Err(error) => {
+                    state.finished = true;
+                    return Some(Err(error));
                 }
-                if let Some(span) = state.open_document.take() {
-                    self.emit_document_end(false, span);
-                }
-                state.finished = true;
-                return None;
             };
             match line.kind {
                 LineKind::Blank => unreachable!("blank lines are skipped above"),
@@ -1118,7 +1531,9 @@ impl Parser {
                     state.pending_directive_span = None;
                     let marker_span = line.local_span(0, 3);
                     self.pos += 1;
-                    if let Some((rest_start, rest)) = document_start_rest(&line.content) {
+                    let source = Rc::clone(&self.source);
+                    let content = line.content(&source);
+                    if let Some((rest_start, rest)) = document_start_rest(content) {
                         self.activate_document_schema(&directives);
                         self.emit_document_start(true, directives, marker_span);
                         self.anchors.reset_document();
@@ -1126,7 +1541,7 @@ impl Parser {
                             &line,
                             rest_start,
                             rest,
-                            line.indent,
+                            line.indent(),
                             0,
                         ) {
                             Ok(doc) => doc,
@@ -1210,11 +1625,12 @@ impl Parser {
         self.document_has_merge_keys
             .push(self.current_document_has_merge_key);
         self.current_document_has_merge_key = false;
+        self.lines.discard_before(self.pos);
         doc
     }
 
     fn parse_directive(&mut self, line: &Line) -> Result<()> {
-        let fields = directive_fields(line);
+        let fields = directive_fields(line, &self.source);
         match fields.as_slice() {
             [name, version] if name.text == "%YAML" => {
                 let Some((major, minor)) = parse_yaml_version(version.text) else {
@@ -1277,8 +1693,8 @@ impl Parser {
         self.active_schema = schema_for_directives(self.schema, directives);
     }
 
-    fn reject_trailing_content_after_document_node(&self) -> Result<()> {
-        if let Some(line) = self.peek_content() {
+    fn reject_trailing_content_after_document_node(&mut self) -> Result<()> {
+        if let Some(line) = self.peek_content()? {
             return Err(Error::new(
                 "unexpected content after root document node",
                 line.span(),
@@ -1433,8 +1849,8 @@ impl Parser {
 
     fn parse_document_root_or_null(&mut self, span: Span, depth: usize) -> Result<Node> {
         self.check_depth(depth)?;
-        self.skip_blanks();
-        if self.peek_content().is_some() {
+        self.skip_blanks()?;
+        if self.peek_content()?.is_some() {
             self.parse_node(depth)
         } else {
             self.emit_null_scalar(span);
@@ -1444,65 +1860,64 @@ impl Parser {
 
     fn parse_node(&mut self, depth: usize) -> Result<Node> {
         self.check_depth(depth)?;
-        let line = self.current_content()?.clone();
-        if line.content.starts_with('\t') {
-            if line.indent == 0 && root_tab_separated_flow_collection(&line.content) {
+        let line = self.current_content()?;
+        let source = Rc::clone(&self.source);
+        let content = line.content(&source);
+        if content.starts_with('\t') {
+            if line.indent() == 0 && root_tab_separated_flow_collection(content) {
                 self.pos += 1;
                 return self.parse_document_root_inline_value(
-                    &line.content,
+                    content,
                     &line,
                     0,
-                    line.indent,
+                    line.indent(),
                     depth,
                 );
             }
             return Err(tab_indentation_error(&line));
         }
-        if sequence_rest(&line.content).is_some() {
-            return self.parse_sequence(line.indent, depth);
+        if sequence_rest(content).is_some() {
+            return self.parse_sequence(line.indent(), depth);
         }
-        if starts_mapping_entry(&line.content) {
-            return self.parse_mapping(line.indent, depth);
+        if starts_mapping_entry(content) {
+            return self.parse_mapping(line.indent(), depth);
         }
         self.pos += 1;
-        if let Some(header) = parse_block_scalar_header(&line.content, &line, 0)? {
+        if let Some(header) = parse_block_scalar_header(content, &line, 0)? {
             return self.parse_block_scalar(
                 header,
-                line.indent,
+                line.indent(),
                 line.span(),
                 depth + 1,
-                line.indent == 0,
+                line.indent() == 0,
             );
         }
-        if is_plain_scalar_text(&line.content) {
-            return self.parse_plain_scalar(&line.content, &line, 0, line.indent, depth, true);
+        if is_plain_scalar_text(content) {
+            return self.parse_plain_scalar(content, &line, 0, line.indent(), depth, true);
         }
-        if line.indent == 0 {
-            self.parse_document_root_inline_value(&line.content, &line, 0, line.indent, depth)
+        if line.indent() == 0 {
+            self.parse_document_root_inline_value(content, &line, 0, line.indent(), depth)
         } else {
-            self.parse_inline_value(&line.content, &line, 0, line.indent, depth)
+            self.parse_inline_value(content, &line, 0, line.indent(), depth)
         }
     }
 
     fn parse_sequence(&mut self, indent: usize, depth: usize) -> Result<Node> {
         self.check_depth(depth)?;
+        let source = Rc::clone(&self.source);
         let start = self.current_content()?.span();
         self.emit_sequence_start(CollectionStyle::Block, start);
-        let mut items = Vec::new();
+        let mut items = NodeItems::new();
 
-        loop {
-            self.skip_blanks();
-            let Some(line) = self.peek_content() else {
-                break;
-            };
-            let line = line.clone();
-            if line.indent != indent {
+        while let Some(line) = self.content_after_blanks()? {
+            if line.indent() != indent {
                 break;
             }
-            if line.content.starts_with('\t') {
+            let content = line.content(&source);
+            if content.starts_with('\t') {
                 return Err(tab_indentation_error(&line));
             }
-            let Some((rest_start, rest)) = sequence_rest(&line.content) else {
+            let Some((rest_start, rest)) = sequence_rest(content) else {
                 break;
             };
             self.pos += 1;
@@ -1522,14 +1937,14 @@ impl Parser {
             } else if rest_trim.is_empty() {
                 self.parse_nested_or_null(
                     indent,
-                    line.local_span(line.content.len(), line.content.len()),
+                    line.local_span(content.len(), content.len()),
                     depth + 1,
                 )?
             } else if let Some(header) = parse_block_scalar_header(rest_trim, &line, value_start)? {
                 self.parse_block_scalar(
                     header,
                     indent,
-                    line.local_span(value_start, line.content.len()),
+                    line.local_span(value_start, content.len()),
                     depth + 1,
                     false,
                 )?
@@ -1549,35 +1964,33 @@ impl Parser {
         let end = items.last().map(|item| item.span.end).unwrap_or(start.end);
         let span = Span::new(start.start, end, start.line, start.column);
         self.emit_sequence_end(span);
-        Ok(sequence_node(items, span))
+        Ok(sequence_node(items.into_vec(), span))
     }
 
     fn parse_mapping(&mut self, indent: usize, depth: usize) -> Result<Node> {
         self.check_depth(depth)?;
+        let source = Rc::clone(&self.source);
         let start = self.current_content()?.span();
         self.emit_mapping_start(CollectionStyle::Block, start);
-        let mut entries = Vec::new();
-        let mut seen = HashMap::<DuplicateKey, Span>::new();
+        let mut entries = NodeEntries::new();
+        let mut seen = DuplicateKeyTracker::new();
         let mut pending_key: Option<(Node, Span)> = None;
 
-        loop {
-            self.skip_blanks();
-            let Some(line) = self.peek_content() else {
-                break;
-            };
-            if line.indent != indent || sequence_rest(&line.content).is_some() {
+        while let Some(line) = self.content_after_blanks()? {
+            let content = line.content(&source);
+            if line.indent() != indent || sequence_rest(content).is_some() {
                 break;
             }
-            if line.content.starts_with('\t') {
-                return Err(tab_indentation_error(line));
+            if content.starts_with('\t') {
+                return Err(tab_indentation_error(&line));
             }
-            if !starts_mapping_entry(&line.content) {
+            if !starts_mapping_entry(content) {
                 break;
             }
-            let line = line.clone();
+            let content = line.content(&source);
             self.pos += 1;
 
-            let (key, value) = if let Some((rest_start, rest)) = explicit_key_rest(&line.content) {
+            let (key, value) = if let Some((rest_start, rest)) = explicit_key_rest(content) {
                 if let Some((key, span)) = pending_key.take() {
                     self.emit_null_scalar(span);
                     let value = Node::null(span);
@@ -1589,7 +2002,7 @@ impl Parser {
                     self.parse_explicit_block_key(&line, rest_start, rest, indent, depth + 1)?;
                 pending_key = Some((key, line.local_span(0, 1)));
                 continue;
-            } else if let Some((rest_start, rest)) = explicit_value_rest(&line.content) {
+            } else if let Some((rest_start, rest)) = explicit_value_rest(content) {
                 let key = pending_key.take().map(|(key, _)| key).unwrap_or_else(|| {
                     let span = line.local_span(0, 1);
                     self.emit_null_scalar(span);
@@ -1606,7 +2019,7 @@ impl Parser {
                     entries.push((key, value));
                     self.check_collection_items(entries.len(), line.span())?;
                 }
-                self.parse_mapping_pair(&line, 0, &line.content, indent, depth + 1)?
+                self.parse_mapping_pair(&line, 0, content, indent, depth + 1)?
             };
             self.check_duplicate_key(&mut seen, &key)?;
             entries.push((key, value));
@@ -1626,7 +2039,7 @@ impl Parser {
             .unwrap_or(start.end);
         let span = Span::new(start.start, end, start.line, start.column);
         self.emit_mapping_end(span);
-        Ok(mapping_node(entries, span))
+        Ok(mapping_node(entries.into_vec(), span))
     }
 
     fn parse_inline_mapping_item(
@@ -1637,13 +2050,14 @@ impl Parser {
         depth: usize,
     ) -> Result<Node> {
         self.check_depth(depth)?;
-        let item_indent = line.indent + rest_start;
+        let source = Rc::clone(&self.source);
+        let item_indent = line.indent() + rest_start;
         self.emit_mapping_start(
             CollectionStyle::Block,
             line.local_span(rest_start, rest_start + rest.len()),
         );
-        let mut entries = Vec::new();
-        let mut seen = HashMap::<DuplicateKey, Span>::new();
+        let mut entries = NodeEntries::new();
+        let mut seen = DuplicateKeyTracker::new();
         let (key, value) =
             self.parse_mapping_pair(line, rest_start, rest, item_indent, depth + 1)?;
         self.check_duplicate_key(&mut seen, &key)?;
@@ -1653,37 +2067,34 @@ impl Parser {
             line.local_span(rest_start, rest_start + rest.len()),
         )?;
 
-        loop {
-            self.skip_blanks();
-            let Some(next) = self.peek_content() else {
-                break;
-            };
-            if next.indent != item_indent {
+        while let Some(next) = self.content_after_blanks()? {
+            if next.indent() != item_indent {
                 break;
             }
-            if sequence_rest(&next.content).is_some() || find_mapping_col(&next.content).is_none() {
+            let content = next.content(&source);
+            if sequence_rest(content).is_some() || find_mapping_col(content).is_none() {
                 break;
             }
-            let next = next.clone();
+            let content = next.content(&source);
             self.pos += 1;
             let (key, value) =
-                self.parse_mapping_pair(&next, 0, &next.content, item_indent, depth + 1)?;
+                self.parse_mapping_pair(&next, 0, content, item_indent, depth + 1)?;
             self.check_duplicate_key(&mut seen, &key)?;
             entries.push((key, value));
             self.check_collection_items(entries.len(), next.span())?;
         }
 
         let span = Span::new(
-            line.start + line.indent + rest_start,
+            line.start() + line.indent() + rest_start,
             entries
                 .last()
                 .map(|(_, value)| value.span.end)
-                .unwrap_or(line.start + line.indent + rest_start + rest.len()),
-            line.no,
-            line.indent + rest_start + 1,
+                .unwrap_or(line.start() + line.indent() + rest_start + rest.len()),
+            line.no(),
+            line.indent() + rest_start + 1,
         );
         self.emit_mapping_end(span);
-        Ok(mapping_node(entries, span))
+        Ok(mapping_node(entries.into_vec(), span))
     }
 
     fn parse_explicit_block_key(
@@ -1722,7 +2133,7 @@ impl Parser {
             self.parse_block_scalar(
                 header,
                 parent_indent,
-                line.local_span(value_start, line.content.len()),
+                line.local_span(value_start, line.content(&self.source).len()),
                 depth + 1,
                 false,
             )
@@ -1772,7 +2183,7 @@ impl Parser {
             self.parse_block_scalar(
                 header,
                 parent_indent,
-                line.local_span(value_start, line.content.len()),
+                line.local_span(value_start, line.content(&self.source).len()),
                 depth + 1,
                 false,
             )
@@ -1799,12 +2210,13 @@ impl Parser {
         depth: usize,
     ) -> Result<Node> {
         self.check_depth(depth)?;
-        let sequence_indent = line.indent + sequence_start;
+        let source = Rc::clone(&self.source);
+        let sequence_indent = line.indent() + sequence_start;
         self.emit_sequence_start(
             CollectionStyle::Block,
             line.local_span(sequence_start, sequence_start + sequence_text.len()),
         );
-        let mut items = Vec::new();
+        let mut items = NodeItems::new();
         let first = self.parse_sequence_value_from_line(
             line,
             sequence_start,
@@ -1818,26 +2230,18 @@ impl Parser {
             line.local_span(sequence_start, sequence_start + sequence_text.len()),
         )?;
 
-        loop {
-            self.skip_blanks();
-            let Some(next) = self.peek_content() else {
-                break;
-            };
-            if next.indent != sequence_indent {
+        while let Some(next) = self.content_after_blanks()? {
+            if next.indent() != sequence_indent {
                 break;
             }
-            let Some((_, _)) = sequence_rest(&next.content) else {
+            let content = next.content(&source);
+            let Some((_, _)) = sequence_rest(content) else {
                 break;
             };
-            let next = next.clone();
+            let content = next.content(&source);
             self.pos += 1;
-            let item = self.parse_sequence_value_from_line(
-                &next,
-                0,
-                &next.content,
-                sequence_indent,
-                depth + 1,
-            )?;
+            let item =
+                self.parse_sequence_value_from_line(&next, 0, content, sequence_indent, depth + 1)?;
             items.push(item);
             self.check_collection_items(items.len(), next.span())?;
         }
@@ -1845,15 +2249,15 @@ impl Parser {
         let end = items
             .last()
             .map(|item| item.span.end)
-            .unwrap_or_else(|| line.start + line.indent + sequence_start + sequence_text.len());
+            .unwrap_or_else(|| line.start() + line.indent() + sequence_start + sequence_text.len());
         let span = Span::new(
-            line.start + line.indent + sequence_start,
+            line.start() + line.indent() + sequence_start,
             end,
-            line.no,
-            line.indent + sequence_start + 1,
+            line.no(),
+            line.indent() + sequence_start + 1,
         );
         self.emit_sequence_end(span);
-        Ok(sequence_node(items, span))
+        Ok(sequence_node(items.into_vec(), span))
     }
 
     fn parse_sequence_value_from_line(
@@ -1940,16 +2344,20 @@ impl Parser {
         )?;
         let mut value = Node::null(line.local_span(marker_start, marker_start + 1));
         let mut emitted_value = false;
-        self.skip_blanks();
-        if let Some((next, value_rest_start, value_rest)) = self.peek_content().and_then(|next| {
-            (next.indent == item_indent)
-                .then(|| {
-                    explicit_value_rest(&next.content).map(|(value_rest_start, value_rest)| {
-                        (next.clone(), value_rest_start, value_rest.to_string())
-                    })
+        let source = Rc::clone(&self.source);
+        let explicit_value = if let Some(next) = self.content_after_blanks()? {
+            let content = next.content(&source);
+            if next.indent() == item_indent {
+                explicit_value_rest(content).map(|(value_rest_start, value_rest)| {
+                    (next, value_rest_start, value_rest.to_string())
                 })
-                .flatten()
-        }) {
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        if let Some((next, value_rest_start, value_rest)) = explicit_value {
             self.pos += 1;
             value = self.parse_explicit_block_value(
                 &next,
@@ -1964,10 +2372,10 @@ impl Parser {
             self.emit_null_scalar(value.span);
         }
         let span = Span::new(
-            line.start + line.indent + marker_start,
+            line.start() + line.indent() + marker_start,
             value.span.end,
-            line.no,
-            line.indent + marker_start + 1,
+            line.no(),
+            line.indent() + marker_start + 1,
         );
         self.emit_mapping_end(span);
         self.record_merge_key(&key);
@@ -1987,7 +2395,7 @@ impl Parser {
             CollectionStyle::Block,
             line.local_span(local_start, local_start + text.len()),
         );
-        let mut seen = HashMap::<DuplicateKey, Span>::new();
+        let mut seen = DuplicateKeyTracker::new();
         let (key, value) =
             self.parse_mapping_pair(line, local_start, text, pair_indent, depth + 1)?;
         self.check_duplicate_key(&mut seen, &key)?;
@@ -2246,7 +2654,7 @@ impl Parser {
         local_start: usize,
         depth: usize,
     ) -> Result<Node> {
-        self.parse_inline_value(text, line, local_start, line.indent, depth)
+        self.parse_inline_value(text, line, local_start, line.indent(), depth)
     }
 
     fn parse_mapping_value_or_null(
@@ -2256,29 +2664,25 @@ impl Parser {
         depth: usize,
     ) -> Result<Node> {
         self.check_depth(depth)?;
-        self.skip_blanks();
-        match self.peek_content() {
+        let source = Rc::clone(&self.source);
+        match self.content_after_blanks()? {
             Some(next)
-                if next.indent == parent_indent && sequence_rest(&next.content).is_some() =>
+                if next.indent() == parent_indent
+                    && sequence_rest(next.content(&source)).is_some() =>
             {
                 self.parse_sequence(parent_indent, depth)
             }
             Some(next)
-                if next.indent > parent_indent
+                if next.indent() > parent_indent
                     && self.empty_node_property_before_indentless_sequence(parent_indent)? =>
             {
-                let line = next.clone();
+                let line = next;
+                let content = line.content(&source);
                 self.pos += 1;
-                self.parse_mapping_value_properties(
-                    &line.content,
-                    &line,
-                    0,
-                    parent_indent,
-                    depth + 1,
-                )?
-                .ok_or_else(|| {
-                    Error::new("expected mapping value after node property", line.span())
-                })
+                self.parse_mapping_value_properties(content, &line, 0, parent_indent, depth + 1)?
+                    .ok_or_else(|| {
+                        Error::new("expected mapping value after node property", line.span())
+                    })
             }
             _ => self.parse_nested_or_null(parent_indent, span, depth),
         }
@@ -2292,21 +2696,23 @@ impl Parser {
         properties: &mut NodePropertyState,
     ) -> Result<Node> {
         self.check_depth(depth)?;
-        self.skip_blanks();
-        match self.peek_content() {
+        let source = Rc::clone(&self.source);
+        match self.content_after_blanks()? {
             Some(next)
-                if next.indent == parent_indent && sequence_rest(&next.content).is_some() =>
+                if next.indent() == parent_indent
+                    && sequence_rest(next.content(&source)).is_some() =>
             {
                 self.parse_sequence(parent_indent, depth)
             }
             Some(next)
-                if next.indent > parent_indent
+                if next.indent() > parent_indent
                     && self.empty_node_property_before_indentless_sequence(parent_indent)? =>
             {
-                let line = next.clone();
+                let line = next;
+                let content = line.content(&source);
                 self.pos += 1;
                 self.parse_mapping_value_properties_with(
-                    &line.content,
+                    content,
                     &line,
                     0,
                     parent_indent,
@@ -2318,16 +2724,16 @@ impl Parser {
                 })
             }
             Some(next)
-                if next.indent > parent_indent
-                    && sequence_rest(&next.content).is_none()
-                    && !starts_mapping_entry(&next.content) =>
+                if next.indent() > parent_indent
+                    && sequence_rest(next.content(&source)).is_none()
+                    && !starts_mapping_entry(next.content(&source)) =>
             {
-                let next = next.clone();
+                let content = next.content(&source);
                 self.pos += 1;
-                if is_plain_scalar_text(&next.content) {
-                    self.parse_plain_scalar(&next.content, &next, 0, parent_indent, depth, false)
+                if is_plain_scalar_text(content) {
+                    self.parse_plain_scalar(content, &next, 0, parent_indent, depth, false)
                 } else if let Some(node) = self.parse_mapping_value_properties_with(
-                    &next.content,
+                    content,
                     &next,
                     0,
                     parent_indent,
@@ -2336,10 +2742,10 @@ impl Parser {
                 )? {
                     Ok(node)
                 } else {
-                    self.parse_inline_value(&next.content, &next, 0, parent_indent, depth)
+                    self.parse_inline_value(content, &next, 0, parent_indent, depth)
                 }
             }
-            Some(next) if next.indent > parent_indent => self.parse_node(depth),
+            Some(next) if next.indent() > parent_indent => self.parse_node(depth),
             _ => {
                 self.emit_null_scalar(span);
                 Ok(Node::empty_scalar(span))
@@ -2354,10 +2760,11 @@ impl Parser {
         depth: usize,
     ) -> Result<Node> {
         self.check_depth(depth)?;
-        self.skip_blanks();
-        match self.peek_content() {
+        let source = Rc::clone(&self.source);
+        match self.content_after_blanks()? {
             Some(next)
-                if next.indent == parent_indent && sequence_rest(&next.content).is_some() =>
+                if next.indent() == parent_indent
+                    && sequence_rest(next.content(&source)).is_some() =>
             {
                 self.parse_sequence(parent_indent, depth)
             }
@@ -2372,22 +2779,22 @@ impl Parser {
         depth: usize,
     ) -> Result<Node> {
         self.check_depth(depth)?;
-        self.skip_blanks();
-        match self.peek_content() {
+        let source = Rc::clone(&self.source);
+        match self.content_after_blanks()? {
             Some(next)
-                if next.indent > parent_indent
-                    && sequence_rest(&next.content).is_none()
-                    && !starts_mapping_entry(&next.content) =>
+                if next.indent() > parent_indent
+                    && sequence_rest(next.content(&source)).is_none()
+                    && !starts_mapping_entry(next.content(&source)) =>
             {
-                let next = next.clone();
+                let content = next.content(&source);
                 self.pos += 1;
-                if is_plain_scalar_text(&next.content) {
-                    self.parse_plain_scalar(&next.content, &next, 0, parent_indent, depth, false)
+                if is_plain_scalar_text(content) {
+                    self.parse_plain_scalar(content, &next, 0, parent_indent, depth, false)
                 } else {
-                    self.parse_inline_value(&next.content, &next, 0, parent_indent, depth)
+                    self.parse_inline_value(content, &next, 0, parent_indent, depth)
                 }
             }
-            Some(next) if next.indent > parent_indent => self.parse_node(depth),
+            Some(next) if next.indent() > parent_indent => self.parse_node(depth),
             _ => {
                 self.emit_null_scalar(span);
                 Ok(Node::empty_scalar(span))
@@ -2409,9 +2816,10 @@ impl Parser {
         let first_ws = first_text.len() - first_text.trim_start().len();
         let first_start = first_start + first_ws;
         let mut out = None::<String>;
-        let mut end = first_line.start + first_line.indent + first_start + first_trimmed.len();
+        let mut end = first_line.start() + first_line.indent() + first_start + first_trimmed.len();
         let mut continued = false;
         let mut comment_terminated = first_line.had_comment;
+        let source = Rc::clone(&self.source);
 
         loop {
             if comment_terminated {
@@ -2419,38 +2827,42 @@ impl Parser {
             }
             let mut lookahead = self.pos;
             let mut blank_breaks = 0usize;
-            while matches!(
-                self.lines.get(lookahead).map(|line| &line.kind),
-                Some(LineKind::Blank)
-            ) {
-                if self.lines[lookahead].had_comment {
-                    comment_terminated = true;
-                    break;
+            loop {
+                match self.lines.get(&self.source, lookahead)? {
+                    Some(line) if line.kind == LineKind::Blank => {
+                        if line.had_comment {
+                            comment_terminated = true;
+                            break;
+                        }
+                        lookahead += 1;
+                        blank_breaks += 1;
+                    }
+                    _ => break,
                 }
-                lookahead += 1;
-                blank_breaks += 1;
             }
             if comment_terminated {
                 break;
             }
-            let Some(next) = self.lines.get(lookahead).filter(|line| {
-                matches!(line.kind, LineKind::Content | LineKind::Directive)
-                    && is_plain_scalar_continuation_text(&line.content)
-            }) else {
+            let Some(next) = self.line_at(lookahead)? else {
                 break;
             };
-            if next.indent < parent_indent
-                || (next.indent == parent_indent && !allow_same_indent_continuation)
-                || (next.indent <= parent_indent && sequence_rest(&next.content).is_some())
-                || starts_mapping_entry(&next.content)
+            if !matches!(next.kind, LineKind::Content | LineKind::Directive)
+                || !is_plain_scalar_continuation_text(next.content(&source))
             {
                 break;
             }
-            let next = next.clone();
+            let next_content = next.content(&source);
+            if next.indent() < parent_indent
+                || (next.indent() == parent_indent && !allow_same_indent_continuation)
+                || (next.indent() <= parent_indent && sequence_rest(next_content).is_some())
+                || starts_mapping_entry(next_content)
+            {
+                break;
+            }
             self.pos = lookahead + 1;
             continued = true;
             comment_terminated = next.had_comment;
-            let trimmed = next.content.trim();
+            let trimmed = next.content(&source).trim();
             if !trimmed.is_empty() {
                 let out = out.get_or_insert_with(|| first_trimmed.to_string());
                 if blank_breaks > 0 {
@@ -2462,7 +2874,7 @@ impl Parser {
                 }
                 out.push_str(trimmed);
             }
-            end = next.start + next.raw.len();
+            end = next.start() + next.raw_len();
         }
 
         if !continued {
@@ -2479,10 +2891,10 @@ impl Parser {
         let node = Node::new(
             Value::String(out),
             Span::new(
-                first_line.start + first_line.indent + first_start,
+                first_line.start() + first_line.indent() + first_start,
                 end,
-                first_line.no,
-                first_line.indent + first_start + 1,
+                first_line.no(),
+                first_line.indent() + first_start + 1,
             ),
         );
         self.check_scalar_node(&node)?;
@@ -2503,38 +2915,40 @@ impl Parser {
         let mut lines = Vec::new();
         let mut end = marker_span.end;
         let mut max_leading_blank_indent = 0usize;
+        let source = Rc::clone(&self.source);
 
-        while let Some(line) = self.lines.get(self.pos) {
+        while let Some(line) = self.line_at(self.pos)? {
+            let raw = line.raw(&source);
             if matches!(line.kind, LineKind::DocumentStart | LineKind::DocumentEnd) {
                 break;
             }
             if line.kind != LineKind::Blank
-                && (line.indent < parent_indent
-                    || (line.indent == parent_indent && !allow_same_indent_content))
+                && (line.indent() < parent_indent
+                    || (line.indent() == parent_indent && !allow_same_indent_content))
             {
                 break;
             }
             if line.kind == LineKind::Blank
-                && !line.raw.trim().is_empty()
-                && block_indent.is_some_and(|indent| line.indent < indent)
+                && !raw.trim().is_empty()
+                && block_indent.is_some_and(|indent| line.indent() < indent)
             {
                 break;
             }
-            let line = line.clone();
+            let raw = line.raw(&source);
             self.pos += 1;
-            let text = if line.raw.trim().is_empty() {
-                if let Some(tab_offset) = line.raw.bytes().position(|byte| byte == b'\t') {
+            let text = if raw.trim().is_empty() {
+                if let Some(tab_offset) = raw.bytes().position(|byte| byte == b'\t') {
                     if tab_offset == 0 {
                         return Err(Error::new(
                             "block scalar content cannot start with a tab",
-                            Span::point(line.start + tab_offset, line.no, tab_offset + 1),
+                            Span::point(line.start() + tab_offset, line.no(), tab_offset + 1),
                         ));
                     }
                     let indent = *block_indent.get_or_insert(tab_offset);
                     if tab_offset < indent {
                         return Err(Error::new(
                             "block scalar content cannot start with a tab",
-                            Span::point(line.start + tab_offset, line.no, tab_offset + 1),
+                            Span::point(line.start() + tab_offset, line.no(), tab_offset + 1),
                         ));
                     }
                     if max_leading_blank_indent > indent {
@@ -2543,29 +2957,29 @@ impl Parser {
                             line.local_span(0, 0),
                         ));
                     }
-                    line.raw_from(indent).to_string()
+                    line.raw_from(&source, indent).to_string()
                 } else {
                     if let Some(indent) = block_indent {
-                        line.raw_from(indent).to_string()
+                        line.raw_from(&source, indent).to_string()
                     } else {
-                        max_leading_blank_indent = max_leading_blank_indent.max(line.raw.len());
+                        max_leading_blank_indent = max_leading_blank_indent.max(line.raw_len());
                         String::new()
                     }
                 }
             } else {
-                let indent = *block_indent.get_or_insert(line.indent);
+                let indent = *block_indent.get_or_insert(line.indent());
                 if max_leading_blank_indent > indent {
                     return Err(Error::new(
                         "block scalar content is less indented than a preceding blank line",
                         line.local_span(0, 0),
                     ));
                 }
-                if line.indent < indent {
+                if line.indent() < indent {
                     break;
                 }
-                line.raw_from(indent).to_string()
+                line.raw_from(&source, indent).to_string()
             };
-            end = line.start + line.raw.len();
+            end = line.start() + line.raw_len();
             lines.push(text);
         }
 
@@ -2738,7 +3152,7 @@ impl Parser {
             self.push_anchor_meta(anchor.name.clone(), anchor.span);
             let generation = self.anchors.begin(anchor.name.clone(), anchor.span);
             let node = if anchor.rest.trim().is_empty() {
-                if properties.allow_document_root_continuation && line.indent == 0 {
+                if properties.allow_document_root_continuation && line.indent() == 0 {
                     self.parse_document_root_or_null(anchor.span, depth + 1)?
                 } else {
                     self.parse_nested_or_null(parent_indent, anchor.span, depth + 1)?
@@ -2767,7 +3181,7 @@ impl Parser {
             reject_same_line_block_sequence_after_property(tag.rest, line, tag.rest_start)?;
             self.push_tag_meta(tag_value.clone(), tag.span);
             let node = if tag.rest.trim().is_empty() {
-                if properties.allow_document_root_continuation && line.indent == 0 {
+                if properties.allow_document_root_continuation && line.indent() == 0 {
                     self.parse_document_root_or_null(tag.span, depth + 1)?
                 } else {
                     self.parse_nested_or_null(parent_indent, tag.span, depth + 1)?
@@ -2828,7 +3242,14 @@ impl Parser {
             self.current_document_has_merge_key |= has_merge_key;
             return Ok(node);
         }
-        let node = parse_scalar(text, line, local_start, self.active_schema)?;
+        let node = parse_scalar(
+            text,
+            line,
+            local_start,
+            &self.source,
+            self.scalar_storage,
+            self.active_schema,
+        )?;
         self.check_scalar_node(&node)?;
         self.emit_scalar_node(&node, scalar_style_for_text(text));
         Ok(node)
@@ -2843,24 +3264,25 @@ impl Parser {
         quote: char,
         allow_parent_indent_continuation: bool,
     ) -> Result<Node> {
-        let mut text = quoted_line_text(first_line, first_start, first_text, quote);
-        let mut end = first_line.start + first_line.indent + first_start + first_text.len();
+        let source = Rc::clone(&self.source);
+        let mut text = quoted_line_text(&source, first_line, first_start, first_text, quote);
+        let mut end = first_line.start() + first_line.indent() + first_start + first_text.len();
         let require_indented_continuation =
-            !allow_parent_indent_continuation && first_line.indent + first_start > parent_indent;
+            !allow_parent_indent_continuation && first_line.indent() + first_start > parent_indent;
 
         while quoted_scalar_accepted_end(&text, quote).is_none() {
-            let Some(line) = self.lines.get(self.pos).cloned() else {
+            let Some(line) = self.line_at(self.pos)? else {
                 break;
             };
             match line.kind {
                 LineKind::Blank => {
                     self.pos += 1;
                     text.push('\n');
-                    end = line.start + line.raw.len();
+                    end = line.start() + line.raw_len();
                 }
-                LineKind::Content if line.indent >= parent_indent => {
-                    if require_indented_continuation && line.indent <= parent_indent {
-                        if line.content.starts_with('\t') {
+                LineKind::Content if line.indent() >= parent_indent => {
+                    if require_indented_continuation && line.indent() <= parent_indent {
+                        if line.content(&source).starts_with('\t') {
                             return Err(tab_indentation_error(&line));
                         }
                         return Err(Error::new(
@@ -2871,14 +3293,15 @@ impl Parser {
                     self.pos += 1;
                     let line_text_start = text.len() + 1;
                     text.push('\n');
-                    let line_text = quoted_line_text(&line, 0, &line.content, quote);
+                    let content = line.content(&source);
+                    let line_text = quoted_line_text(&source, &line, 0, content, quote);
                     text.push_str(&line_text);
                     end = quoted_scalar_accepted_end(&text, quote)
                         .filter(|close_end| *close_end >= line_text_start)
                         .map(|close_end| {
-                            line.start + line.content_start + close_end - line_text_start
+                            line.start() + line.content_start() + close_end - line_text_start
                         })
-                        .unwrap_or_else(|| line.start + line.content_start + line_text.len());
+                        .unwrap_or_else(|| line.start() + line.content_start() + line_text.len());
                 }
                 LineKind::Content
                 | LineKind::Directive
@@ -2888,10 +3311,10 @@ impl Parser {
         }
 
         let span = Span::new(
-            first_line.start + first_line.indent + first_start,
+            first_line.start() + first_line.indent() + first_start,
             end,
-            first_line.no,
-            first_line.indent + first_start + 1,
+            first_line.no(),
+            first_line.indent() + first_start + 1,
         );
         let text_end = quoted_scalar_accepted_end(&text, quote).unwrap_or(text.len());
         let text = fold_flow_quoted_scalar(&text[..text_end], quote);
@@ -2914,23 +3337,29 @@ impl Parser {
         parent_indent: usize,
     ) -> Result<FlowBuffer> {
         let mut buffer = FlowBuffer::single(first_text, first_line, first_start);
+        let source = Rc::clone(&self.source);
         let require_continuation_indent =
-            (first_line.indent + first_start > parent_indent).then_some(parent_indent);
+            (first_line.indent() + first_start > parent_indent).then_some(parent_indent);
         while !flow_collection_is_closed(&buffer.text) {
-            let Some(line) = self.lines.get(self.pos).cloned() else {
+            let Some(line) = self.line_at(self.pos)? else {
                 break;
             };
             match line.kind {
                 LineKind::Blank => {
-                    let mark =
-                        SourceMark::new(line.start + line.raw.len(), line.no, line.raw.len() + 1);
+                    let mark = SourceMark::new(
+                        line.start() + line.raw_len(),
+                        line.no(),
+                        line.raw_len() + 1,
+                    );
                     buffer.push_virtual_separator(mark);
                     self.pos += 1;
                 }
                 LineKind::Content | LineKind::Directive => {
                     if require_continuation_indent.is_some_and(|indent| {
-                        line.indent <= indent
-                            && !flow_continuation_may_start_at_parent_indent_after_ws(&line.content)
+                        line.indent() <= indent
+                            && !flow_continuation_may_start_at_parent_indent_after_ws(
+                                line.content(&source),
+                            )
                     }) {
                         return Err(Error::new(
                             "flow collection continuation is not sufficiently indented",
@@ -2938,7 +3367,8 @@ impl Parser {
                         ));
                     }
                     buffer.push_virtual_separator(SourceMark::for_line_content(&line, 0));
-                    buffer.push_source_text(&line.content, &line, 0);
+                    let content = line.content(&source);
+                    buffer.push_source_text(content, &line, 0);
                     self.pos += 1;
                 }
                 LineKind::DocumentStart | LineKind::DocumentEnd => break,
@@ -2947,12 +3377,19 @@ impl Parser {
         Ok(buffer)
     }
 
-    fn check_depth(&self, depth: usize) -> Result<()> {
+    fn check_depth(&mut self, depth: usize) -> Result<()> {
+        if self
+            .options
+            .selected_max_nesting_depth()
+            .is_none_or(|max| depth <= max)
+        {
+            return Ok(());
+        }
         let span = self
-            .peek_content()
-            .map(Line::span)
+            .peek_content()?
+            .map(|line| line.span())
             .unwrap_or_else(|| Span::point(self.input_len, 1, self.input_len + 1));
-        self.options.check_nesting_depth(depth, span)
+        Err(Error::limit("maximum YAML nesting depth exceeded", span))
     }
 
     fn check_scalar_bytes(&self, len: usize, span: Span) -> Result<()> {
@@ -2967,9 +3404,9 @@ impl Parser {
         self.options.check_collection_items(len, span)
     }
 
-    fn current_content(&mut self) -> Result<&Line> {
-        self.skip_blanks();
-        self.peek_content().ok_or_else(|| {
+    #[inline]
+    fn current_content(&mut self) -> Result<Line> {
+        self.content_after_blanks()?.ok_or_else(|| {
             Error::new(
                 "expected YAML content",
                 Span::point(self.input_len, 1, self.input_len + 1),
@@ -2977,43 +3414,67 @@ impl Parser {
         })
     }
 
-    fn peek_content(&self) -> Option<&Line> {
-        match self.lines.get(self.pos) {
+    #[inline]
+    fn peek_content(&mut self) -> Result<Option<Line>> {
+        Ok(match self.line_at(self.pos)? {
             Some(line) if line.kind == LineKind::Content => Some(line),
             _ => None,
-        }
+        })
     }
 
-    fn peek_content_from(&self, mut pos: usize) -> Option<&Line> {
+    fn peek_content_from(&mut self, mut pos: usize) -> Result<Option<Line>> {
         loop {
-            match self.lines.get(pos) {
+            match self.line_at(pos)? {
                 Some(line) if line.kind == LineKind::Blank => pos += 1,
-                Some(line) if line.kind == LineKind::Content => return Some(line),
-                _ => return None,
+                Some(line) if line.kind == LineKind::Content => return Ok(Some(line)),
+                _ => return Ok(None),
             }
         }
     }
 
-    fn empty_node_property_before_indentless_sequence(&self, parent_indent: usize) -> Result<bool> {
-        let Some(line) = self.peek_content() else {
+    #[inline]
+    fn line_after_blanks(&mut self) -> Result<Option<Line>> {
+        loop {
+            match self.lines.get(&self.source, self.pos)? {
+                Some(line) if line.kind == LineKind::Blank => self.pos += 1,
+                Some(line) => return Ok(Some(*line)),
+                None => return Ok(None),
+            }
+        }
+    }
+
+    #[inline]
+    fn content_after_blanks(&mut self) -> Result<Option<Line>> {
+        Ok(match self.line_after_blanks()? {
+            Some(line) if line.kind == LineKind::Content => Some(line),
+            _ => None,
+        })
+    }
+
+    fn empty_node_property_before_indentless_sequence(
+        &mut self,
+        parent_indent: usize,
+    ) -> Result<bool> {
+        let Some(line) = self.peek_content()? else {
             return Ok(false);
         };
-        if !empty_node_property_line(line)? {
+        if !empty_node_property_line(&line, &self.source)? {
             return Ok(false);
         }
         Ok(matches!(
-            self.peek_content_from(self.pos + 1),
-            Some(next) if next.indent == parent_indent && sequence_rest(&next.content).is_some()
+            self.peek_content_from(self.pos + 1)?,
+            Some(next)
+                if next.indent() == parent_indent
+                    && sequence_rest(next.content(&self.source)).is_some()
         ))
     }
 
-    fn skip_blanks(&mut self) {
-        while matches!(
-            self.lines.get(self.pos).map(|line| &line.kind),
-            Some(LineKind::Blank)
-        ) {
+    #[inline]
+    fn skip_blanks(&mut self) -> Result<()> {
+        while matches!(self.line_kind_at(self.pos)?, Some(LineKind::Blank)) {
             self.pos += 1;
         }
+        Ok(())
     }
 }
 
@@ -3021,30 +3482,8 @@ fn block_scalar_line_is_more_indented(line: &str) -> bool {
     line.starts_with(' ') || line.starts_with('\t')
 }
 
-fn preprocess(input: &str) -> Result<Vec<Line>> {
-    let source = Rc::<str>::from(input);
-    let mut out = Vec::new();
-    let mut offset = 0;
-    for (idx, chunk) in input.split_inclusive('\n').enumerate() {
-        let raw_len = chunk.trim_end_matches('\n').trim_end_matches('\r').len();
-        push_preprocessed_line(&mut out, &source, idx + 1, offset, raw_len)?;
-        offset += chunk.len();
-    }
-    if !input.is_empty() && !input.ends_with('\n') {
-        // The last line was already yielded by split_inclusive.
-    } else if input.is_empty() {
-        return Ok(out);
-    }
-    Ok(out)
-}
-
-fn push_preprocessed_line(
-    out: &mut Vec<Line>,
-    source: &Rc<str>,
-    no: usize,
-    start: usize,
-    raw_len: usize,
-) -> Result<()> {
+fn preprocess_line(source: &str, no: usize, start: usize, raw_len: usize) -> Result<Line> {
+    let no = compact_offset(no)?;
     let raw = &source[start..start + raw_len];
     let bom_len = if start == 0 && raw.starts_with('\u{feff}') {
         '\u{feff}'.len_utf8()
@@ -3052,60 +3491,32 @@ fn push_preprocessed_line(
         0
     };
     let raw_body = &raw[bom_len..];
-    let raw_indent = raw_body.bytes().take_while(|byte| *byte == b' ').count();
-    if raw_body.trim().is_empty() {
-        out.push(Line {
+    let scan = scan_line(raw_body);
+    if scan.blank {
+        return Ok(Line {
+            raw: LineText::new(start, start + raw.len())?,
             no,
-            start,
-            raw: LineText::new(source, start, start + raw.len()),
-            indent: raw_indent,
-            content_start: bom_len + raw_indent,
-            content: LineText::new(
-                source,
-                start + bom_len + raw_indent,
-                start + bom_len + raw_indent,
-            ),
+            indent: compact_offset(scan.indent)?,
+            content_start: compact_offset(bom_len + scan.indent)?,
+            content_end: compact_offset(bom_len + scan.indent)?,
             kind: LineKind::Blank,
-            had_comment: false,
+            had_comment: scan.had_comment,
         });
-        return Ok(());
     }
-    let comment = comment_start(raw_body).map(|idx| bom_len + idx);
-    let end = comment.unwrap_or(raw.len());
-    let had_comment = comment.is_some();
-    let no_comment = raw[bom_len..end].trim_end();
-    let indent = no_comment.bytes().take_while(|byte| *byte == b' ').count();
-    let content_start = bom_len + indent;
-    let content_end = bom_len + no_comment.len();
+    let content_start = bom_len + scan.indent;
+    let content_end = bom_len + scan.content_end;
     let content = &raw[content_start..content_end];
     if let Some(tab_offset) =
-        block_indicator_tab_separation_offset(&no_comment.as_bytes()[indent..])
+        block_indicator_tab_separation_offset(&raw_body.as_bytes()[scan.indent..scan.content_end])
     {
         return Err(Error::new(
             "tabs are not allowed as separation after block indicators",
             Span::point(
                 start + content_start + tab_offset,
-                no,
+                no as usize,
                 content_start + tab_offset + 1,
             ),
         ));
-    }
-    if content.trim().is_empty() {
-        out.push(Line {
-            no,
-            start,
-            raw: LineText::new(source, start, start + raw.len()),
-            indent: raw_indent,
-            content_start: bom_len + raw_indent,
-            content: LineText::new(
-                source,
-                start + bom_len + raw_indent,
-                start + bom_len + raw_indent,
-            ),
-            kind: LineKind::Blank,
-            had_comment,
-        });
-        return Ok(());
     }
     let kind = match content {
         "---" => LineKind::DocumentStart,
@@ -3117,7 +3528,7 @@ fn push_preprocessed_line(
                 Span::new(
                     start + content_start,
                     start + content_start + content.len(),
-                    no,
+                    no as usize,
                     content_start + 1,
                 ),
             ));
@@ -3125,40 +3536,101 @@ fn push_preprocessed_line(
         _ if content.starts_with('%') => LineKind::Directive,
         _ => LineKind::Content,
     };
-    out.push(Line {
+    Ok(Line {
+        raw: LineText::new(start, start + raw.len())?,
         no,
-        start,
-        raw: LineText::new(source, start, start + raw.len()),
-        indent,
-        content_start,
-        content: LineText::new(source, start + content_start, start + content_end),
+        indent: compact_offset(scan.indent)?,
+        content_start: compact_offset(content_start)?,
+        content_end: compact_offset(content_end)?,
         kind,
-        had_comment,
-    });
-    Ok(())
+        had_comment: scan.had_comment,
+    })
+}
+
+struct LineScan {
+    indent: usize,
+    content_end: usize,
+    blank: bool,
+    had_comment: bool,
+}
+
+fn scan_line(raw_body: &str) -> LineScan {
+    let mut indent = 0usize;
+    let mut in_indent = true;
+    let mut single = false;
+    let mut double = false;
+    let mut escaped = false;
+    let mut previous_whitespace = true;
+    let mut content_end = None;
+
+    for (idx, ch) in raw_body.char_indices() {
+        if in_indent {
+            if ch == ' ' {
+                indent += 1;
+            } else {
+                in_indent = false;
+            }
+        }
+
+        if double && escaped {
+            escaped = false;
+            if !ch.is_whitespace() {
+                content_end = Some(idx + ch.len_utf8());
+            }
+            previous_whitespace = ch.is_whitespace();
+            continue;
+        }
+
+        match ch {
+            '\\' if double => escaped = true,
+            '"' if !single => double = !double,
+            '\'' if !double => single = !single,
+            '#' if !single && !double && previous_whitespace => {
+                return LineScan {
+                    indent,
+                    content_end: content_end.unwrap_or(indent),
+                    blank: content_end.is_none(),
+                    had_comment: true,
+                };
+            }
+            _ => {}
+        }
+
+        if !ch.is_whitespace() {
+            content_end = Some(idx + ch.len_utf8());
+        }
+        previous_whitespace = ch.is_whitespace();
+    }
+
+    LineScan {
+        indent,
+        content_end: content_end.unwrap_or(indent),
+        blank: content_end.is_none(),
+        had_comment: false,
+    }
 }
 
 pub(crate) fn comment_start(raw: &str) -> Option<usize> {
     let mut single = false;
     let mut double = false;
     let mut escaped = false;
+    let mut previous_whitespace = true;
     for (idx, ch) in raw.char_indices() {
         if double && escaped {
             escaped = false;
+            previous_whitespace = ch.is_whitespace();
             continue;
         }
         match ch {
             '\\' if double => escaped = true,
             '"' if !single => double = !double,
             '\'' if !double => single = !single,
-            '#' if !single
-                && !double
-                && (idx == 0 || raw[..idx].chars().last().is_some_and(char::is_whitespace)) =>
-            {
+            '#' if !single && !double && previous_whitespace => {
                 return Some(idx);
             }
             _ => {}
         }
+        previous_whitespace = ch.is_whitespace();
     }
     None
 }
@@ -3181,16 +3653,17 @@ struct DirectiveField<'a> {
     end: usize,
 }
 
-fn directive_fields(line: &Line) -> Vec<DirectiveField<'_>> {
+fn directive_fields<'a>(line: &Line, source: &'a str) -> Vec<DirectiveField<'a>> {
     let mut fields = Vec::new();
     let mut start = None;
-    for (idx, ch) in line.content.char_indices() {
+    let content = line.content(source);
+    for (idx, ch) in content.char_indices() {
         if ch == '#' && start.is_none() {
             break;
         } else if ch.is_whitespace() {
             if let Some(field_start) = start.take() {
                 fields.push(DirectiveField {
-                    text: &line.content[field_start..idx],
+                    text: &content[field_start..idx],
                     start: field_start,
                     end: idx,
                 });
@@ -3201,9 +3674,9 @@ fn directive_fields(line: &Line) -> Vec<DirectiveField<'_>> {
     }
     if let Some(field_start) = start {
         fields.push(DirectiveField {
-            text: &line.content[field_start..],
+            text: &content[field_start..],
             start: field_start,
-            end: line.content.len(),
+            end: content.len(),
         });
     }
     fields
@@ -3255,18 +3728,18 @@ fn check_duplicate_for_schema(
     recording_events: bool,
     schema: Schema,
     options: LoadOptions,
-    seen: &mut HashMap<DuplicateKey, Span>,
+    seen: &mut DuplicateKeyTracker,
     key: &Node,
 ) -> Result<()> {
     if recording_events || (schema.is_legacy_compatible() && node_is_merge_key(key)) {
         return Ok(());
     }
-    check_duplicate_at_depth_limit(seen, key, 1, options.selected_max_nesting_depth())
+    check_duplicate_with_tracker_at_depth_limit(seen, key, 1, options.selected_max_nesting_depth())
 }
 
 fn node_is_merge_key(key: &Node) -> bool {
     match &key.value {
-        Value::String(value) => value == "<<",
+        Value::String(_) => key.as_str() == Some("<<"),
         Value::Tagged(tagged) if tagged.tag.is_yaml_core("merge") => {
             tagged.value.as_str() == Some("<<")
         }
@@ -3603,9 +4076,20 @@ fn is_plain_scalar_continuation_text(text: &str) -> bool {
     !text.trim().is_empty()
 }
 
-fn parse_scalar(text: &str, line: &Line, local_start: usize, schema: Schema) -> Result<Node> {
+fn parse_scalar(
+    text: &str,
+    line: &Line,
+    local_start: usize,
+    source: &Rc<str>,
+    scalar_storage: ScalarStorage,
+    schema: Schema,
+) -> Result<Node> {
     let span = line.local_span(local_start, local_start + text.len());
-    parse_scalar_with_schema(text, span, schema)
+    if scalar_storage == ScalarStorage::SourceBacked {
+        parse_source_scalar_with_schema(text, span, schema, source)
+    } else {
+        parse_scalar_with_schema(text, span, schema)
+    }
 }
 
 fn scalar_style_for_text(text: &str) -> ScalarStyle {
@@ -3735,9 +4219,10 @@ fn reject_same_line_block_sequence_after_property(
     Ok(())
 }
 
-fn empty_node_property_line(line: &Line) -> Result<bool> {
-    let text = line.content.trim();
-    let local_start = line.content.len() - line.content.trim_start().len();
+fn empty_node_property_line(line: &Line, source: &str) -> Result<bool> {
+    let content = line.content(source);
+    let text = content.trim();
+    let local_start = content.len() - content.trim_start().len();
     if let Some(anchor) = parse_metadata_token(text, line, local_start, '&')? {
         return Ok(anchor.rest.trim().is_empty());
     }
@@ -3862,7 +4347,10 @@ fn event_scalar_value(node: &Node) -> String {
             .scalar_source()
             .map(|source| source.raw().to_string())
             .unwrap_or_else(|| value.to_string()),
-        Value::String(value) => value.clone(),
+        Value::String(_) => node
+            .as_str()
+            .expect("string node has semantic string value")
+            .to_string(),
         Value::Tagged(tagged) => event_scalar_value(&tagged.value),
         Value::Sequence(_) | Value::Mapping(_) => String::new(),
     }
@@ -3884,7 +4372,10 @@ fn event_scalar_value_len(node: &Node) -> usize {
             .scalar_source()
             .map(|source| source.raw().len())
             .unwrap_or_else(|| value.to_string().len()),
-        Value::String(value) => value.len(),
+        Value::String(_) => node
+            .as_str()
+            .expect("string node has semantic string value")
+            .len(),
         Value::Tagged(tagged) => event_scalar_value_len(&tagged.value),
         Value::Sequence(_) | Value::Mapping(_) => 0,
     }
@@ -3895,95 +4386,153 @@ fn parse_scalar_with_span(text: &str, span: Span) -> Result<Node> {
 }
 
 fn parse_scalar_with_schema(text: &str, span: Span, schema: Schema) -> Result<Node> {
+    parse_scalar_with_schema_and_source(text, span, schema, None)
+}
+
+fn parse_source_scalar_with_schema(
+    text: &str,
+    span: Span,
+    schema: Schema,
+    source: &Rc<str>,
+) -> Result<Node> {
+    parse_scalar_with_schema_and_source(text, span, schema, Some(source))
+}
+
+fn parse_scalar_with_schema_and_source(
+    text: &str,
+    span: Span,
+    schema: Schema,
+    source: Option<&Rc<str>>,
+) -> Result<Node> {
     if schema == Schema::Failsafe {
-        return parse_failsafe_scalar(text, span);
+        return parse_failsafe_scalar(text, span, source);
     }
     if schema == Schema::Json {
-        return parse_json_scalar(text, span);
+        return parse_json_scalar(text, span, source);
     }
     if text.is_empty() || text == "~" || text.eq_ignore_ascii_case("null") {
-        return Ok(Node::new(Value::Null, span).with_scalar_source(text));
+        return Ok(node_with_scalar_source(Value::Null, span, text, source));
     }
     if schema.is_legacy_compatible()
         && let Some(value) = parse_yaml11_bool(text)
     {
-        return Ok(Node::new(Value::Bool(value), span).with_scalar_source(text));
+        return Ok(node_with_scalar_source(
+            Value::Bool(value),
+            span,
+            text,
+            source,
+        ));
     }
     if text == "true" || text == "True" || text == "TRUE" {
-        return Ok(Node::new(Value::Bool(true), span).with_scalar_source(text));
+        return Ok(node_with_scalar_source(
+            Value::Bool(true),
+            span,
+            text,
+            source,
+        ));
     }
     if text == "false" || text == "False" || text == "FALSE" {
-        return Ok(Node::new(Value::Bool(false), span).with_scalar_source(text));
+        return Ok(node_with_scalar_source(
+            Value::Bool(false),
+            span,
+            text,
+            source,
+        ));
     }
     if text.starts_with('"') {
-        return parse_double_quoted(text, span);
+        return parse_double_quoted(text, span, source);
     }
     if text.starts_with('\'') {
-        return parse_single_quoted(text, span);
+        return parse_single_quoted(text, span, source);
     }
     if schema.is_legacy_compatible() && is_yaml11_timestamp(text) {
-        return Ok(yaml11_timestamp_node(text, span));
+        return Ok(yaml11_timestamp_node(text, span, source));
     }
     if schema.is_legacy_compatible()
         && let Some(number) = parse_yaml11_number(text)?
     {
-        return Ok(Node::new(Value::Number(number), span).with_scalar_source(text));
+        return Ok(node_with_scalar_source(
+            Value::Number(number),
+            span,
+            text,
+            source,
+        ));
     }
     if schema.is_legacy_compatible() && is_yaml11_invalid_octal(text) {
-        return Ok(Node::new(Value::String(text.to_string()), span).with_scalar_source(text));
+        return Ok(string_node(text, span, source, true));
     }
     match parse_number(text)? {
         NumberParse::Number(number) => {
-            return Ok(Node::new(Value::Number(number), span).with_scalar_source(text));
+            return Ok(node_with_scalar_source(
+                Value::Number(number),
+                span,
+                text,
+                source,
+            ));
         }
         NumberParse::InvalidInteger => {
-            return Ok(Node::new(Value::String(text.to_string()), span).with_scalar_source(text));
+            return Ok(string_node(text, span, source, true));
         }
         NumberParse::PlainScalar => {}
     }
-    Ok(Node::new(Value::String(text.to_string()), span))
+    Ok(string_node(text, span, source, false))
 }
 
-fn parse_failsafe_scalar(text: &str, span: Span) -> Result<Node> {
+fn parse_failsafe_scalar(text: &str, span: Span, source: Option<&Rc<str>>) -> Result<Node> {
     if text.starts_with('"') {
-        return parse_double_quoted(text, span);
+        return parse_double_quoted(text, span, source);
     }
     if text.starts_with('\'') {
-        return parse_single_quoted(text, span);
+        return parse_single_quoted(text, span, source);
     }
-    Ok(Node::new(Value::String(text.to_string()), span).with_scalar_source(text))
+    Ok(string_node(text, span, source, true))
 }
 
-fn parse_json_scalar(text: &str, span: Span) -> Result<Node> {
+fn parse_json_scalar(text: &str, span: Span, source: Option<&Rc<str>>) -> Result<Node> {
     if text == "null" {
-        return Ok(Node::new(Value::Null, span).with_scalar_source(text));
+        return Ok(node_with_scalar_source(Value::Null, span, text, source));
     }
     if text == "true" {
-        return Ok(Node::new(Value::Bool(true), span).with_scalar_source(text));
+        return Ok(node_with_scalar_source(
+            Value::Bool(true),
+            span,
+            text,
+            source,
+        ));
     }
     if text == "false" {
-        return Ok(Node::new(Value::Bool(false), span).with_scalar_source(text));
+        return Ok(node_with_scalar_source(
+            Value::Bool(false),
+            span,
+            text,
+            source,
+        ));
     }
     if text.starts_with('"') {
-        return parse_double_quoted(text, span);
+        return parse_double_quoted(text, span, source);
     }
     if text.starts_with('\'') {
-        return parse_single_quoted(text, span);
+        return parse_single_quoted(text, span, source);
     }
     if is_json_number(text)
         && let NumberParse::Number(number) = parse_number(text)?
     {
-        return Ok(Node::new(Value::Number(number), span).with_scalar_source(text));
+        return Ok(node_with_scalar_source(
+            Value::Number(number),
+            span,
+            text,
+            source,
+        ));
     }
-    Ok(Node::new(Value::String(text.to_string()), span).with_scalar_source(text))
+    Ok(string_node(text, span, source, true))
 }
 
 fn parse_yaml11_bool(text: &str) -> Option<bool> {
     yaml11::parse_bool(text)
 }
 
-fn yaml11_timestamp_node(text: &str, span: Span) -> Node {
-    let value = Node::new(Value::String(text.to_string()), span).with_scalar_source(text);
+fn yaml11_timestamp_node(text: &str, span: Span, source: Option<&Rc<str>>) -> Node {
+    let value = string_node(text, span, source, true);
     Node::new(
         Value::Tagged(Box::new(TaggedNode {
             tag: Tag::new("!!timestamp"),
@@ -3998,26 +4547,24 @@ fn is_yaml11_timestamp(text: &str) -> bool {
     Timestamp::parse_yaml_1_1(text).is_some()
 }
 
-fn parse_single_quoted(text: &str, span: Span) -> Result<Node> {
+fn parse_single_quoted(text: &str, span: Span, source: Option<&Rc<str>>) -> Result<Node> {
     if !text.ends_with('\'') || text.len() < 2 {
         return Err(Error::new("unterminated single-quoted scalar", span));
     }
     let inner = &text[1..text.len() - 1];
-    let value = if inner.contains("''") {
-        inner.replace("''", "'")
-    } else {
-        inner.to_string()
-    };
-    Ok(Node::new(Value::String(value), span))
+    if inner.contains("''") {
+        return Ok(Node::new(Value::String(inner.replace("''", "'")), span));
+    }
+    Ok(quoted_string_node(inner, span, source))
 }
 
-fn parse_double_quoted(text: &str, span: Span) -> Result<Node> {
+fn parse_double_quoted(text: &str, span: Span, source: Option<&Rc<str>>) -> Result<Node> {
     if !text.ends_with('"') || text.len() < 2 {
         return Err(Error::new("unterminated double-quoted scalar", span));
     }
     let inner = &text[1..text.len() - 1];
     if !inner.as_bytes().contains(&b'\\') {
-        return Ok(Node::new(Value::String(inner.to_string()), span));
+        return Ok(quoted_string_node(inner, span, source));
     }
     let mut out = String::with_capacity(inner.len());
     let mut chars = inner.chars();
@@ -4064,6 +4611,40 @@ fn parse_double_quoted(text: &str, span: Span) -> Result<Node> {
         }
     }
     Ok(Node::new(Value::String(out), span))
+}
+
+fn node_with_scalar_source(
+    value: Value,
+    span: Span,
+    text: &str,
+    _source: Option<&Rc<str>>,
+) -> Node {
+    let node = Node::new(value, span);
+    node.with_scalar_source(text)
+}
+
+fn string_node(text: &str, span: Span, source: Option<&Rc<str>>, retain_source: bool) -> Node {
+    if let Some(source) = source {
+        return Node::source_backed_string(Rc::clone(source), span, span.start, span.end);
+    }
+    let node = Node::new(Value::String(text.to_string()), span);
+    if retain_source {
+        node.with_scalar_source(text)
+    } else {
+        node
+    }
+}
+
+fn quoted_string_node(inner: &str, span: Span, source: Option<&Rc<str>>) -> Node {
+    if let Some(source) = source {
+        return Node::source_backed_string(
+            Rc::clone(source),
+            span,
+            span.start + 1,
+            span.end.saturating_sub(1),
+        );
+    }
+    Node::new(Value::String(inner.to_string()), span)
 }
 
 fn quoted_scalar_is_closed(text: &str, quote: char) -> bool {
@@ -4382,9 +4963,9 @@ impl SourceMark {
 
     fn for_line_content(line: &Line, local_start: usize) -> Self {
         Self::new(
-            line.start + line.indent + local_start,
-            line.no,
-            line.indent + local_start + 1,
+            line.start() + line.indent() + local_start,
+            line.no(),
+            line.indent() + local_start + 1,
         )
     }
 }
@@ -4416,8 +4997,8 @@ impl FlowBuffer {
         for offset in 1..=text.len() {
             self.marks.push(SourceMark::new(
                 start.offset + offset,
-                line.no,
-                line.indent + local_start + offset + 1,
+                line.no(),
+                line.indent() + local_start + offset + 1,
             ));
         }
     }
@@ -4581,11 +5162,7 @@ impl<'a> FlowParser<'a> {
         }
     }
 
-    fn check_duplicate_key(
-        &mut self,
-        seen: &mut HashMap<DuplicateKey, Span>,
-        key: &Node,
-    ) -> Result<()> {
+    fn check_duplicate_key(&mut self, seen: &mut DuplicateKeyTracker, key: &Node) -> Result<()> {
         self.record_merge_key(key);
         check_duplicate_for_schema(
             self.recording_events(),
@@ -4609,14 +5186,14 @@ impl<'a> FlowParser<'a> {
             Some('{') => self.parse_mapping(),
             Some('"') => {
                 let (text, start, end) = self.take_quoted('"')?;
-                let node = parse_double_quoted(&text, self.span(start, end))?;
+                let node = parse_double_quoted(&text, self.span(start, end), None)?;
                 self.check_scalar_node(&node)?;
                 self.emit_scalar_node(&node, ScalarStyle::DoubleQuoted);
                 Ok(node)
             }
             Some('\'') => {
                 let (text, start, end) = self.take_quoted('\'')?;
-                let node = parse_single_quoted(&text, self.span(start, end))?;
+                let node = parse_single_quoted(&text, self.span(start, end), None)?;
                 self.check_scalar_node(&node)?;
                 self.emit_scalar_node(&node, ScalarStyle::SingleQuoted);
                 Ok(node)
@@ -4649,13 +5226,13 @@ impl<'a> FlowParser<'a> {
         let start = self.pos;
         self.expect('[')?;
         self.emit_sequence_start(CollectionStyle::Flow, self.span(start, self.pos));
-        let mut items = Vec::new();
+        let mut items = NodeItems::new();
         loop {
             self.skip_ws();
             if self.consume(']') {
                 let span = self.span(start, self.pos);
                 self.emit_sequence_end(span);
-                return Ok(sequence_node(items, span));
+                return Ok(sequence_node(items.into_vec(), span));
             }
             if self.peek() == Some(',') {
                 return Err(Error::new(
@@ -4674,7 +5251,7 @@ impl<'a> FlowParser<'a> {
                 if self.consume(']') {
                     let span = self.span(start, self.pos);
                     self.emit_sequence_end(span);
-                    return Ok(sequence_node(items, span));
+                    return Ok(sequence_node(items.into_vec(), span));
                 }
                 if self.peek() == Some(',') {
                     return Err(Error::new(
@@ -4690,7 +5267,7 @@ impl<'a> FlowParser<'a> {
             self.expect(']')?;
             let span = self.span(start, self.pos);
             self.emit_sequence_end(span);
-            return Ok(sequence_node(items, span));
+            return Ok(sequence_node(items.into_vec(), span));
         }
     }
 
@@ -4767,14 +5344,14 @@ impl<'a> FlowParser<'a> {
         let start = self.pos;
         self.expect('{')?;
         self.emit_mapping_start(CollectionStyle::Flow, self.span(start, self.pos));
-        let mut entries = Vec::new();
-        let mut seen = HashMap::<DuplicateKey, Span>::new();
+        let mut entries = NodeEntries::new();
+        let mut seen = DuplicateKeyTracker::new();
         loop {
             self.skip_ws();
             if self.consume('}') {
                 let span = self.span(start, self.pos);
                 self.emit_mapping_end(span);
-                return Ok(mapping_node(entries, span));
+                return Ok(mapping_node(entries.into_vec(), span));
             }
             if self.peek() == Some(',') {
                 return Err(Error::new(
@@ -4792,7 +5369,7 @@ impl<'a> FlowParser<'a> {
                 if self.consume('}') {
                     let span = self.span(start, self.pos);
                     self.emit_mapping_end(span);
-                    return Ok(mapping_node(entries, span));
+                    return Ok(mapping_node(entries.into_vec(), span));
                 }
                 if self.peek() == Some(',') {
                     return Err(Error::new(
@@ -4805,7 +5382,7 @@ impl<'a> FlowParser<'a> {
             self.expect('}')?;
             let span = self.span(start, self.pos);
             self.emit_mapping_end(span);
-            return Ok(mapping_node(entries, span));
+            return Ok(mapping_node(entries.into_vec(), span));
         }
     }
 
@@ -4877,14 +5454,14 @@ impl<'a> FlowParser<'a> {
             Some('[' | '{') => self.parse_value(),
             Some('"') => {
                 let (text, start, end) = self.take_quoted('"')?;
-                let node = parse_double_quoted(&text, self.span(start, end))?;
+                let node = parse_double_quoted(&text, self.span(start, end), None)?;
                 self.check_scalar_node(&node)?;
                 self.emit_scalar_node(&node, ScalarStyle::DoubleQuoted);
                 Ok(node)
             }
             Some('\'') => {
                 let (text, start, end) = self.take_quoted('\'')?;
-                let node = parse_single_quoted(&text, self.span(start, end))?;
+                let node = parse_single_quoted(&text, self.span(start, end), None)?;
                 self.check_scalar_node(&node)?;
                 self.emit_scalar_node(&node, ScalarStyle::SingleQuoted);
                 Ok(node)
@@ -5459,6 +6036,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn parser_line_table_entries_stay_compact() {
+        assert!(
+            std::mem::size_of::<Line>() <= 40,
+            "Line is {} bytes",
+            std::mem::size_of::<Line>()
+        );
+        assert!(
+            std::mem::size_of::<LineText>() <= 8,
+            "LineText is {} bytes",
+            std::mem::size_of::<LineText>()
+        );
+    }
+
+    #[test]
     fn streaming_parser_tracks_current_schema_without_accumulating_schema_history() {
         let mut input = String::new();
         for _ in 0..128 {
@@ -5488,5 +6079,35 @@ mod tests {
         }
 
         assert_eq!(documents, 256);
+    }
+
+    #[test]
+    fn streaming_parser_line_buffer_tracks_largest_document_not_whole_stream() {
+        let doc_count = 512usize;
+        let mut input = String::new();
+        for idx in 0..doc_count {
+            input.push_str("---\nservice:\n  name: app-");
+            input.push_str(&idx.to_string());
+            input.push_str("\n  image: nginx\n  ports:\n    - 80\n");
+        }
+
+        let mut parser = StreamingParser::new(&input, LoadOptions::new()).unwrap();
+        let mut documents = 0usize;
+        while let Some(document) = parser.next_raw_document() {
+            document.unwrap();
+            documents += 1;
+            assert!(
+                parser.parser.lines.retained_len() <= 1,
+                "completed document should leave only the next boundary line buffered, retained={}",
+                parser.parser.lines.retained_len()
+            );
+        }
+
+        assert_eq!(documents, doc_count);
+        assert!(
+            parser.parser.lines.max_retained_len() <= 8,
+            "line buffer should stay near one document, max_retained={}",
+            parser.parser.lines.max_retained_len()
+        );
     }
 }

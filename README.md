@@ -5,9 +5,10 @@
 [![rust](https://img.shields.io/badge/rust-1.88%2B-blue)](Cargo.toml)
 [![unsafe](https://img.shields.io/badge/unsafe-forbidden-success)](src/lib.rs)
 
-Serde-first YAML for Rust. `saneyaml` reads and writes common config YAML with
-**YAML 1.2 by default** (so `NO` stays the string `"NO"`, not `false`),
-diagnostics, and resource limits. Pure Rust, `#![forbid(unsafe_code)]`.
+Serde-first YAML for Rust — load config straight into your structs with
+`#[derive(Deserialize)]`, with **real YAML 1.2 semantics** (so `NO` stays the
+string `"NO"`, not `false`), useful diagnostics, and resource limits built in.
+Pure Rust, `#![forbid(unsafe_code)]`.
 
 ## Install
 
@@ -42,25 +43,35 @@ Coming from the archived `serde_yaml`? It's close to a drop-in — see
 
 ## Why saneyaml
 
-- **YAML 1.2 by default** — no "Norway problem": `NO`/`on`/`off`/`yes` stay
-  strings. Opt into YAML 1.1 / `serde_yaml`-style resolution explicitly via
-  schema modes (`Core`, `Json`, `Failsafe`, `LegacySerdeYaml`).
+Most Rust YAML libraries make you pick one or the other: `serde_yaml`'s
+ergonomics (now archived, and YAML 1.1-flavored), or a maintained YAML 1.2
+parser like `yaml-rust2` or `saphyr` that hands you a node tree to walk by
+hand. saneyaml is serde-first **and** YAML 1.2-correct.
+
 - **Serde-first** — `from_str` / `from_slice` / `from_reader`, `to_string` /
-  `to_writer`, and a `serde_yaml`-style `Value`.
+  `to_writer`, and a `serde_yaml`-style `Value`. Deserialize straight into your
+  config structs — no hand-walking a node tree.
+- **YAML 1.2 by default** — correct scalar resolution, no "Norway problem":
+  `NO`/`on`/`off`/`yes` stay strings. Opt into YAML 1.1 / `serde_yaml`-style
+  resolution explicitly via schema modes (`Core`, `Json`, `Failsafe`,
+  `LegacySerdeYaml`).
 - **Diagnostics** — line/column, in-document key path (e.g. `server.port`),
   and opt-in source-caret rendering.
-- **Resource limits** — unsafe-free, with input-size, alias-expansion,
-  nesting-depth, scalar-length, and collection-size limits.
+- **Safe on hostile input** — unsafe-free, with bounded time and memory:
+  input-size, alias-expansion, nesting-depth, scalar-length, and
+  collection-size limits.
 - **Streaming and lossless editing** — pull-based streaming (`EventStream` /
   `DocumentStream`) and a lossless, comment-preserving editor.
-- **Benchmarked** — on the config benchmark corpus it parses faster than `yaml-rust2`
-  and `saphyr`; see [BENCHMARKS.md](docs/BENCHMARKS.md).
+- **Competitive throughput** — the safety and ergonomics don't cost you speed:
+  on the config benchmark corpus it parses as fast as or faster than
+  `yaml-rust2` and `saphyr`. See [BENCHMARKS.md](docs/BENCHMARKS.md).
 
 ## Status
 
-Pre-1.0 (`0.1.0`), MSRV Rust 1.88. The public API is a preview surface but is
-treated as SemVer-visible: breaking changes and MSRV bumps are explicit release
-decisions.
+Pre-1.0 (`0.1.0`), MSRV Rust 1.88, and actively maintained. The public API is a
+preview surface but is treated as SemVer-visible: breaking changes and MSRV
+bumps are explicit, documented release decisions. The road to 1.0 is about
+locking the surface down, not expanding it — stability is the goal.
 
 ## Documentation
 

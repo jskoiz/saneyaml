@@ -7,6 +7,7 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem;
 use std::ops::{Index as StdIndex, IndexMut as StdIndexMut};
+use std::rc::Rc;
 use std::str::FromStr;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -45,7 +46,39 @@ impl Node {
     }
 
     pub(crate) fn with_scalar_source(mut self, raw: impl Into<String>) -> Self {
-        self.source = Some(ScalarSource { raw: raw.into() });
+        self.source = Some(ScalarSource::owned(raw.into()));
+        self
+    }
+
+    pub(crate) fn source_backed_string(
+        source: Rc<str>,
+        span: Span,
+        value_start: usize,
+        value_end: usize,
+    ) -> Self {
+        Self::new(NodeValue::String(String::new()), span).with_source_backed_string_value(
+            source,
+            span.start,
+            span.end,
+            value_start,
+            value_end,
+        )
+    }
+
+    pub(crate) fn with_source_backed_string_value(
+        mut self,
+        source: Rc<str>,
+        raw_start: usize,
+        raw_end: usize,
+        value_start: usize,
+        value_end: usize,
+    ) -> Self {
+        let _ = (raw_start, raw_end);
+        self.source = Some(ScalarSource::source_with_value(
+            source,
+            value_start,
+            value_end,
+        ));
         self
     }
 
@@ -57,7 +90,11 @@ impl Node {
     /// Returns the scalar string value.
     pub fn as_str(&self) -> Option<&str> {
         match &self.value {
-            NodeValue::String(value) => Some(value),
+            NodeValue::String(value) => self
+                .source
+                .as_ref()
+                .and_then(ScalarSource::value)
+                .or(Some(value.as_str())),
             NodeValue::Tagged(tagged) => tagged.value.as_str(),
             _ => None,
         }
@@ -70,7 +107,7 @@ impl Node {
 
     /// Compares two nodes by semantic value, ignoring source spans.
     pub fn equivalent(&self, other: &Self) -> bool {
-        self.value.equivalent(&other.value)
+        nodes_equivalent(self, other)
     }
 
     /// Converts this spanful node into a spanless [`Value`].
@@ -84,18 +121,238 @@ impl Node {
     ) -> crate::Result<()> {
         apply_merge_keys_in_node(self, policy)
     }
+
+    pub(crate) fn scalar_string_text(&self) -> Option<ScalarText> {
+        match &self.value {
+            NodeValue::String(value) => self
+                .source
+                .as_ref()
+                .and_then(ScalarSource::value_text)
+                .or_else(|| Some(ScalarText::owned(value.clone()))),
+            NodeValue::Tagged(tagged) => tagged.value.scalar_string_text(),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn into_public(mut self) -> Self {
+        self.materialize_owned_scalars();
+        self
+    }
+
+    fn materialize_owned_scalars(&mut self) {
+        match &mut self.value {
+            NodeValue::String(value) => {
+                if let Some(source) = &self.source
+                    && let Some(source_value) = source.value()
+                {
+                    *value = source_value.to_string();
+                }
+            }
+            NodeValue::Sequence(items) => {
+                for item in items {
+                    item.materialize_owned_scalars();
+                }
+            }
+            NodeValue::Mapping(entries) => {
+                for (key, value) in entries {
+                    key.materialize_owned_scalars();
+                    value.materialize_owned_scalars();
+                }
+            }
+            NodeValue::Tagged(tagged) => tagged.value.materialize_owned_scalars(),
+            NodeValue::Null | NodeValue::Bool(_) | NodeValue::Number(_) => {}
+        }
+
+        if let Some(source) = self.source.take() {
+            self.source = Some(source.into_public());
+        }
+    }
+}
+
+fn nodes_equivalent(left: &Node, right: &Node) -> bool {
+    match (&left.value, &right.value) {
+        (NodeValue::Null, NodeValue::Null) => true,
+        (NodeValue::Bool(left), NodeValue::Bool(right)) => left == right,
+        (NodeValue::Number(left), NodeValue::Number(right)) => left == right,
+        (NodeValue::String(_), NodeValue::String(_)) => left.as_str() == right.as_str(),
+        (NodeValue::Sequence(left_items), NodeValue::Sequence(right_items)) => {
+            left_items.len() == right_items.len()
+                && left_items
+                    .iter()
+                    .zip(right_items.iter())
+                    .all(|(left, right)| nodes_equivalent(left, right))
+        }
+        (NodeValue::Mapping(left_entries), NodeValue::Mapping(right_entries)) => {
+            left_entries.len() == right_entries.len()
+                && left_entries.iter().zip(right_entries.iter()).all(
+                    |((left_key, left_value), (right_key, right_value))| {
+                        nodes_equivalent(left_key, right_key)
+                            && nodes_equivalent(left_value, right_value)
+                    },
+                )
+        }
+        (NodeValue::Tagged(left_tagged), NodeValue::Tagged(right_tagged)) => {
+            left_tagged.tag == right_tagged.tag
+                && nodes_equivalent(&left_tagged.value, &right_tagged.value)
+        }
+        _ => false,
+    }
 }
 
 /// Original scalar spelling retained for string-target deserialization.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ScalarSource {
-    raw: String,
+    raw: ScalarSourceRepr,
 }
 
 impl ScalarSource {
     /// Returns the raw scalar text as it appeared in the YAML source.
     pub fn raw(&self) -> &str {
-        &self.raw
+        self.raw.as_str()
+    }
+
+    pub(crate) fn owned(raw: String) -> Self {
+        Self {
+            raw: ScalarSourceRepr::Owned(raw),
+        }
+    }
+
+    pub(crate) fn source_with_value(source: Rc<str>, value_start: usize, value_end: usize) -> Self {
+        Self {
+            raw: ScalarSourceRepr::SourceString {
+                source,
+                value_start: value_start.try_into().expect("input size is u32-bounded"),
+                value_end: value_end.try_into().expect("input size is u32-bounded"),
+            },
+        }
+    }
+
+    pub(crate) fn value(&self) -> Option<&str> {
+        match &self.raw {
+            ScalarSourceRepr::Owned(_) => None,
+            ScalarSourceRepr::SourceString {
+                source,
+                value_start,
+                value_end,
+            } => Some(
+                source
+                    .get(*value_start as usize..*value_end as usize)
+                    .expect("source-backed scalar text is created from valid UTF-8 spans"),
+            ),
+        }
+    }
+
+    pub(crate) fn value_text(&self) -> Option<ScalarText> {
+        match &self.raw {
+            ScalarSourceRepr::Owned(_) => None,
+            ScalarSourceRepr::SourceString {
+                source,
+                value_start,
+                value_end,
+            } => Some(ScalarText::source(
+                Rc::clone(source),
+                *value_start as usize,
+                *value_end as usize,
+            )),
+        }
+    }
+
+    pub(crate) fn value_range(&self) -> Option<(usize, usize)> {
+        match &self.raw {
+            ScalarSourceRepr::Owned(_) => None,
+            ScalarSourceRepr::SourceString {
+                value_start,
+                value_end,
+                ..
+            } => Some((*value_start as usize, *value_end as usize)),
+        }
+    }
+
+    fn into_public(self) -> Self {
+        Self {
+            raw: ScalarSourceRepr::Owned(self.raw().to_string()),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ScalarSourceRepr {
+    Owned(String),
+    SourceString {
+        source: Rc<str>,
+        value_start: u32,
+        value_end: u32,
+    },
+}
+
+impl ScalarSourceRepr {
+    fn as_str(&self) -> &str {
+        match self {
+            Self::Owned(value) => value,
+            Self::SourceString {
+                source,
+                value_start,
+                value_end,
+            } => source
+                .get(*value_start as usize..*value_end as usize)
+                .expect("source-backed scalar text is created from valid UTF-8 spans"),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum ScalarText {
+    Owned(String),
+    Source {
+        source: Rc<str>,
+        start: usize,
+        end: usize,
+    },
+}
+
+impl ScalarText {
+    pub(crate) fn owned(value: String) -> Self {
+        Self::Owned(value)
+    }
+
+    pub(crate) fn source(source: Rc<str>, start: usize, end: usize) -> Self {
+        debug_assert!(source.get(start..end).is_some());
+        Self::Source { source, start, end }
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        match self {
+            Self::Owned(value) => value,
+            Self::Source { source, start, end } => source
+                .get(*start..*end)
+                .expect("source-backed scalar text is created from valid UTF-8 spans"),
+        }
+    }
+}
+
+impl PartialEq for ScalarText {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+
+impl Eq for ScalarText {}
+
+impl Hash for ScalarText {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_str().hash(state);
+    }
+}
+
+impl Ord for ScalarText {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.as_str().cmp(other.as_str())
+    }
+}
+
+impl PartialOrd for ScalarText {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -512,7 +769,7 @@ impl From<Node> for Value {
 
 impl From<&Node> for Value {
     fn from(node: &Node) -> Self {
-        (&node.value).into()
+        value_from_node_ref(node)
     }
 }
 
@@ -774,13 +1031,8 @@ pub struct BorrowedNode<'de> {
 
 impl<'de> BorrowedNode<'de> {
     pub(crate) fn from_node(input: &'de str, node: Node) -> Self {
-        let Node {
-            value,
-            span,
-            source: _,
-        } = node;
         Self {
-            value: BorrowedNodeValue::from_node_value(input, value, span),
+            value: BorrowedNodeValue::from_node(input, node),
         }
     }
 
@@ -821,12 +1073,24 @@ pub enum BorrowedNodeValue<'de> {
 }
 
 impl<'de> BorrowedNodeValue<'de> {
-    fn from_node_value(input: &'de str, value: NodeValue, span: Span) -> Self {
+    fn from_node(input: &'de str, node: Node) -> Self {
+        let Node {
+            value,
+            span,
+            source,
+        } = node;
         match value {
             NodeValue::Null => Self::Null,
             NodeValue::Bool(value) => Self::Bool(value),
             NodeValue::Number(value) => Self::Number(value),
-            NodeValue::String(value) => Self::String(borrowed_scalar_value(input, value, span)),
+            NodeValue::String(value) => {
+                if let Some((start, end)) = source.as_ref().and_then(ScalarSource::value_range)
+                    && let Some(value) = input.get(start..end)
+                {
+                    return Self::String(Cow::Borrowed(value));
+                }
+                Self::String(borrowed_scalar_value(input, value, span))
+            }
             NodeValue::Sequence(items) => {
                 let mut items = items
                     .into_iter()
@@ -2791,11 +3055,37 @@ fn shift_remove_merge_node(entries: &mut Vec<(Node, Node)>) -> Option<Node> {
 
 fn node_is_merge_key(key: &Node) -> bool {
     match &key.value {
-        NodeValue::String(value) => value == "<<",
+        NodeValue::String(_) => key.as_str() == Some("<<"),
         NodeValue::Tagged(tagged) if is_merge_tag(&tagged.tag) => {
             tagged.value.as_str() == Some("<<")
         }
         _ => false,
+    }
+}
+
+fn value_from_node_ref(node: &Node) -> Value {
+    match &node.value {
+        NodeValue::Null => Value::Null,
+        NodeValue::Bool(value) => Value::Bool(*value),
+        NodeValue::Number(value) => Value::Number(*value),
+        NodeValue::String(_) => Value::String(
+            node.as_str()
+                .expect("string node has semantic string value")
+                .to_string(),
+        ),
+        NodeValue::Sequence(items) => {
+            Value::Sequence(items.iter().map(value_from_node_ref).collect())
+        }
+        NodeValue::Mapping(entries) => Value::Mapping(
+            entries
+                .iter()
+                .map(|(key, value)| (value_from_node_ref(key), value_from_node_ref(value)))
+                .collect(),
+        ),
+        NodeValue::Tagged(tagged) => Value::Tagged(Box::new(TaggedValue {
+            tag: tagged.tag.clone(),
+            value: value_from_node_ref(&tagged.value),
+        })),
     }
 }
 

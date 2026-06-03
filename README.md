@@ -17,6 +17,12 @@ Pure Rust, `#![forbid(unsafe_code)]`.
     width="920"
   >
 </p>
+<p align="center">
+  <small>
+    Static overview graphic. See
+    <a href="docs/assets/saneyaml-overview.md">source notes and benchmark caveats</a>.
+  </small>
+</p>
 
 ## Install
 

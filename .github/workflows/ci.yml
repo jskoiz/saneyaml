@@ -6,10 +6,16 @@ on:
       - ".cargo/**"
       - ".gitattributes"
       - ".github/workflows/ci.yml"
+      - "CHANGELOG.md"
       - "Cargo.lock"
       - "Cargo.toml"
+      - "CONTRIBUTING.md"
+      - "LICENSE.md"
+      - "README.md"
+      - "SECURITY.md"
       - "benches/**"
       - "build.rs"
+      - "docs/**"
       - "examples/**"
       - "fuzz/**"
       - "rust-toolchain"
@@ -22,10 +28,16 @@ on:
       - ".cargo/**"
       - ".gitattributes"
       - ".github/workflows/ci.yml"
+      - "CHANGELOG.md"
       - "Cargo.lock"
       - "Cargo.toml"
+      - "CONTRIBUTING.md"
+      - "LICENSE.md"
+      - "README.md"
+      - "SECURITY.md"
       - "benches/**"
       - "build.rs"
+      - "docs/**"
       - "examples/**"
       - "fuzz/**"
       - "rust-toolchain"
@@ -96,6 +108,9 @@ jobs:
 
       - name: Run clippy
         run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Run feature clippy
+        run: scripts/check-feature-clippy.sh
 
   msrv:
     name: Rust 1.88 MSRV

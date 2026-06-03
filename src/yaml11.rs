@@ -120,10 +120,10 @@ fn sexagesimal_groups(text: &str) -> Option<Vec<&str>> {
 fn parse_sexagesimal_integer(groups: &[&str]) -> Option<Number> {
     let (negative, first) = signed_first_group(groups[0])?;
     let mut total = signed_group_value(negative, first)?.checked_mul(3600)?;
-    let minutes = groups[1].parse::<i128>().ok()?.checked_mul(60)?;
+    let minutes = i128::from(group_value_below_60(groups[1])?).checked_mul(60)?;
     total = total.checked_add(minutes)?;
     if let Some(seconds) = groups.get(2) {
-        total = total.checked_add(seconds.parse::<i128>().ok()?)?;
+        total = total.checked_add(i128::from(group_value_below_60(seconds)?))?;
     }
     signed_total_number(total)
 }
@@ -131,15 +131,32 @@ fn parse_sexagesimal_integer(groups: &[&str]) -> Option<Number> {
 fn parse_sexagesimal_float(groups: &[&str]) -> Option<f64> {
     let (negative, first) = signed_first_group(groups[0])?;
     if groups.len() == 2 {
-        let minutes = groups[1].parse::<f64>().ok()?;
+        let minutes = fractional_group_below_60(groups[1])?;
         let total = signed_group_value(negative, first)? as f64 * 3600.0 + minutes * 60.0;
         return total.is_finite().then_some(total);
     }
 
     let mut total = signed_group_value(negative, first)? as f64 * 3600.0;
-    total += groups[1].parse::<u8>().ok()? as f64 * 60.0;
-    total += groups[2].parse::<f64>().ok()?;
+    total += f64::from(group_value_below_60(groups[1])?) * 60.0;
+    total += fractional_group_below_60(groups[2])?;
     total.is_finite().then_some(total)
+}
+
+/// Parses an unsigned base-60 digit group, requiring the value to be in `[0, 60)`.
+fn group_value_below_60(text: &str) -> Option<u8> {
+    if !text.is_empty() && text.chars().all(|ch| ch.is_ascii_digit()) {
+        text.parse::<u8>().ok().filter(|&value| value < 60)
+    } else {
+        None
+    }
+}
+
+/// Parses a possibly fractional base-60 group (e.g. `30.5`), requiring the
+/// integer part to be in `[0, 60)` while allowing an arbitrary fraction.
+fn fractional_group_below_60(text: &str) -> Option<f64> {
+    let integer = text.split_once('.').map_or(text, |(integer, _)| integer);
+    group_value_below_60(integer)?;
+    text.parse::<f64>().ok()
 }
 
 fn signed_digits(text: &str) -> bool {
@@ -151,9 +168,7 @@ fn signed_digits(text: &str) -> bool {
 }
 
 fn unsigned_digits_below_60(text: &str) -> bool {
-    !text.is_empty()
-        && text.chars().all(|ch| ch.is_ascii_digit())
-        && text.parse::<u8>().is_ok_and(|value| value < 60)
+    group_value_below_60(text).is_some()
 }
 
 fn unsigned_last_sexagesimal_group(text: &str) -> bool {
@@ -207,5 +222,39 @@ fn signed_magnitude_number(negative: bool, magnitude: u128, positive_i128: bool)
         Some(Number::Integer(i128::from(value)))
     } else {
         Some(Number::Unsigned(magnitude))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sexagesimal_seconds_within_range_is_accepted() {
+        assert_eq!(
+            parse_sexagesimal_number("1:30:59"),
+            Some(Number::Integer(5459))
+        );
+    }
+
+    #[test]
+    fn sexagesimal_seconds_out_of_range_is_rejected() {
+        // 60 is not a valid base-60 seconds field; fall back to a string scalar.
+        assert_eq!(parse_sexagesimal_number("1:30:60"), None);
+        // Likewise an obviously malformed seconds field.
+        assert_eq!(parse_sexagesimal_number("1:30:999"), None);
+    }
+
+    #[test]
+    fn sexagesimal_fractional_seconds_within_range_is_accepted() {
+        assert_eq!(
+            parse_sexagesimal_number("1:30:30.5"),
+            Some(Number::Float(5430.5))
+        );
+    }
+
+    #[test]
+    fn sexagesimal_fractional_seconds_out_of_range_is_rejected() {
+        assert_eq!(parse_sexagesimal_number("1:30:60.0"), None);
     }
 }

@@ -367,7 +367,10 @@ impl LineBuffer {
             "line position {pos} was requested after it was discarded"
         );
         if pos < self.base {
-            return Ok(None);
+            return Err(Error::new(
+                "internal parser error: requested a source line that was already reclaimed",
+                None,
+            ));
         }
         self.fill_to(source, pos)?;
         Ok(self.lines.get(pos - self.base))

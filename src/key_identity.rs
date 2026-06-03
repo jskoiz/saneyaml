@@ -1,5 +1,5 @@
 use crate::{
-    Error, ErrorCategory, Node, NodeValue as Value, Number, Result, Span,
+    Error, ErrorCategory, Node, NodeValue as Value, Number, Result, Span, ast::ScalarText,
     schema::DEFAULT_MAX_NESTING_DEPTH,
 };
 use std::collections::{HashMap, hash_map::Entry};
@@ -13,7 +13,7 @@ pub(crate) enum DuplicateKey {
     Integer(i128),
     Unsigned(u128),
     Float(u64),
-    String(String),
+    String(ScalarText),
     Sequence(Vec<DuplicateKey>),
     Mapping(Vec<(DuplicateKey, DuplicateKey)>),
 }
@@ -65,7 +65,7 @@ impl DuplicateKey {
             DuplicateKey::Integer(value) => value.to_string(),
             DuplicateKey::Unsigned(value) => value.to_string(),
             DuplicateKey::Float(bits) => f64::from_bits(*bits).to_string(),
-            DuplicateKey::String(value) => value.clone(),
+            DuplicateKey::String(value) => value.as_str().to_string(),
             DuplicateKey::Sequence(items) => {
                 let items = items
                     .iter()
@@ -176,7 +176,7 @@ fn duplicate_key_identity_with_limit(
         Value::Number(Number::Integer(value)) => Some(DuplicateKey::Unsigned(*value as u128)),
         Value::Number(Number::Unsigned(value)) => Some(DuplicateKey::Unsigned(*value)),
         Value::Number(Number::Float(value)) => Some(DuplicateKey::Float(float_key_bits(*value))),
-        Value::String(value) => Some(DuplicateKey::String(value.clone())),
+        Value::String(_) => key.scalar_string_text().map(DuplicateKey::String),
         Value::Sequence(items) => duplicate_sequence_identity(items, next_depth(depth), max_depth)?,
         Value::Mapping(entries) => {
             duplicate_mapping_identity(entries, next_depth(depth), max_depth)?

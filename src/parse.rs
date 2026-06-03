@@ -392,10 +392,17 @@ pub(crate) fn parse_borrowed_documents_with_options(
     input: &str,
     options: LoadOptions,
 ) -> Result<Vec<BorrowedNode<'_>>> {
-    let mut docs = parse_documents_with_options(input, options)?
-        .into_iter()
-        .map(|doc| BorrowedNode::from_node(input, doc))
-        .collect::<Vec<_>>();
+    let mut parser =
+        StreamingParser::new_with_scalar_storage(input, options, ScalarStorage::SourceBacked)?;
+    let mut docs = Vec::new();
+    while let Some(result) = parser.next_raw_document() {
+        let mut node = result?;
+        let schema = parser.last_document_schema();
+        if parser.last_document_has_merge_key() {
+            node.apply_merge_keys_with_policy(merge_policy_for_schema(schema))?;
+        }
+        docs.push(BorrowedNode::from_node(input, node));
+    }
     docs.shrink_to_fit();
     Ok(docs)
 }
@@ -404,12 +411,28 @@ pub(crate) fn parse_document_results_with_options(
     input: &str,
     options: LoadOptions,
 ) -> Vec<Result<Node>> {
-    match Parser::new_with_options(input, options) {
+    parse_document_results_with_scalar_storage(input, options, ScalarStorage::Owned)
+}
+
+fn parse_document_results_with_scalar_storage(
+    input: &str,
+    options: LoadOptions,
+    scalar_storage: ScalarStorage,
+) -> Vec<Result<Node>> {
+    match Parser::new_with_scalar_storage(input, options, scalar_storage) {
         Ok(mut parser) => {
             let results = parser.parse_document_results();
             let schemas = mem::take(&mut parser.document_schemas);
             let has_merge_keys = mem::take(&mut parser.document_has_merge_keys);
-            apply_merge_keys_to_document_results(results, schemas, has_merge_keys)
+            let results = apply_merge_keys_to_document_results(results, schemas, has_merge_keys);
+            if scalar_storage == ScalarStorage::Owned {
+                results
+                    .into_iter()
+                    .map(|result| result.map(Node::into_public))
+                    .collect()
+            } else {
+                results
+            }
         }
         Err(error) => vec![Err(error)],
     }
@@ -816,8 +839,16 @@ struct StreamingParser {
 
 impl StreamingParser {
     fn new(input: &str, options: LoadOptions) -> Result<Self> {
+        Self::new_with_scalar_storage(input, options, ScalarStorage::Owned)
+    }
+
+    fn new_with_scalar_storage(
+        input: &str,
+        options: LoadOptions,
+        scalar_storage: ScalarStorage,
+    ) -> Result<Self> {
         Ok(Self {
-            parser: Parser::new_with_options(input, options)?,
+            parser: Parser::new_with_scalar_storage(input, options, scalar_storage)?,
             state: DocumentParseState::default(),
             current_schema: Schema::Yaml12,
             current_document_has_merge_key: false,
@@ -891,6 +922,13 @@ struct Parser {
     document_schemas: Vec<Schema>,
     document_has_merge_keys: Vec<bool>,
     current_document_has_merge_key: bool,
+    scalar_storage: ScalarStorage,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum ScalarStorage {
+    Owned,
+    SourceBacked,
 }
 
 #[derive(Default)]
@@ -1061,7 +1099,11 @@ impl AnchorRegistry {
 }
 
 impl Parser {
-    fn new_with_options(input: &str, options: LoadOptions) -> Result<Self> {
+    fn new_with_scalar_storage(
+        input: &str,
+        options: LoadOptions,
+        scalar_storage: ScalarStorage,
+    ) -> Result<Self> {
         options.check_input_len(input.len())?;
         let source = Rc::<str>::from(input);
         let schema = options.selected_schema();
@@ -1084,6 +1126,7 @@ impl Parser {
             document_schemas: Vec::new(),
             document_has_merge_keys: Vec::new(),
             current_document_has_merge_key: false,
+            scalar_storage,
         })
     }
 
@@ -3027,7 +3070,14 @@ impl Parser {
             self.current_document_has_merge_key |= has_merge_key;
             return Ok(node);
         }
-        let node = parse_scalar(text, line, local_start, self.active_schema)?;
+        let node = parse_scalar(
+            text,
+            line,
+            local_start,
+            &self.source,
+            self.scalar_storage,
+            self.active_schema,
+        )?;
         self.check_scalar_node(&node)?;
         self.emit_scalar_node(&node, scalar_style_for_text(text));
         Ok(node)
@@ -3469,7 +3519,7 @@ fn check_duplicate_for_schema(
 
 fn node_is_merge_key(key: &Node) -> bool {
     match &key.value {
-        Value::String(value) => value == "<<",
+        Value::String(_) => key.as_str() == Some("<<"),
         Value::Tagged(tagged) if tagged.tag.is_yaml_core("merge") => {
             tagged.value.as_str() == Some("<<")
         }
@@ -3806,9 +3856,20 @@ fn is_plain_scalar_continuation_text(text: &str) -> bool {
     !text.trim().is_empty()
 }
 
-fn parse_scalar(text: &str, line: &Line, local_start: usize, schema: Schema) -> Result<Node> {
+fn parse_scalar(
+    text: &str,
+    line: &Line,
+    local_start: usize,
+    source: &Rc<str>,
+    scalar_storage: ScalarStorage,
+    schema: Schema,
+) -> Result<Node> {
     let span = line.local_span(local_start, local_start + text.len());
-    parse_scalar_with_schema(text, span, schema)
+    if scalar_storage == ScalarStorage::SourceBacked {
+        parse_source_scalar_with_schema(text, span, schema, source)
+    } else {
+        parse_scalar_with_schema(text, span, schema)
+    }
 }
 
 fn scalar_style_for_text(text: &str) -> ScalarStyle {
@@ -4066,7 +4127,10 @@ fn event_scalar_value(node: &Node) -> String {
             .scalar_source()
             .map(|source| source.raw().to_string())
             .unwrap_or_else(|| value.to_string()),
-        Value::String(value) => value.clone(),
+        Value::String(_) => node
+            .as_str()
+            .expect("string node has semantic string value")
+            .to_string(),
         Value::Tagged(tagged) => event_scalar_value(&tagged.value),
         Value::Sequence(_) | Value::Mapping(_) => String::new(),
     }
@@ -4088,7 +4152,10 @@ fn event_scalar_value_len(node: &Node) -> usize {
             .scalar_source()
             .map(|source| source.raw().len())
             .unwrap_or_else(|| value.to_string().len()),
-        Value::String(value) => value.len(),
+        Value::String(_) => node
+            .as_str()
+            .expect("string node has semantic string value")
+            .len(),
         Value::Tagged(tagged) => event_scalar_value_len(&tagged.value),
         Value::Sequence(_) | Value::Mapping(_) => 0,
     }
@@ -4099,95 +4166,153 @@ fn parse_scalar_with_span(text: &str, span: Span) -> Result<Node> {
 }
 
 fn parse_scalar_with_schema(text: &str, span: Span, schema: Schema) -> Result<Node> {
+    parse_scalar_with_schema_and_source(text, span, schema, None)
+}
+
+fn parse_source_scalar_with_schema(
+    text: &str,
+    span: Span,
+    schema: Schema,
+    source: &Rc<str>,
+) -> Result<Node> {
+    parse_scalar_with_schema_and_source(text, span, schema, Some(source))
+}
+
+fn parse_scalar_with_schema_and_source(
+    text: &str,
+    span: Span,
+    schema: Schema,
+    source: Option<&Rc<str>>,
+) -> Result<Node> {
     if schema == Schema::Failsafe {
-        return parse_failsafe_scalar(text, span);
+        return parse_failsafe_scalar(text, span, source);
     }
     if schema == Schema::Json {
-        return parse_json_scalar(text, span);
+        return parse_json_scalar(text, span, source);
     }
     if text.is_empty() || text == "~" || text.eq_ignore_ascii_case("null") {
-        return Ok(Node::new(Value::Null, span).with_scalar_source(text));
+        return Ok(node_with_scalar_source(Value::Null, span, text, source));
     }
     if schema.is_legacy_compatible()
         && let Some(value) = parse_yaml11_bool(text)
     {
-        return Ok(Node::new(Value::Bool(value), span).with_scalar_source(text));
+        return Ok(node_with_scalar_source(
+            Value::Bool(value),
+            span,
+            text,
+            source,
+        ));
     }
     if text == "true" || text == "True" || text == "TRUE" {
-        return Ok(Node::new(Value::Bool(true), span).with_scalar_source(text));
+        return Ok(node_with_scalar_source(
+            Value::Bool(true),
+            span,
+            text,
+            source,
+        ));
     }
     if text == "false" || text == "False" || text == "FALSE" {
-        return Ok(Node::new(Value::Bool(false), span).with_scalar_source(text));
+        return Ok(node_with_scalar_source(
+            Value::Bool(false),
+            span,
+            text,
+            source,
+        ));
     }
     if text.starts_with('"') {
-        return parse_double_quoted(text, span);
+        return parse_double_quoted(text, span, source);
     }
     if text.starts_with('\'') {
-        return parse_single_quoted(text, span);
+        return parse_single_quoted(text, span, source);
     }
     if schema.is_legacy_compatible() && is_yaml11_timestamp(text) {
-        return Ok(yaml11_timestamp_node(text, span));
+        return Ok(yaml11_timestamp_node(text, span, source));
     }
     if schema.is_legacy_compatible()
         && let Some(number) = parse_yaml11_number(text)?
     {
-        return Ok(Node::new(Value::Number(number), span).with_scalar_source(text));
+        return Ok(node_with_scalar_source(
+            Value::Number(number),
+            span,
+            text,
+            source,
+        ));
     }
     if schema.is_legacy_compatible() && is_yaml11_invalid_octal(text) {
-        return Ok(Node::new(Value::String(text.to_string()), span).with_scalar_source(text));
+        return Ok(string_node(text, span, source, true));
     }
     match parse_number(text)? {
         NumberParse::Number(number) => {
-            return Ok(Node::new(Value::Number(number), span).with_scalar_source(text));
+            return Ok(node_with_scalar_source(
+                Value::Number(number),
+                span,
+                text,
+                source,
+            ));
         }
         NumberParse::InvalidInteger => {
-            return Ok(Node::new(Value::String(text.to_string()), span).with_scalar_source(text));
+            return Ok(string_node(text, span, source, true));
         }
         NumberParse::PlainScalar => {}
     }
-    Ok(Node::new(Value::String(text.to_string()), span))
+    Ok(string_node(text, span, source, false))
 }
 
-fn parse_failsafe_scalar(text: &str, span: Span) -> Result<Node> {
+fn parse_failsafe_scalar(text: &str, span: Span, source: Option<&Rc<str>>) -> Result<Node> {
     if text.starts_with('"') {
-        return parse_double_quoted(text, span);
+        return parse_double_quoted(text, span, source);
     }
     if text.starts_with('\'') {
-        return parse_single_quoted(text, span);
+        return parse_single_quoted(text, span, source);
     }
-    Ok(Node::new(Value::String(text.to_string()), span).with_scalar_source(text))
+    Ok(string_node(text, span, source, true))
 }
 
-fn parse_json_scalar(text: &str, span: Span) -> Result<Node> {
+fn parse_json_scalar(text: &str, span: Span, source: Option<&Rc<str>>) -> Result<Node> {
     if text == "null" {
-        return Ok(Node::new(Value::Null, span).with_scalar_source(text));
+        return Ok(node_with_scalar_source(Value::Null, span, text, source));
     }
     if text == "true" {
-        return Ok(Node::new(Value::Bool(true), span).with_scalar_source(text));
+        return Ok(node_with_scalar_source(
+            Value::Bool(true),
+            span,
+            text,
+            source,
+        ));
     }
     if text == "false" {
-        return Ok(Node::new(Value::Bool(false), span).with_scalar_source(text));
+        return Ok(node_with_scalar_source(
+            Value::Bool(false),
+            span,
+            text,
+            source,
+        ));
     }
     if text.starts_with('"') {
-        return parse_double_quoted(text, span);
+        return parse_double_quoted(text, span, source);
     }
     if text.starts_with('\'') {
-        return parse_single_quoted(text, span);
+        return parse_single_quoted(text, span, source);
     }
     if is_json_number(text)
         && let NumberParse::Number(number) = parse_number(text)?
     {
-        return Ok(Node::new(Value::Number(number), span).with_scalar_source(text));
+        return Ok(node_with_scalar_source(
+            Value::Number(number),
+            span,
+            text,
+            source,
+        ));
     }
-    Ok(Node::new(Value::String(text.to_string()), span).with_scalar_source(text))
+    Ok(string_node(text, span, source, true))
 }
 
 fn parse_yaml11_bool(text: &str) -> Option<bool> {
     yaml11::parse_bool(text)
 }
 
-fn yaml11_timestamp_node(text: &str, span: Span) -> Node {
-    let value = Node::new(Value::String(text.to_string()), span).with_scalar_source(text);
+fn yaml11_timestamp_node(text: &str, span: Span, source: Option<&Rc<str>>) -> Node {
+    let value = string_node(text, span, source, true);
     Node::new(
         Value::Tagged(Box::new(TaggedNode {
             tag: Tag::new("!!timestamp"),
@@ -4202,26 +4327,24 @@ fn is_yaml11_timestamp(text: &str) -> bool {
     Timestamp::parse_yaml_1_1(text).is_some()
 }
 
-fn parse_single_quoted(text: &str, span: Span) -> Result<Node> {
+fn parse_single_quoted(text: &str, span: Span, source: Option<&Rc<str>>) -> Result<Node> {
     if !text.ends_with('\'') || text.len() < 2 {
         return Err(Error::new("unterminated single-quoted scalar", span));
     }
     let inner = &text[1..text.len() - 1];
-    let value = if inner.contains("''") {
-        inner.replace("''", "'")
-    } else {
-        inner.to_string()
-    };
-    Ok(Node::new(Value::String(value), span))
+    if inner.contains("''") {
+        return Ok(Node::new(Value::String(inner.replace("''", "'")), span));
+    }
+    Ok(quoted_string_node(inner, span, source))
 }
 
-fn parse_double_quoted(text: &str, span: Span) -> Result<Node> {
+fn parse_double_quoted(text: &str, span: Span, source: Option<&Rc<str>>) -> Result<Node> {
     if !text.ends_with('"') || text.len() < 2 {
         return Err(Error::new("unterminated double-quoted scalar", span));
     }
     let inner = &text[1..text.len() - 1];
     if !inner.as_bytes().contains(&b'\\') {
-        return Ok(Node::new(Value::String(inner.to_string()), span));
+        return Ok(quoted_string_node(inner, span, source));
     }
     let mut out = String::with_capacity(inner.len());
     let mut chars = inner.chars();
@@ -4268,6 +4391,40 @@ fn parse_double_quoted(text: &str, span: Span) -> Result<Node> {
         }
     }
     Ok(Node::new(Value::String(out), span))
+}
+
+fn node_with_scalar_source(
+    value: Value,
+    span: Span,
+    text: &str,
+    _source: Option<&Rc<str>>,
+) -> Node {
+    let node = Node::new(value, span);
+    node.with_scalar_source(text)
+}
+
+fn string_node(text: &str, span: Span, source: Option<&Rc<str>>, retain_source: bool) -> Node {
+    if let Some(source) = source {
+        return Node::source_backed_string(Rc::clone(source), span, span.start, span.end);
+    }
+    let node = Node::new(Value::String(text.to_string()), span);
+    if retain_source {
+        node.with_scalar_source(text)
+    } else {
+        node
+    }
+}
+
+fn quoted_string_node(inner: &str, span: Span, source: Option<&Rc<str>>) -> Node {
+    if let Some(source) = source {
+        return Node::source_backed_string(
+            Rc::clone(source),
+            span,
+            span.start + 1,
+            span.end.saturating_sub(1),
+        );
+    }
+    Node::new(Value::String(inner.to_string()), span)
 }
 
 fn quoted_scalar_is_closed(text: &str, quote: char) -> bool {
@@ -4809,14 +4966,14 @@ impl<'a> FlowParser<'a> {
             Some('{') => self.parse_mapping(),
             Some('"') => {
                 let (text, start, end) = self.take_quoted('"')?;
-                let node = parse_double_quoted(&text, self.span(start, end))?;
+                let node = parse_double_quoted(&text, self.span(start, end), None)?;
                 self.check_scalar_node(&node)?;
                 self.emit_scalar_node(&node, ScalarStyle::DoubleQuoted);
                 Ok(node)
             }
             Some('\'') => {
                 let (text, start, end) = self.take_quoted('\'')?;
-                let node = parse_single_quoted(&text, self.span(start, end))?;
+                let node = parse_single_quoted(&text, self.span(start, end), None)?;
                 self.check_scalar_node(&node)?;
                 self.emit_scalar_node(&node, ScalarStyle::SingleQuoted);
                 Ok(node)
@@ -5077,14 +5234,14 @@ impl<'a> FlowParser<'a> {
             Some('[' | '{') => self.parse_value(),
             Some('"') => {
                 let (text, start, end) = self.take_quoted('"')?;
-                let node = parse_double_quoted(&text, self.span(start, end))?;
+                let node = parse_double_quoted(&text, self.span(start, end), None)?;
                 self.check_scalar_node(&node)?;
                 self.emit_scalar_node(&node, ScalarStyle::DoubleQuoted);
                 Ok(node)
             }
             Some('\'') => {
                 let (text, start, end) = self.take_quoted('\'')?;
-                let node = parse_single_quoted(&text, self.span(start, end))?;
+                let node = parse_single_quoted(&text, self.span(start, end), None)?;
                 self.check_scalar_node(&node)?;
                 self.emit_scalar_node(&node, ScalarStyle::SingleQuoted);
                 Ok(node)

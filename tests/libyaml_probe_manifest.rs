@@ -649,13 +649,18 @@ fn rust_probe_from_result(result: yaml::Result<String>) -> RustProbe {
 
 fn case_input(case: &Toml) -> String {
     if let Some(yaml) = toml_optional_str(case, "yaml") {
-        return yaml.to_owned();
+        return normalized_newlines(yaml);
     }
     if let Some(fixture) = toml_optional_str(case, "fixture") {
-        return fs::read_to_string(Path::new(ROOT).join(fixture))
+        let input = fs::read_to_string(Path::new(ROOT).join(fixture))
             .unwrap_or_else(|error| panic!("{fixture}: {error}"));
+        return normalized_newlines(&input);
     }
     panic!("{} must define yaml or fixture", toml_str(case, "id"));
+}
+
+fn normalized_newlines(source: &str) -> String {
+    source.replace("\r\n", "\n")
 }
 
 fn sha256_hex(input: &[u8]) -> String {

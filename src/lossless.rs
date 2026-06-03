@@ -20,6 +20,7 @@ use crate::{
 };
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::Arc;
 
 /// Parses a YAML stream into a source-backed lossless graph view.
 pub fn parse_lossless(input: &str) -> Result<LosslessStream> {
@@ -201,7 +202,7 @@ impl LosslessEffectiveMappingEntry {
 /// YAML stream that keeps the original source and a graph-shaped node view.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LosslessStream {
-    source: String,
+    source: Arc<str>,
     documents: Vec<LosslessDocument>,
     nodes: Vec<LosslessNode>,
     anchors: Vec<LosslessAnchor>,
@@ -218,8 +219,9 @@ impl LosslessStream {
     /// Parses a YAML stream into a source-backed lossless graph view with load options.
     pub fn parse_with_options(input: &str, options: LoadOptions) -> Result<Self> {
         let events = options.stream_events(input)?.collect::<Result<Vec<_>>>()?;
-        let trivia = scan_trivia(input);
-        Builder::new(input, events, trivia).build()
+        let source: Arc<str> = Arc::from(input);
+        let trivia = scan_trivia(&source);
+        Builder::new(source, events, trivia).build()
     }
 
     /// Returns the original YAML source.
@@ -229,7 +231,7 @@ impl LosslessStream {
 
     /// Consumes the stream and returns the original YAML source.
     pub fn into_source(self) -> String {
-        self.source
+        self.source.to_string()
     }
 
     /// Returns a source fragment for a span if the span still points into the
@@ -1829,11 +1831,15 @@ pub enum LosslessTriviaKind {
 }
 
 /// Comment or blank-line trivia in the retained source.
+///
+/// The trivia text is not stored as an independent copy; instead the trivia
+/// holds a shared handle to the retained source and borrows its text from the
+/// [`span`](LosslessTrivia::span). This keeps the document bytes stored once.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LosslessTrivia {
     kind: LosslessTriviaKind,
     span: Span,
-    text: String,
+    source: Arc<str>,
 }
 
 impl LosslessTrivia {
@@ -1849,12 +1855,16 @@ impl LosslessTrivia {
 
     /// Returns the trivia source text.
     pub fn text(&self) -> &str {
-        &self.text
+        // The span is constructed in `scan_trivia` to point at the exact text
+        // range within the retained source, so this slice always succeeds.
+        self.source
+            .get(self.span.start..self.span.end)
+            .unwrap_or("")
     }
 }
 
 struct Builder {
-    source: String,
+    source: Arc<str>,
     events: Vec<Event>,
     documents: Vec<LosslessDocument>,
     nodes: Vec<LosslessNode>,
@@ -1867,9 +1877,9 @@ struct Builder {
 }
 
 impl Builder {
-    fn new(input: &str, events: Vec<Event>, trivia: Vec<LosslessTrivia>) -> Self {
+    fn new(source: Arc<str>, events: Vec<Event>, trivia: Vec<LosslessTrivia>) -> Self {
         Self {
-            source: input.to_string(),
+            source,
             events,
             documents: Vec::new(),
             nodes: Vec::new(),
@@ -2204,7 +2214,7 @@ fn span_for_source_range(source: &str, start: usize, end: usize) -> Result<Span>
     Ok(Span::new(start, end, line, column))
 }
 
-fn scan_trivia(input: &str) -> Vec<LosslessTrivia> {
+fn scan_trivia(input: &Arc<str>) -> Vec<LosslessTrivia> {
     let mut trivia = Vec::new();
     let mut offset = 0usize;
     for (line_idx, chunk) in input.split_inclusive('\n').enumerate() {
@@ -2220,14 +2230,14 @@ fn scan_trivia(input: &str) -> Vec<LosslessTrivia> {
             trivia.push(LosslessTrivia {
                 kind: LosslessTriviaKind::BlankLine,
                 span: Span::new(offset + bom_len, offset + raw.len(), line, bom_len + 1),
-                text: raw_body.to_string(),
+                source: Arc::clone(input),
             });
         } else if let Some(comment) = comment_start(raw_body) {
             let start = bom_len + comment;
             trivia.push(LosslessTrivia {
                 kind: LosslessTriviaKind::Comment,
                 span: Span::new(offset + start, offset + raw.len(), line, start + 1),
-                text: raw[start..].to_string(),
+                source: Arc::clone(input),
             });
         }
         offset += chunk.len();

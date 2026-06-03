@@ -2,7 +2,37 @@ name: CI
 
 on:
   push:
+    paths:
+      - ".cargo/**"
+      - ".gitattributes"
+      - ".github/workflows/ci.yml"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "benches/**"
+      - "build.rs"
+      - "examples/**"
+      - "fuzz/**"
+      - "rust-toolchain"
+      - "rust-toolchain.toml"
+      - "scripts/**"
+      - "src/**"
+      - "tests/**"
   pull_request:
+    paths:
+      - ".cargo/**"
+      - ".gitattributes"
+      - ".github/workflows/ci.yml"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "benches/**"
+      - "build.rs"
+      - "examples/**"
+      - "fuzz/**"
+      - "rust-toolchain"
+      - "rust-toolchain.toml"
+      - "scripts/**"
+      - "src/**"
+      - "tests/**"
   workflow_dispatch:
 
 permissions:

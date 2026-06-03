@@ -10,6 +10,14 @@ Serde-first YAML for Rust — load config straight into your structs with
 string `"NO"`, not `false`), useful diagnostics, and resource limits built in.
 Pure Rust, `#![forbid(unsafe_code)]`.
 
+<p align="center">
+  <img
+    src="docs/assets/saneyaml-overview.png"
+    alt="saneyaml feature comparison against serde_yaml, yaml-rust2, and saphyr, plus a real-world config corpus benchmark"
+    width="920"
+  >
+</p>
+
 ## Install
 
 ```toml
@@ -62,13 +70,12 @@ hand. saneyaml is serde-first **and** YAML 1.2-correct.
   collection-size limits.
 - **Streaming and lossless editing** — pull-based streaming (`EventStream` /
   `DocumentStream`) and a lossless, comment-preserving editor.
-- **Competitive throughput** — the safety and ergonomics don't cost you speed:
-  on the config benchmark corpus it parses as fast as or faster than
-  `yaml-rust2` and `saphyr`. See [BENCHMARKS.md](docs/BENCHMARKS.md).
+- **Benchmarked** — real-world config corpus runs are tracked against
+  `serde_yaml`, `yaml-rust2`, and `saphyr`; see [BENCHMARKS.md](docs/BENCHMARKS.md).
 
 ## Status
 
-Pre-1.0 (`0.1.0`), MSRV Rust 1.88, and actively maintained. The public API is a
+Pre-1.0 (`0.1.1`), MSRV Rust 1.88, and actively maintained. The public API is a
 preview surface but is treated as SemVer-visible: breaking changes and MSRV
 bumps are explicit, documented release decisions. The road to 1.0 is about
 locking the surface down, not expanding it — stability is the goal.

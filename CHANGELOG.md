@@ -6,6 +6,14 @@ This changelog follows the shape of Keep a Changelog.
 
 No changes yet.
 
+## 0.1.1
+
+### Changed
+
+- Removed the deprecated `serde_yml` and the `serde_yaml_ng` fork from the
+  dev-dependency set and the compatibility matrix. Runtime dependencies are
+  unchanged (`ryu`, `serde`); this only narrows the internal comparison set.
+
 ## 0.1.0
 
 Initial `saneyaml` release.

@@ -1555,18 +1555,6 @@ fn compatibility_shared_acceptance_cases_parse_with_reference_crates() {
             case.name
         );
 
-        if case.docs == 1 {
-            serde_yml::from_str::<serde_yml::Value>(case.input)
-                .unwrap_or_else(|error| panic!("serde_yml failed {}: {error}", case.name));
-        }
-
-        let serde_yaml_ng_docs = serde_yaml_ng::Deserializer::from_str(case.input).count();
-        assert_eq!(
-            serde_yaml_ng_docs, case.docs,
-            "serde_yaml_ng doc count for {}",
-            case.name
-        );
-
         let yaml_rust_docs = yaml_rust2::YamlLoader::load_from_str(case.input)
             .unwrap_or_else(|error| panic!("yaml-rust2 failed {}: {error}", case.name));
         assert_eq!(

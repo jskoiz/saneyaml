@@ -1,6 +1,6 @@
 [package]
 name = "saneyaml"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.88"
 description = "Pure-Rust YAML parser, emitter, and Serde compatibility layer for developer configuration files."
@@ -50,5 +50,3 @@ saphyr-parser = "0.0.6"
 sha2 = "0.10"
 toml = "0.8"
 yaml-rust2 = "0.11.0"
-serde_yml = "0.0.13"
-serde_yaml_ng = "0.10.0"

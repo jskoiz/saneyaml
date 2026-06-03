@@ -32,8 +32,6 @@ struct MatrixRow {
     yaml_policy: String,
     yaml: String,
     serde_yaml: String,
-    serde_yml: String,
-    serde_yaml_ng: String,
     yaml_rust2: String,
     saphyr: String,
     cross_ecosystem: Vec<String>,
@@ -84,8 +82,6 @@ fn compatibility_matrix_rust_loaders_match_manifest() {
     for row in &manifest.row {
         assert_known_status("yaml", &row.yaml);
         assert_known_status("serde_yaml", &row.serde_yaml);
-        assert_known_status("serde_yml", &row.serde_yml);
-        assert_known_status("serde_yaml_ng", &row.serde_yaml_ng);
         assert_known_status("yaml-rust2", &row.yaml_rust2);
         assert_known_status("saphyr", &row.saphyr);
         assert!(
@@ -211,18 +207,6 @@ fn assert_typed_serde_row(row: &MatrixRow) {
             row.expected_docs
         })
     });
-    assert_status(row, "serde_yml", &row.serde_yml, || {
-        serde_yml::from_str::<AppConfig>(input).map(|value| {
-            assert_eq!(value, expected);
-            row.expected_docs
-        })
-    });
-    assert_status(row, "serde_yaml_ng", &row.serde_yaml_ng, || {
-        serde_yaml_ng::from_str::<AppConfig>(input).map(|value| {
-            assert_eq!(value, expected);
-            row.expected_docs
-        })
-    });
     assert_eq!(row.yaml_rust2, "n/a");
     assert_eq!(row.saphyr, "n/a");
 }
@@ -234,12 +218,6 @@ fn assert_parse_documents_row(row: &MatrixRow) {
     });
     assert_status(row, "serde_yaml", &row.serde_yaml, || {
         Ok::<_, serde_yaml::Error>(serde_yaml::Deserializer::from_str(input).count())
-    });
-    assert_status(row, "serde_yml", &row.serde_yml, || {
-        serde_yml::from_str::<serde_yml::Value>(input).map(|_| 1)
-    });
-    assert_status(row, "serde_yaml_ng", &row.serde_yaml_ng, || {
-        Ok::<_, serde_yaml_ng::Error>(serde_yaml_ng::Deserializer::from_str(input).count())
     });
     assert_status(row, "yaml-rust2", &row.yaml_rust2, || {
         yaml_rust2::YamlLoader::load_from_str(input).map(|docs| docs.len())
@@ -276,22 +254,6 @@ fn assert_real_world_registry_row(row: &MatrixRow) {
             &row.serde_yaml,
             fixture,
             Ok::<_, serde_yaml::Error>(serde_yaml::Deserializer::from_str(&input).count()),
-        );
-        if row.serde_yml != "n/a" {
-            assert_loader_accepts(
-                row,
-                "serde_yml",
-                &row.serde_yml,
-                fixture,
-                serde_yml::from_str::<serde_yml::Value>(&input).map(|_| fixture.expected_docs),
-            );
-        }
-        assert_loader_accepts(
-            row,
-            "serde_yaml_ng",
-            &row.serde_yaml_ng,
-            fixture,
-            Ok::<_, serde_yaml_ng::Error>(serde_yaml_ng::Deserializer::from_str(&input).count()),
         );
         assert_loader_accepts(
             row,
@@ -381,8 +343,8 @@ fn cross_vectors() -> CrossEcosystemVectors {
 fn render_matrix(manifest: &MatrixManifest, vectors: &CrossEcosystemVectors) -> String {
     let by_row = vectors_by_row(vectors);
     let mut output = String::from(
-        "| Behavior family | Proof source | `yaml` policy | `yaml` | `serde_yaml` | `serde_yml` | `serde_yaml_ng` | `yaml-rust2` | `saphyr` | Cross-ecosystem vector | Divergence / migration impact |\n\
-         |---|---|---|---|---|---|---|---|---|---|---|\n",
+        "| Behavior family | Proof source | `yaml` policy | `yaml` | `serde_yaml` | `yaml-rust2` | `saphyr` | Cross-ecosystem vector | Divergence / migration impact |\n\
+         |---|---|---|---|---|---|---|---|---|\n",
     );
     for row in &manifest.row {
         let cross = if row.cross_ecosystem.is_empty() {
@@ -406,14 +368,12 @@ fn render_matrix(manifest: &MatrixManifest, vectors: &CrossEcosystemVectors) -> 
             format!("{}; {}", row.divergence_record, row.migration_impact)
         };
         output.push_str(&format!(
-            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
             cell(&row.behavior),
             cell(&row.proof),
             cell(&row.yaml_policy),
             cell(&row.yaml),
             cell(&row.serde_yaml),
-            cell(&row.serde_yml),
-            cell(&row.serde_yaml_ng),
             cell(&row.yaml_rust2),
             cell(&row.saphyr),
             cell(&cross),

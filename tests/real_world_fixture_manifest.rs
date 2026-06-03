@@ -221,18 +221,6 @@ fn assert_shared_reference_acceptance(fixture: &FixtureRecord, input: &str) {
         fixture.path
     );
 
-    if fixture.expected_docs == 1 {
-        serde_yml::from_str::<serde_yml::Value>(input)
-            .unwrap_or_else(|error| panic!("serde_yml parses {}: {error}", fixture.path));
-    }
-
-    let serde_yaml_ng_docs = serde_yaml_ng::Deserializer::from_str(input).count();
-    assert_eq!(
-        serde_yaml_ng_docs, fixture.expected_docs,
-        "serde_yaml_ng document count for {}",
-        fixture.path
-    );
-
     let yaml_rust_docs = yaml_rust2::YamlLoader::load_from_str(input)
         .unwrap_or_else(|error| panic!("yaml-rust2 parses {}: {error}", fixture.path));
     assert_eq!(

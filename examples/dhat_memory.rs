@@ -122,7 +122,7 @@ fn measure(lib: &str, corpus: &str) {
             let mut stream =
                 saneyaml::DocumentStream::from_str(&input).expect("saneyaml document stream");
             let mut documents = 0usize;
-            while let Some(document) = stream.next() {
+            for document in stream.by_ref() {
                 let document = document.expect("saneyaml stream document");
                 black_box(&document);
                 documents += 1;
@@ -137,7 +137,7 @@ fn measure(lib: &str, corpus: &str) {
             let mut stream =
                 saneyaml::EventStream::from_str(&input).expect("saneyaml event stream");
             let mut events = 0usize;
-            while let Some(event) = stream.next() {
+            for event in stream.by_ref() {
                 let event = event.expect("saneyaml stream event");
                 black_box(&event);
                 events += 1;

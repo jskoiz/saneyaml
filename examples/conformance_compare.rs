@@ -9,7 +9,7 @@
 //!   - `accept`       — valid YAML; a tree/Value load should succeed
 //!   - `syntax-error` — invalid YAML; loading should be rejected
 //!   - `tree-error`   — valid event stream, but tree loading must reject it
-//!                      (e.g. duplicate keys). This is the "sane" policy axis.
+//!     (e.g. duplicate keys). This is the "sane" policy axis.
 //!
 //! The 400 accept + syntax-error cases are spec-derived and form the neutral
 //! head-to-head. The 2 tree-error cases reflect saneyaml's stricter
@@ -17,6 +17,9 @@
 
 use serde::Deserialize;
 use std::{fs, path::PathBuf};
+
+/// A library's tree/Value acceptance predicate for one input.
+type AcceptFn = fn(&str) -> bool;
 
 #[derive(Debug, Deserialize)]
 struct SuiteManifest {
@@ -110,7 +113,7 @@ fn main() {
     ))
     .expect("manifest is valid TOML");
 
-    let libraries: &[(&str, fn(&str) -> bool)] = &[
+    let libraries: &[(&str, AcceptFn)] = &[
         ("saneyaml", saneyaml_accepts),
         ("serde_yaml", serde_yaml_accepts),
         ("yaml-rust2", yaml_rust2_accepts),

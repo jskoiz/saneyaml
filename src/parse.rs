@@ -1909,10 +1909,7 @@ impl Parser {
         self.emit_sequence_start(CollectionStyle::Block, start);
         let mut items = NodeItems::new();
 
-        loop {
-            let Some(line) = self.content_after_blanks()? else {
-                break;
-            };
+        while let Some(line) = self.content_after_blanks()? {
             if line.indent() != indent {
                 break;
             }
@@ -1979,10 +1976,7 @@ impl Parser {
         let mut seen = DuplicateKeyTracker::new();
         let mut pending_key: Option<(Node, Span)> = None;
 
-        loop {
-            let Some(line) = self.content_after_blanks()? else {
-                break;
-            };
+        while let Some(line) = self.content_after_blanks()? {
             let content = line.content(&source);
             if line.indent() != indent || sequence_rest(content).is_some() {
                 break;
@@ -2073,10 +2067,7 @@ impl Parser {
             line.local_span(rest_start, rest_start + rest.len()),
         )?;
 
-        loop {
-            let Some(next) = self.content_after_blanks()? else {
-                break;
-            };
+        while let Some(next) = self.content_after_blanks()? {
             if next.indent() != item_indent {
                 break;
             }
@@ -2239,10 +2230,7 @@ impl Parser {
             line.local_span(sequence_start, sequence_start + sequence_text.len()),
         )?;
 
-        loop {
-            let Some(next) = self.content_after_blanks()? else {
-                break;
-            };
+        while let Some(next) = self.content_after_blanks()? {
             if next.indent() != sequence_indent {
                 break;
             }
@@ -3390,10 +3378,10 @@ impl Parser {
     }
 
     fn check_depth(&mut self, depth: usize) -> Result<()> {
-        if !self
+        if self
             .options
             .selected_max_nesting_depth()
-            .is_some_and(|max| depth > max)
+            .is_none_or(|max| depth <= max)
         {
             return Ok(());
         }

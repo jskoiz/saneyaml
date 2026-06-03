@@ -3023,7 +3023,10 @@ fn block_scalar_line_is_more_indented(line: &str) -> bool {
 
 fn preprocess(input: &str) -> Result<Vec<Line>> {
     let source = Rc::<str>::from(input);
-    let mut out = Vec::new();
+    // Pre-size to the exact line count so the table is allocated once instead
+    // of growing through ~log2(n) doublings (which churn ~2x the final size).
+    let line_estimate = input.bytes().filter(|&byte| byte == b'\n').count() + 1;
+    let mut out = Vec::with_capacity(line_estimate);
     let mut offset = 0;
     for (idx, chunk) in input.split_inclusive('\n').enumerate() {
         let raw_len = chunk.trim_end_matches('\n').trim_end_matches('\r').len();

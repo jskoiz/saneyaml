@@ -1,0 +1,4 @@
+mode=push value=nested path=segments
+items:
+  - one=== config value ===
+two three

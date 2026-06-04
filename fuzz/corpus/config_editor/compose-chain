@@ -1,0 +1,12 @@
+mode=chain value=seq path=segments
+# sentinel compose
+x-defaults: &defaults
+  restart: unless-stopped
+services:
+  web:
+    <<: *defaults
+    image: nginx:1.25
+    ports:
+      - "80:80"
+=== config value ===
+api worker

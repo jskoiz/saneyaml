@@ -1,8 +1,8 @@
 use proptest::prelude::*;
 use saneyaml::{
-    AnchorId, CollectionStyle, Error, Event, EventDocumentDirectives, EventMeta, LoadOptions,
-    LosslessNodeKind, LosslessStream, LosslessTriviaKind, Node, NodeId, NodeValue, Number, Schema,
-    Span, Tag, TaggedNode, Value,
+    AnchorId, CollectionStyle, ConfigPath, Error, Event, EventDocumentDirectives, EventMeta,
+    LoadOptions, LosslessNodeKind, LosslessStream, LosslessTriviaKind, Node, NodeId, NodeValue,
+    Number, PathSegment, Schema, Span, Tag, TaggedNode, Value,
 };
 use serde::{
     Deserialize, Serialize,
@@ -241,6 +241,13 @@ const LOSSLESS_EDIT_REQUIRED_SEEDS: &[&str] = &[
     "structural-sequence-delete",
     "structural-sequence-insert",
     "structural-sequence-replace",
+];
+const CONFIG_EDITOR_REQUIRED_SEEDS: &[&str] = &[
+    "compose-chain",
+    "flow-mapping-set-sequence",
+    "kubernetes-json-pointer",
+    "multi-doc-rename",
+    "no-trailing-newline-push",
 ];
 
 proptest! {
@@ -482,6 +489,15 @@ fn lossless_edit_fuzz_corpus_validates_edits_or_diagnostics() {
 }
 
 #[test]
+fn config_editor_fuzz_corpus_validates_high_level_edits() {
+    for (name, input) in fuzz_corpus_inputs("config_editor") {
+        std::panic::catch_unwind(|| assert_config_editor_invariants(&input)).unwrap_or_else(|_| {
+            panic!("ConfigEditor edits must not panic on config_editor fuzz corpus {name}")
+        });
+    }
+}
+
+#[test]
 fn apply_merge_corpus_does_not_panic() {
     for (name, input) in fixture_inputs()
         .into_iter()
@@ -516,6 +532,7 @@ fn apply_merge_semantic_corpus_matches_serde_yaml() {
 fn fuzz_corpora_cover_release_targets_and_named_safety_seeds() {
     let expected: BTreeMap<&str, (usize, &[&str])> = BTreeMap::from([
         ("apply_merge", (16, APPLY_MERGE_REQUIRED_SEEDS)),
+        ("config_editor", (5, CONFIG_EDITOR_REQUIRED_SEEDS)),
         ("emit_roundtrip", (14, EMIT_ROUNDTRIP_REQUIRED_SEEDS)),
         ("event_stream", (130, EVENT_STREAM_REQUIRED_SEEDS)),
         ("lossless_edit", (28, LOSSLESS_EDIT_REQUIRED_SEEDS)),
@@ -626,6 +643,7 @@ fn fuzz_corpus_targets() -> BTreeSet<&'static str> {
                 .unwrap_or_else(|| panic!("corpus dir has UTF-8 filename: {}", path.display()));
             match name {
                 "apply_merge" => "apply_merge",
+                "config_editor" => "config_editor",
                 "emit_roundtrip" => "emit_roundtrip",
                 "event_stream" => "event_stream",
                 "lossless_edit" => "lossless_edit",
@@ -652,6 +670,7 @@ fn declared_fuzz_targets() -> BTreeSet<&'static str> {
             let name = bin["name"].as_str().expect("fuzz bin declares name");
             match name {
                 "apply_merge" => "apply_merge",
+                "config_editor" => "config_editor",
                 "emit_roundtrip" => "emit_roundtrip",
                 "event_stream" => "event_stream",
                 "lossless_edit" => "lossless_edit",
@@ -1286,6 +1305,499 @@ fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     haystack
         .windows(needle.len())
         .position(|window| window == needle)
+}
+
+const CONFIG_EDITOR_VALUE_MARKER: &[u8] = b"=== config value ===\n";
+
+#[derive(Clone, Copy)]
+struct ConfigEditorInput<'a> {
+    header: &'a str,
+    selector: usize,
+    source: &'a [u8],
+    payload: &'a str,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ConfigEditMode {
+    Set,
+    Remove,
+    Rename,
+    Insert,
+    Push,
+    InsertItem,
+    Chain,
+}
+
+#[derive(Clone)]
+struct ConfigEditorCandidate {
+    document: usize,
+    path: Vec<PathSegment>,
+    kind: ConfigEditorCandidateKind,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ConfigEditorCandidateKind {
+    Any,
+    Mapping { can_insert: bool },
+    Sequence { len: usize, can_insert: bool },
+    MappingEntry,
+    SequenceItem,
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum ConfigEditorValue {
+    Scalar(String),
+    Sequence(Vec<String>),
+    Mapping(BTreeMap<String, String>),
+    Nested(BTreeMap<String, Vec<String>>),
+    Multiline(String),
+}
+
+fn assert_config_editor_invariants(input: &[u8]) {
+    let Some(edit_input) = split_config_editor_input(input) else {
+        return;
+    };
+
+    let stream = match saneyaml::parse_lossless_bytes(edit_input.source) {
+        Ok(stream) => stream,
+        Err(error) => {
+            assert_error_invariants_allowing_unspanned(edit_input.source, &error);
+            return;
+        }
+    };
+    let source = stream.as_source().to_owned();
+    let mut editor = saneyaml::edit(source).expect("parsed source opens in ConfigEditor");
+
+    let applied = apply_config_editor_plan(&mut editor, &stream, edit_input)
+        .expect("selected ConfigEditor operation succeeds");
+    if !applied {
+        return;
+    }
+
+    let output = editor.finish().expect("successful config edit validates");
+    let edited = saneyaml::parse_lossless(&output).expect("edited config reparses losslessly");
+    assert_lossless_stream_invariants(output.as_bytes(), &edited);
+}
+
+fn apply_config_editor_plan(
+    editor: &mut saneyaml::ConfigEditor,
+    stream: &LosslessStream,
+    input: ConfigEditorInput<'_>,
+) -> saneyaml::Result<bool> {
+    match config_edit_mode_from_header(input.header, input.selector) {
+        ConfigEditMode::Set => apply_config_editor_set(editor, stream, input),
+        ConfigEditMode::Remove => apply_config_editor_remove(editor, stream, input),
+        ConfigEditMode::Rename => apply_config_editor_rename(editor, stream, input),
+        ConfigEditMode::Insert => apply_config_editor_insert(editor, stream, input),
+        ConfigEditMode::Push => apply_config_editor_push(editor, stream, input),
+        ConfigEditMode::InsertItem => apply_config_editor_insert_item(editor, stream, input),
+        ConfigEditMode::Chain => apply_config_editor_chain(editor, stream, input),
+    }
+}
+
+fn apply_config_editor_set(
+    editor: &mut saneyaml::ConfigEditor,
+    stream: &LosslessStream,
+    input: ConfigEditorInput<'_>,
+) -> saneyaml::Result<bool> {
+    let candidates = collect_config_editor_candidates(stream);
+    let Some(candidate) = choose_config_editor_candidate(&candidates, input.selector) else {
+        return Ok(false);
+    };
+    let path = config_editor_path(&candidate.path, input.header)?;
+    editor.set_in_document(
+        candidate.document,
+        path,
+        config_editor_value(input.header, input.payload),
+    )?;
+    Ok(true)
+}
+
+fn apply_config_editor_remove(
+    editor: &mut saneyaml::ConfigEditor,
+    stream: &LosslessStream,
+    input: ConfigEditorInput<'_>,
+) -> saneyaml::Result<bool> {
+    let candidates = collect_config_editor_candidates(stream)
+        .into_iter()
+        .filter(|candidate| {
+            matches!(
+                candidate.kind,
+                ConfigEditorCandidateKind::MappingEntry | ConfigEditorCandidateKind::SequenceItem
+            )
+        })
+        .collect::<Vec<_>>();
+    let Some(candidate) = choose_config_editor_candidate(&candidates, input.selector) else {
+        return Ok(false);
+    };
+    let path = config_editor_path(&candidate.path, input.header)?;
+    editor.remove_in_document(candidate.document, path)?;
+    Ok(true)
+}
+
+fn apply_config_editor_rename(
+    editor: &mut saneyaml::ConfigEditor,
+    stream: &LosslessStream,
+    input: ConfigEditorInput<'_>,
+) -> saneyaml::Result<bool> {
+    let candidates = collect_config_editor_candidates(stream)
+        .into_iter()
+        .filter(|candidate| candidate.kind == ConfigEditorCandidateKind::MappingEntry)
+        .collect::<Vec<_>>();
+    let Some(candidate) = choose_config_editor_candidate(&candidates, input.selector) else {
+        return Ok(false);
+    };
+    let path = config_editor_path(&candidate.path, input.header)?;
+    editor.rename_in_document(candidate.document, path, config_editor_key(input.payload))?;
+    Ok(true)
+}
+
+fn apply_config_editor_insert(
+    editor: &mut saneyaml::ConfigEditor,
+    stream: &LosslessStream,
+    input: ConfigEditorInput<'_>,
+) -> saneyaml::Result<bool> {
+    let candidates = collect_config_editor_candidates(stream)
+        .into_iter()
+        .filter(|candidate| {
+            matches!(
+                candidate.kind,
+                ConfigEditorCandidateKind::Mapping { can_insert: true }
+            )
+        })
+        .collect::<Vec<_>>();
+    let Some(candidate) = choose_config_editor_candidate(&candidates, input.selector) else {
+        return Ok(false);
+    };
+    let path = config_editor_path(&candidate.path, input.header)?;
+    editor.insert_in_document(
+        candidate.document,
+        path,
+        config_editor_key(input.payload),
+        config_editor_value(input.header, input.payload),
+    )?;
+    Ok(true)
+}
+
+fn apply_config_editor_push(
+    editor: &mut saneyaml::ConfigEditor,
+    stream: &LosslessStream,
+    input: ConfigEditorInput<'_>,
+) -> saneyaml::Result<bool> {
+    let candidates = collect_config_editor_candidates(stream)
+        .into_iter()
+        .filter(|candidate| {
+            matches!(
+                candidate.kind,
+                ConfigEditorCandidateKind::Sequence {
+                    can_insert: true,
+                    ..
+                }
+            )
+        })
+        .collect::<Vec<_>>();
+    let Some(candidate) = choose_config_editor_candidate(&candidates, input.selector) else {
+        return Ok(false);
+    };
+    let path = config_editor_path(&candidate.path, input.header)?;
+    editor.push_in_document(
+        candidate.document,
+        path,
+        config_editor_value(input.header, input.payload),
+    )?;
+    Ok(true)
+}
+
+fn apply_config_editor_insert_item(
+    editor: &mut saneyaml::ConfigEditor,
+    stream: &LosslessStream,
+    input: ConfigEditorInput<'_>,
+) -> saneyaml::Result<bool> {
+    let candidates = collect_config_editor_candidates(stream)
+        .into_iter()
+        .filter(|candidate| {
+            matches!(
+                candidate.kind,
+                ConfigEditorCandidateKind::Sequence {
+                    can_insert: true,
+                    ..
+                }
+            )
+        })
+        .collect::<Vec<_>>();
+    let Some(candidate) = choose_config_editor_candidate(&candidates, input.selector) else {
+        return Ok(false);
+    };
+    let ConfigEditorCandidateKind::Sequence { len, .. } = candidate.kind else {
+        return Ok(false);
+    };
+    let path = config_editor_path(&candidate.path, input.header)?;
+    editor.insert_item_in_document(
+        candidate.document,
+        path,
+        input.selector % (len + 1),
+        config_editor_value(input.header, input.payload),
+    )?;
+    Ok(true)
+}
+
+fn apply_config_editor_chain(
+    editor: &mut saneyaml::ConfigEditor,
+    stream: &LosslessStream,
+    input: ConfigEditorInput<'_>,
+) -> saneyaml::Result<bool> {
+    if !apply_config_editor_set(editor, stream, input)? {
+        return Ok(false);
+    }
+    let current = saneyaml::parse_lossless(editor.as_source())?;
+    let _ = apply_config_editor_insert(editor, &current, input);
+    let current = saneyaml::parse_lossless(editor.as_source())?;
+    let _ = apply_config_editor_push(editor, &current, input);
+    Ok(true)
+}
+
+fn collect_config_editor_candidates(stream: &LosslessStream) -> Vec<ConfigEditorCandidate> {
+    let mut candidates = Vec::new();
+    for document in stream.documents() {
+        if let Some(root) = document.root() {
+            collect_config_editor_node_candidates(
+                stream,
+                document.index(),
+                root,
+                Vec::new(),
+                &mut candidates,
+            );
+        }
+    }
+    candidates
+}
+
+fn collect_config_editor_node_candidates(
+    stream: &LosslessStream,
+    document: usize,
+    node_id: NodeId,
+    path: Vec<PathSegment>,
+    candidates: &mut Vec<ConfigEditorCandidate>,
+) {
+    let Some(node) = stream.node(node_id) else {
+        return;
+    };
+    candidates.push(ConfigEditorCandidate {
+        document,
+        path: path.clone(),
+        kind: ConfigEditorCandidateKind::Any,
+    });
+    match node.kind() {
+        LosslessNodeKind::Mapping { style, entries } => {
+            candidates.push(ConfigEditorCandidate {
+                document,
+                path: path.clone(),
+                kind: ConfigEditorCandidateKind::Mapping {
+                    can_insert: *style == CollectionStyle::Flow || !entries.is_empty(),
+                },
+            });
+            let unique_keys = unique_config_editor_scalar_keys(stream, entries);
+            for (key_id, value_id) in entries {
+                let Some(key) = config_editor_scalar_key(stream, *key_id) else {
+                    continue;
+                };
+                if !unique_keys.contains_key(key) {
+                    continue;
+                }
+                let mut child_path = path.clone();
+                child_path.push(PathSegment::from(key.to_owned()));
+                candidates.push(ConfigEditorCandidate {
+                    document,
+                    path: child_path.clone(),
+                    kind: ConfigEditorCandidateKind::MappingEntry,
+                });
+                collect_config_editor_node_candidates(
+                    stream, document, *value_id, child_path, candidates,
+                );
+            }
+        }
+        LosslessNodeKind::Sequence { style, children } => {
+            candidates.push(ConfigEditorCandidate {
+                document,
+                path: path.clone(),
+                kind: ConfigEditorCandidateKind::Sequence {
+                    len: children.len(),
+                    can_insert: *style == CollectionStyle::Flow || !children.is_empty(),
+                },
+            });
+            for (index, child) in children.iter().enumerate() {
+                let mut child_path = path.clone();
+                child_path.push(PathSegment::from(index));
+                candidates.push(ConfigEditorCandidate {
+                    document,
+                    path: child_path.clone(),
+                    kind: ConfigEditorCandidateKind::SequenceItem,
+                });
+                collect_config_editor_node_candidates(
+                    stream, document, *child, child_path, candidates,
+                );
+            }
+        }
+        LosslessNodeKind::Scalar { .. } | LosslessNodeKind::Alias { .. } => {}
+    }
+}
+
+fn unique_config_editor_scalar_keys<'a>(
+    stream: &'a LosslessStream,
+    entries: &'a [(NodeId, NodeId)],
+) -> BTreeMap<&'a str, ()> {
+    let mut counts = BTreeMap::<&str, usize>::new();
+    for (key, _) in entries {
+        if let Some(key) = config_editor_scalar_key(stream, *key) {
+            *counts.entry(key).or_default() += 1;
+        }
+    }
+    counts
+        .into_iter()
+        .filter_map(|(key, count)| (count == 1).then_some((key, ())))
+        .collect()
+}
+
+fn config_editor_scalar_key(stream: &LosslessStream, node: NodeId) -> Option<&str> {
+    match stream.node(node)?.kind() {
+        LosslessNodeKind::Scalar { value, .. } => Some(value),
+        _ => None,
+    }
+}
+
+fn config_editor_path(path: &[PathSegment], header: &str) -> saneyaml::Result<ConfigPath> {
+    if header.contains("path=json") {
+        ConfigPath::json_pointer(&config_editor_json_pointer(path))
+    } else {
+        Ok(ConfigPath::new(path.iter().cloned()))
+    }
+}
+
+fn config_editor_json_pointer(path: &[PathSegment]) -> String {
+    if path.is_empty() {
+        return String::new();
+    }
+    let mut pointer = String::new();
+    for segment in path {
+        pointer.push('/');
+        match segment {
+            PathSegment::Key(key) => {
+                pointer.push_str(&key.replace('~', "~0").replace('/', "~1"));
+            }
+            PathSegment::Index(index) => pointer.push_str(&index.to_string()),
+        }
+    }
+    pointer
+}
+
+fn choose_config_editor_candidate<T>(items: &[T], selector: usize) -> Option<&T> {
+    (!items.is_empty()).then(|| &items[selector % items.len()])
+}
+
+fn split_config_editor_input(input: &[u8]) -> Option<ConfigEditorInput<'_>> {
+    let line_end = input.iter().position(|byte| *byte == b'\n')?;
+    let header = std::str::from_utf8(&input[..line_end]).ok()?;
+    let body = &input[line_end + 1..];
+    let split = find_subslice(body, CONFIG_EDITOR_VALUE_MARKER)?;
+    let payload = std::str::from_utf8(&body[split + CONFIG_EDITOR_VALUE_MARKER.len()..]).ok()?;
+    Some(ConfigEditorInput {
+        header,
+        selector: config_editor_selector(header, payload),
+        source: &body[..split],
+        payload,
+    })
+}
+
+fn config_edit_mode_from_header(header: &str, selector: usize) -> ConfigEditMode {
+    if header.contains("mode=remove") {
+        ConfigEditMode::Remove
+    } else if header.contains("mode=rename") {
+        ConfigEditMode::Rename
+    } else if header.contains("mode=insert-item") {
+        ConfigEditMode::InsertItem
+    } else if header.contains("mode=insert") {
+        ConfigEditMode::Insert
+    } else if header.contains("mode=push") {
+        ConfigEditMode::Push
+    } else if header.contains("mode=chain") {
+        ConfigEditMode::Chain
+    } else if header.contains("mode=set") {
+        ConfigEditMode::Set
+    } else {
+        match selector % 7 {
+            0 => ConfigEditMode::Set,
+            1 => ConfigEditMode::Remove,
+            2 => ConfigEditMode::Rename,
+            3 => ConfigEditMode::Insert,
+            4 => ConfigEditMode::Push,
+            5 => ConfigEditMode::InsertItem,
+            _ => ConfigEditMode::Chain,
+        }
+    }
+}
+
+fn config_editor_selector(header: &str, payload: &str) -> usize {
+    header
+        .bytes()
+        .chain(payload.bytes())
+        .fold(0usize, |acc, byte| {
+            acc.wrapping_mul(33).wrapping_add(byte as usize)
+        })
+}
+
+fn config_editor_value(header: &str, payload: &str) -> ConfigEditorValue {
+    let words = config_editor_payload_words(payload);
+    if header.contains("value=map") {
+        ConfigEditorValue::Mapping(BTreeMap::from([
+            ("mode".to_owned(), words[0].clone()),
+            ("tier".to_owned(), words[1].clone()),
+        ]))
+    } else if header.contains("value=nested") {
+        ConfigEditorValue::Nested(BTreeMap::from([(
+            "items".to_owned(),
+            vec![words[0].clone(), words[1].clone()],
+        )]))
+    } else if header.contains("value=multiline") {
+        ConfigEditorValue::Multiline(format!("{}\n{}", words[0], words[1]))
+    } else if header.contains("value=seq") {
+        ConfigEditorValue::Sequence(vec![words[0].clone(), words[1].clone()])
+    } else {
+        ConfigEditorValue::Scalar(words[0].clone())
+    }
+}
+
+fn config_editor_key(payload: &str) -> String {
+    format!(
+        "fuzz.{}.key/{}",
+        config_editor_payload_words(payload)[0],
+        "renamed"
+    )
+}
+
+fn config_editor_payload_words(payload: &str) -> Vec<String> {
+    let mut words = payload
+        .split_whitespace()
+        .map(config_editor_sanitize_word)
+        .filter(|word| !word.is_empty())
+        .collect::<Vec<_>>();
+    while words.len() < 2 {
+        words.push(format!("value{}", words.len() + 1));
+    }
+    words
+}
+
+fn config_editor_sanitize_word(word: &str) -> String {
+    let sanitized = word
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '/' | '~'))
+        .take(32)
+        .collect::<String>();
+    if sanitized.is_empty() {
+        "value".to_owned()
+    } else {
+        sanitized
+    }
 }
 
 fn select_lossless_edit_target(

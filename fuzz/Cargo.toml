@@ -82,3 +82,10 @@ path = "fuzz_targets/lossless_edit.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "config_editor"
+path = "fuzz_targets/config_editor.rs"
+test = false
+doc = false
+bench = false

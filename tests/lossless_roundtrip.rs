@@ -1,5 +1,5 @@
 use saneyaml::{
-    CollectionStyle, LosslessNodeKind, LosslessTriviaKind, PathSegment, ScalarStyle,
+    CollectionStyle, ConfigPath, LosslessNodeKind, LosslessTriviaKind, PathSegment, ScalarStyle,
     parse_lossless, parse_lossless_bytes,
 };
 
@@ -1040,4 +1040,140 @@ fn lossless_path_addressed_mutations_reject_mismatched_targets() {
             .to_string()
             .contains("requires a sequence node")
     );
+}
+
+#[test]
+fn config_editor_chains_path_edits_against_current_source() -> saneyaml::Result<()> {
+    let input = "\
+# compose comment
+x-defaults: &defaults
+  restart: unless-stopped
+services:
+  web:
+    <<: *defaults
+    image: nginx:1.25
+    command: [\"run\", \"server\"]
+    ports:
+      - \"80:80\"
+metadata:
+  labels:
+    app.kubernetes.io/name: web
+";
+    let mut editor = saneyaml::edit(input)?;
+
+    editor
+        .set(
+            ConfigPath::new([
+                PathSegment::from("services"),
+                PathSegment::from("web"),
+                PathSegment::from("image"),
+            ]),
+            "ghcr.io/acme/web:2026",
+        )?
+        .remove(ConfigPath::new([
+            PathSegment::from("services"),
+            PathSegment::from("web"),
+            PathSegment::from("command"),
+        ]))?
+        .push(
+            ConfigPath::new([
+                PathSegment::from("services"),
+                PathSegment::from("web"),
+                PathSegment::from("ports"),
+            ]),
+            "8080:80",
+        )?
+        .rename(
+            ConfigPath::json_pointer("/metadata/labels/app.kubernetes.io~1name")?,
+            "app.kubernetes.io/component",
+        )?
+        .insert(
+            ConfigPath::new([PathSegment::from("metadata"), PathSegment::from("labels")]),
+            "tier",
+            "frontend",
+        )?;
+
+    let output = editor.finish()?;
+    let expected = "\
+# compose comment
+x-defaults: &defaults
+  restart: unless-stopped
+services:
+  web:
+    <<: *defaults
+    image: ghcr.io/acme/web:2026
+    ports:
+      - \"80:80\"
+      - 8080:80
+metadata:
+  labels:
+    app.kubernetes.io/component: web
+    tier: frontend
+";
+    assert_eq!(output, expected);
+    parse_lossless(&output).expect("edited config reparses losslessly");
+    Ok(())
+}
+
+#[test]
+fn config_path_json_pointer_handles_escaped_config_keys_and_arrays() -> saneyaml::Result<()> {
+    let input = "\
+metadata:
+  labels:
+    app.kubernetes.io/name: web
+    tilde~key: old
+spec:
+  containers:
+    - image: nginx:1.25
+";
+    let mut editor = saneyaml::edit(input)?;
+    editor
+        .set(
+            ConfigPath::keys(["metadata", "labels", "app.kubernetes.io/name"]),
+            "api",
+        )?
+        .set(
+            ConfigPath::json_pointer("/metadata/labels/app.kubernetes.io~1name")?,
+            "worker",
+        )?
+        .set(
+            ConfigPath::json_pointer("/metadata/labels/tilde~0key")?,
+            "new",
+        )?
+        .set(
+            ConfigPath::json_pointer("/spec/containers/0/image")?,
+            "nginx:1.27",
+        )?;
+
+    let output = editor.finish()?;
+    assert!(output.contains("app.kubernetes.io/name: worker"));
+    assert!(output.contains("tilde~key: new"));
+    assert!(output.contains("image: nginx:1.27"));
+
+    let invalid_escape = ConfigPath::json_pointer("/metadata/~2bad")
+        .expect_err("invalid JSON Pointer escape is rejected");
+    assert!(
+        invalid_escape
+            .to_string()
+            .contains("invalid JSON Pointer escape")
+    );
+    Ok(())
+}
+
+#[test]
+fn config_editor_targets_selected_document_in_stream() -> saneyaml::Result<()> {
+    let input = "\
+---
+name: first
+---
+name: second
+";
+    let mut editor = saneyaml::edit(input)?;
+    editor.set_in_document(1, ConfigPath::keys(["name"]), "updated")?;
+
+    let output = editor.finish()?;
+    assert!(output.contains("name: first"));
+    assert!(output.contains("name: updated"));
+    assert!(!output.contains("name: second"));
+    Ok(())
 }

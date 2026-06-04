@@ -74,8 +74,9 @@ hand. saneyaml is serde-first **and** YAML 1.2-correct.
 - **Safe on hostile input** — unsafe-free, with bounded time and memory:
   input-size, alias-expansion, nesting-depth, scalar-length, and
   collection-size limits.
-- **Streaming and lossless editing** — pull-based streaming (`EventStream` /
-  `DocumentStream`) and a lossless, comment-preserving editor.
+- **Streaming and source-preserving edits** — pull-based streaming
+  (`EventStream` / `DocumentStream`) plus `edit(...)` for path-based config
+  refactors that keep comments, anchors, ordering, and untouched bytes.
 - **Benchmarked** — real-world config corpus runs are tracked against
   `serde_yaml`, `yaml-rust2`, and `saphyr`; see [BENCHMARKS.md](docs/BENCHMARKS.md).
 

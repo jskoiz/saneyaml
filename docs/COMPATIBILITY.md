@@ -4,9 +4,12 @@ This crate targets **Serde read paths first**:
 `serde_yaml`-style `from_str`, `from_slice`, and `from_reader` for common
 developer configuration files, with parser/tree/event behavior compared against
 `yaml-rust2` and `saphyr`. It now includes a source-backed lossless graph view
-for retaining existing YAML text plus validated node/source-span edits,
-scalar-keyed block and flow mapping entry edits, block and flow sequence item
-edits, insertions, and deletions. Emission is configured through
+for retaining existing YAML text plus a high-level config refactoring editor
+that applies sequential path edits while preserving comments, anchors, ordering,
+and untouched bytes. The lower-level graph API still exposes validated
+node/source-span edits, scalar-keyed block and flow mapping entry edits, and
+block and flow sequence item edits, insertions, and deletions. Emission is
+configured through
 `EmitOptions`: `EmitOptions::structural()` is the implemented default,
 `EmitOptions::byte_compatible()` is an opt-in `serde_yaml` writer-byte tier for
 a documented structural corpus, and structural style knobs cover key ordering,

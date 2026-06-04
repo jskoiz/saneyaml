@@ -24,6 +24,7 @@ include = [
     "/docs/MIGRATION.md",
     "/docs/PUBLIC_API.txt",
     "/SECURITY.md",
+    "/examples/config_refactor.rs",
     "/examples/serde_yaml_migration.rs",
     "/src/**",
 ]

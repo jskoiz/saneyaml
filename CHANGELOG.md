@@ -11,9 +11,12 @@ effect are omitted.
 
 ## Unreleased
 
-<!-- Add entries here as changes merge; this section graduates to a version on release. -->
+### Added
 
-No changes yet.
+- Added `ConfigEditor` and `ConfigPath` as a high-level config refactoring API
+  for sequential path-based set/remove/rename/insert edits that preserve
+  comments, anchors, ordering, and untouched bytes through the existing lossless
+  graph editor.
 
 ## 0.1.1
 

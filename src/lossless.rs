@@ -1380,12 +1380,9 @@ impl LosslessEdit<'_> {
             .ok_or_else(|| Error::new("lossless mapping value id is out of bounds", None))?;
         let entry_source = entry_source.into();
         ensure_single_mapping_entry_fragment(&entry_source, mapping.span())?;
-        let indent = line_indent(
-            &self.stream.source,
-            line_start(&self.stream.source, first_key.span().start),
-        );
+        let indent = block_mapping_entry_indent(&self.stream.source, first_key.span().start);
         let offset = line_end_including_newline(&self.stream.source, last_value.span().end);
-        let mut insertion = indent_entry_source(&entry_source, indent);
+        let mut insertion = indent_entry_source(&entry_source, &indent);
         if offset == self.stream.source.len() && !self.stream.source.ends_with('\n') {
             insertion.insert(0, '\n');
         }
@@ -1421,8 +1418,15 @@ impl LosslessEdit<'_> {
             .stream
             .node(entry.value)
             .ok_or_else(|| Error::new("lossless mapping value id is out of bounds", None))?;
-        let start = line_start(&self.stream.source, key_node.span().start);
-        let end = line_end_including_newline(&self.stream.source, value_node.span().end);
+        let source = &self.stream.source;
+        let end = line_end_including_newline(source, value_node.span().end);
+        if let Some((dash_end, _)) =
+            compact_sequence_mapping_key_prefix(source, key_node.span().start)
+        {
+            let span = self.stream.source_span(dash_end, end)?;
+            return self.replace_source_span(span, "\n");
+        }
+        let start = line_start(source, key_node.span().start);
         let span = self.stream.source_span(start, end)?;
         self.delete_source_span(span)
     }
@@ -3252,6 +3256,39 @@ fn line_indent(source: &str, line_start: usize) -> &str {
         .take_while(|byte| matches!(*byte, b' ' | b'\t'))
         .count();
     &line[..indent_len]
+}
+
+fn block_mapping_entry_indent(source: &str, key_start: usize) -> String {
+    compact_sequence_mapping_key_indent(source, key_start).unwrap_or_else(|| {
+        let line_start = line_start(source, key_start);
+        line_indent(source, line_start).to_owned()
+    })
+}
+
+fn compact_sequence_mapping_key_indent(source: &str, key_start: usize) -> Option<String> {
+    let (_, prefix) = compact_sequence_mapping_key_prefix(source, key_start)?;
+    Some(
+        prefix
+            .bytes()
+            .map(|byte| if byte == b'\t' { '\t' } else { ' ' })
+            .collect(),
+    )
+}
+
+fn compact_sequence_mapping_key_prefix(source: &str, key_start: usize) -> Option<(usize, &str)> {
+    let line_start = line_start(source, key_start);
+    let prefix = source.get(line_start..key_start)?;
+    let dash = prefix
+        .bytes()
+        .position(|byte| !matches!(byte, b' ' | b'\t'))?;
+    if prefix.as_bytes().get(dash) != Some(&b'-') {
+        return None;
+    }
+    let after_dash = prefix.as_bytes().get(dash + 1..)?;
+    if after_dash.is_empty() || !after_dash.iter().all(|byte| matches!(*byte, b' ' | b'\t')) {
+        return None;
+    }
+    Some((line_start + dash + 1, prefix))
 }
 
 fn indent_entry_source(entry_source: &str, indent: &str) -> String {

@@ -346,6 +346,51 @@ copy: *svc
 }
 
 #[test]
+fn lossless_edit_preserves_compact_sequence_item_mapping_edits() {
+    let input = "\
+steps:
+  - uses: actions/checkout@v4
+    with:
+      fetch-depth: 0
+";
+    let stream = parse_lossless(input).expect("lossless parse");
+    let step = block_mapping_with_key(&stream, "uses");
+
+    let inserted = stream
+        .insert_block_mapping_entry_source(step.id(), "name: checkout")
+        .expect("insert compact sequence item mapping entry");
+    assert_eq!(
+        inserted,
+        "\
+steps:
+  - uses: actions/checkout@v4
+    with:
+      fetch-depth: 0
+    name: checkout
+"
+    );
+
+    let removed = stream
+        .delete_block_mapping_entry_source(step.id(), "uses")
+        .expect("delete first compact sequence item mapping key");
+    assert_eq!(
+        removed,
+        "\
+steps:
+  -
+    with:
+      fetch-depth: 0
+"
+    );
+    let reparsed = parse_lossless(&removed).expect("edited source reparses");
+    let step = block_mapping_with_key(&reparsed, "with");
+    assert!(matches!(
+        step.kind(),
+        LosslessNodeKind::Mapping { entries, .. } if entries.len() == 1
+    ));
+}
+
+#[test]
 fn lossless_edit_rejects_invalid_structural_mapping_edits() {
     let stream = parse_lossless("service:\n  image: nginx\n").expect("lossless parse");
     let service = block_mapping_with_key(&stream, "image");
@@ -1111,6 +1156,42 @@ metadata:
     tier: frontend
 ";
     assert_eq!(output, expected);
+    parse_lossless(&output).expect("edited config reparses losslessly");
+    Ok(())
+}
+
+#[test]
+fn config_editor_preserves_compact_sequence_item_mapping_edits() -> saneyaml::Result<()> {
+    let input = "\
+steps:
+  - uses: actions/checkout@v4
+    with:
+      fetch-depth: 0
+";
+    let mut editor = saneyaml::edit(input)?;
+    editor
+        .insert(
+            ConfigPath::new([PathSegment::from("steps"), PathSegment::from(0usize)]),
+            "name",
+            "checkout",
+        )?
+        .remove(ConfigPath::new([
+            PathSegment::from("steps"),
+            PathSegment::from(0usize),
+            PathSegment::from("uses"),
+        ]))?;
+
+    let output = editor.finish()?;
+    assert_eq!(
+        output,
+        "\
+steps:
+  -
+    with:
+      fetch-depth: 0
+    name: checkout
+"
+    );
     parse_lossless(&output).expect("edited config reparses losslessly");
     Ok(())
 }

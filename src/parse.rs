@@ -295,12 +295,28 @@ impl Line {
     }
 
     #[inline]
-    fn raw_from<'a>(&self, source: &'a str, indent: usize) -> &'a str {
+    fn raw_from<'a>(&self, source: &'a str, indent: usize) -> Result<&'a str> {
         let raw = self.raw(source);
         if indent >= self.raw_len() {
-            ""
+            Ok("")
+        } else if let Some(rest) = raw.get(indent..) {
+            Ok(rest)
         } else {
-            &raw[indent..]
+            let (char_start, ch) = raw
+                .char_indices()
+                .take_while(|(idx, _)| *idx < indent)
+                .last()
+                .unwrap_or((0, '\0'));
+            let char_end = char_start + ch.len_utf8();
+            Err(Error::syntax(
+                "block scalar indentation does not align to a UTF-8 character boundary",
+                Span::new(
+                    self.start() + char_start,
+                    self.start() + char_end,
+                    self.no(),
+                    char_start + 1,
+                ),
+            ))
         }
     }
 
@@ -2977,10 +2993,10 @@ impl Parser {
                             line.local_span(0, 0),
                         ));
                     }
-                    line.raw_from(&source, indent).to_string()
+                    line.raw_from(&source, indent)?.to_string()
                 } else {
                     if let Some(indent) = block_indent {
-                        line.raw_from(&source, indent).to_string()
+                        line.raw_from(&source, indent)?.to_string()
                     } else {
                         max_leading_blank_indent = max_leading_blank_indent.max(line.raw_len());
                         String::new()
@@ -2997,7 +3013,7 @@ impl Parser {
                 if line.indent() < indent {
                     break;
                 }
-                line.raw_from(&source, indent).to_string()
+                line.raw_from(&source, indent)?.to_string()
             };
             end = line.start() + line.raw_len();
             lines.push(text);

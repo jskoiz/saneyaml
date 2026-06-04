@@ -16,6 +16,8 @@ use std::{
 };
 
 const PARSE_BYTES_REQUIRED_SEEDS: &[&str] = &[
+    "issue-13-block-scalar-nbsp-byte-boundary",
+    "issue-13-block-scalar-u0085-byte-boundary",
     "yaml11-alias-key-collision",
     "yaml11-scalar-denominator",
     "yaml11-signed-zero-key-collision",
@@ -54,6 +56,8 @@ const PARSE_BYTES_REQUIRED_SEEDS: &[&str] = &[
     "yts-w5vh-alias-allowed-characters",
 ];
 const SERDE_ENTRYPOINTS_REQUIRED_SEEDS: &[&str] = &[
+    "issue-13-block-scalar-nbsp-byte-boundary",
+    "issue-13-block-scalar-u0085-byte-boundary",
     "yaml11-alias-key-collision",
     "yaml11-omap-non-singleton-entry",
     "yaml11-pairs-scalar-entry",

@@ -1320,3 +1320,85 @@ fn config_editor_uses_load_options_for_intermediate_validation() -> saneyaml::Re
         .expect("edited config reparses with editor load options");
     Ok(())
 }
+
+#[test]
+fn config_editor_remove_preserves_empty_mapping_type() -> saneyaml::Result<()> {
+    let input = "\
+root:
+  child: old
+";
+    let mut editor = saneyaml::edit(input)?;
+    editor.remove(ConfigPath::keys(["root", "child"]))?;
+
+    let output = editor.finish()?;
+    assert_eq!(
+        output,
+        "\
+root:
+  {}
+"
+    );
+    let stream = parse_lossless(&output)?;
+    let root = stream.resolve_path(0, &[PathSegment::from("root")])?;
+    let root = stream.node(root).expect("root node exists");
+    assert!(matches!(
+        root.kind(),
+        LosslessNodeKind::Mapping { entries, .. } if entries.is_empty()
+    ));
+
+    let mut editor = saneyaml::edit(input)?;
+    editor.remove(ConfigPath::keys(["root", "child"]))?.insert(
+        ConfigPath::keys(["root"]),
+        "next",
+        true,
+    )?;
+    let output = editor.finish()?;
+    assert_eq!(
+        output,
+        "\
+root:
+  {next: true}
+"
+    );
+    parse_lossless(&output).expect("chained edit reparses losslessly");
+    Ok(())
+}
+
+#[test]
+fn config_editor_uses_load_options_for_generated_fragments() -> saneyaml::Result<()> {
+    let input = "\
+root:
+  items: old
+";
+    let items = (0..=DEFAULT_MAX_COLLECTION_ITEMS)
+        .map(|index| format!("item{index}"))
+        .collect::<Vec<_>>();
+
+    let mut default_editor = saneyaml::edit(input)?;
+    let default_error = default_editor
+        .set(ConfigPath::keys(["root", "items"]), items.clone())
+        .expect_err("default collection limit rejects generated replacement");
+    assert!(default_error.to_string().contains("collection"));
+
+    let mut editor = saneyaml::ConfigEditor::new_with_options(
+        input,
+        LoadOptions::new().without_collection_limit(),
+    )?;
+    editor.set(ConfigPath::keys(["root", "items"]), items)?;
+
+    let output = editor.finish()?;
+    assert!(output.contains("items:\n    - item0\n"));
+    let stream = saneyaml::parse_lossless_with_options(
+        &output,
+        LoadOptions::new().without_collection_limit(),
+    )
+    .expect("edited config reparses with editor load options");
+    let items = stream.resolve_path(0, &[PathSegment::from("root"), PathSegment::from("items")])?;
+    let items = stream.node(items).expect("items node exists");
+    assert!(matches!(
+        items.kind(),
+        LosslessNodeKind::Sequence { children, .. }
+            if children.len() == DEFAULT_MAX_COLLECTION_ITEMS + 1
+    ));
+    Ok(())
+}

@@ -1360,6 +1360,19 @@ impl LosslessEdit<'_> {
         mapping: NodeId,
         entry_source: impl Into<String>,
     ) -> Result<&mut Self> {
+        self.insert_block_mapping_entry_source_with_options(
+            mapping,
+            entry_source,
+            LoadOptions::new(),
+        )
+    }
+
+    fn insert_block_mapping_entry_source_with_options(
+        &mut self,
+        mapping: NodeId,
+        entry_source: impl Into<String>,
+        options: LoadOptions,
+    ) -> Result<&mut Self> {
         let mapping = self.mapping_node(mapping)?;
         let LosslessNodeKind::Mapping { style, entries } = mapping.kind() else {
             unreachable!("mapping_node only returns mapping nodes");
@@ -1388,7 +1401,7 @@ impl LosslessEdit<'_> {
             .node(*last_value)
             .ok_or_else(|| Error::new("lossless mapping value id is out of bounds", None))?;
         let entry_source = entry_source.into();
-        ensure_single_mapping_entry_fragment(&entry_source, mapping.span())?;
+        ensure_single_mapping_entry_fragment_with_options(&entry_source, mapping.span(), options)?;
         let indent = block_mapping_entry_indent(&self.stream.source, first_key.span().start);
         let offset = line_end_including_newline(&self.stream.source, last_value.span().end);
         let mut insertion = indent_entry_source(&entry_source, &indent);
@@ -1451,6 +1464,19 @@ impl LosslessEdit<'_> {
         mapping: NodeId,
         entry_source: impl Into<String>,
     ) -> Result<&mut Self> {
+        self.insert_flow_mapping_entry_source_with_options(
+            mapping,
+            entry_source,
+            LoadOptions::new(),
+        )
+    }
+
+    fn insert_flow_mapping_entry_source_with_options(
+        &mut self,
+        mapping: NodeId,
+        entry_source: impl Into<String>,
+        options: LoadOptions,
+    ) -> Result<&mut Self> {
         let mapping_node = self.mapping_node(mapping)?;
         let LosslessNodeKind::Mapping { style, entries } = mapping_node.kind() else {
             unreachable!("mapping_node only returns mapping nodes");
@@ -1462,7 +1488,11 @@ impl LosslessEdit<'_> {
             ));
         }
         let entry_source = entry_source.into();
-        ensure_single_mapping_entry_fragment(&entry_source, mapping_node.span())?;
+        ensure_single_mapping_entry_fragment_with_options(
+            &entry_source,
+            mapping_node.span(),
+            options,
+        )?;
         let insertion = if let Some((_, last_value)) = entries.last() {
             let last_value = self
                 .stream
@@ -1535,6 +1565,21 @@ impl LosslessEdit<'_> {
         index: usize,
         replacement: impl Into<String>,
     ) -> Result<&mut Self> {
+        self.replace_sequence_item_source_with_options(
+            sequence,
+            index,
+            replacement,
+            LoadOptions::new(),
+        )
+    }
+
+    fn replace_sequence_item_source_with_options(
+        &mut self,
+        sequence: NodeId,
+        index: usize,
+        replacement: impl Into<String>,
+        options: LoadOptions,
+    ) -> Result<&mut Self> {
         let sequence_node = self.sequence_node(sequence)?;
         let LosslessNodeKind::Sequence { style, .. } = sequence_node.kind() else {
             unreachable!("sequence_node only returns sequence nodes");
@@ -1545,7 +1590,12 @@ impl LosslessEdit<'_> {
             .node(item)
             .ok_or_else(|| Error::new("lossless sequence item id is out of bounds", None))?;
         let replacement = replacement.into();
-        ensure_single_node_fragment(&replacement, sequence_node.span(), "sequence item source")?;
+        ensure_single_node_fragment_with_options(
+            &replacement,
+            sequence_node.span(),
+            "sequence item source",
+            options,
+        )?;
         if *style == CollectionStyle::Block {
             let start = line_start(&self.stream.source, item_node.span().start);
             let end = line_end_including_newline(&self.stream.source, item_node.span().end);
@@ -1570,6 +1620,21 @@ impl LosslessEdit<'_> {
         sequence: NodeId,
         index: usize,
         item_source: impl Into<String>,
+    ) -> Result<&mut Self> {
+        self.insert_block_sequence_item_source_with_options(
+            sequence,
+            index,
+            item_source,
+            LoadOptions::new(),
+        )
+    }
+
+    fn insert_block_sequence_item_source_with_options(
+        &mut self,
+        sequence: NodeId,
+        index: usize,
+        item_source: impl Into<String>,
+        options: LoadOptions,
     ) -> Result<&mut Self> {
         let sequence = self.sequence_node(sequence)?;
         let LosslessNodeKind::Sequence { style, children } = sequence.kind() else {
@@ -1602,7 +1667,12 @@ impl LosslessEdit<'_> {
             .node(children[0])
             .ok_or_else(|| Error::new("lossless sequence item id is out of bounds", None))?;
         let item_source = item_source.into();
-        ensure_single_node_fragment(&item_source, sequence.span(), "sequence item source")?;
+        ensure_single_node_fragment_with_options(
+            &item_source,
+            sequence.span(),
+            "sequence item source",
+            options,
+        )?;
         let indent = line_indent(
             &self.stream.source,
             line_start(&self.stream.source, first_child.span().start),
@@ -1671,6 +1741,21 @@ impl LosslessEdit<'_> {
         index: usize,
         item_source: impl Into<String>,
     ) -> Result<&mut Self> {
+        self.insert_flow_sequence_item_source_with_options(
+            sequence,
+            index,
+            item_source,
+            LoadOptions::new(),
+        )
+    }
+
+    fn insert_flow_sequence_item_source_with_options(
+        &mut self,
+        sequence: NodeId,
+        index: usize,
+        item_source: impl Into<String>,
+        options: LoadOptions,
+    ) -> Result<&mut Self> {
         let sequence_node = self.sequence_node(sequence)?;
         let LosslessNodeKind::Sequence { style, children } = sequence_node.kind() else {
             unreachable!("sequence_node only returns sequence nodes");
@@ -1691,7 +1776,12 @@ impl LosslessEdit<'_> {
             ));
         }
         let item_source = item_source.into();
-        ensure_single_node_fragment(&item_source, sequence_node.span(), "sequence item source")?;
+        ensure_single_node_fragment_with_options(
+            &item_source,
+            sequence_node.span(),
+            "sequence item source",
+            options,
+        )?;
         let insertion = if children.is_empty() {
             item_source
         } else if index == children.len() {
@@ -2790,7 +2880,13 @@ where
             let mut edit = stream.edit();
             match style {
                 CollectionStyle::Block => {
-                    replace_block_mapping_value_source(&mut edit, parent, &key, &replacement)?;
+                    replace_block_mapping_value_source(
+                        &mut edit,
+                        parent,
+                        &key,
+                        &replacement,
+                        options,
+                    )?;
                 }
                 CollectionStyle::Flow => {
                     edit.replace_mapping_value_source(parent, &key, replacement)?;
@@ -2801,7 +2897,7 @@ where
         (ResolvedConfigStep::Index(index), LosslessNodeKind::Sequence { style, .. }) => {
             let replacement = serialize_value_for_style(value, *style)?;
             let mut edit = stream.edit();
-            edit.replace_sequence_item_source(parent, index, replacement)?;
+            edit.replace_sequence_item_source_with_options(parent, index, replacement, options)?;
             edit.finish_with_options(options)
         }
         (ResolvedConfigStep::Key(key), _) => Err(Error::new(
@@ -2820,6 +2916,7 @@ fn replace_block_mapping_value_source(
     mapping: NodeId,
     key: &str,
     replacement: &str,
+    options: LoadOptions,
 ) -> Result<()> {
     let mapping_node = edit.mapping_node(mapping)?;
     let LosslessNodeKind::Mapping { style, .. } = mapping_node.kind() else {
@@ -2841,7 +2938,12 @@ fn replace_block_mapping_value_source(
         .stream
         .node(entry.value)
         .ok_or_else(|| Error::new("config mapping value node id is out of bounds", None))?;
-    ensure_single_node_fragment(replacement, value_node.span(), "mapping value source")?;
+    ensure_single_node_fragment_with_options(
+        replacement,
+        value_node.span(),
+        "mapping value source",
+        options,
+    )?;
 
     if !replacement.contains('\n') {
         edit.replace_mapping_value_source(mapping, key, replacement.to_owned())?;
@@ -2898,13 +3000,26 @@ fn remove_path_source(
     let mut edit = stream.edit();
     match (last, parent_node.kind()) {
         (ResolvedConfigStep::Key(key), LosslessNodeKind::Mapping { style, .. }) => match style {
-            CollectionStyle::Block => edit.delete_block_mapping_entry_source(parent, &key)?,
-            CollectionStyle::Flow => edit.delete_flow_mapping_entry_source(parent, &key)?,
+            CollectionStyle::Block => match parent_node.kind() {
+                LosslessNodeKind::Mapping { entries, .. } if entries.len() == 1 => {
+                    edit.replace_node_source(parent, "{}")?;
+                }
+                _ => {
+                    edit.delete_block_mapping_entry_source(parent, &key)?;
+                }
+            },
+            CollectionStyle::Flow => {
+                edit.delete_flow_mapping_entry_source(parent, &key)?;
+            }
         },
         (ResolvedConfigStep::Index(index), LosslessNodeKind::Sequence { style, .. }) => match style
         {
-            CollectionStyle::Block => edit.delete_block_sequence_item_source(parent, index)?,
-            CollectionStyle::Flow => edit.delete_flow_sequence_item_source(parent, index)?,
+            CollectionStyle::Block => {
+                edit.delete_block_sequence_item_source(parent, index)?;
+            }
+            CollectionStyle::Flow => {
+                edit.delete_flow_sequence_item_source(parent, index)?;
+            }
         },
         (ResolvedConfigStep::Key(key), _) => {
             return Err(Error::new(
@@ -2971,8 +3086,12 @@ where
     let entry_source = format_typed_entry_source(key, value, *style)?;
     let mut edit = stream.edit();
     match style {
-        CollectionStyle::Block => edit.insert_block_mapping_entry_source(mapping, entry_source)?,
-        CollectionStyle::Flow => edit.insert_flow_mapping_entry_source(mapping, entry_source)?,
+        CollectionStyle::Block => {
+            edit.insert_block_mapping_entry_source_with_options(mapping, entry_source, options)?
+        }
+        CollectionStyle::Flow => {
+            edit.insert_flow_mapping_entry_source_with_options(mapping, entry_source, options)?
+        }
     };
     edit.finish_with_options(options)
 }
@@ -3031,12 +3150,18 @@ where
     let item_source = serialize_value_for_style(value, *style)?;
     let mut edit = stream.edit();
     match style {
-        CollectionStyle::Block => {
-            edit.insert_block_sequence_item_source(sequence, index, item_source)?
-        }
-        CollectionStyle::Flow => {
-            edit.insert_flow_sequence_item_source(sequence, index, item_source)?
-        }
+        CollectionStyle::Block => edit.insert_block_sequence_item_source_with_options(
+            sequence,
+            index,
+            item_source,
+            options,
+        )?,
+        CollectionStyle::Flow => edit.insert_flow_sequence_item_source_with_options(
+            sequence,
+            index,
+            item_source,
+            options,
+        )?,
     };
     edit.finish_with_options(options)
 }
@@ -3213,8 +3338,13 @@ fn ensure_scalar_fragment(replacement: &str, span: Span) -> Result<()> {
     Ok(())
 }
 
-fn ensure_single_mapping_entry_fragment(entry_source: &str, span: Span) -> Result<()> {
-    let root = single_fragment_root(entry_source, span, "mapping entry source")?;
+fn ensure_single_mapping_entry_fragment_with_options(
+    entry_source: &str,
+    span: Span,
+    options: LoadOptions,
+) -> Result<()> {
+    let root =
+        single_fragment_root_with_options(entry_source, span, "mapping entry source", options)?;
     match root.kind() {
         LosslessNodeKind::Mapping { entries, .. } if entries.len() == 1 => Ok(()),
         _ => Err(Error::new(
@@ -3224,12 +3354,22 @@ fn ensure_single_mapping_entry_fragment(entry_source: &str, span: Span) -> Resul
     }
 }
 
-fn ensure_single_node_fragment(fragment: &str, span: Span, label: &str) -> Result<()> {
-    single_fragment_root(fragment, span, label).map(|_| ())
+fn ensure_single_node_fragment_with_options(
+    fragment: &str,
+    span: Span,
+    label: &str,
+    options: LoadOptions,
+) -> Result<()> {
+    single_fragment_root_with_options(fragment, span, label, options).map(|_| ())
 }
 
-fn single_fragment_root(fragment: &str, span: Span, label: &str) -> Result<LosslessNode> {
-    let parsed = parse_lossless(fragment)
+fn single_fragment_root_with_options(
+    fragment: &str,
+    span: Span,
+    label: &str,
+    options: LoadOptions,
+) -> Result<LosslessNode> {
+    let parsed = parse_lossless_with_options(fragment, options)
         .map_err(|error| Error::new(format!("{label} is not valid YAML: {error}"), Some(span)))?;
     if parsed.documents().len() != 1 {
         return Err(Error::new(

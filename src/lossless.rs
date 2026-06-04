@@ -1072,7 +1072,7 @@ impl ConfigEditor {
         T: Serialize,
     {
         let path = path.into();
-        self.apply(|stream| set_path_source(stream, document, &path, &value))
+        self.apply(|stream, options| set_path_source(stream, document, &path, &value, options))
     }
 
     /// Removes a mapping entry or sequence item from document 0.
@@ -1089,7 +1089,7 @@ impl ConfigEditor {
         P: Into<ConfigPath>,
     {
         let path = path.into();
-        self.apply(|stream| remove_path_source(stream, document, &path))
+        self.apply(|stream, options| remove_path_source(stream, document, &path, options))
     }
 
     /// Renames a scalar mapping key in document 0.
@@ -1112,7 +1112,7 @@ impl ConfigEditor {
     {
         let path = path.into();
         let new_key = serialize_key_fragment(new_key.as_ref())?;
-        self.apply(|stream| rename_path_source(stream, document, &path, &new_key))
+        self.apply(|stream, options| rename_path_source(stream, document, &path, &new_key, options))
     }
 
     /// Inserts a serialized key/value entry into a mapping in document 0.
@@ -1143,7 +1143,9 @@ impl ConfigEditor {
     {
         let mapping_path = mapping_path.into();
         let key = key.as_ref().to_owned();
-        self.apply(|stream| insert_entry_source(stream, document, &mapping_path, &key, &value))
+        self.apply(|stream, options| {
+            insert_entry_source(stream, document, &mapping_path, &key, &value, options)
+        })
     }
 
     /// Appends a serialized item to a sequence in document 0.
@@ -1167,7 +1169,9 @@ impl ConfigEditor {
         T: Serialize,
     {
         let sequence_path = sequence_path.into();
-        self.apply(|stream| push_item_source(stream, document, &sequence_path, &value))
+        self.apply(|stream, options| {
+            push_item_source(stream, document, &sequence_path, &value, options)
+        })
     }
 
     /// Inserts a serialized sequence item at `index` in document 0.
@@ -1197,7 +1201,9 @@ impl ConfigEditor {
         T: Serialize,
     {
         let sequence_path = sequence_path.into();
-        self.apply(|stream| insert_item_source(stream, document, &sequence_path, index, &value))
+        self.apply(|stream, options| {
+            insert_item_source(stream, document, &sequence_path, index, &value, options)
+        })
     }
 
     /// Validates and returns the edited source.
@@ -1224,9 +1230,12 @@ impl ConfigEditor {
         })
     }
 
-    fn apply(&mut self, edit: impl FnOnce(&LosslessStream) -> Result<String>) -> Result<&mut Self> {
+    fn apply(
+        &mut self,
+        edit: impl FnOnce(&LosslessStream, LoadOptions) -> Result<String>,
+    ) -> Result<&mut Self> {
         let stream = parse_lossless_with_options(&self.source, self.options)?;
-        let edited = edit(&stream)?;
+        let edited = edit(&stream, self.options)?;
         parse_lossless_with_options(&edited, self.options)?;
         self.source = edited;
         Ok(self)
@@ -1753,7 +1762,11 @@ impl LosslessEdit<'_> {
     }
 
     /// Returns validated edited YAML with untouched source bytes preserved.
-    pub fn finish(mut self) -> Result<String> {
+    pub fn finish(self) -> Result<String> {
+        self.finish_with_options(LoadOptions::new())
+    }
+
+    fn finish_with_options(mut self, options: LoadOptions) -> Result<String> {
         self.replacements
             .sort_by_key(|replacement| (replacement.start, replacement.end, replacement.order));
         self.validate_replacements()?;
@@ -1779,7 +1792,7 @@ impl LosslessEdit<'_> {
         };
         output.push_str(suffix);
 
-        parse_lossless(&output)?;
+        parse_lossless_with_options(&output, options)?;
         Ok(output)
     }
 
@@ -2755,6 +2768,7 @@ fn set_path_source<T>(
     document: usize,
     path: &ConfigPath,
     value: &T,
+    options: LoadOptions,
 ) -> Result<String>
 where
     T: Serialize,
@@ -2764,7 +2778,7 @@ where
         let replacement = serialize_edit_fragment(value, EmitOptions::structural())?;
         let mut edit = stream.edit();
         edit.replace_node_source(root, replacement)?;
-        return edit.finish();
+        return edit.finish_with_options(options);
     }
     let (parent, last) = resolve_config_parent(stream, document, path)?;
     let parent_node = stream
@@ -2782,13 +2796,13 @@ where
                     edit.replace_mapping_value_source(parent, &key, replacement)?;
                 }
             }
-            edit.finish()
+            edit.finish_with_options(options)
         }
         (ResolvedConfigStep::Index(index), LosslessNodeKind::Sequence { style, .. }) => {
             let replacement = serialize_value_for_style(value, *style)?;
             let mut edit = stream.edit();
             edit.replace_sequence_item_source(parent, index, replacement)?;
-            edit.finish()
+            edit.finish_with_options(options)
         }
         (ResolvedConfigStep::Key(key), _) => Err(Error::new(
             format!("config set of key {key:?} requires a mapping parent"),
@@ -2875,6 +2889,7 @@ fn remove_path_source(
     stream: &LosslessStream,
     document: usize,
     path: &ConfigPath,
+    options: LoadOptions,
 ) -> Result<String> {
     let (parent, last) = resolve_config_parent(stream, document, path)?;
     let parent_node = stream
@@ -2904,7 +2919,7 @@ fn remove_path_source(
             ));
         }
     };
-    edit.finish()
+    edit.finish_with_options(options)
 }
 
 fn rename_path_source(
@@ -2912,6 +2927,7 @@ fn rename_path_source(
     document: usize,
     path: &ConfigPath,
     new_key_source: &str,
+    options: LoadOptions,
 ) -> Result<String> {
     let (parent, last) = resolve_config_parent(stream, document, path)?;
     let ResolvedConfigStep::Key(old_key) = last else {
@@ -2928,7 +2944,7 @@ fn rename_path_source(
         .ok_or_else(|| Error::new("config rename key node id is out of bounds", None))?;
     let mut edit = stream.edit();
     edit.replace_node_source(key_node.id(), new_key_source.to_owned())?;
-    edit.finish()
+    edit.finish_with_options(options)
 }
 
 fn insert_entry_source<T>(
@@ -2937,6 +2953,7 @@ fn insert_entry_source<T>(
     mapping_path: &ConfigPath,
     key: &str,
     value: &T,
+    options: LoadOptions,
 ) -> Result<String>
 where
     T: Serialize,
@@ -2957,7 +2974,7 @@ where
         CollectionStyle::Block => edit.insert_block_mapping_entry_source(mapping, entry_source)?,
         CollectionStyle::Flow => edit.insert_flow_mapping_entry_source(mapping, entry_source)?,
     };
-    edit.finish()
+    edit.finish_with_options(options)
 }
 
 fn push_item_source<T>(
@@ -2965,6 +2982,7 @@ fn push_item_source<T>(
     document: usize,
     sequence_path: &ConfigPath,
     value: &T,
+    options: LoadOptions,
 ) -> Result<String>
 where
     T: Serialize,
@@ -2979,7 +2997,14 @@ where
             Some(sequence_node.span()),
         ));
     };
-    insert_item_source(stream, document, sequence_path, children.len(), value)
+    insert_item_source(
+        stream,
+        document,
+        sequence_path,
+        children.len(),
+        value,
+        options,
+    )
 }
 
 fn insert_item_source<T>(
@@ -2988,6 +3013,7 @@ fn insert_item_source<T>(
     sequence_path: &ConfigPath,
     index: usize,
     value: &T,
+    options: LoadOptions,
 ) -> Result<String>
 where
     T: Serialize,
@@ -3012,7 +3038,7 @@ where
             edit.insert_flow_sequence_item_source(sequence, index, item_source)?
         }
     };
-    edit.finish()
+    edit.finish_with_options(options)
 }
 
 fn serialize_key_fragment(key: &str) -> Result<String> {

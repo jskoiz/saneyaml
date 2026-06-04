@@ -1,6 +1,6 @@
 use saneyaml::{
-    CollectionStyle, ConfigPath, LosslessNodeKind, LosslessTriviaKind, PathSegment, ScalarStyle,
-    parse_lossless, parse_lossless_bytes,
+    CollectionStyle, ConfigPath, DEFAULT_MAX_COLLECTION_ITEMS, LoadOptions, LosslessNodeKind,
+    LosslessTriviaKind, PathSegment, ScalarStyle, parse_lossless, parse_lossless_bytes,
 };
 
 #[test]
@@ -1292,5 +1292,31 @@ name: second
     assert!(output.contains("name: first"));
     assert!(output.contains("name: updated"));
     assert!(!output.contains("name: second"));
+    Ok(())
+}
+
+#[test]
+fn config_editor_uses_load_options_for_intermediate_validation() -> saneyaml::Result<()> {
+    let mut input = String::from("items:\n");
+    for index in 0..=DEFAULT_MAX_COLLECTION_ITEMS {
+        input.push_str("  - item");
+        input.push_str(&index.to_string());
+        input.push('\n');
+    }
+    input.push_str("flag: old\n");
+
+    let default_error = saneyaml::edit(&input).expect_err("default collection limit rejects input");
+    assert!(default_error.to_string().contains("collection"));
+
+    let mut editor = saneyaml::ConfigEditor::new_with_options(
+        input,
+        LoadOptions::new().without_collection_limit(),
+    )?;
+    editor.set(ConfigPath::keys(["flag"]), "new")?;
+
+    let output = editor.finish()?;
+    assert!(output.contains("flag: new\n"));
+    saneyaml::parse_lossless_with_options(&output, LoadOptions::new().without_collection_limit())
+        .expect("edited config reparses with editor load options");
     Ok(())
 }

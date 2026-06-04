@@ -18,6 +18,16 @@ const OVERSIZED_DOUBLE_QUOTED_SCALAR: &str =
     include_str!("fixtures/dos/adversarial/oversized-double-quoted-scalar.yaml");
 const WIDE_FLOW_SEQUENCE: &str = include_str!("fixtures/dos/adversarial/wide-flow-sequence.yaml");
 const WIDE_FLOW_MAPPING: &str = include_str!("fixtures/dos/adversarial/wide-flow-mapping.yaml");
+const ISSUE_13_MULTIBYTE_BLOCK_SCALAR_WHITESPACE_PAYLOADS: &[(&str, &[u8])] = &[
+    (
+        "document-start folded scalar with U+0085 blank line",
+        b"\x2d\x2d\x2d\x20\x3e\x31\x0a\xc2\x85\x0a\x2e",
+    ),
+    (
+        "mapping folded scalar with U+00A0 blank line",
+        b"\x62\x2e\x6c\x3a\x20\x3e\x0a\x20\x6c\x72\x0a\x0a\x0a\x0a\x0a\x0a\x0a\x0a\x0a\xc2\xa0\x0a\x20\xef\xbb\xbf\x7b\x7d\x20\x62\x0a\x64\x0a\x00\x00\x0a\x53",
+    ),
+];
 
 #[derive(Debug, Deserialize)]
 struct RealWorldManifest {
@@ -171,6 +181,26 @@ fn alias_bomb_rejects_semantic_loaders_but_raw_events_do_not_expand() {
     );
     saneyaml::parse_lossless_with_options(ALIAS_BOMB, options)
         .expect("lossless graph validates aliases without semantic expansion");
+}
+
+#[test]
+fn issue_13_multibyte_block_scalar_whitespace_returns_errors_without_panicking() {
+    for (_name, input) in ISSUE_13_MULTIBYTE_BLOCK_SCALAR_WHITESPACE_PAYLOADS {
+        let input = *input;
+        let text = std::str::from_utf8(input).expect("issue #13 payload is valid UTF-8");
+        for error in [
+            saneyaml::parse_bytes(input).expect_err("parse_bytes rejects issue #13 payload"),
+            saneyaml::from_slice::<Value>(input).expect_err("from_slice rejects issue #13 payload"),
+            LoadOptions::new()
+                .parse_bytes(input)
+                .expect_err("LoadOptions::parse_bytes rejects issue #13 payload"),
+            LoadOptions::new()
+                .from_slice::<Value>(input)
+                .expect_err("LoadOptions::from_slice rejects issue #13 payload"),
+        ] {
+            assert_limit_error(text, &error, "UTF-8 character boundary");
+        }
+    }
 }
 
 #[test]

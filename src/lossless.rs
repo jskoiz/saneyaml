@@ -1072,8 +1072,7 @@ impl ConfigEditor {
         T: Serialize,
     {
         let path = path.into();
-        let replacement = serialize_edit_fragment(&value, EmitOptions::structural())?;
-        self.apply(|stream| set_path_source(stream, document, &path, &replacement))
+        self.apply(|stream| set_path_source(stream, document, &path, &value))
     }
 
     /// Removes a mapping entry or sequence item from document 0.
@@ -2747,16 +2746,20 @@ fn resolve_sequence_index(current: &LosslessNode, index: usize, depth: usize) ->
     })
 }
 
-fn set_path_source(
+fn set_path_source<T>(
     stream: &LosslessStream,
     document: usize,
     path: &ConfigPath,
-    replacement: &str,
-) -> Result<String> {
+    value: &T,
+) -> Result<String>
+where
+    T: Serialize,
+{
     if path.is_empty() {
         let root = document_root(stream, document)?;
+        let replacement = serialize_edit_fragment(value, EmitOptions::structural())?;
         let mut edit = stream.edit();
-        edit.replace_node_source(root, replacement.to_owned())?;
+        edit.replace_node_source(root, replacement)?;
         return edit.finish();
     }
     let (parent, last) = resolve_config_parent(stream, document, path)?;
@@ -2764,20 +2767,23 @@ fn set_path_source(
         .node(parent)
         .ok_or_else(|| Error::new("config path parent node id is out of bounds", None))?;
     match (last, parent_node.kind()) {
-        (ResolvedConfigStep::Key(key), LosslessNodeKind::Mapping { .. }) => {
-            if replacement.contains('\n') {
-                return Err(Error::new(
-                    "config set for mapping values currently requires inline YAML output",
-                    Some(parent_node.span()),
-                ));
-            }
+        (ResolvedConfigStep::Key(key), LosslessNodeKind::Mapping { style, .. }) => {
+            let replacement = serialize_value_for_style(value, *style)?;
             let mut edit = stream.edit();
-            edit.replace_mapping_value_source(parent, &key, replacement.to_owned())?;
+            match style {
+                CollectionStyle::Block => {
+                    replace_block_mapping_value_source(&mut edit, parent, &key, &replacement)?;
+                }
+                CollectionStyle::Flow => {
+                    edit.replace_mapping_value_source(parent, &key, replacement)?;
+                }
+            }
             edit.finish()
         }
-        (ResolvedConfigStep::Index(index), LosslessNodeKind::Sequence { .. }) => {
+        (ResolvedConfigStep::Index(index), LosslessNodeKind::Sequence { style, .. }) => {
+            let replacement = serialize_value_for_style(value, *style)?;
             let mut edit = stream.edit();
-            edit.replace_sequence_item_source(parent, index, replacement.to_owned())?;
+            edit.replace_sequence_item_source(parent, index, replacement)?;
             edit.finish()
         }
         (ResolvedConfigStep::Key(key), _) => Err(Error::new(
@@ -2789,6 +2795,76 @@ fn set_path_source(
             Some(parent_node.span()),
         )),
     }
+}
+
+fn replace_block_mapping_value_source(
+    edit: &mut LosslessEdit<'_>,
+    mapping: NodeId,
+    key: &str,
+    replacement: &str,
+) -> Result<()> {
+    let mapping_node = edit.mapping_node(mapping)?;
+    let LosslessNodeKind::Mapping { style, .. } = mapping_node.kind() else {
+        unreachable!("mapping_node only returns mapping nodes");
+    };
+    if *style != CollectionStyle::Block {
+        return Err(Error::new(
+            "config block mapping value replacement requires a block mapping",
+            Some(mapping_node.span()),
+        ));
+    }
+
+    let entry = edit.unique_mapping_entry_by_key(mapping, key)?;
+    let key_node = edit
+        .stream
+        .node(entry.key)
+        .ok_or_else(|| Error::new("config mapping key node id is out of bounds", None))?;
+    let value_node = edit
+        .stream
+        .node(entry.value)
+        .ok_or_else(|| Error::new("config mapping value node id is out of bounds", None))?;
+    ensure_single_node_fragment(replacement, value_node.span(), "mapping value source")?;
+
+    if !replacement.contains('\n') {
+        edit.replace_mapping_value_source(mapping, key, replacement.to_owned())?;
+        return Ok(());
+    }
+
+    let source = &edit.stream.source;
+    let key_line_start = line_start(source, key_node.span().start);
+    let value_line_start = line_start(source, value_node.span().start);
+    let value_line_end = line_end_including_newline(source, value_node.span().end);
+    let (span_start, formatted) = if value_line_start == key_line_start {
+        let separator = source
+            .get(key_node.span().end..value_node.span().start)
+            .ok_or_else(|| Error::new("config mapping separator span is invalid", None))?;
+        let span_start = separator
+            .rfind(':')
+            .map(|offset| key_node.span().end + offset + 1)
+            .unwrap_or(value_node.span().start);
+        let line_body_end = line_body_end(source, value_line_end);
+        let trailing = source
+            .get(value_node.span().end..line_body_end)
+            .ok_or_else(|| Error::new("config mapping trailing comment span is invalid", None))?;
+        let mut formatted = String::new();
+        let trailing = trailing.trim_start();
+        if trailing.starts_with('#') {
+            formatted.push(' ');
+            formatted.push_str(trailing.trim_end());
+        }
+        formatted.push('\n');
+        let child_indent = format!("{}  ", line_indent(source, key_line_start));
+        formatted.push_str(&indent_entry_source(replacement, &child_indent));
+        (span_start, formatted)
+    } else {
+        (
+            value_line_start,
+            indent_entry_source(replacement, line_indent(source, value_line_start)),
+        )
+    };
+    let span = edit.stream.source_span(span_start, value_line_end)?;
+    edit.replace_source_span(span, formatted)?;
+    Ok(())
 }
 
 fn remove_path_source(
@@ -3154,6 +3230,19 @@ fn line_end_including_newline(source: &str, offset: usize) -> usize {
         .find('\n')
         .map(|position| offset + position + 1)
         .unwrap_or(source.len())
+}
+
+fn line_body_end(source: &str, line_end: usize) -> usize {
+    if line_end > 0 && source.as_bytes().get(line_end - 1) == Some(&b'\n') {
+        let without_lf = line_end - 1;
+        if without_lf > 0 && source.as_bytes().get(without_lf - 1) == Some(&b'\r') {
+            without_lf - 1
+        } else {
+            without_lf
+        }
+    } else {
+        line_end
+    }
 }
 
 fn line_indent(source: &str, line_start: usize) -> &str {

@@ -1116,6 +1116,42 @@ metadata:
 }
 
 #[test]
+fn config_editor_set_replaces_mapping_values_with_collections() -> saneyaml::Result<()> {
+    let input = "\
+# config
+spec: old # keep spec comment
+settings:
+  mode: old
+  deprecated: true
+flow: { spec: old }
+";
+    let mut settings = std::collections::BTreeMap::new();
+    settings.insert("mode", "safe");
+    settings.insert("tier", "frontend");
+
+    let mut editor = saneyaml::edit(input)?;
+    editor
+        .set(ConfigPath::keys(["spec"]), vec!["api", "worker"])?
+        .set(ConfigPath::keys(["settings"]), settings)?
+        .set(ConfigPath::keys(["flow", "spec"]), vec!["a", "b"])?;
+
+    let output = editor.finish()?;
+    let expected = "\
+# config
+spec: # keep spec comment
+  - api
+  - worker
+settings:
+  mode: safe
+  tier: frontend
+flow: { spec: [a, b] }
+";
+    assert_eq!(output, expected);
+    parse_lossless(&output).expect("edited config reparses losslessly");
+    Ok(())
+}
+
+#[test]
 fn config_path_json_pointer_handles_escaped_config_keys_and_arrays() -> saneyaml::Result<()> {
     let input = "\
 metadata:

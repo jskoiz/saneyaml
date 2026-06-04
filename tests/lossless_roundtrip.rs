@@ -1365,6 +1365,53 @@ root:
 }
 
 #[test]
+fn config_editor_remove_preserves_empty_sequence_type() -> saneyaml::Result<()> {
+    let input = "\
+items:
+  - a
+";
+    let mut editor = saneyaml::edit(input)?;
+    editor.remove(ConfigPath::new([
+        PathSegment::from("items"),
+        PathSegment::from(0usize),
+    ]))?;
+
+    let output = editor.finish()?;
+    assert_eq!(
+        output,
+        "\
+items:
+  []
+"
+    );
+    let stream = parse_lossless(&output)?;
+    let items = stream.resolve_path(0, &[PathSegment::from("items")])?;
+    let items = stream.node(items).expect("items node exists");
+    assert!(matches!(
+        items.kind(),
+        LosslessNodeKind::Sequence { children, .. } if children.is_empty()
+    ));
+
+    let mut editor = saneyaml::edit(input)?;
+    editor
+        .remove(ConfigPath::new([
+            PathSegment::from("items"),
+            PathSegment::from(0usize),
+        ]))?
+        .push(ConfigPath::keys(["items"]), "b")?;
+    let output = editor.finish()?;
+    assert_eq!(
+        output,
+        "\
+items:
+  [b]
+"
+    );
+    parse_lossless(&output).expect("chained edit reparses losslessly");
+    Ok(())
+}
+
+#[test]
 fn config_editor_uses_load_options_for_generated_fragments() -> saneyaml::Result<()> {
     let input = "\
 root:

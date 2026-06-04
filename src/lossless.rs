@@ -3014,9 +3014,14 @@ fn remove_path_source(
         },
         (ResolvedConfigStep::Index(index), LosslessNodeKind::Sequence { style, .. }) => match style
         {
-            CollectionStyle::Block => {
-                edit.delete_block_sequence_item_source(parent, index)?;
-            }
+            CollectionStyle::Block => match parent_node.kind() {
+                LosslessNodeKind::Sequence { children, .. } if children.len() == 1 => {
+                    edit.replace_node_source(parent, "[]")?;
+                }
+                _ => {
+                    edit.delete_block_sequence_item_source(parent, index)?;
+                }
+            },
             CollectionStyle::Flow => {
                 edit.delete_flow_sequence_item_source(parent, index)?;
             }

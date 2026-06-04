@@ -11,12 +11,20 @@ effect are omitted.
 
 ## Unreleased
 
+## 0.2.0
+
 ### Added
 
 - Added `ConfigEditor` and `ConfigPath` as a high-level config refactoring API
   for sequential path-based set/remove/rename/insert edits that preserve
   comments, anchors, ordering, and untouched bytes through the existing lossless
   graph editor.
+
+### Fixed
+
+- Preserved mapping and sequence types across chained high-level edits, including
+  compact sequence-item mappings, generated collection fragments, custom
+  `LoadOptions`, and empty mapping/sequence removals.
 
 ## 0.1.1
 

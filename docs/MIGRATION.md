@@ -98,9 +98,10 @@ tests that exercise the actual downstream YAML files.
 
 ## Cookbook
 
-Each recipe shows the old `serde_yaml` call site, then the direct `yaml` import
-shape. If you use the Cargo package alias or `use saneyaml as serde_yaml;`, keep the
-left-hand spelling and let the dependency or local alias do the rename.
+Each recipe shows the old `serde_yaml` call site, then the direct `saneyaml`
+import shape. If you use the Cargo package alias or
+`use saneyaml as serde_yaml;`, keep the left-hand spelling and let the
+dependency or local alias do the rename.
 
 ### Typed Read
 
@@ -148,7 +149,7 @@ struct Job {
     action: Action,
 }
 
-// after, when importing the crate as yaml
+// after, when importing the crate as saneyaml
 #[derive(serde::Deserialize, serde::Serialize)]
 struct Job {
     #[serde(with = "saneyaml::with::singleton_map")]
@@ -228,7 +229,7 @@ are additive diagnostics.
 
 ## API Matrix
 
-| serde_yaml surface | yaml surface | Status |
+| serde_yaml surface | saneyaml surface | Status |
 |---|---|---|
 | `serde_yaml::from_str` | `saneyaml::from_str` | Covered for typed config reads, `Value`, borrowed string targets, and diagnostics |
 | `serde_yaml::from_slice` | `saneyaml::from_slice` | Covered for typed config reads, `Value`, UTF-8 errors, and borrowed string targets |
@@ -443,7 +444,7 @@ testing each adopter's own YAML corpus.
   `serde_yaml::...` paths for the covered public surface and let Cargo resolve
   that name to this crate.
 - With `use saneyaml as serde_yaml;`, keep the old spelling inside that source file
-  while depending on `yaml`.
+  while depending on `saneyaml`.
 - With direct `saneyaml::...` imports, mechanically replace the prefix:
   `serde_yaml::Value` becomes `saneyaml::Value`, `serde_yaml::Mapping` becomes
   `saneyaml::Mapping`, `serde_yaml::Number` becomes `saneyaml::Number`,
@@ -550,12 +551,12 @@ testing each adopter's own YAML corpus.
 | Alias graph identity | Semantic `Node`/`Value` trees intentionally clone acyclic aliases and reject recursive alias expansion. Graph-sensitive callers should use `LosslessStream`; its anchor definitions and alias targets are checked against reference parser anchor events for redefinition, recursive, document-reset, merge, YAML 1.1 merge/comment graph fixtures, post-edit source output, manifest-owned selected YAML-suite anchor/alias cases, and manifest-owned real-world Docker Compose anchor cases including an adapted official Compose Specification fragment. `LosslessStream::effective_mapping_entries` exposes merge-derived entries with alias/anchor provenance for callers that need effective config inspection without losing graph identity. |
 | Lossless formatting | `LosslessStream` preserves source, comments, trivia, directives, anchors, aliases, tags, and scalar spelling for replay/inspection, including a merge-effective mapping view that leaves the original source untouched. `LosslessEdit` can replace retained node or raw source spans, update scalar-keyed block/flow mapping values, insert or delete block/flow mapping entries, update block/flow sequence items, insert or delete block/flow sequence items, insert source, delete source spans, and validate the final YAML while preserving untouched bytes. Manifest-owned real-world replay now gates GitHub Actions comments, flow-style lists, and expression strings, Ansible tagged scalars, plus Kubernetes streams and block scalar fixtures. |
 | Parser acceptance differences | Some YAML 1.2 inputs rejected by libyaml are accepted, and some malformed libyaml-tolerated inputs are rejected. Divergence records now carry per-case migration impact. |
-| Package status | `saneyaml` is prepared as a 0.1.0 MIT package. |
+| Package status | `Cargo.toml` declares `saneyaml` 0.1.1 under the MIT license. |
 
 ## Known Follow-Up
 
-- Expand external crate build trials before claiming broad ecosystem
-  replacement readiness.
+- Keep the named external crate build trials current before broadening ecosystem
+  replacement claims.
 - Keep divergence records and migration-impact wording current as behavior
   changes.
 - Continue fuzz and corpus replay beyond the curated seed corpus.

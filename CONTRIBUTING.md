@@ -32,6 +32,7 @@ cargo fmt --all --check
 git diff --check
 cargo test --locked
 cargo clippy --locked --all-targets -- -D warnings
+scripts/check-feature-clippy.sh
 RUSTDOCFLAGS='-D missing_docs' cargo doc --locked --no-deps
 cargo test --locked --doc
 scripts/check-public-api.sh

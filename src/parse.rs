@@ -3630,6 +3630,7 @@ fn scan_line(raw_body: &str) -> LineScan {
     }
 }
 
+#[cfg(feature = "lossless")]
 pub(crate) fn comment_start(raw: &str) -> Option<usize> {
     let mut single = false;
     let mut double = false;

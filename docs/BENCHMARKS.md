@@ -17,6 +17,11 @@ Environment for the latest captured run:
 - Large fixture set: pinned downstream fixtures plus generated 1 MiB inputs
 - Captured: 2026-06-01 with Cargo's `release` profile
 
+The README overview graphic is a static summary of selected benchmark and
+feature rows. Its source notes and update checklist live at
+[`docs/assets/saneyaml-overview.md`](assets/saneyaml-overview.md); update that
+note with this file whenever the graphic changes.
+
 The large benchmark's `peak retained bytes` and `peak retained heap objects`
 columns are safe retained-output estimates from parsed tree container and
 string capacities after a single parse. They are not allocator instrumentation

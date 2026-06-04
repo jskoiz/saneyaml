@@ -1,0 +1,10 @@
+mode=set value=map path=json
+metadata:
+  labels:
+    app.kubernetes.io/name: web
+    tilde~key: old
+spec:
+  containers:
+    - image: nginx:1.25
+=== config value ===
+safe frontend

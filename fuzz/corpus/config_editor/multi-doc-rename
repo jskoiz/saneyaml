@@ -1,0 +1,9 @@
+mode=rename value=scalar path=segments
+---
+name: first
+---
+metadata:
+  labels:
+    app.kubernetes.io/name: second
+=== config value ===
+component

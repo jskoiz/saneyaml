@@ -80,10 +80,11 @@ pub use error::{
 };
 #[cfg(feature = "lossless")]
 pub use lossless::{
-    AliasId, AnchorId, LosslessAlias, LosslessAnchor, LosslessDocument, LosslessEdit,
-    LosslessEffectiveMappingEntry, LosslessEffectiveMappingSource, LosslessNode, LosslessNodeKind,
-    LosslessStream, LosslessTrivia, LosslessTriviaKind, NodeId, PathSegment, parse_lossless,
-    parse_lossless_bytes, parse_lossless_bytes_with_options, parse_lossless_with_options,
+    AliasId, AnchorId, ConfigEditor, ConfigPath, LosslessAlias, LosslessAnchor, LosslessDocument,
+    LosslessEdit, LosslessEffectiveMappingEntry, LosslessEffectiveMappingSource, LosslessNode,
+    LosslessNodeKind, LosslessStream, LosslessTrivia, LosslessTriviaKind, NodeId, PathSegment,
+    edit, edit_file, parse_lossless, parse_lossless_bytes, parse_lossless_bytes_with_options,
+    parse_lossless_with_options,
 };
 pub use parse::{
     CollectionStyle, DocumentStream, Event, EventAnchor, EventDocumentDirectives, EventMeta,

@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 runs="${YAML_FUZZ_RUNS:-1000}"
 tmp="${TMPDIR:-/tmp}/yaml-fuzz-proof.$$"
-targets=(parse_bytes serde_entrypoints serde_serializer event_stream streaming_parse emit_roundtrip apply_merge schema_modes lossless_graph lossless_edit)
+targets=(parse_bytes serde_entrypoints serde_serializer event_stream streaming_parse emit_roundtrip apply_merge schema_modes lossless_graph lossless_edit config_editor)
 
 nightly_cargo=""
 if [[ -n "${YAML_NIGHTLY_BIN:-}" && -x "$YAML_NIGHTLY_BIN/cargo" ]]; then

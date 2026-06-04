@@ -43,6 +43,41 @@ pub fn saneyaml::lossless::AliasId::index(self) -> usize
 pub struct saneyaml::lossless::AnchorId(_)
 impl saneyaml::lossless::AnchorId
 pub fn saneyaml::lossless::AnchorId::index(self) -> usize
+pub struct saneyaml::lossless::ConfigEditor
+impl saneyaml::lossless::ConfigEditor
+pub fn saneyaml::lossless::ConfigEditor::as_source(&self) -> &str
+pub fn saneyaml::lossless::ConfigEditor::finish(self) -> saneyaml::Result<alloc::string::String>
+pub fn saneyaml::lossless::ConfigEditor::finish_to_file(self) -> saneyaml::Result<()>
+pub fn saneyaml::lossless::ConfigEditor::from_file(impl core::convert::AsRef<std::path::Path>) -> saneyaml::Result<Self>
+pub fn saneyaml::lossless::ConfigEditor::from_file_with_options(impl core::convert::AsRef<std::path::Path>, saneyaml::LoadOptions) -> saneyaml::Result<Self>
+pub fn saneyaml::lossless::ConfigEditor::insert<P, T>(&mut self, P, impl core::convert::AsRef<str>, T) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>, T: serde_core::ser::Serialize
+pub fn saneyaml::lossless::ConfigEditor::insert_in_document<P, T>(&mut self, usize, P, impl core::convert::AsRef<str>, T) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>, T: serde_core::ser::Serialize
+pub fn saneyaml::lossless::ConfigEditor::insert_item<P, T>(&mut self, P, usize, T) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>, T: serde_core::ser::Serialize
+pub fn saneyaml::lossless::ConfigEditor::insert_item_in_document<P, T>(&mut self, usize, P, usize, T) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>, T: serde_core::ser::Serialize
+pub fn saneyaml::lossless::ConfigEditor::new(impl core::convert::Into<alloc::string::String>) -> saneyaml::Result<Self>
+pub fn saneyaml::lossless::ConfigEditor::new_with_options(impl core::convert::Into<alloc::string::String>, saneyaml::LoadOptions) -> saneyaml::Result<Self>
+pub fn saneyaml::lossless::ConfigEditor::push<P, T>(&mut self, P, T) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>, T: serde_core::ser::Serialize
+pub fn saneyaml::lossless::ConfigEditor::push_in_document<P, T>(&mut self, usize, P, T) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>, T: serde_core::ser::Serialize
+pub fn saneyaml::lossless::ConfigEditor::remove<P>(&mut self, P) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>
+pub fn saneyaml::lossless::ConfigEditor::remove_in_document<P>(&mut self, usize, P) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>
+pub fn saneyaml::lossless::ConfigEditor::rename<P>(&mut self, P, impl core::convert::AsRef<str>) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>
+pub fn saneyaml::lossless::ConfigEditor::rename_in_document<P>(&mut self, usize, P, impl core::convert::AsRef<str>) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>
+pub fn saneyaml::lossless::ConfigEditor::set<P, T>(&mut self, P, T) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>, T: serde_core::ser::Serialize
+pub fn saneyaml::lossless::ConfigEditor::set_in_document<P, T>(&mut self, usize, P, T) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>, T: serde_core::ser::Serialize
+pub struct saneyaml::lossless::ConfigPath
+impl saneyaml::lossless::ConfigPath
+pub fn saneyaml::lossless::ConfigPath::is_empty(&self) -> bool
+pub fn saneyaml::lossless::ConfigPath::json_pointer(&str) -> saneyaml::Result<Self>
+pub fn saneyaml::lossless::ConfigPath::keys<I, K>(I) -> Self where I: core::iter::traits::collect::IntoIterator<Item = K>, K: core::convert::Into<alloc::string::String>
+pub fn saneyaml::lossless::ConfigPath::len(&self) -> usize
+pub fn saneyaml::lossless::ConfigPath::new(impl core::iter::traits::collect::IntoIterator<Item = saneyaml::lossless::PathSegment>) -> Self
+pub fn saneyaml::lossless::ConfigPath::root() -> Self
+impl core::convert::From<&[saneyaml::lossless::PathSegment]> for saneyaml::lossless::ConfigPath
+pub fn saneyaml::lossless::ConfigPath::from(&[saneyaml::lossless::PathSegment]) -> Self
+impl core::convert::From<alloc::vec::Vec<saneyaml::lossless::PathSegment>> for saneyaml::lossless::ConfigPath
+pub fn saneyaml::lossless::ConfigPath::from(alloc::vec::Vec<saneyaml::lossless::PathSegment>) -> Self
+impl<const N: usize> core::convert::From<[saneyaml::lossless::PathSegment; N]> for saneyaml::lossless::ConfigPath
+pub fn saneyaml::lossless::ConfigPath::from([saneyaml::lossless::PathSegment; N]) -> Self
 pub struct saneyaml::lossless::LosslessAlias
 impl saneyaml::lossless::LosslessAlias
 pub fn saneyaml::lossless::LosslessAlias::id(&self) -> saneyaml::lossless::AliasId
@@ -147,6 +182,8 @@ pub fn saneyaml::lossless::LosslessTrivia::eq(&self, &Self) -> bool
 pub struct saneyaml::lossless::NodeId(_)
 impl saneyaml::lossless::NodeId
 pub fn saneyaml::lossless::NodeId::index(self) -> usize
+pub fn saneyaml::lossless::edit(impl core::convert::Into<alloc::string::String>) -> saneyaml::Result<saneyaml::lossless::ConfigEditor>
+pub fn saneyaml::lossless::edit_file(impl core::convert::AsRef<std::path::Path>) -> saneyaml::Result<saneyaml::lossless::ConfigEditor>
 pub fn saneyaml::lossless::parse_lossless(&str) -> saneyaml::Result<saneyaml::lossless::LosslessStream>
 pub fn saneyaml::lossless::parse_lossless_bytes(&[u8]) -> saneyaml::Result<saneyaml::lossless::LosslessStream>
 pub fn saneyaml::lossless::parse_lossless_bytes_with_options(&[u8], saneyaml::LoadOptions) -> saneyaml::Result<saneyaml::lossless::LosslessStream>
@@ -1627,6 +1664,41 @@ pub fn saneyaml::Value::from(saneyaml::BorrowedNode<'_>) -> Self
 pub struct saneyaml::BorrowedTaggedNode<'de>
 pub saneyaml::BorrowedTaggedNode::tag: saneyaml::Tag
 pub saneyaml::BorrowedTaggedNode::value: saneyaml::BorrowedNode<'de>
+pub struct saneyaml::ConfigEditor
+impl saneyaml::lossless::ConfigEditor
+pub fn saneyaml::lossless::ConfigEditor::as_source(&self) -> &str
+pub fn saneyaml::lossless::ConfigEditor::finish(self) -> saneyaml::Result<alloc::string::String>
+pub fn saneyaml::lossless::ConfigEditor::finish_to_file(self) -> saneyaml::Result<()>
+pub fn saneyaml::lossless::ConfigEditor::from_file(impl core::convert::AsRef<std::path::Path>) -> saneyaml::Result<Self>
+pub fn saneyaml::lossless::ConfigEditor::from_file_with_options(impl core::convert::AsRef<std::path::Path>, saneyaml::LoadOptions) -> saneyaml::Result<Self>
+pub fn saneyaml::lossless::ConfigEditor::insert<P, T>(&mut self, P, impl core::convert::AsRef<str>, T) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>, T: serde_core::ser::Serialize
+pub fn saneyaml::lossless::ConfigEditor::insert_in_document<P, T>(&mut self, usize, P, impl core::convert::AsRef<str>, T) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>, T: serde_core::ser::Serialize
+pub fn saneyaml::lossless::ConfigEditor::insert_item<P, T>(&mut self, P, usize, T) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>, T: serde_core::ser::Serialize
+pub fn saneyaml::lossless::ConfigEditor::insert_item_in_document<P, T>(&mut self, usize, P, usize, T) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>, T: serde_core::ser::Serialize
+pub fn saneyaml::lossless::ConfigEditor::new(impl core::convert::Into<alloc::string::String>) -> saneyaml::Result<Self>
+pub fn saneyaml::lossless::ConfigEditor::new_with_options(impl core::convert::Into<alloc::string::String>, saneyaml::LoadOptions) -> saneyaml::Result<Self>
+pub fn saneyaml::lossless::ConfigEditor::push<P, T>(&mut self, P, T) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>, T: serde_core::ser::Serialize
+pub fn saneyaml::lossless::ConfigEditor::push_in_document<P, T>(&mut self, usize, P, T) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>, T: serde_core::ser::Serialize
+pub fn saneyaml::lossless::ConfigEditor::remove<P>(&mut self, P) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>
+pub fn saneyaml::lossless::ConfigEditor::remove_in_document<P>(&mut self, usize, P) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>
+pub fn saneyaml::lossless::ConfigEditor::rename<P>(&mut self, P, impl core::convert::AsRef<str>) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>
+pub fn saneyaml::lossless::ConfigEditor::rename_in_document<P>(&mut self, usize, P, impl core::convert::AsRef<str>) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>
+pub fn saneyaml::lossless::ConfigEditor::set<P, T>(&mut self, P, T) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>, T: serde_core::ser::Serialize
+pub fn saneyaml::lossless::ConfigEditor::set_in_document<P, T>(&mut self, usize, P, T) -> saneyaml::Result<&mut Self> where P: core::convert::Into<saneyaml::lossless::ConfigPath>, T: serde_core::ser::Serialize
+pub struct saneyaml::ConfigPath
+impl saneyaml::lossless::ConfigPath
+pub fn saneyaml::lossless::ConfigPath::is_empty(&self) -> bool
+pub fn saneyaml::lossless::ConfigPath::json_pointer(&str) -> saneyaml::Result<Self>
+pub fn saneyaml::lossless::ConfigPath::keys<I, K>(I) -> Self where I: core::iter::traits::collect::IntoIterator<Item = K>, K: core::convert::Into<alloc::string::String>
+pub fn saneyaml::lossless::ConfigPath::len(&self) -> usize
+pub fn saneyaml::lossless::ConfigPath::new(impl core::iter::traits::collect::IntoIterator<Item = saneyaml::lossless::PathSegment>) -> Self
+pub fn saneyaml::lossless::ConfigPath::root() -> Self
+impl core::convert::From<&[saneyaml::lossless::PathSegment]> for saneyaml::lossless::ConfigPath
+pub fn saneyaml::lossless::ConfigPath::from(&[saneyaml::lossless::PathSegment]) -> Self
+impl core::convert::From<alloc::vec::Vec<saneyaml::lossless::PathSegment>> for saneyaml::lossless::ConfigPath
+pub fn saneyaml::lossless::ConfigPath::from(alloc::vec::Vec<saneyaml::lossless::PathSegment>) -> Self
+impl<const N: usize> core::convert::From<[saneyaml::lossless::PathSegment; N]> for saneyaml::lossless::ConfigPath
+pub fn saneyaml::lossless::ConfigPath::from([saneyaml::lossless::PathSegment; N]) -> Self
 pub struct saneyaml::Date
 impl saneyaml::Date
 pub const fn saneyaml::Date::day(&self) -> u8
@@ -2339,6 +2411,8 @@ impl saneyaml::Index for usize
 pub fn usize::index_into<'a>(&self, &'a saneyaml::Value) -> core::option::Option<&'a saneyaml::Value>
 pub fn usize::index_into_mut<'a>(&self, &'a mut saneyaml::Value) -> core::option::Option<&'a mut saneyaml::Value>
 pub fn usize::index_or_insert<'a>(&self, &'a mut saneyaml::Value) -> &'a mut saneyaml::Value
+pub fn saneyaml::edit(impl core::convert::Into<alloc::string::String>) -> saneyaml::Result<saneyaml::lossless::ConfigEditor>
+pub fn saneyaml::edit_file(impl core::convert::AsRef<std::path::Path>) -> saneyaml::Result<saneyaml::lossless::ConfigEditor>
 pub fn saneyaml::from_documents_reader<T, R>(R) -> saneyaml::Result<alloc::vec::Vec<T>> where T: serde_core::de::DeserializeOwned, R: std::io::Read
 pub fn saneyaml::from_documents_slice<T>(&[u8]) -> saneyaml::Result<alloc::vec::Vec<T>> where T: serde_core::de::DeserializeOwned
 pub fn saneyaml::from_documents_str<T>(&str) -> saneyaml::Result<alloc::vec::Vec<T>> where T: serde_core::de::DeserializeOwned

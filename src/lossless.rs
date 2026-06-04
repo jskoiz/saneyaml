@@ -15,12 +15,17 @@
 //! ```
 
 use crate::{
-    CollectionStyle, Error, Event, EventAnchor, EventDocumentDirectives, EventMeta, EventTag,
-    LoadOptions, Result, ScalarStyle, Span, error::utf8_error_span, parse::comment_start,
+    CollectionStyle, EmitCollectionStyle, EmitOptions, Error, Event, EventAnchor,
+    EventDocumentDirectives, EventMeta, EventTag, LoadOptions, Result, ScalarStyle, Span,
+    error::utf8_error_span, parse::comment_start,
 };
-use std::collections::HashMap;
-use std::fmt;
-use std::sync::Arc;
+use serde::Serialize;
+use std::{
+    collections::HashMap,
+    fmt, fs,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 /// Parses a YAML stream into a source-backed lossless graph view.
 pub fn parse_lossless(input: &str) -> Result<LosslessStream> {
@@ -50,6 +55,23 @@ pub fn parse_lossless_bytes_with_options(
             utf8_error_span(input, err),
         )),
     }
+}
+
+/// Starts a source-preserving config edit session from YAML source.
+///
+/// Each high-level edit reparses the current working source before applying the
+/// next operation, so chained path edits have sequential semantics instead of
+/// reusing spans from an earlier snapshot.
+pub fn edit(input: impl Into<String>) -> Result<ConfigEditor> {
+    ConfigEditor::new(input)
+}
+
+/// Reads a YAML file and starts a source-preserving config edit session.
+///
+/// [`ConfigEditor::finish`] returns the edited source. Use
+/// [`ConfigEditor::finish_to_file`] to write it back to the original path.
+pub fn edit_file(path: impl AsRef<Path>) -> Result<ConfigEditor> {
+    ConfigEditor::from_file(path)
 }
 
 /// Stable node identifier inside a [`LosslessStream`].
@@ -115,6 +137,113 @@ impl From<String> for PathSegment {
 impl From<usize> for PathSegment {
     fn from(index: usize) -> Self {
         PathSegment::Index(index)
+    }
+}
+
+/// Public path type for source-preserving config refactors.
+///
+/// The canonical constructor is [`ConfigPath::new`], which takes explicit
+/// [`PathSegment`] keys and indices. [`ConfigPath::json_pointer`] is provided for
+/// slash- and tilde-heavy config keys using JSON Pointer escaping (`~1` for `/`,
+/// `~0` for `~`). Dotted strings are intentionally not parsed because real
+/// config keys often contain dots.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ConfigPath {
+    segments: Vec<ConfigPathStep>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ConfigPathStep {
+    Key(String),
+    Index(usize),
+    PointerToken(String),
+}
+
+impl ConfigPath {
+    /// Creates a path from explicit key and index segments.
+    pub fn new(segments: impl IntoIterator<Item = PathSegment>) -> Self {
+        Self {
+            segments: segments
+                .into_iter()
+                .map(|segment| match segment {
+                    PathSegment::Key(key) => ConfigPathStep::Key(key),
+                    PathSegment::Index(index) => ConfigPathStep::Index(index),
+                })
+                .collect(),
+        }
+    }
+
+    /// Creates a path made only of mapping keys.
+    pub fn keys<I, K>(keys: I) -> Self
+    where
+        I: IntoIterator<Item = K>,
+        K: Into<String>,
+    {
+        Self {
+            segments: keys
+                .into_iter()
+                .map(|key| ConfigPathStep::Key(key.into()))
+                .collect(),
+        }
+    }
+
+    /// Creates a root path.
+    pub fn root() -> Self {
+        Self::default()
+    }
+
+    /// Parses a JSON Pointer-style path.
+    ///
+    /// An empty string addresses the document root. Non-empty pointers must
+    /// start with `/`. Escapes follow RFC 6901: `~1` decodes to `/`, and `~0`
+    /// decodes to `~`. Tokens are interpreted by the node being traversed:
+    /// mapping nodes use them as keys, and sequence nodes parse them as indices.
+    pub fn json_pointer(pointer: &str) -> Result<Self> {
+        if pointer.is_empty() {
+            return Ok(Self::root());
+        }
+        let Some(rest) = pointer.strip_prefix('/') else {
+            return Err(Error::new(
+                "config JSON Pointer path must be empty or start with '/'",
+                None,
+            ));
+        };
+        let segments = rest
+            .split('/')
+            .map(decode_json_pointer_token)
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .map(ConfigPathStep::PointerToken)
+            .collect();
+        Ok(Self { segments })
+    }
+
+    /// Returns true when this path addresses the document root.
+    pub fn is_empty(&self) -> bool {
+        self.segments.is_empty()
+    }
+
+    /// Returns the number of path segments.
+    pub fn len(&self) -> usize {
+        self.segments.len()
+    }
+}
+
+impl From<Vec<PathSegment>> for ConfigPath {
+    fn from(segments: Vec<PathSegment>) -> Self {
+        Self::new(segments)
+    }
+}
+
+impl<const N: usize> From<[PathSegment; N]> for ConfigPath {
+    fn from(segments: [PathSegment; N]) -> Self {
+        Self::new(segments)
+    }
+}
+
+impl From<&[PathSegment]> for ConfigPath {
+    fn from(segments: &[PathSegment]) -> Self {
+        Self::new(segments.iter().cloned())
     }
 }
 
@@ -870,6 +999,249 @@ impl LosslessStream {
     }
 }
 
+/// Owned source-preserving editor for common config refactors.
+///
+/// `ConfigEditor` is the high-level companion to [`LosslessEdit`]. It owns the
+/// working YAML source and applies each operation against the current source by
+/// reparsing before the edit. This keeps chained path edits stable when earlier
+/// operations shift later spans.
+#[derive(Clone, Debug)]
+pub struct ConfigEditor {
+    source: String,
+    options: LoadOptions,
+    file_path: Option<PathBuf>,
+}
+
+impl ConfigEditor {
+    /// Creates an editor from YAML source.
+    pub fn new(input: impl Into<String>) -> Result<Self> {
+        Self::new_with_options(input, LoadOptions::new())
+    }
+
+    /// Creates an editor from YAML source with explicit load options.
+    pub fn new_with_options(input: impl Into<String>, options: LoadOptions) -> Result<Self> {
+        let source = input.into();
+        parse_lossless_with_options(&source, options)?;
+        Ok(Self {
+            source,
+            options,
+            file_path: None,
+        })
+    }
+
+    /// Reads a YAML file and creates an editor for its contents.
+    pub fn from_file(path: impl AsRef<Path>) -> Result<Self> {
+        Self::from_file_with_options(path, LoadOptions::new())
+    }
+
+    /// Reads a YAML file and creates an editor with explicit load options.
+    pub fn from_file_with_options(path: impl AsRef<Path>, options: LoadOptions) -> Result<Self> {
+        let path = path.as_ref();
+        let source = fs::read_to_string(path).map_err(|error| {
+            Error::new(
+                format!("failed to read YAML file {}: {error}", path.display()),
+                None,
+            )
+        })?;
+        parse_lossless_with_options(&source, options)?;
+        Ok(Self {
+            source,
+            options,
+            file_path: Some(path.to_path_buf()),
+        })
+    }
+
+    /// Returns the current working source.
+    pub fn as_source(&self) -> &str {
+        &self.source
+    }
+
+    /// Replaces a value in document 0 with serialized YAML for `value`.
+    pub fn set<P, T>(&mut self, path: P, value: T) -> Result<&mut Self>
+    where
+        P: Into<ConfigPath>,
+        T: Serialize,
+    {
+        self.set_in_document(0, path, value)
+    }
+
+    /// Replaces a value in the selected document with serialized YAML.
+    pub fn set_in_document<P, T>(&mut self, document: usize, path: P, value: T) -> Result<&mut Self>
+    where
+        P: Into<ConfigPath>,
+        T: Serialize,
+    {
+        let path = path.into();
+        self.apply(|stream, options| set_path_source(stream, document, &path, &value, options))
+    }
+
+    /// Removes a mapping entry or sequence item from document 0.
+    pub fn remove<P>(&mut self, path: P) -> Result<&mut Self>
+    where
+        P: Into<ConfigPath>,
+    {
+        self.remove_in_document(0, path)
+    }
+
+    /// Removes a mapping entry or sequence item from the selected document.
+    pub fn remove_in_document<P>(&mut self, document: usize, path: P) -> Result<&mut Self>
+    where
+        P: Into<ConfigPath>,
+    {
+        let path = path.into();
+        self.apply(|stream, options| remove_path_source(stream, document, &path, options))
+    }
+
+    /// Renames a scalar mapping key in document 0.
+    pub fn rename<P>(&mut self, path: P, new_key: impl AsRef<str>) -> Result<&mut Self>
+    where
+        P: Into<ConfigPath>,
+    {
+        self.rename_in_document(0, path, new_key)
+    }
+
+    /// Renames a scalar mapping key in the selected document.
+    pub fn rename_in_document<P>(
+        &mut self,
+        document: usize,
+        path: P,
+        new_key: impl AsRef<str>,
+    ) -> Result<&mut Self>
+    where
+        P: Into<ConfigPath>,
+    {
+        let path = path.into();
+        let new_key = serialize_key_fragment(new_key.as_ref())?;
+        self.apply(|stream, options| rename_path_source(stream, document, &path, &new_key, options))
+    }
+
+    /// Inserts a serialized key/value entry into a mapping in document 0.
+    pub fn insert<P, T>(
+        &mut self,
+        mapping_path: P,
+        key: impl AsRef<str>,
+        value: T,
+    ) -> Result<&mut Self>
+    where
+        P: Into<ConfigPath>,
+        T: Serialize,
+    {
+        self.insert_in_document(0, mapping_path, key, value)
+    }
+
+    /// Inserts a serialized key/value entry into a mapping in the selected document.
+    pub fn insert_in_document<P, T>(
+        &mut self,
+        document: usize,
+        mapping_path: P,
+        key: impl AsRef<str>,
+        value: T,
+    ) -> Result<&mut Self>
+    where
+        P: Into<ConfigPath>,
+        T: Serialize,
+    {
+        let mapping_path = mapping_path.into();
+        let key = key.as_ref().to_owned();
+        self.apply(|stream, options| {
+            insert_entry_source(stream, document, &mapping_path, &key, &value, options)
+        })
+    }
+
+    /// Appends a serialized item to a sequence in document 0.
+    pub fn push<P, T>(&mut self, sequence_path: P, value: T) -> Result<&mut Self>
+    where
+        P: Into<ConfigPath>,
+        T: Serialize,
+    {
+        self.push_in_document(0, sequence_path, value)
+    }
+
+    /// Appends a serialized item to a sequence in the selected document.
+    pub fn push_in_document<P, T>(
+        &mut self,
+        document: usize,
+        sequence_path: P,
+        value: T,
+    ) -> Result<&mut Self>
+    where
+        P: Into<ConfigPath>,
+        T: Serialize,
+    {
+        let sequence_path = sequence_path.into();
+        self.apply(|stream, options| {
+            push_item_source(stream, document, &sequence_path, &value, options)
+        })
+    }
+
+    /// Inserts a serialized sequence item at `index` in document 0.
+    pub fn insert_item<P, T>(
+        &mut self,
+        sequence_path: P,
+        index: usize,
+        value: T,
+    ) -> Result<&mut Self>
+    where
+        P: Into<ConfigPath>,
+        T: Serialize,
+    {
+        self.insert_item_in_document(0, sequence_path, index, value)
+    }
+
+    /// Inserts a serialized sequence item at `index` in the selected document.
+    pub fn insert_item_in_document<P, T>(
+        &mut self,
+        document: usize,
+        sequence_path: P,
+        index: usize,
+        value: T,
+    ) -> Result<&mut Self>
+    where
+        P: Into<ConfigPath>,
+        T: Serialize,
+    {
+        let sequence_path = sequence_path.into();
+        self.apply(|stream, options| {
+            insert_item_source(stream, document, &sequence_path, index, &value, options)
+        })
+    }
+
+    /// Validates and returns the edited source.
+    pub fn finish(self) -> Result<String> {
+        parse_lossless_with_options(&self.source, self.options)?;
+        Ok(self.source)
+    }
+
+    /// Validates the edited source and writes it to the file opened by
+    /// [`Self::from_file`] or [`edit_file`].
+    pub fn finish_to_file(self) -> Result<()> {
+        let Some(path) = self.file_path.clone() else {
+            return Err(Error::new(
+                "config editor was not created from a file",
+                None,
+            ));
+        };
+        let source = self.finish()?;
+        fs::write(&path, source).map_err(|error| {
+            Error::new(
+                format!("failed to write YAML file {}: {error}", path.display()),
+                None,
+            )
+        })
+    }
+
+    fn apply(
+        &mut self,
+        edit: impl FnOnce(&LosslessStream, LoadOptions) -> Result<String>,
+    ) -> Result<&mut Self> {
+        let stream = parse_lossless_with_options(&self.source, self.options)?;
+        let edited = edit(&stream, self.options)?;
+        parse_lossless_with_options(&edited, self.options)?;
+        self.source = edited;
+        Ok(self)
+    }
+}
+
 impl fmt::Display for LosslessStream {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.source)
@@ -988,6 +1360,19 @@ impl LosslessEdit<'_> {
         mapping: NodeId,
         entry_source: impl Into<String>,
     ) -> Result<&mut Self> {
+        self.insert_block_mapping_entry_source_with_options(
+            mapping,
+            entry_source,
+            LoadOptions::new(),
+        )
+    }
+
+    fn insert_block_mapping_entry_source_with_options(
+        &mut self,
+        mapping: NodeId,
+        entry_source: impl Into<String>,
+        options: LoadOptions,
+    ) -> Result<&mut Self> {
         let mapping = self.mapping_node(mapping)?;
         let LosslessNodeKind::Mapping { style, entries } = mapping.kind() else {
             unreachable!("mapping_node only returns mapping nodes");
@@ -1016,13 +1401,10 @@ impl LosslessEdit<'_> {
             .node(*last_value)
             .ok_or_else(|| Error::new("lossless mapping value id is out of bounds", None))?;
         let entry_source = entry_source.into();
-        ensure_single_mapping_entry_fragment(&entry_source, mapping.span())?;
-        let indent = line_indent(
-            &self.stream.source,
-            line_start(&self.stream.source, first_key.span().start),
-        );
+        ensure_single_mapping_entry_fragment_with_options(&entry_source, mapping.span(), options)?;
+        let indent = block_mapping_entry_indent(&self.stream.source, first_key.span().start);
         let offset = line_end_including_newline(&self.stream.source, last_value.span().end);
-        let mut insertion = indent_entry_source(&entry_source, indent);
+        let mut insertion = indent_entry_source(&entry_source, &indent);
         if offset == self.stream.source.len() && !self.stream.source.ends_with('\n') {
             insertion.insert(0, '\n');
         }
@@ -1058,8 +1440,15 @@ impl LosslessEdit<'_> {
             .stream
             .node(entry.value)
             .ok_or_else(|| Error::new("lossless mapping value id is out of bounds", None))?;
-        let start = line_start(&self.stream.source, key_node.span().start);
-        let end = line_end_including_newline(&self.stream.source, value_node.span().end);
+        let source = &self.stream.source;
+        let end = line_end_including_newline(source, value_node.span().end);
+        if let Some((dash_end, _)) =
+            compact_sequence_mapping_key_prefix(source, key_node.span().start)
+        {
+            let span = self.stream.source_span(dash_end, end)?;
+            return self.replace_source_span(span, "\n");
+        }
+        let start = line_start(source, key_node.span().start);
         let span = self.stream.source_span(start, end)?;
         self.delete_source_span(span)
     }
@@ -1075,6 +1464,19 @@ impl LosslessEdit<'_> {
         mapping: NodeId,
         entry_source: impl Into<String>,
     ) -> Result<&mut Self> {
+        self.insert_flow_mapping_entry_source_with_options(
+            mapping,
+            entry_source,
+            LoadOptions::new(),
+        )
+    }
+
+    fn insert_flow_mapping_entry_source_with_options(
+        &mut self,
+        mapping: NodeId,
+        entry_source: impl Into<String>,
+        options: LoadOptions,
+    ) -> Result<&mut Self> {
         let mapping_node = self.mapping_node(mapping)?;
         let LosslessNodeKind::Mapping { style, entries } = mapping_node.kind() else {
             unreachable!("mapping_node only returns mapping nodes");
@@ -1086,7 +1488,11 @@ impl LosslessEdit<'_> {
             ));
         }
         let entry_source = entry_source.into();
-        ensure_single_mapping_entry_fragment(&entry_source, mapping_node.span())?;
+        ensure_single_mapping_entry_fragment_with_options(
+            &entry_source,
+            mapping_node.span(),
+            options,
+        )?;
         let insertion = if let Some((_, last_value)) = entries.last() {
             let last_value = self
                 .stream
@@ -1159,6 +1565,21 @@ impl LosslessEdit<'_> {
         index: usize,
         replacement: impl Into<String>,
     ) -> Result<&mut Self> {
+        self.replace_sequence_item_source_with_options(
+            sequence,
+            index,
+            replacement,
+            LoadOptions::new(),
+        )
+    }
+
+    fn replace_sequence_item_source_with_options(
+        &mut self,
+        sequence: NodeId,
+        index: usize,
+        replacement: impl Into<String>,
+        options: LoadOptions,
+    ) -> Result<&mut Self> {
         let sequence_node = self.sequence_node(sequence)?;
         let LosslessNodeKind::Sequence { style, .. } = sequence_node.kind() else {
             unreachable!("sequence_node only returns sequence nodes");
@@ -1169,7 +1590,12 @@ impl LosslessEdit<'_> {
             .node(item)
             .ok_or_else(|| Error::new("lossless sequence item id is out of bounds", None))?;
         let replacement = replacement.into();
-        ensure_single_node_fragment(&replacement, sequence_node.span(), "sequence item source")?;
+        ensure_single_node_fragment_with_options(
+            &replacement,
+            sequence_node.span(),
+            "sequence item source",
+            options,
+        )?;
         if *style == CollectionStyle::Block {
             let start = line_start(&self.stream.source, item_node.span().start);
             let end = line_end_including_newline(&self.stream.source, item_node.span().end);
@@ -1194,6 +1620,21 @@ impl LosslessEdit<'_> {
         sequence: NodeId,
         index: usize,
         item_source: impl Into<String>,
+    ) -> Result<&mut Self> {
+        self.insert_block_sequence_item_source_with_options(
+            sequence,
+            index,
+            item_source,
+            LoadOptions::new(),
+        )
+    }
+
+    fn insert_block_sequence_item_source_with_options(
+        &mut self,
+        sequence: NodeId,
+        index: usize,
+        item_source: impl Into<String>,
+        options: LoadOptions,
     ) -> Result<&mut Self> {
         let sequence = self.sequence_node(sequence)?;
         let LosslessNodeKind::Sequence { style, children } = sequence.kind() else {
@@ -1226,7 +1667,12 @@ impl LosslessEdit<'_> {
             .node(children[0])
             .ok_or_else(|| Error::new("lossless sequence item id is out of bounds", None))?;
         let item_source = item_source.into();
-        ensure_single_node_fragment(&item_source, sequence.span(), "sequence item source")?;
+        ensure_single_node_fragment_with_options(
+            &item_source,
+            sequence.span(),
+            "sequence item source",
+            options,
+        )?;
         let indent = line_indent(
             &self.stream.source,
             line_start(&self.stream.source, first_child.span().start),
@@ -1295,6 +1741,21 @@ impl LosslessEdit<'_> {
         index: usize,
         item_source: impl Into<String>,
     ) -> Result<&mut Self> {
+        self.insert_flow_sequence_item_source_with_options(
+            sequence,
+            index,
+            item_source,
+            LoadOptions::new(),
+        )
+    }
+
+    fn insert_flow_sequence_item_source_with_options(
+        &mut self,
+        sequence: NodeId,
+        index: usize,
+        item_source: impl Into<String>,
+        options: LoadOptions,
+    ) -> Result<&mut Self> {
         let sequence_node = self.sequence_node(sequence)?;
         let LosslessNodeKind::Sequence { style, children } = sequence_node.kind() else {
             unreachable!("sequence_node only returns sequence nodes");
@@ -1315,7 +1776,12 @@ impl LosslessEdit<'_> {
             ));
         }
         let item_source = item_source.into();
-        ensure_single_node_fragment(&item_source, sequence_node.span(), "sequence item source")?;
+        ensure_single_node_fragment_with_options(
+            &item_source,
+            sequence_node.span(),
+            "sequence item source",
+            options,
+        )?;
         let insertion = if children.is_empty() {
             item_source
         } else if index == children.len() {
@@ -1386,7 +1852,11 @@ impl LosslessEdit<'_> {
     }
 
     /// Returns validated edited YAML with untouched source bytes preserved.
-    pub fn finish(mut self) -> Result<String> {
+    pub fn finish(self) -> Result<String> {
+        self.finish_with_options(LoadOptions::new())
+    }
+
+    fn finish_with_options(mut self, options: LoadOptions) -> Result<String> {
         self.replacements
             .sort_by_key(|replacement| (replacement.start, replacement.end, replacement.order));
         self.validate_replacements()?;
@@ -1412,7 +1882,7 @@ impl LosslessEdit<'_> {
         };
         output.push_str(suffix);
 
-        parse_lossless(&output)?;
+        parse_lossless_with_options(&output, options)?;
         Ok(output)
     }
 
@@ -2192,6 +2662,591 @@ impl Frame {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ResolvedConfigStep {
+    Key(String),
+    Index(usize),
+}
+
+fn decode_json_pointer_token(token: &str) -> Result<String> {
+    let mut decoded = String::with_capacity(token.len());
+    let mut chars = token.chars();
+    while let Some(ch) = chars.next() {
+        if ch != '~' {
+            decoded.push(ch);
+            continue;
+        }
+        match chars.next() {
+            Some('0') => decoded.push('~'),
+            Some('1') => decoded.push('/'),
+            Some(other) => {
+                return Err(Error::new(
+                    format!("invalid JSON Pointer escape '~{other}' in config path"),
+                    None,
+                ));
+            }
+            None => {
+                return Err(Error::new(
+                    "invalid trailing '~' escape in config JSON Pointer path",
+                    None,
+                ));
+            }
+        }
+    }
+    Ok(decoded)
+}
+
+fn document_root(stream: &LosslessStream, document: usize) -> Result<NodeId> {
+    let doc = stream.documents().get(document).ok_or_else(|| {
+        Error::new(
+            format!("config document index {document} is out of range"),
+            None,
+        )
+    })?;
+    doc.root().ok_or_else(|| {
+        Error::new(
+            format!("config document index {document} has no root node"),
+            None,
+        )
+    })
+}
+
+fn resolve_config_path(
+    stream: &LosslessStream,
+    document: usize,
+    path: &ConfigPath,
+) -> Result<NodeId> {
+    let mut current = document_root(stream, document)?;
+    for (depth, segment) in path.segments.iter().enumerate() {
+        current = resolve_config_child(stream, current, segment, depth)?;
+    }
+    Ok(current)
+}
+
+fn resolve_config_parent(
+    stream: &LosslessStream,
+    document: usize,
+    path: &ConfigPath,
+) -> Result<(NodeId, ResolvedConfigStep)> {
+    let Some((last, parent_segments)) = path.segments.split_last() else {
+        return Err(Error::new(
+            "config path operation requires a non-empty path",
+            None,
+        ));
+    };
+    let parent_path = ConfigPath {
+        segments: parent_segments.to_vec(),
+    };
+    let parent = resolve_config_path(stream, document, &parent_path)?;
+    let parent_node = stream
+        .node(parent)
+        .ok_or_else(|| Error::new("config path parent node id is out of bounds", None))?;
+    let last = resolve_config_step_for_parent(parent_node, last, parent_segments.len())?;
+    Ok((parent, last))
+}
+
+fn resolve_config_child(
+    stream: &LosslessStream,
+    node: NodeId,
+    segment: &ConfigPathStep,
+    depth: usize,
+) -> Result<NodeId> {
+    let current = stream
+        .node(node)
+        .ok_or_else(|| Error::new("config path node id is out of bounds", None))?;
+    match resolve_config_step_for_parent(current, segment, depth)? {
+        ResolvedConfigStep::Key(key) => resolve_mapping_key(stream, current, &key, depth),
+        ResolvedConfigStep::Index(index) => resolve_sequence_index(current, index, depth),
+    }
+}
+
+fn resolve_config_step_for_parent(
+    parent: &LosslessNode,
+    segment: &ConfigPathStep,
+    depth: usize,
+) -> Result<ResolvedConfigStep> {
+    match (segment, parent.kind()) {
+        (ConfigPathStep::Key(key), LosslessNodeKind::Mapping { .. }) => {
+            Ok(ResolvedConfigStep::Key(key.clone()))
+        }
+        (ConfigPathStep::Index(index), LosslessNodeKind::Sequence { .. }) => {
+            Ok(ResolvedConfigStep::Index(*index))
+        }
+        (ConfigPathStep::PointerToken(token), LosslessNodeKind::Mapping { .. }) => {
+            Ok(ResolvedConfigStep::Key(token.clone()))
+        }
+        (ConfigPathStep::PointerToken(token), LosslessNodeKind::Sequence { .. }) => {
+            let index = token.parse::<usize>().map_err(|_| {
+                Error::new(
+                    format!("config path segment {depth} token {token:?} is not a sequence index"),
+                    Some(parent.span()),
+                )
+            })?;
+            Ok(ResolvedConfigStep::Index(index))
+        }
+        (ConfigPathStep::Key(key), _) => Err(Error::new(
+            format!("config path segment {depth} key {key:?} requires a mapping node"),
+            Some(parent.span()),
+        )),
+        (ConfigPathStep::Index(index), _) => Err(Error::new(
+            format!("config path segment {depth} index {index} requires a sequence node"),
+            Some(parent.span()),
+        )),
+        (ConfigPathStep::PointerToken(token), _) => Err(Error::new(
+            format!(
+                "config path segment {depth} token {token:?} requires a mapping or sequence node"
+            ),
+            Some(parent.span()),
+        )),
+    }
+}
+
+fn resolve_mapping_key(
+    stream: &LosslessStream,
+    current: &LosslessNode,
+    key: &str,
+    depth: usize,
+) -> Result<NodeId> {
+    let LosslessNodeKind::Mapping { entries, .. } = current.kind() else {
+        return Err(Error::new(
+            format!("config path segment {depth} key {key:?} requires a mapping node"),
+            Some(current.span()),
+        ));
+    };
+    let mut matches =
+        entries
+            .iter()
+            .filter_map(|(key_id, value_id)| match stream.node(*key_id)?.kind() {
+                LosslessNodeKind::Scalar { value, .. } if value == key => Some(*value_id),
+                _ => None,
+            });
+    let Some(value) = matches.next() else {
+        return Err(Error::new(
+            format!("config path segment {depth} key {key:?} was not found"),
+            Some(current.span()),
+        ));
+    };
+    if matches.next().is_some() {
+        return Err(Error::new(
+            format!("config path segment {depth} key {key:?} is ambiguous"),
+            Some(current.span()),
+        ));
+    }
+    Ok(value)
+}
+
+fn resolve_sequence_index(current: &LosslessNode, index: usize, depth: usize) -> Result<NodeId> {
+    let LosslessNodeKind::Sequence { children, .. } = current.kind() else {
+        return Err(Error::new(
+            format!("config path segment {depth} index {index} requires a sequence node"),
+            Some(current.span()),
+        ));
+    };
+    children.get(index).copied().ok_or_else(|| {
+        Error::new(
+            format!(
+                "config path segment {depth} index {index} is out of bounds for a sequence of length {}",
+                children.len()
+            ),
+            Some(current.span()),
+        )
+    })
+}
+
+fn set_path_source<T>(
+    stream: &LosslessStream,
+    document: usize,
+    path: &ConfigPath,
+    value: &T,
+    options: LoadOptions,
+) -> Result<String>
+where
+    T: Serialize,
+{
+    if path.is_empty() {
+        let root = document_root(stream, document)?;
+        let replacement = serialize_edit_fragment(value, EmitOptions::structural())?;
+        let mut edit = stream.edit();
+        edit.replace_node_source(root, replacement)?;
+        return edit.finish_with_options(options);
+    }
+    let (parent, last) = resolve_config_parent(stream, document, path)?;
+    let parent_node = stream
+        .node(parent)
+        .ok_or_else(|| Error::new("config path parent node id is out of bounds", None))?;
+    match (last, parent_node.kind()) {
+        (ResolvedConfigStep::Key(key), LosslessNodeKind::Mapping { style, .. }) => {
+            let replacement = serialize_value_for_style(value, *style)?;
+            let mut edit = stream.edit();
+            match style {
+                CollectionStyle::Block => {
+                    replace_block_mapping_value_source(
+                        &mut edit,
+                        parent,
+                        &key,
+                        &replacement,
+                        options,
+                    )?;
+                }
+                CollectionStyle::Flow => {
+                    edit.replace_mapping_value_source(parent, &key, replacement)?;
+                }
+            }
+            edit.finish_with_options(options)
+        }
+        (ResolvedConfigStep::Index(index), LosslessNodeKind::Sequence { style, .. }) => {
+            let replacement = serialize_value_for_style(value, *style)?;
+            let mut edit = stream.edit();
+            edit.replace_sequence_item_source_with_options(parent, index, replacement, options)?;
+            edit.finish_with_options(options)
+        }
+        (ResolvedConfigStep::Key(key), _) => Err(Error::new(
+            format!("config set of key {key:?} requires a mapping parent"),
+            Some(parent_node.span()),
+        )),
+        (ResolvedConfigStep::Index(index), _) => Err(Error::new(
+            format!("config set of index {index} requires a sequence parent"),
+            Some(parent_node.span()),
+        )),
+    }
+}
+
+fn replace_block_mapping_value_source(
+    edit: &mut LosslessEdit<'_>,
+    mapping: NodeId,
+    key: &str,
+    replacement: &str,
+    options: LoadOptions,
+) -> Result<()> {
+    let mapping_node = edit.mapping_node(mapping)?;
+    let LosslessNodeKind::Mapping { style, .. } = mapping_node.kind() else {
+        unreachable!("mapping_node only returns mapping nodes");
+    };
+    if *style != CollectionStyle::Block {
+        return Err(Error::new(
+            "config block mapping value replacement requires a block mapping",
+            Some(mapping_node.span()),
+        ));
+    }
+
+    let entry = edit.unique_mapping_entry_by_key(mapping, key)?;
+    let key_node = edit
+        .stream
+        .node(entry.key)
+        .ok_or_else(|| Error::new("config mapping key node id is out of bounds", None))?;
+    let value_node = edit
+        .stream
+        .node(entry.value)
+        .ok_or_else(|| Error::new("config mapping value node id is out of bounds", None))?;
+    ensure_single_node_fragment_with_options(
+        replacement,
+        value_node.span(),
+        "mapping value source",
+        options,
+    )?;
+
+    if !replacement.contains('\n') {
+        edit.replace_mapping_value_source(mapping, key, replacement.to_owned())?;
+        return Ok(());
+    }
+
+    let source = &edit.stream.source;
+    let key_line_start = line_start(source, key_node.span().start);
+    let value_line_start = line_start(source, value_node.span().start);
+    let value_line_end = line_end_including_newline(source, value_node.span().end);
+    let (span_start, formatted) = if value_line_start == key_line_start {
+        let separator = source
+            .get(key_node.span().end..value_node.span().start)
+            .ok_or_else(|| Error::new("config mapping separator span is invalid", None))?;
+        let span_start = separator
+            .rfind(':')
+            .map(|offset| key_node.span().end + offset + 1)
+            .unwrap_or(value_node.span().start);
+        let line_body_end = line_body_end(source, value_line_end);
+        let trailing = source
+            .get(value_node.span().end..line_body_end)
+            .ok_or_else(|| Error::new("config mapping trailing comment span is invalid", None))?;
+        let mut formatted = String::new();
+        let trailing = trailing.trim_start();
+        if trailing.starts_with('#') {
+            formatted.push(' ');
+            formatted.push_str(trailing.trim_end());
+        }
+        formatted.push('\n');
+        let child_indent = format!("{}  ", line_indent(source, key_line_start));
+        formatted.push_str(&indent_entry_source(replacement, &child_indent));
+        (span_start, formatted)
+    } else {
+        (
+            value_line_start,
+            indent_entry_source(replacement, line_indent(source, value_line_start)),
+        )
+    };
+    let span = edit.stream.source_span(span_start, value_line_end)?;
+    edit.replace_source_span(span, formatted)?;
+    Ok(())
+}
+
+fn remove_path_source(
+    stream: &LosslessStream,
+    document: usize,
+    path: &ConfigPath,
+    options: LoadOptions,
+) -> Result<String> {
+    let (parent, last) = resolve_config_parent(stream, document, path)?;
+    let parent_node = stream
+        .node(parent)
+        .ok_or_else(|| Error::new("config path parent node id is out of bounds", None))?;
+    let mut edit = stream.edit();
+    match (last, parent_node.kind()) {
+        (ResolvedConfigStep::Key(key), LosslessNodeKind::Mapping { style, .. }) => match style {
+            CollectionStyle::Block => match parent_node.kind() {
+                LosslessNodeKind::Mapping { entries, .. } if entries.len() == 1 => {
+                    edit.replace_node_source(parent, "{}")?;
+                }
+                _ => {
+                    edit.delete_block_mapping_entry_source(parent, &key)?;
+                }
+            },
+            CollectionStyle::Flow => {
+                edit.delete_flow_mapping_entry_source(parent, &key)?;
+            }
+        },
+        (ResolvedConfigStep::Index(index), LosslessNodeKind::Sequence { style, .. }) => match style
+        {
+            CollectionStyle::Block => match parent_node.kind() {
+                LosslessNodeKind::Sequence { children, .. } if children.len() == 1 => {
+                    edit.replace_node_source(parent, "[]")?;
+                }
+                _ => {
+                    edit.delete_block_sequence_item_source(parent, index)?;
+                }
+            },
+            CollectionStyle::Flow => {
+                edit.delete_flow_sequence_item_source(parent, index)?;
+            }
+        },
+        (ResolvedConfigStep::Key(key), _) => {
+            return Err(Error::new(
+                format!("config remove of key {key:?} requires a mapping parent"),
+                Some(parent_node.span()),
+            ));
+        }
+        (ResolvedConfigStep::Index(index), _) => {
+            return Err(Error::new(
+                format!("config remove of index {index} requires a sequence parent"),
+                Some(parent_node.span()),
+            ));
+        }
+    };
+    edit.finish_with_options(options)
+}
+
+fn rename_path_source(
+    stream: &LosslessStream,
+    document: usize,
+    path: &ConfigPath,
+    new_key_source: &str,
+    options: LoadOptions,
+) -> Result<String> {
+    let (parent, last) = resolve_config_parent(stream, document, path)?;
+    let ResolvedConfigStep::Key(old_key) = last else {
+        return Err(Error::new(
+            "config rename requires a mapping key path",
+            stream.node(parent).map(LosslessNode::span),
+        ));
+    };
+    let entry = stream
+        .edit()
+        .unique_mapping_entry_by_key(parent, &old_key)?;
+    let key_node = stream
+        .node(entry.key)
+        .ok_or_else(|| Error::new("config rename key node id is out of bounds", None))?;
+    let mut edit = stream.edit();
+    edit.replace_node_source(key_node.id(), new_key_source.to_owned())?;
+    edit.finish_with_options(options)
+}
+
+fn insert_entry_source<T>(
+    stream: &LosslessStream,
+    document: usize,
+    mapping_path: &ConfigPath,
+    key: &str,
+    value: &T,
+    options: LoadOptions,
+) -> Result<String>
+where
+    T: Serialize,
+{
+    let mapping = resolve_config_path(stream, document, mapping_path)?;
+    let mapping_node = stream
+        .node(mapping)
+        .ok_or_else(|| Error::new("config mapping path node id is out of bounds", None))?;
+    let LosslessNodeKind::Mapping { style, .. } = mapping_node.kind() else {
+        return Err(Error::new(
+            "config insert requires a mapping node",
+            Some(mapping_node.span()),
+        ));
+    };
+    let entry_source = format_typed_entry_source(key, value, *style)?;
+    let mut edit = stream.edit();
+    match style {
+        CollectionStyle::Block => {
+            edit.insert_block_mapping_entry_source_with_options(mapping, entry_source, options)?
+        }
+        CollectionStyle::Flow => {
+            edit.insert_flow_mapping_entry_source_with_options(mapping, entry_source, options)?
+        }
+    };
+    edit.finish_with_options(options)
+}
+
+fn push_item_source<T>(
+    stream: &LosslessStream,
+    document: usize,
+    sequence_path: &ConfigPath,
+    value: &T,
+    options: LoadOptions,
+) -> Result<String>
+where
+    T: Serialize,
+{
+    let sequence = resolve_config_path(stream, document, sequence_path)?;
+    let sequence_node = stream
+        .node(sequence)
+        .ok_or_else(|| Error::new("config sequence path node id is out of bounds", None))?;
+    let LosslessNodeKind::Sequence { children, .. } = sequence_node.kind() else {
+        return Err(Error::new(
+            "config push requires a sequence node",
+            Some(sequence_node.span()),
+        ));
+    };
+    insert_item_source(
+        stream,
+        document,
+        sequence_path,
+        children.len(),
+        value,
+        options,
+    )
+}
+
+fn insert_item_source<T>(
+    stream: &LosslessStream,
+    document: usize,
+    sequence_path: &ConfigPath,
+    index: usize,
+    value: &T,
+    options: LoadOptions,
+) -> Result<String>
+where
+    T: Serialize,
+{
+    let sequence = resolve_config_path(stream, document, sequence_path)?;
+    let sequence_node = stream
+        .node(sequence)
+        .ok_or_else(|| Error::new("config sequence path node id is out of bounds", None))?;
+    let LosslessNodeKind::Sequence { style, .. } = sequence_node.kind() else {
+        return Err(Error::new(
+            "config item insertion requires a sequence node",
+            Some(sequence_node.span()),
+        ));
+    };
+    let item_source = serialize_value_for_style(value, *style)?;
+    let mut edit = stream.edit();
+    match style {
+        CollectionStyle::Block => edit.insert_block_sequence_item_source_with_options(
+            sequence,
+            index,
+            item_source,
+            options,
+        )?,
+        CollectionStyle::Flow => edit.insert_flow_sequence_item_source_with_options(
+            sequence,
+            index,
+            item_source,
+            options,
+        )?,
+    };
+    edit.finish_with_options(options)
+}
+
+fn serialize_key_fragment(key: &str) -> Result<String> {
+    let source = serialize_edit_fragment(
+        &key,
+        EmitOptions::structural().with_collection_style(EmitCollectionStyle::Flow),
+    )?;
+    if source.contains('\n') {
+        return Err(Error::new(
+            "config mapping keys must emit as a single YAML scalar",
+            None,
+        ));
+    }
+    ensure_scalar_fragment(&source, Span::default())?;
+    Ok(source)
+}
+
+fn serialize_value_for_style<T>(value: &T, style: CollectionStyle) -> Result<String>
+where
+    T: Serialize,
+{
+    let options = match style {
+        CollectionStyle::Block => EmitOptions::structural(),
+        CollectionStyle::Flow => {
+            EmitOptions::structural().with_collection_style(EmitCollectionStyle::Flow)
+        }
+    };
+    let source = serialize_edit_fragment(value, options)?;
+    if style == CollectionStyle::Flow && source.contains('\n') {
+        return Err(Error::new(
+            "config edit for flow collections requires inline YAML output",
+            None,
+        ));
+    }
+    Ok(source)
+}
+
+fn serialize_edit_fragment<T>(value: &T, options: EmitOptions) -> Result<String>
+where
+    T: Serialize,
+{
+    let mut source = crate::to_string_with_options(value, options)?;
+    if source.ends_with('\n') {
+        source.pop();
+    }
+    Ok(source)
+}
+
+fn format_typed_entry_source<T>(key: &str, value: &T, style: CollectionStyle) -> Result<String>
+where
+    T: Serialize,
+{
+    let key_source = serialize_key_fragment(key)?;
+    let value_source = serialize_value_for_style(value, style)?;
+    if value_source.contains('\n') {
+        let mut entry = String::with_capacity(key_source.len() + value_source.len() + 4);
+        entry.push_str(&key_source);
+        entry.push_str(":\n");
+        entry.push_str(&indent_fragment(&value_source, "  "));
+        Ok(entry)
+    } else {
+        Ok(format!("{key_source}: {value_source}"))
+    }
+}
+
+fn indent_fragment(source: &str, indent: &str) -> String {
+    let mut output = String::with_capacity(source.len() + indent.len() * 2);
+    for line in source.split_inclusive('\n') {
+        if line == "\n" {
+            output.push('\n');
+        } else {
+            output.push_str(indent);
+            output.push_str(line);
+        }
+    }
+    output
+}
+
 fn span_for_source_range(source: &str, start: usize, end: usize) -> Result<Span> {
     if start > end || end > source.len() {
         return Err(Error::new(
@@ -2288,8 +3343,13 @@ fn ensure_scalar_fragment(replacement: &str, span: Span) -> Result<()> {
     Ok(())
 }
 
-fn ensure_single_mapping_entry_fragment(entry_source: &str, span: Span) -> Result<()> {
-    let root = single_fragment_root(entry_source, span, "mapping entry source")?;
+fn ensure_single_mapping_entry_fragment_with_options(
+    entry_source: &str,
+    span: Span,
+    options: LoadOptions,
+) -> Result<()> {
+    let root =
+        single_fragment_root_with_options(entry_source, span, "mapping entry source", options)?;
     match root.kind() {
         LosslessNodeKind::Mapping { entries, .. } if entries.len() == 1 => Ok(()),
         _ => Err(Error::new(
@@ -2299,12 +3359,22 @@ fn ensure_single_mapping_entry_fragment(entry_source: &str, span: Span) -> Resul
     }
 }
 
-fn ensure_single_node_fragment(fragment: &str, span: Span, label: &str) -> Result<()> {
-    single_fragment_root(fragment, span, label).map(|_| ())
+fn ensure_single_node_fragment_with_options(
+    fragment: &str,
+    span: Span,
+    label: &str,
+    options: LoadOptions,
+) -> Result<()> {
+    single_fragment_root_with_options(fragment, span, label, options).map(|_| ())
 }
 
-fn single_fragment_root(fragment: &str, span: Span, label: &str) -> Result<LosslessNode> {
-    let parsed = parse_lossless(fragment)
+fn single_fragment_root_with_options(
+    fragment: &str,
+    span: Span,
+    label: &str,
+    options: LoadOptions,
+) -> Result<LosslessNode> {
+    let parsed = parse_lossless_with_options(fragment, options)
         .map_err(|error| Error::new(format!("{label} is not valid YAML: {error}"), Some(span)))?;
     if parsed.documents().len() != 1 {
         return Err(Error::new(
@@ -2337,6 +3407,19 @@ fn line_end_including_newline(source: &str, offset: usize) -> usize {
         .unwrap_or(source.len())
 }
 
+fn line_body_end(source: &str, line_end: usize) -> usize {
+    if line_end > 0 && source.as_bytes().get(line_end - 1) == Some(&b'\n') {
+        let without_lf = line_end - 1;
+        if without_lf > 0 && source.as_bytes().get(without_lf - 1) == Some(&b'\r') {
+            without_lf - 1
+        } else {
+            without_lf
+        }
+    } else {
+        line_end
+    }
+}
+
 fn line_indent(source: &str, line_start: usize) -> &str {
     let line = &source[line_start..line_end_including_newline(source, line_start)];
     let indent_len = line
@@ -2344,6 +3427,39 @@ fn line_indent(source: &str, line_start: usize) -> &str {
         .take_while(|byte| matches!(*byte, b' ' | b'\t'))
         .count();
     &line[..indent_len]
+}
+
+fn block_mapping_entry_indent(source: &str, key_start: usize) -> String {
+    compact_sequence_mapping_key_indent(source, key_start).unwrap_or_else(|| {
+        let line_start = line_start(source, key_start);
+        line_indent(source, line_start).to_owned()
+    })
+}
+
+fn compact_sequence_mapping_key_indent(source: &str, key_start: usize) -> Option<String> {
+    let (_, prefix) = compact_sequence_mapping_key_prefix(source, key_start)?;
+    Some(
+        prefix
+            .bytes()
+            .map(|byte| if byte == b'\t' { '\t' } else { ' ' })
+            .collect(),
+    )
+}
+
+fn compact_sequence_mapping_key_prefix(source: &str, key_start: usize) -> Option<(usize, &str)> {
+    let line_start = line_start(source, key_start);
+    let prefix = source.get(line_start..key_start)?;
+    let dash = prefix
+        .bytes()
+        .position(|byte| !matches!(byte, b' ' | b'\t'))?;
+    if prefix.as_bytes().get(dash) != Some(&b'-') {
+        return None;
+    }
+    let after_dash = prefix.as_bytes().get(dash + 1..)?;
+    if after_dash.is_empty() || !after_dash.iter().all(|byte| matches!(*byte, b' ' | b'\t')) {
+        return None;
+    }
+    Some((line_start + dash + 1, prefix))
 }
 
 fn indent_entry_source(entry_source: &str, indent: &str) -> String {

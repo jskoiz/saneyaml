@@ -1,0 +1,4 @@
+mode=set value=seq path=json
+flow: { spec: old, ports: [80, 443] }
+=== config value ===
+api worker

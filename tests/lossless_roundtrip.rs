@@ -1,6 +1,6 @@
 use saneyaml::{
-    CollectionStyle, LosslessNodeKind, LosslessTriviaKind, PathSegment, ScalarStyle,
-    parse_lossless, parse_lossless_bytes,
+    CollectionStyle, ConfigPath, DEFAULT_MAX_COLLECTION_ITEMS, LoadOptions, LosslessNodeKind,
+    LosslessTriviaKind, PathSegment, ScalarStyle, parse_lossless, parse_lossless_bytes,
 };
 
 #[test]
@@ -343,6 +343,51 @@ copy: *svc
             .name(),
         "svc"
     );
+}
+
+#[test]
+fn lossless_edit_preserves_compact_sequence_item_mapping_edits() {
+    let input = "\
+steps:
+  - uses: actions/checkout@v4
+    with:
+      fetch-depth: 0
+";
+    let stream = parse_lossless(input).expect("lossless parse");
+    let step = block_mapping_with_key(&stream, "uses");
+
+    let inserted = stream
+        .insert_block_mapping_entry_source(step.id(), "name: checkout")
+        .expect("insert compact sequence item mapping entry");
+    assert_eq!(
+        inserted,
+        "\
+steps:
+  - uses: actions/checkout@v4
+    with:
+      fetch-depth: 0
+    name: checkout
+"
+    );
+
+    let removed = stream
+        .delete_block_mapping_entry_source(step.id(), "uses")
+        .expect("delete first compact sequence item mapping key");
+    assert_eq!(
+        removed,
+        "\
+steps:
+  -
+    with:
+      fetch-depth: 0
+"
+    );
+    let reparsed = parse_lossless(&removed).expect("edited source reparses");
+    let step = block_mapping_with_key(&reparsed, "with");
+    assert!(matches!(
+        step.kind(),
+        LosslessNodeKind::Mapping { entries, .. } if entries.len() == 1
+    ));
 }
 
 #[test]
@@ -1040,4 +1085,367 @@ fn lossless_path_addressed_mutations_reject_mismatched_targets() {
             .to_string()
             .contains("requires a sequence node")
     );
+}
+
+#[test]
+fn config_editor_chains_path_edits_against_current_source() -> saneyaml::Result<()> {
+    let input = "\
+# compose comment
+x-defaults: &defaults
+  restart: unless-stopped
+services:
+  web:
+    <<: *defaults
+    image: nginx:1.25
+    command: [\"run\", \"server\"]
+    ports:
+      - \"80:80\"
+metadata:
+  labels:
+    app.kubernetes.io/name: web
+";
+    let mut editor = saneyaml::edit(input)?;
+
+    editor
+        .set(
+            ConfigPath::new([
+                PathSegment::from("services"),
+                PathSegment::from("web"),
+                PathSegment::from("image"),
+            ]),
+            "ghcr.io/acme/web:2026",
+        )?
+        .remove(ConfigPath::new([
+            PathSegment::from("services"),
+            PathSegment::from("web"),
+            PathSegment::from("command"),
+        ]))?
+        .push(
+            ConfigPath::new([
+                PathSegment::from("services"),
+                PathSegment::from("web"),
+                PathSegment::from("ports"),
+            ]),
+            "8080:80",
+        )?
+        .rename(
+            ConfigPath::json_pointer("/metadata/labels/app.kubernetes.io~1name")?,
+            "app.kubernetes.io/component",
+        )?
+        .insert(
+            ConfigPath::new([PathSegment::from("metadata"), PathSegment::from("labels")]),
+            "tier",
+            "frontend",
+        )?;
+
+    let output = editor.finish()?;
+    let expected = "\
+# compose comment
+x-defaults: &defaults
+  restart: unless-stopped
+services:
+  web:
+    <<: *defaults
+    image: ghcr.io/acme/web:2026
+    ports:
+      - \"80:80\"
+      - 8080:80
+metadata:
+  labels:
+    app.kubernetes.io/component: web
+    tier: frontend
+";
+    assert_eq!(output, expected);
+    parse_lossless(&output).expect("edited config reparses losslessly");
+    Ok(())
+}
+
+#[test]
+fn config_editor_preserves_compact_sequence_item_mapping_edits() -> saneyaml::Result<()> {
+    let input = "\
+steps:
+  - uses: actions/checkout@v4
+    with:
+      fetch-depth: 0
+";
+    let mut editor = saneyaml::edit(input)?;
+    editor
+        .insert(
+            ConfigPath::new([PathSegment::from("steps"), PathSegment::from(0usize)]),
+            "name",
+            "checkout",
+        )?
+        .remove(ConfigPath::new([
+            PathSegment::from("steps"),
+            PathSegment::from(0usize),
+            PathSegment::from("uses"),
+        ]))?;
+
+    let output = editor.finish()?;
+    assert_eq!(
+        output,
+        "\
+steps:
+  -
+    with:
+      fetch-depth: 0
+    name: checkout
+"
+    );
+    parse_lossless(&output).expect("edited config reparses losslessly");
+    Ok(())
+}
+
+#[test]
+fn config_editor_set_replaces_mapping_values_with_collections() -> saneyaml::Result<()> {
+    let input = "\
+# config
+spec: old # keep spec comment
+settings:
+  mode: old
+  deprecated: true
+flow: { spec: old }
+";
+    let mut settings = std::collections::BTreeMap::new();
+    settings.insert("mode", "safe");
+    settings.insert("tier", "frontend");
+
+    let mut editor = saneyaml::edit(input)?;
+    editor
+        .set(ConfigPath::keys(["spec"]), vec!["api", "worker"])?
+        .set(ConfigPath::keys(["settings"]), settings)?
+        .set(ConfigPath::keys(["flow", "spec"]), vec!["a", "b"])?;
+
+    let output = editor.finish()?;
+    let expected = "\
+# config
+spec: # keep spec comment
+  - api
+  - worker
+settings:
+  mode: safe
+  tier: frontend
+flow: { spec: [a, b] }
+";
+    assert_eq!(output, expected);
+    parse_lossless(&output).expect("edited config reparses losslessly");
+    Ok(())
+}
+
+#[test]
+fn config_path_json_pointer_handles_escaped_config_keys_and_arrays() -> saneyaml::Result<()> {
+    let input = "\
+metadata:
+  labels:
+    app.kubernetes.io/name: web
+    tilde~key: old
+spec:
+  containers:
+    - image: nginx:1.25
+";
+    let mut editor = saneyaml::edit(input)?;
+    editor
+        .set(
+            ConfigPath::keys(["metadata", "labels", "app.kubernetes.io/name"]),
+            "api",
+        )?
+        .set(
+            ConfigPath::json_pointer("/metadata/labels/app.kubernetes.io~1name")?,
+            "worker",
+        )?
+        .set(
+            ConfigPath::json_pointer("/metadata/labels/tilde~0key")?,
+            "new",
+        )?
+        .set(
+            ConfigPath::json_pointer("/spec/containers/0/image")?,
+            "nginx:1.27",
+        )?;
+
+    let output = editor.finish()?;
+    assert!(output.contains("app.kubernetes.io/name: worker"));
+    assert!(output.contains("tilde~key: new"));
+    assert!(output.contains("image: nginx:1.27"));
+
+    let invalid_escape = ConfigPath::json_pointer("/metadata/~2bad")
+        .expect_err("invalid JSON Pointer escape is rejected");
+    assert!(
+        invalid_escape
+            .to_string()
+            .contains("invalid JSON Pointer escape")
+    );
+    Ok(())
+}
+
+#[test]
+fn config_editor_targets_selected_document_in_stream() -> saneyaml::Result<()> {
+    let input = "\
+---
+name: first
+---
+name: second
+";
+    let mut editor = saneyaml::edit(input)?;
+    editor.set_in_document(1, ConfigPath::keys(["name"]), "updated")?;
+
+    let output = editor.finish()?;
+    assert!(output.contains("name: first"));
+    assert!(output.contains("name: updated"));
+    assert!(!output.contains("name: second"));
+    Ok(())
+}
+
+#[test]
+fn config_editor_uses_load_options_for_intermediate_validation() -> saneyaml::Result<()> {
+    let mut input = String::from("items:\n");
+    for index in 0..=DEFAULT_MAX_COLLECTION_ITEMS {
+        input.push_str("  - item");
+        input.push_str(&index.to_string());
+        input.push('\n');
+    }
+    input.push_str("flag: old\n");
+
+    let default_error = saneyaml::edit(&input).expect_err("default collection limit rejects input");
+    assert!(default_error.to_string().contains("collection"));
+
+    let mut editor = saneyaml::ConfigEditor::new_with_options(
+        input,
+        LoadOptions::new().without_collection_limit(),
+    )?;
+    editor.set(ConfigPath::keys(["flag"]), "new")?;
+
+    let output = editor.finish()?;
+    assert!(output.contains("flag: new\n"));
+    saneyaml::parse_lossless_with_options(&output, LoadOptions::new().without_collection_limit())
+        .expect("edited config reparses with editor load options");
+    Ok(())
+}
+
+#[test]
+fn config_editor_remove_preserves_empty_mapping_type() -> saneyaml::Result<()> {
+    let input = "\
+root:
+  child: old
+";
+    let mut editor = saneyaml::edit(input)?;
+    editor.remove(ConfigPath::keys(["root", "child"]))?;
+
+    let output = editor.finish()?;
+    assert_eq!(
+        output,
+        "\
+root:
+  {}
+"
+    );
+    let stream = parse_lossless(&output)?;
+    let root = stream.resolve_path(0, &[PathSegment::from("root")])?;
+    let root = stream.node(root).expect("root node exists");
+    assert!(matches!(
+        root.kind(),
+        LosslessNodeKind::Mapping { entries, .. } if entries.is_empty()
+    ));
+
+    let mut editor = saneyaml::edit(input)?;
+    editor.remove(ConfigPath::keys(["root", "child"]))?.insert(
+        ConfigPath::keys(["root"]),
+        "next",
+        true,
+    )?;
+    let output = editor.finish()?;
+    assert_eq!(
+        output,
+        "\
+root:
+  {next: true}
+"
+    );
+    parse_lossless(&output).expect("chained edit reparses losslessly");
+    Ok(())
+}
+
+#[test]
+fn config_editor_remove_preserves_empty_sequence_type() -> saneyaml::Result<()> {
+    let input = "\
+items:
+  - a
+";
+    let mut editor = saneyaml::edit(input)?;
+    editor.remove(ConfigPath::new([
+        PathSegment::from("items"),
+        PathSegment::from(0usize),
+    ]))?;
+
+    let output = editor.finish()?;
+    assert_eq!(
+        output,
+        "\
+items:
+  []
+"
+    );
+    let stream = parse_lossless(&output)?;
+    let items = stream.resolve_path(0, &[PathSegment::from("items")])?;
+    let items = stream.node(items).expect("items node exists");
+    assert!(matches!(
+        items.kind(),
+        LosslessNodeKind::Sequence { children, .. } if children.is_empty()
+    ));
+
+    let mut editor = saneyaml::edit(input)?;
+    editor
+        .remove(ConfigPath::new([
+            PathSegment::from("items"),
+            PathSegment::from(0usize),
+        ]))?
+        .push(ConfigPath::keys(["items"]), "b")?;
+    let output = editor.finish()?;
+    assert_eq!(
+        output,
+        "\
+items:
+  [b]
+"
+    );
+    parse_lossless(&output).expect("chained edit reparses losslessly");
+    Ok(())
+}
+
+#[test]
+fn config_editor_uses_load_options_for_generated_fragments() -> saneyaml::Result<()> {
+    let input = "\
+root:
+  items: old
+";
+    let items = (0..=DEFAULT_MAX_COLLECTION_ITEMS)
+        .map(|index| format!("item{index}"))
+        .collect::<Vec<_>>();
+
+    let mut default_editor = saneyaml::edit(input)?;
+    let default_error = default_editor
+        .set(ConfigPath::keys(["root", "items"]), items.clone())
+        .expect_err("default collection limit rejects generated replacement");
+    assert!(default_error.to_string().contains("collection"));
+
+    let mut editor = saneyaml::ConfigEditor::new_with_options(
+        input,
+        LoadOptions::new().without_collection_limit(),
+    )?;
+    editor.set(ConfigPath::keys(["root", "items"]), items)?;
+
+    let output = editor.finish()?;
+    assert!(output.contains("items:\n    - item0\n"));
+    let stream = saneyaml::parse_lossless_with_options(
+        &output,
+        LoadOptions::new().without_collection_limit(),
+    )
+    .expect("edited config reparses with editor load options");
+    let items = stream.resolve_path(0, &[PathSegment::from("root"), PathSegment::from("items")])?;
+    let items = stream.node(items).expect("items node exists");
+    assert!(matches!(
+        items.kind(),
+        LosslessNodeKind::Sequence { children, .. }
+            if children.len() == DEFAULT_MAX_COLLECTION_ITEMS + 1
+    ));
+    Ok(())
 }

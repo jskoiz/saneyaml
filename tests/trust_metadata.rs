@@ -96,6 +96,8 @@ fn github_templates_parse_as_yaml_and_route_sensitive_reports() {
 fn ci_triggers_on_public_package_claim_inputs() {
     let workflow = ci_workflow();
     let push_branches = ci_string_sequence_for(&workflow, &["on", "push", "branches"]);
+    let rust_runner_matrix =
+        ci_string_sequence_for(&workflow, &["jobs", "rust", "strategy", "matrix", "os"]);
     let push_filters = ci_path_filters_for(&workflow, "push");
     let pull_request_filters = ci_path_filters_for(&workflow, "pull_request");
 
@@ -103,6 +105,11 @@ fn ci_triggers_on_public_package_claim_inputs() {
         push_branches,
         BTreeSet::from(["main".to_owned()]),
         "push CI must stay limited to main so PR branch updates do not duplicate pull_request runs"
+    );
+    assert_eq!(
+        rust_runner_matrix,
+        BTreeSet::from(["ubuntu-latest".to_owned(), "windows-latest".to_owned()]),
+        "automatic CI must avoid hosted Apple runners unless a specific run is approved"
     );
 
     let required_filters = public_package_claim_filters();

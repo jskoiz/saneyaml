@@ -1365,10 +1365,13 @@ impl Parser {
         }
     }
 
-    fn emit_alias(&mut self, name: String, span: Span) {
+    fn emit_alias(&mut self, name: &str, span: Span) {
         if let Some(recorder) = &mut self.events {
             recorder.events.push(Event::Alias {
-                anchor: EventAnchor { name, span },
+                anchor: EventAnchor {
+                    name: name.to_string(),
+                    span,
+                },
             });
         }
     }
@@ -1397,9 +1400,12 @@ impl Parser {
         }
     }
 
-    fn push_anchor_meta(&mut self, name: String, span: Span) {
+    fn push_anchor_meta(&mut self, name: &str, span: Span) {
         if let Some(recorder) = &mut self.events {
-            recorder.pending_meta.anchor = Some(EventAnchor { name, span });
+            recorder.pending_meta.anchor = Some(EventAnchor {
+                name: name.to_string(),
+                span,
+            });
         }
     }
 
@@ -1746,7 +1752,7 @@ impl Parser {
                     line.local_span(alias.rest_start, alias.rest_start + alias.rest.len()),
                 ));
             }
-            self.emit_alias(alias.name.clone(), alias.span);
+            self.emit_alias(&alias.name, alias.span);
             if self.recording_events() {
                 self.anchors.validate_alias(&alias.name, alias.span)?;
                 return Ok(Node::null(alias.span));
@@ -1758,7 +1764,7 @@ impl Parser {
             properties.record_anchor(anchor.span)?;
             reject_alias_with_node_properties(anchor.rest, line, anchor.rest_start)?;
             reject_same_line_block_sequence_after_property(anchor.rest, line, anchor.rest_start)?;
-            self.push_anchor_meta(anchor.name.clone(), anchor.span);
+            self.push_anchor_meta(&anchor.name, anchor.span);
             let generation = self.anchors.begin(anchor.name.clone(), anchor.span);
             let node = if anchor.rest.trim().is_empty() {
                 self.parse_document_root_or_null(anchor.span, depth + 1)?
@@ -2123,7 +2129,7 @@ impl Parser {
                     line.local_span(alias.rest_start, alias.rest_start + alias.rest.len()),
                 ));
             }
-            self.emit_alias(alias.name.clone(), alias.span);
+            self.emit_alias(&alias.name, alias.span);
             if self.recording_events() {
                 self.anchors.validate_alias(&alias.name, alias.span)?;
                 return Ok(Node::null(alias.span));
@@ -2533,7 +2539,7 @@ impl Parser {
             properties.record_anchor(anchor.span)?;
             reject_alias_with_node_properties(anchor.rest, line, anchor.rest_start)?;
             reject_same_line_block_sequence_after_property(anchor.rest, line, anchor.rest_start)?;
-            self.push_anchor_meta(anchor.name.clone(), anchor.span);
+            self.push_anchor_meta(&anchor.name, anchor.span);
             let generation = self.anchors.begin(anchor.name.clone(), anchor.span);
             let node = self.parse_mapping_value_property_rest(
                 anchor.rest,
@@ -2618,7 +2624,7 @@ impl Parser {
                     line.local_span(alias.rest_start, alias.rest_start + alias.rest.len()),
                 ));
             }
-            self.emit_alias(alias.name.clone(), alias.span);
+            self.emit_alias(&alias.name, alias.span);
             if self.recording_events() {
                 self.anchors.validate_alias(&alias.name, alias.span)?;
                 return Ok(Node::null(alias.span));
@@ -2628,7 +2634,7 @@ impl Parser {
 
         if let Some(anchor) = parse_metadata_token(text, line, local_start, '&')? {
             if anchor.rest.trim().is_empty() {
-                self.push_anchor_meta(anchor.name.clone(), anchor.span);
+                self.push_anchor_meta(&anchor.name, anchor.span);
                 let generation = self.anchors.begin(anchor.name.clone(), anchor.span);
                 self.emit_null_scalar(anchor.span);
                 let key = Node::null(anchor.span);
@@ -2637,7 +2643,7 @@ impl Parser {
             }
             reject_alias_with_node_properties(anchor.rest, line, anchor.rest_start)?;
             reject_same_line_block_sequence_after_property(anchor.rest, line, anchor.rest_start)?;
-            self.push_anchor_meta(anchor.name.clone(), anchor.span);
+            self.push_anchor_meta(&anchor.name, anchor.span);
             let generation = self.anchors.begin(anchor.name.clone(), anchor.span);
             let key = self.parse_key(anchor.rest, line, anchor.rest_start, depth)?;
             self.anchors.finish(&anchor.name, generation, key.clone());
@@ -2873,6 +2879,20 @@ impl Parser {
                     out.push(' ');
                 }
                 out.push_str(trimmed);
+                // Enforce the scalar byte budget incrementally so oversized
+                // multi-line plain scalars are rejected before the whole string
+                // is accumulated. `out.len()` is exactly the value length the
+                // final `Value::String` node reports, so the limit decision and
+                // error are identical to the post-build check below.
+                self.check_scalar_bytes(
+                    out.len(),
+                    Span::new(
+                        first_line.start() + first_line.indent() + first_start,
+                        next.start() + next.raw_len(),
+                        first_line.no(),
+                        first_line.indent() + first_start + 1,
+                    ),
+                )?;
             }
             end = next.start() + next.raw_len();
         }
@@ -3137,7 +3157,7 @@ impl Parser {
                     line.local_span(alias.rest_start, alias.rest_start + alias.rest.len()),
                 ));
             }
-            self.emit_alias(alias.name.clone(), alias.span);
+            self.emit_alias(&alias.name, alias.span);
             if self.recording_events() {
                 self.anchors.validate_alias(&alias.name, alias.span)?;
                 return Ok(Node::null(alias.span));
@@ -3149,7 +3169,7 @@ impl Parser {
             properties.record_anchor(anchor.span)?;
             reject_alias_with_node_properties(anchor.rest, line, anchor.rest_start)?;
             reject_same_line_block_sequence_after_property(anchor.rest, line, anchor.rest_start)?;
-            self.push_anchor_meta(anchor.name.clone(), anchor.span);
+            self.push_anchor_meta(&anchor.name, anchor.span);
             let generation = self.anchors.begin(anchor.name.clone(), anchor.span);
             let node = if anchor.rest.trim().is_empty() {
                 if properties.allow_document_root_continuation && line.indent() == 0 {
@@ -3862,11 +3882,11 @@ fn sequence_indicator_nested_tab_offset(content: &[u8]) -> Option<usize> {
 }
 
 fn nested_indicator_is_token(content: &[u8], offset: usize) -> bool {
-    match content[offset] {
-        b'-' => content
+    match content.get(offset) {
+        Some(b'-') => content
             .get(offset + 1)
             .is_none_or(|byte| byte.is_ascii_whitespace()),
-        b'?' | b':' => true,
+        Some(b'?' | b':') => true,
         _ => false,
     }
 }
@@ -5014,8 +5034,14 @@ impl FlowBuffer {
     }
 
     fn span(&self, start: usize, end: usize) -> Span {
-        let start = self.marks[start];
-        let end = self.marks[end];
+        // `start`/`end` are byte positions into `self.text`; the `marks` vector
+        // always carries one extra trailing mark, but guard with checked access
+        // and clamp to the last valid mark so malformed offsets cannot panic.
+        let Some(last) = self.marks.last().copied() else {
+            return Span::point(0, 1, 1);
+        };
+        let start = self.marks.get(start).copied().unwrap_or(last);
+        let end = self.marks.get(end).copied().unwrap_or(last);
         Span::new(start.offset, end.offset, start.line, start.column)
     }
 }
@@ -5099,10 +5125,13 @@ impl<'a> FlowParser<'a> {
         }
     }
 
-    fn emit_alias(&mut self, name: String, span: Span) {
+    fn emit_alias(&mut self, name: &str, span: Span) {
         if let Some(events) = &mut self.events {
             events.events.push(Event::Alias {
-                anchor: EventAnchor { name, span },
+                anchor: EventAnchor {
+                    name: name.to_string(),
+                    span,
+                },
             });
         }
     }
@@ -5131,9 +5160,12 @@ impl<'a> FlowParser<'a> {
         }
     }
 
-    fn push_anchor_meta(&mut self, name: String, span: Span) {
+    fn push_anchor_meta(&mut self, name: &str, span: Span) {
         if let Some(events) = &mut self.events {
-            events.pending_meta.anchor = Some(EventAnchor { name, span });
+            events.pending_meta.anchor = Some(EventAnchor {
+                name: name.to_string(),
+                span,
+            });
         }
     }
 
@@ -5278,7 +5310,7 @@ impl<'a> FlowParser<'a> {
         };
         self.skip_ws();
         self.reject_alias_with_node_properties_at_current_position()?;
-        self.push_anchor_meta(anchor.name.clone(), anchor.span);
+        self.push_anchor_meta(&anchor.name, anchor.span);
         let generation = self.with_anchors(anchor.span, |anchors| {
             Ok(anchors.begin(anchor.name.clone(), anchor.span))
         })?;
@@ -5307,7 +5339,7 @@ impl<'a> FlowParser<'a> {
         let Some(alias) = self.take_metadata_token('*')? else {
             unreachable!("parse_alias_value is only called at an alias token");
         };
-        self.emit_alias(alias.name.clone(), alias.span);
+        self.emit_alias(&alias.name, alias.span);
         if self.recording_events() {
             self.with_anchors(alias.span, |anchors| {
                 anchors.validate_alias(&alias.name, alias.span)
@@ -5496,7 +5528,7 @@ impl<'a> FlowParser<'a> {
             unreachable!("parse_anchor_key is only called at an anchor token");
         };
         self.skip_ws();
-        self.push_anchor_meta(anchor.name.clone(), anchor.span);
+        self.push_anchor_meta(&anchor.name, anchor.span);
         self.reject_alias_with_node_properties_at_current_position()?;
         let generation = self.with_anchors(anchor.span, |anchors| {
             Ok(anchors.begin(anchor.name.clone(), anchor.span))
@@ -5526,7 +5558,7 @@ impl<'a> FlowParser<'a> {
         let Some(alias) = self.take_metadata_token('*')? else {
             unreachable!("parse_alias_key is only called at an alias token");
         };
-        self.emit_alias(alias.name.clone(), alias.span);
+        self.emit_alias(&alias.name, alias.span);
         if self.recording_events() {
             self.with_anchors(alias.span, |anchors| {
                 anchors.validate_alias(&alias.name, alias.span)

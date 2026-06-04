@@ -28,6 +28,9 @@ include = [
     "/src/**",
 ]
 
+[package.metadata.docs.rs]
+all-features = true
+
 [lib]
 name = "saneyaml"
 path = "src/lib.rs"
@@ -37,6 +40,12 @@ default = ["serde", "emit", "lossless"]
 serde = []
 emit = []
 lossless = []
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = "warn"
 
 [dependencies]
 ryu = "1.0"

@@ -6046,12 +6046,13 @@ fn serde_api_to_value_i128_u128_shape_matches_serde_yaml() {
     assert_eq!(negative_i128.as_i64(), negative_i128_reference.as_i64());
     assert_eq!(negative_i128.as_i64(), Some(i64::MIN));
 
+    // Unlike serde_yaml, saneyaml's Number variant can hold the full i128/u128
+    // range, so out-of-64-bit values are preserved losslessly as numbers
+    // rather than degrading to strings.
     let large_i128 = saneyaml::to_value(i128::MAX).expect("i128 max to_value");
-    let large_i128_reference =
-        serde_yaml::to_value(i128::MAX).expect("serde_yaml i128 max to_value");
-    assert_eq!(large_i128.as_str(), large_i128_reference.as_str());
-    let large_i128_text = i128::MAX.to_string();
-    assert_eq!(large_i128.as_str(), Some(large_i128_text.as_str()));
+    assert_eq!(large_i128, Value::Number(Number::Integer(i128::MAX)));
+    assert_eq!(large_i128.as_i128(), Some(i128::MAX));
+    assert!(large_i128.as_str().is_none());
 
     let in_range_u128 = saneyaml::to_value(u128::from(u64::MAX)).expect("u64 max u128 to_value");
     let in_range_u128_reference =
@@ -6060,11 +6061,9 @@ fn serde_api_to_value_i128_u128_shape_matches_serde_yaml() {
     assert_eq!(in_range_u128.as_u64(), Some(u64::MAX));
 
     let large_u128 = saneyaml::to_value(u128::MAX).expect("u128 max to_value");
-    let large_u128_reference =
-        serde_yaml::to_value(u128::MAX).expect("serde_yaml u128 max to_value");
-    assert_eq!(large_u128.as_str(), large_u128_reference.as_str());
-    let large_u128_text = u128::MAX.to_string();
-    assert_eq!(large_u128.as_str(), Some(large_u128_text.as_str()));
+    assert_eq!(large_u128, Value::Number(Number::Unsigned(u128::MAX)));
+    assert_eq!(large_u128.as_u128(), Some(u128::MAX));
+    assert!(large_u128.as_str().is_none());
 
     let direct = i128::MAX
         .serialize(saneyaml::value::Serializer)

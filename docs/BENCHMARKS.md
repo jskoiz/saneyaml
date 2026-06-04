@@ -293,3 +293,43 @@ saneyaml ties `yaml-rust2` and `saphyr` at 400/400 on the neutral spec set; it
 is not a sole leader there. Its differentiation is the combination of full spec
 conformance with tree-policy rejection of the duplicate-key/tree-error cases
 that `saphyr` accepts, while `serde_yaml` trails the spec set at 333/400.
+
+## Reproduction & Tooling
+
+Every number in this document comes from an in-repo example, run under Cargo's
+`release` profile. The commands below regenerate each captured table; absolute
+values vary by machine, but the same-run cross-loader ordering is the
+trustworthy signal.
+
+| captured section | command |
+|---|---|
+| Real-World Config Corpus | `cargo run --release --example real_world_benchmark` |
+| Real-world corpus (1,000 iterations) | `YAML_BENCH_ITERS=1000 cargo run --release --example real_world_benchmark` |
+| Large Inputs (all corpora) | `cargo run --release --example large_input_benchmark` |
+| Large Inputs (custom iteration count) | `YAML_LARGE_BENCH_ITERS=20 cargo run --release --example large_input_benchmark` |
+| Allocator-backed memory (dhat) | `cargo run --release --example dhat_memory -- --all` |
+| dhat single (library, corpus) pair | `cargo run --release --example dhat_memory -- saneyaml-borrowed multidoc` |
+| Conformance (402 curated cases) | `cargo run --release --example conformance_compare` |
+
+Iteration counts default to 200 for `real_world_benchmark` (`YAML_BENCH_ITERS`)
+and 20 for `large_input_benchmark` (`YAML_LARGE_BENCH_ITERS`). The
+`dhat_memory` example installs a global allocator and must measure one library
+per process; `-- --all` sweeps every `(library, corpus)` pair for you, and
+`-- <library> <corpus>` profiles a single pair.
+
+### Reference-crate versions
+
+The captured comparison numbers were produced against these pinned
+dev-dependency versions (see `Cargo.toml`):
+
+| crate | version |
+|---|---|
+| `serde_yaml` | 0.9.34 |
+| `saphyr` | 0.0.6 |
+| `saphyr-parser` | 0.0.6 |
+| `yaml-rust2` | 0.11.0 |
+| `dhat` | 0.3.3 |
+
+To reproduce against the exact pinned set, build with the checked-in
+`Cargo.lock` (the default for `cargo run`). Bumping any reference crate can
+shift its numbers, so re-capture the whole comparison table when upgrading.

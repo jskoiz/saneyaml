@@ -3,6 +3,7 @@ use serde::Deserialize;
 use std::fs;
 use std::io::Cursor;
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 const DOS_MANIFEST: &str = include_str!("fixtures/dos/manifest.toml");
 const CLEAN_SMALL: &str = include_str!("fixtures/dos/clean/small.yaml");
@@ -18,6 +19,8 @@ const OVERSIZED_DOUBLE_QUOTED_SCALAR: &str =
     include_str!("fixtures/dos/adversarial/oversized-double-quoted-scalar.yaml");
 const WIDE_FLOW_SEQUENCE: &str = include_str!("fixtures/dos/adversarial/wide-flow-sequence.yaml");
 const WIDE_FLOW_MAPPING: &str = include_str!("fixtures/dos/adversarial/wide-flow-mapping.yaml");
+const MULTILINE_UNTERMINATED_FLOW: &str =
+    include_str!("fixtures/dos/adversarial/multiline-unterminated-flow.yaml");
 const ISSUE_13_MULTIBYTE_BLOCK_SCALAR_WHITESPACE_PAYLOADS: &[(&str, &[u8])] = &[
     (
         "document-start folded scalar with U+0085 blank line",
@@ -49,6 +52,7 @@ fn adversarial_manifest_documents_goal_06_cases() {
         "wide-flow-sequence",
         "wide-flow-mapping",
         "alias-expansion-bomb",
+        "multiline-unterminated-flow",
         "nesting-depth",
         "scalar-growth",
         "collection-growth",
@@ -228,9 +232,84 @@ fn default_limits_reject_committed_adversarial_fixtures() {
             WIDE_FLOW_MAPPING,
             "YAML collection exceeds configured limit",
         ),
+        (
+            MULTILINE_UNTERMINATED_FLOW,
+            "maximum YAML nesting depth exceeded",
+        ),
     ] {
         assert_all_expanding_entrypoints_reject(input, LoadOptions::new(), expected);
     }
+}
+
+/// A flow collection that opens one bracket per line and never closes used to
+/// re-scan the entire accumulated buffer from byte 0 on every appended line,
+/// making close detection O(N^2) in the input size. Close detection is now
+/// incremental, so the committed 120 KB fixture is rejected by the
+/// nesting-depth limit in linear time rather than seconds.
+#[test]
+fn multiline_unterminated_flow_is_rejected_quickly() {
+    assert!(
+        MULTILINE_UNTERMINATED_FLOW.len() >= 120_000,
+        "regression fixture must be large enough to expose quadratic scanning, got {} bytes",
+        MULTILINE_UNTERMINATED_FLOW.len()
+    );
+
+    let error = LoadOptions::new()
+        .parse_str(MULTILINE_UNTERMINATED_FLOW)
+        .expect_err("unterminated multi-line flow collection is rejected");
+    assert_limit_error(
+        MULTILINE_UNTERMINATED_FLOW,
+        &error,
+        "maximum YAML nesting depth exceeded",
+    );
+}
+
+/// Prove the close-detection fix is sub-quadratic by measuring how parse time
+/// scales with input size. Doubling the number of opened-but-never-closed flow
+/// brackets roughly doubles the work with the incremental scanner, whereas the
+/// old full-buffer rescan quadrupled it. Comparing the ratio (rather than an
+/// absolute wall-clock bound) keeps the test robust across debug/release builds
+/// and machines while still failing loudly if quadratic behavior returns.
+#[test]
+fn multiline_unterminated_flow_scales_subquadratically() {
+    fn unterminated_flow(open_brackets: usize) -> String {
+        "[\n".repeat(open_brackets)
+    }
+
+    // Reject quickly enough that the parser never gathers the whole input: with
+    // the default depth limit the parser stops after ~128 levels regardless of
+    // how many lines follow, so timing is dominated by the close-detection scan.
+    fn time_reject(open_brackets: usize) -> Duration {
+        let input = unterminated_flow(open_brackets);
+        // Best-of-several runs to damp scheduler noise on the small absolute times.
+        let mut best = Duration::from_secs(3600);
+        for _ in 0..5 {
+            let started = Instant::now();
+            let result = LoadOptions::new().parse_str(&input);
+            let elapsed = started.elapsed();
+            assert!(
+                result.is_err(),
+                "unterminated flow with {open_brackets} brackets must be rejected"
+            );
+            best = best.min(elapsed);
+        }
+        best
+    }
+
+    let small = time_reject(50_000);
+    let large = time_reject(100_000);
+
+    // Linear scanning gives a ~2x ratio; the old O(N^2) scan gave ~4x. Allow
+    // generous headroom (3x) for timer granularity and allocator noise while
+    // still catching a regression back to quadratic behavior.
+    let small_nanos = small.as_nanos().max(1);
+    let large_nanos = large.as_nanos();
+    assert!(
+        large_nanos <= small_nanos.saturating_mul(3),
+        "doubling an unterminated flow collection should scale sub-quadratically: \
+         50k brackets took {small:?}, 100k brackets took {large:?} ({}x)",
+        large_nanos as f64 / small_nanos as f64
+    );
 }
 
 fn assert_all_expanding_entrypoints_reject(input: &str, options: LoadOptions, expected: &str) {

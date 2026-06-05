@@ -337,7 +337,6 @@ struct LineBuffer {
     next_start: usize,
     next_no: usize,
     exhausted: bool,
-    reclaim_consumed: bool,
     #[cfg(test)]
     max_retained: usize,
 }
@@ -351,7 +350,6 @@ impl LineBuffer {
             next_start: 0,
             next_no: 1,
             exhausted: false,
-            reclaim_consumed: true,
             #[cfg(test)]
             max_retained: 0,
         }
@@ -375,9 +373,6 @@ impl LineBuffer {
 
     #[inline]
     fn discard_before(&mut self, pos: usize) {
-        if !self.reclaim_consumed {
-            return;
-        }
         let drop = pos.saturating_sub(self.base).min(self.lines.len());
         if drop > 0 {
             self.lines.drain(..drop);
@@ -3373,7 +3368,17 @@ impl Parser {
         let source = Rc::clone(&self.source);
         let require_continuation_indent =
             (first_line.indent() + first_start > parent_indent).then_some(parent_indent);
-        while !flow_collection_is_closed(&buffer.text) {
+
+        // Track close-detection state incrementally so each iteration scans only
+        // the newly appended slice of `buffer.text` instead of rescanning the
+        // whole buffer from byte 0 (which would be O(N^2) for a flow collection
+        // spread across N lines). The collection is closed once the scanner has
+        // balanced the outermost bracket.
+        let mut scanner = FlowCloseScanner::default();
+        let mut closed = scanner.scan(&buffer.text);
+        let mut scanned = buffer.text.len();
+
+        while !closed {
             let Some(line) = self.line_at(self.pos)? else {
                 break;
             };
@@ -3406,6 +3411,8 @@ impl Parser {
                 }
                 LineKind::DocumentStart | LineKind::DocumentEnd => break,
             }
+            closed = scanner.scan(&buffer.text[scanned..]);
+            scanned = buffer.text.len();
         }
         Ok(buffer)
     }
@@ -4074,7 +4081,9 @@ fn parse_block_scalar_header(
     for (offset, ch) in chars {
         match ch {
             '1'..='9' if indent.is_none() => {
-                indent = Some(ch.to_digit(10).expect("matched digit") as usize);
+                // The arm guard guarantees `ch` is an ASCII digit, so `to_digit`
+                // always returns `Some`; default to 0 instead of panicking.
+                indent = Some(ch.to_digit(10).unwrap_or(0) as usize);
             }
             '-' if chomping == BlockScalarChomping::Clip => {
                 chomping = BlockScalarChomping::Strip;
@@ -4965,37 +4974,59 @@ fn is_float_like(text: &str) -> bool {
     digits > 0
 }
 
-fn flow_collection_is_closed(text: &str) -> bool {
-    let mut single = false;
-    let mut double = false;
-    let mut escaped = false;
-    let mut depth = 0usize;
-    let mut started = false;
+/// Incremental scanner for flow-collection close detection.
+///
+/// A flow collection (`[...]` / `{...}`) may span many source lines, so the
+/// parser appends one line at a time until the outermost bracket closes. A
+/// naive close check rescans the whole accumulated buffer from byte 0 on every
+/// appended line, which is O(N^2) in the number of accumulated bytes — an
+/// attacker can stall the parser with an unterminated flow collection spread
+/// over tens of thousands of lines.
+///
+/// This scanner keeps the running quote/bracket state between calls so callers
+/// can feed only the newly appended slice each iteration, making accumulation
+/// linear in the input size. Once it reports the collection is closed the
+/// caller stops feeding it, exactly as a single full-buffer scan would stop at
+/// the first balanced close.
+#[derive(Default)]
+struct FlowCloseScanner {
+    single: bool,
+    double: bool,
+    escaped: bool,
+    depth: usize,
+    started: bool,
+}
 
-    for ch in text.chars() {
-        if double && escaped {
-            escaped = false;
-            continue;
-        }
-        match ch {
-            '\\' if double => escaped = true,
-            '"' if !single => double = !double,
-            '\'' if !double => single = !single,
-            '[' | '{' if !single && !double => {
-                started = true;
-                depth += 1;
+impl FlowCloseScanner {
+    /// Advance the scanner over a freshly appended slice, returning `true` as
+    /// soon as the outermost flow collection has been closed. Once this returns
+    /// `true` the caller must not feed it further input (mirroring the original
+    /// function's early return).
+    fn scan(&mut self, text: &str) -> bool {
+        for ch in text.chars() {
+            if self.double && self.escaped {
+                self.escaped = false;
+                continue;
             }
-            ']' | '}' if !single && !double && depth > 0 => {
-                depth -= 1;
-                if started && depth == 0 {
-                    return true;
+            match ch {
+                '\\' if self.double => self.escaped = true,
+                '"' if !self.single => self.double = !self.double,
+                '\'' if !self.double => self.single = !self.single,
+                '[' | '{' if !self.single && !self.double => {
+                    self.started = true;
+                    self.depth += 1;
                 }
+                ']' | '}' if !self.single && !self.double && self.depth > 0 => {
+                    self.depth -= 1;
+                    if self.started && self.depth == 0 {
+                        return true;
+                    }
+                }
+                _ => {}
             }
-            _ => {}
         }
+        false
     }
-
-    false
 }
 
 fn flow_continuation_may_start_at_parent_indent(ch: char) -> bool {
@@ -6034,8 +6065,7 @@ impl<'a> FlowParser<'a> {
     }
 
     fn skip_ws(&mut self) {
-        while self.peek().is_some_and(char::is_whitespace) {
-            let ch = self.peek().expect("checked");
+        while let Some(ch) = self.peek().filter(|c| c.is_whitespace()) {
             self.bump(ch);
         }
     }

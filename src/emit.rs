@@ -664,8 +664,25 @@ fn emitted_tag_suffix_needs_verbatim(suffix: &str) -> bool {
 }
 
 fn push_uri_escaped_tag_suffix(out: &mut String, suffix: &str, escape_colons: bool) {
+    // `escape_colons` is set for the handle form (`!suffix`) and cleared for the
+    // verbatim form (`!<suffix>`). The two forms have different parser-significant
+    // characters, so they need different escaping:
+    //
+    // * Handle form: the parser reads until whitespace or a flow indicator, and a
+    //   bare `:` is ambiguous, so colons are escaped here.
+    // * Verbatim form: a `>` followed by a tag terminator closes the tag (see the
+    //   parser's `verbatim_tag_end` / `verbatim_tag_closes_here`). An unescaped
+    //   inner `>` can therefore close the tag early and produce YAML that fails to
+    //   reparse, so `>` is escaped to `%3E`. The parser un-escapes `%3E` back to
+    //   `>` (see `decode_tag_uri_escapes`), keeping emit and parse inverse.
+    //
+    // `%` and control characters are always escaped (a literal `%` would otherwise
+    // be read as the start of an escape on reparse). Other characters are left
+    // literal to preserve round-trips for already-correct tags.
+    let escape_gt = !escape_colons;
     for ch in suffix.chars() {
-        if ch == '%' || ch.is_control() || (escape_colons && ch == ':') {
+        if ch == '%' || ch.is_control() || (escape_colons && ch == ':') || (escape_gt && ch == '>')
+        {
             let mut bytes = [0; 4];
             for byte in ch.encode_utf8(&mut bytes).as_bytes() {
                 write!(out, "%{byte:02X}").expect("writing to String cannot fail");

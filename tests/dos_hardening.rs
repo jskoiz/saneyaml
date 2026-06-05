@@ -535,3 +535,64 @@ fn assert_limit_error(input: &str, error: &Error, expected: &str) {
         input.len()
     );
 }
+
+/// A single line consisting only of quote characters (no newlines) used to make
+/// mapping-colon detection quadratic: every candidate quote re-scanned the line
+/// from the end while deciding whether it could open a quoted scalar, so a line
+/// of N quotes did O(N^2) work even though the input never reaches the
+/// multi-line quoted-scalar collector. The per-line scan is now linear, so a
+/// large single-line run of quotes parses-or-rejects in bounded time rather than
+/// the tens of seconds the old scan required.
+#[test]
+fn single_line_quote_run_is_handled_quickly() {
+    for quote in ['"', '\''] {
+        let input = quote.to_string().repeat(500_000);
+        let started = Instant::now();
+        // The result (parsed scalar vs. error) is intentionally unconstrained;
+        // the guarantee is only that the parser terminates promptly without the
+        // old quadratic blow-up.
+        let _ = saneyaml::parse_str(&input);
+        let elapsed = started.elapsed();
+        assert!(
+            elapsed < Duration::from_secs(5),
+            "single-line run of {} {quote:?} characters must parse-or-reject quickly, took {elapsed:?}",
+            input.len()
+        );
+    }
+}
+
+/// Prove the single-line quote-scan fix is sub-quadratic by measuring how parse
+/// time scales with line length. Doubling the number of quote characters on one
+/// line roughly doubles the work with the linear scanner, whereas the old
+/// per-position rescan quadrupled it. Comparing the ratio (rather than an
+/// absolute wall-clock bound) keeps the test robust across debug/release builds
+/// and machines while still failing loudly if quadratic behavior returns.
+#[test]
+fn single_line_quote_run_scales_subquadratically() {
+    fn time_parse(quote_count: usize) -> Duration {
+        let input = "\"".repeat(quote_count);
+        // Best-of-several runs to damp scheduler noise on the small absolute times.
+        let mut best = Duration::from_secs(3600);
+        for _ in 0..5 {
+            let started = Instant::now();
+            let _ = saneyaml::parse_str(&input);
+            best = best.min(started.elapsed());
+        }
+        best
+    }
+
+    let small = time_parse(200_000);
+    let large = time_parse(400_000);
+
+    // Linear scanning gives a ~2x ratio; the old O(N^2) scan gave ~4x. Allow
+    // generous headroom (3x) for timer granularity and allocator noise while
+    // still catching a regression back to quadratic behavior.
+    let small_nanos = small.as_nanos().max(1);
+    let large_nanos = large.as_nanos();
+    assert!(
+        large_nanos <= small_nanos.saturating_mul(3),
+        "doubling a single-line quote run should scale sub-quadratically: \
+         200k quotes took {small:?}, 400k quotes took {large:?} ({}x)",
+        large_nanos as f64 / small_nanos as f64
+    );
+}

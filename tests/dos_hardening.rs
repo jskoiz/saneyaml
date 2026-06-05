@@ -312,6 +312,95 @@ fn multiline_unterminated_flow_scales_subquadratically() {
     );
 }
 
+/// A multi-line quoted scalar that opens a quote and never closes it used to
+/// re-scan the entire accumulated buffer from byte 0 on every appended line,
+/// making close detection O(N^2) in the input size — the same vulnerability
+/// class fixed for flow collections, but on the quoted-scalar path. Close
+/// detection is now incremental.
+///
+/// Unlike the flow-collection case, an unterminated quoted scalar is not a
+/// nested collection, so the nesting-depth limit never short-circuits it: the
+/// parser scans every continuation line to end-of-input. That makes the timing
+/// below a genuine measurement of close-detection cost rather than an artifact
+/// of an early depth bail-out.
+#[test]
+fn multiline_unterminated_quoted_scalar_scales_subquadratically() {
+    fn unterminated_quoted(quote: char, lines: usize) -> String {
+        let mut input = String::with_capacity(lines * 2 + 1);
+        input.push(quote);
+        for _ in 0..lines {
+            input.push_str("a\n");
+        }
+        input
+    }
+
+    fn time_reject(quote: char, lines: usize) -> Duration {
+        let input = unterminated_quoted(quote, lines);
+        // Best-of-several runs to damp scheduler noise on small absolute times.
+        let mut best = Duration::from_secs(3600);
+        for _ in 0..5 {
+            let started = Instant::now();
+            let result = LoadOptions::new().parse_str(&input);
+            let elapsed = started.elapsed();
+            assert!(
+                result.is_err(),
+                "unterminated {quote} scalar with {lines} lines must be rejected"
+            );
+            best = best.min(elapsed);
+        }
+        best
+    }
+
+    for quote in ['"', '\''] {
+        let small = time_reject(quote, 100_000);
+        let large = time_reject(quote, 200_000);
+
+        // Linear scanning gives a ~2x ratio; the old full-buffer rescan gave
+        // ~4x. Allow generous headroom (3x) for timer granularity and allocator
+        // noise while still catching a regression back to quadratic behavior.
+        let small_nanos = small.as_nanos().max(1);
+        let large_nanos = large.as_nanos();
+        assert!(
+            large_nanos <= small_nanos.saturating_mul(3),
+            "doubling an unterminated {quote} scalar should scale sub-quadratically: \
+             100k lines took {small:?}, 200k lines took {large:?} ({}x)",
+            large_nanos as f64 / small_nanos as f64
+        );
+    }
+}
+
+/// A standalone wall-clock ceiling: a >1 MB multi-line quoted scalar that never
+/// closes must be fully scanned and rejected well under a generous bound. With
+/// the old O(N^2) scan this size took tens of seconds; the incremental scanner
+/// finishes in milliseconds.
+#[test]
+fn large_multiline_unterminated_quoted_scalar_finishes_quickly() {
+    for quote in ['"', '\''] {
+        let mut input = String::with_capacity(1_200_000 + 1);
+        input.push(quote);
+        while input.len() < 1_200_000 {
+            input.push_str("x\n");
+        }
+        assert!(
+            input.len() > 1_000_000,
+            "regression fixture must exceed 1 MB, got {} bytes",
+            input.len()
+        );
+
+        let started = Instant::now();
+        let result = LoadOptions::new().parse_str(&input);
+        let elapsed = started.elapsed();
+        assert!(
+            result.is_err(),
+            "unterminated {quote} scalar over 1 MB must be rejected"
+        );
+        assert!(
+            elapsed < Duration::from_secs(1),
+            "1 MB unterminated {quote} scalar should parse-or-reject under 1s, took {elapsed:?}"
+        );
+    }
+}
+
 #[test]
 fn nesting_depth_opt_out_alias_expansion_uses_iterative_accounting() {
     let depth = 160usize;

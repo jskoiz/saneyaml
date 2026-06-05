@@ -40,8 +40,8 @@ wall-clock, resident-memory, or sandbox guarantee.
 The repository carries 11 configured fuzz targets, non-mutating corpus replay
 through `scripts/fuzz-smoke-nonmutating.sh`, and a manual release sweep through
 `scripts/fuzz-release-sweep.sh`. Corpus release floors and named safety seeds
-are also gated by the property-test suite. The current committed hygiene sweep
-records, on a clean checkout, 1000 requested runs per target across all
+are also gated by the property-test suite. Local hygiene sweeps record, on a
+clean checkout, 1000 requested runs per target across all
 configured targets with zero crash artifacts observed.
 
 Security-relevant fixes should include the narrowest reproducible test,

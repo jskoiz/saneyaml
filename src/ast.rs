@@ -3330,8 +3330,21 @@ impl Hash for Number {
                 1u8.hash(state);
                 value.hash(state);
             }
-            Number::Float(_) => 2u8.hash(state),
+            Number::Float(value) => {
+                2u8.hash(state);
+                normalized_float_bits(*value).hash(state);
+            }
         }
+    }
+}
+
+fn normalized_float_bits(value: f64) -> u64 {
+    if value == 0.0 {
+        0.0f64.to_bits()
+    } else if value.is_nan() {
+        f64::NAN.to_bits()
+    } else {
+        value.to_bits()
     }
 }
 
@@ -3529,19 +3542,83 @@ impl From<f64> for Number {
 }
 
 fn parse_number_text(text: &str) -> Option<Number> {
-    let compact = text.replace('_', "");
-    if is_number_int_like(&compact) {
+    let compact = compact_decimal_number_text(text)?;
+    let compact = compact.as_ref();
+    if is_number_int_like(compact) {
         return if compact.starts_with('-') {
             compact.parse::<i128>().ok().map(Number::Integer)
         } else {
-            parse_positive_number_text(compact.strip_prefix('+').unwrap_or(&compact))
+            parse_positive_number_text(compact.strip_prefix('+').unwrap_or(compact))
         };
     }
-    parse_special_float_text(&compact).or_else(|| {
-        is_number_float_like(&compact)
+    parse_special_float_text(compact).or_else(|| {
+        is_number_float_like(compact)
             .then(|| compact.parse::<f64>().ok().map(Number::from))
             .flatten()
     })
+}
+
+pub(crate) fn compact_decimal_number_text(text: &str) -> Option<Cow<'_, str>> {
+    compact_number_text_with_digit_kind(text, SeparatorDigitKind::Decimal)
+}
+
+pub(crate) fn compact_radix_number_text(text: &str) -> Option<Cow<'_, str>> {
+    compact_number_text_with_digit_kind(text, separator_digit_kind(text))
+}
+
+fn compact_number_text_with_digit_kind(
+    text: &str,
+    kind: SeparatorDigitKind,
+) -> Option<Cow<'_, str>> {
+    if !text.as_bytes().contains(&b'_') {
+        return Some(Cow::Borrowed(text));
+    }
+    for (idx, ch) in text.char_indices() {
+        if ch != '_' {
+            continue;
+        }
+        let previous = text[..idx].chars().next_back();
+        let next = text[idx + ch.len_utf8()..].chars().next();
+        if !previous.is_some_and(|ch| kind.allows(ch)) || !next.is_some_and(|ch| kind.allows(ch)) {
+            return None;
+        }
+    }
+    Some(Cow::Owned(text.replace('_', "")))
+}
+
+fn separator_digit_kind(text: &str) -> SeparatorDigitKind {
+    let rest = text
+        .strip_prefix('-')
+        .or_else(|| text.strip_prefix('+'))
+        .unwrap_or(text);
+    if rest.starts_with("0x") || rest.starts_with("0X") {
+        SeparatorDigitKind::Hex
+    } else if rest.starts_with("0b") || rest.starts_with("0B") {
+        SeparatorDigitKind::Binary
+    } else if rest.starts_with("0o") || rest.starts_with("0O") {
+        SeparatorDigitKind::Octal
+    } else {
+        SeparatorDigitKind::Decimal
+    }
+}
+
+#[derive(Clone, Copy)]
+enum SeparatorDigitKind {
+    Decimal,
+    Binary,
+    Octal,
+    Hex,
+}
+
+impl SeparatorDigitKind {
+    fn allows(self, ch: char) -> bool {
+        match self {
+            Self::Decimal => ch.is_ascii_digit(),
+            Self::Binary => matches!(ch, '0' | '1'),
+            Self::Octal => matches!(ch, '0'..='7'),
+            Self::Hex => ch.is_ascii_hexdigit(),
+        }
+    }
 }
 
 fn parse_positive_number_text(text: &str) -> Option<Number> {

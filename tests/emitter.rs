@@ -2,6 +2,7 @@ use saneyaml::{
     BlockScalarStyle, EmitCollectionStyle, EmitOptions, KeyOrder, Node, NodeValue as Value, Number,
     ScalarQuoteStyle, Span, Tag, TaggedNode, parse_str, to_string, to_string_with_options,
 };
+use std::collections::BTreeMap;
 
 fn nested_sequence(depth: usize) -> Node {
     let mut node = Node::null(Span::default());
@@ -271,6 +272,93 @@ fn emitter_quotes_ambiguous_yaml_1_2_scalars() {
     assert!(emitted.contains("\"+.INF\""));
     assert!(emitted.contains("\"a: b\""));
     assert!(parse_str(&emitted).expect("reparse").equivalent(&node));
+}
+
+#[test]
+fn emitter_quotes_yaml_1_1_radix_looking_strings() {
+    for value in ["0x10", "0xFF", "0o17", "0b101", "+0x1"] {
+        let node = string_node(value);
+        let emitted = to_string(&node).expect("emit radix-looking string");
+        assert_eq!(emitted, format!("\"{value}\"\n"));
+
+        let serde_value: serde_yaml::Value =
+            serde_yaml::from_str(&emitted).expect("serde_yaml reparses emitted string");
+        assert_eq!(serde_value, serde_yaml::Value::String(value.to_string()));
+        assert!(
+            parse_str(&emitted)
+                .expect("saneyaml reparses")
+                .equivalent(&node),
+            "{emitted}"
+        );
+    }
+}
+
+#[test]
+fn emitter_quotes_leading_bom_strings() {
+    for value in ["\u{feff}", "\u{feff}abc"] {
+        let node = string_node(value);
+        let emitted = to_string(&node).expect("emit leading BOM string");
+        assert!(emitted.starts_with('"'), "{emitted:?}");
+        assert!(
+            parse_str(&emitted)
+                .expect("reparse leading BOM")
+                .equivalent(&node),
+            "{emitted:?}"
+        );
+    }
+
+    let mapping = Node::new(
+        Value::Mapping(vec![(string_node("\u{feff}key"), string_node("value"))]),
+        Span::default(),
+    );
+    let emitted = to_string(&mapping).expect("emit leading BOM key");
+    assert!(emitted.starts_with("\"\u{feff}key\": value"), "{emitted:?}");
+    assert!(
+        parse_str(&emitted)
+            .expect("reparse leading BOM key")
+            .equivalent(&mapping),
+        "{emitted:?}"
+    );
+}
+
+#[test]
+fn byte_compatible_double_quotes_newline_strings() {
+    let mut mapping = BTreeMap::new();
+    mapping.insert("k1\nk2".to_string(), "v".to_string());
+    let emitted = to_string_with_options(&mapping, EmitOptions::byte_compatible())
+        .expect("byte-compatible newline key emit");
+    assert_eq!(emitted, "\"k1\\nk2\": v\n");
+    let reparsed: BTreeMap<String, String> =
+        saneyaml::from_str(&emitted).expect("reparse byte-compatible newline key");
+    assert_eq!(reparsed, mapping);
+
+    let sequence = vec!["a\nb".to_string()];
+    let flow = to_string_with_options(
+        &sequence,
+        EmitOptions::byte_compatible().with_collection_style(EmitCollectionStyle::Flow),
+    )
+    .expect("byte-compatible flow newline emit");
+    assert_eq!(flow, "[\"a\\nb\"]\n");
+    let reparsed: Vec<String> =
+        saneyaml::from_str(&flow).expect("reparse byte-compatible flow newline");
+    assert_eq!(reparsed, sequence);
+}
+
+#[test]
+fn byte_compatible_quotes_document_marker_prefixed_strings() {
+    for value in ["---", "---a", "----"] {
+        let emitted = to_string_with_options(&value, EmitOptions::byte_compatible())
+            .expect("byte-compatible marker-looking string emit");
+        let reference = serde_yaml::to_string(&value).expect("serde_yaml marker-looking emit");
+        assert_eq!(emitted, reference, "{value}");
+
+        let reparsed: String = saneyaml::from_str(&emitted).expect("reparse marker-looking string");
+        assert_eq!(reparsed, value);
+    }
+
+    let plain = to_string_with_options(&"--a", EmitOptions::byte_compatible())
+        .expect("byte-compatible non-marker dash string emit");
+    assert_eq!(plain, "--a\n");
 }
 
 #[test]

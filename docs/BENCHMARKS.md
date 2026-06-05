@@ -2,6 +2,9 @@
 
 The benchmark examples parse checked-in or generated YAML without timing file
 I/O. They report aggregate cost so small files do not dominate the signal.
+These benchmark and conformance commands are source-checkout-only: the published
+crate package ships this document, but it intentionally excludes the
+dev-dependency examples and fixture corpora used to regenerate the tables.
 
 ```sh
 cargo run --release --example real_world_benchmark
@@ -297,11 +300,11 @@ that `saphyr` accepts, while `serde_yaml` trails the spec set at 333/400.
 ## Reproduction & Tooling
 
 Every number in this document comes from an in-repo example, run under Cargo's
-`release` profile. The commands below regenerate each captured table; absolute
-values vary by machine, but the same-run cross-loader ordering is the
-trustworthy signal.
+`release` profile. The commands below regenerate each captured table from a
+source checkout of this repository; absolute values vary by machine, but the
+same-run cross-loader ordering is the trustworthy signal.
 
-| captured section | command |
+| captured section | checkout-only command |
 |---|---|
 | Real-World Config Corpus | `cargo run --release --example real_world_benchmark` |
 | Real-world corpus (1,000 iterations) | `YAML_BENCH_ITERS=1000 cargo run --release --example real_world_benchmark` |

@@ -2478,6 +2478,11 @@ fn serde_api_value_public_traits_match_serde_yaml_adoption_surface() {
         Some(Ordering::Equal)
     );
 
+    let one_float = Value::Number(Number::Float(1.0));
+    let two_float = Value::Number(Number::Float(2.0));
+    assert_ne!(one_float, two_float);
+    assert_ne!(hash_of(&one_float), hash_of(&two_float));
+
     let mut left = Mapping::new();
     left.insert("a".into(), 1u64.into());
     left.insert("b".into(), "two".into());
@@ -3755,7 +3760,7 @@ fn serde_api_explicit_core_numeric_tags_support_yaml11_legacy_typed_reads() {
         assert_eq!(actual.hex, 123);
         assert_eq!(actual.octal, 83);
         assert_eq!(actual.sexagesimal, 4800);
-        assert_eq!(actual.negative_sexagesimal, -2400);
+        assert_eq!(actual.negative_sexagesimal, -4800);
         assert_eq!(actual.unsigned, 42);
         assert_eq!(actual.as_float, 7.0);
         assert_eq!(actual.float_from_int_tag, 4830.0);
@@ -3807,7 +3812,7 @@ nan: !!float .nan
     assert_eq!(value["octal"].as_u64(), Some(83));
     assert_eq!(value["sexagesimal"].as_str(), Some("1:20"));
     assert_eq!(value["sexagesimal"].as_i64(), Some(4800));
-    assert_eq!(value["negative_sexagesimal"].as_i64(), Some(-2400));
+    assert_eq!(value["negative_sexagesimal"].as_i64(), Some(-4800));
     assert_eq!(value["unsigned"].as_u64(), Some(42));
     assert_eq!(value["as_float"].as_f64(), Some(7.0));
     assert_eq!(value["float_from_int_tag"].as_i64(), None);
@@ -3827,8 +3832,10 @@ nan: !!float .nan
     assert_explicit_core_numbers(&from_value);
     assert_explicit_core_numbers(&from_value_ref);
 
-    let invalid: Value = saneyaml::from_str("bad_int: !!int nope\nbad_float: !!float nope\n")
-        .expect("invalid explicit numeric tags stay retained values");
+    let invalid: Value = saneyaml::from_str(
+        "bad_int: !!int nope\nbad_float: !!float nope\nbad_underscore_int: !!int 1_\nbad_underscore_float: !!float .i_n_f\n",
+    )
+    .expect("invalid explicit numeric tags stay retained values");
     assert_eq!(invalid["bad_int"].as_str(), Some("nope"));
     assert_eq!(invalid["bad_int"].as_i64(), None);
     assert_eq!(invalid["bad_int"].as_u64(), None);
@@ -3836,6 +3843,10 @@ nan: !!float .nan
     assert!(!invalid["bad_int"].is_number());
     assert_eq!(invalid["bad_float"].as_f64(), None);
     assert!(!invalid["bad_float"].is_number());
+    assert_eq!(invalid["bad_underscore_int"].as_str(), Some("1_"));
+    assert_eq!(invalid["bad_underscore_int"].as_i64(), None);
+    assert_eq!(invalid["bad_underscore_float"].as_str(), Some(".i_n_f"));
+    assert_eq!(invalid["bad_underscore_float"].as_f64(), None);
 }
 
 #[test]
@@ -5037,6 +5048,29 @@ fn serde_api_numeric_range_errors_preserve_scalar_span() {
 }
 
 #[test]
+fn serde_api_malformed_numeric_underscores_do_not_coerce_to_typed_numbers() {
+    #[derive(Debug, Deserialize)]
+    struct Numeric {
+        #[allow(dead_code)]
+        value: i64,
+    }
+
+    let string_target: BTreeMap<String, String> =
+        saneyaml::from_str("value: 1_\n").expect("malformed numeric string target");
+    assert_eq!(string_target["value"], "1_");
+
+    let error = saneyaml::from_str::<Numeric>("value: 1_\n")
+        .expect_err("malformed numeric underscore is not an integer");
+    assert_eq!(error.span().line, 1);
+    assert_eq!(error.path().expect("path").to_string(), "value");
+
+    let value: Value = saneyaml::from_str("value: 1_\n").expect("value parse");
+    assert_eq!(value["value"].as_str(), Some("1_"));
+    assert!(saneyaml::from_value::<Numeric>(value.clone()).is_err());
+    assert!(Numeric::deserialize(&value).is_err());
+}
+
+#[test]
 fn serde_api_value_can_drive_deserialize_by_reference() {
     let value: Value =
         saneyaml::from_str("name: app\nports: [80]\nenabled: true\n").expect("value");
@@ -5916,7 +5950,9 @@ fn serde_api_number_public_helpers_match_serde_yaml() {
         assert_eq!(ours.is_u64(), reference.is_u64(), "{repr}");
         assert_eq!(ours.is_f64(), reference.is_f64(), "{repr}");
     }
-    assert!("not-a-number".parse::<Number>().is_err());
+    for invalid in ["not-a-number", "1_", "1__2", ".i_n_f", ".na_n"] {
+        assert!(invalid.parse::<Number>().is_err(), "{invalid}");
+    }
 }
 
 #[test]

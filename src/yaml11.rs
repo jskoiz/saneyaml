@@ -1,4 +1,7 @@
-use crate::Number;
+use crate::{
+    Number,
+    ast::{compact_decimal_number_text, compact_radix_number_text},
+};
 
 pub(crate) fn parse_bool(text: &str) -> Option<bool> {
     match text {
@@ -20,39 +23,47 @@ pub(crate) fn parse_implicit_numeric_extension(text: &str) -> Option<Number> {
     if let Some(number) = parse_sexagesimal_number(text) {
         return Some(number);
     }
-    parse_signed_integer_number(&text.replace('_', ""), false, true, false)
+    let compact = compact_radix_number_text(text)?;
+    parse_signed_integer_number(compact.as_ref(), false, true, false)
 }
 
 pub(crate) fn parse_explicit_int_number(text: &str) -> Option<Number> {
     if let Some(number) = parse_sexagesimal_number(text) {
         return Some(number);
     }
-    parse_signed_integer_number(&text.replace('_', ""), true, true, true)
+    let compact = compact_radix_number_text(text)?;
+    parse_signed_integer_number(compact.as_ref(), true, true, true)
 }
 
 pub(crate) fn parse_explicit_float_legacy_number(text: &str) -> Option<Number> {
     if let Some(number) = parse_sexagesimal_number(text) {
         return number.as_f64().map(Number::from);
     }
-    parse_signed_integer_number(&text.replace('_', ""), false, true, false)
+    let compact = compact_radix_number_text(text)?;
+    parse_signed_integer_number(compact.as_ref(), false, true, false)
         .and_then(|number| number.as_f64().map(Number::from))
 }
 
 pub(crate) fn parse_explicit_float_number(text: &str) -> Option<Number> {
-    let compact = text.replace('_', "");
-    if compact.eq_ignore_ascii_case(".nan") {
-        return Some(Number::from(f64::NAN));
-    }
-    if compact.eq_ignore_ascii_case(".inf") || compact.eq_ignore_ascii_case("+.inf") {
-        return Some(Number::from(f64::INFINITY));
-    }
-    if compact.eq_ignore_ascii_case("-.inf") {
-        return Some(Number::from(f64::NEG_INFINITY));
+    if let Some(compact) = compact_decimal_number_text(text) {
+        let compact = compact.as_ref();
+        if compact.eq_ignore_ascii_case(".nan") {
+            return Some(Number::from(f64::NAN));
+        }
+        if compact.eq_ignore_ascii_case(".inf") || compact.eq_ignore_ascii_case("+.inf") {
+            return Some(Number::from(f64::INFINITY));
+        }
+        if compact.eq_ignore_ascii_case("-.inf") {
+            return Some(Number::from(f64::NEG_INFINITY));
+        }
+        if let Ok(value) = compact.parse::<f64>() {
+            return Some(Number::from(value));
+        }
     }
     if let Some(number) = parse_explicit_float_legacy_number(text) {
         return Some(number);
     }
-    compact.parse::<f64>().ok().map(Number::from)
+    None
 }
 
 fn parse_signed_integer_number(
@@ -119,26 +130,29 @@ fn sexagesimal_groups(text: &str) -> Option<Vec<&str>> {
 
 fn parse_sexagesimal_integer(groups: &[&str]) -> Option<Number> {
     let (negative, first) = signed_first_group(groups[0])?;
-    let mut total = signed_group_value(negative, first)?.checked_mul(3600)?;
-    let minutes = i128::from(group_value_below_60(groups[1])?).checked_mul(60)?;
-    total = total.checked_add(minutes)?;
+    let mut magnitude = first.parse::<u128>().ok()?.checked_mul(3600)?;
+    let minutes = u128::from(group_value_below_60(groups[1])?).checked_mul(60)?;
+    magnitude = magnitude.checked_add(minutes)?;
     if let Some(seconds) = groups.get(2) {
-        total = total.checked_add(i128::from(group_value_below_60(seconds)?))?;
+        magnitude = magnitude.checked_add(u128::from(group_value_below_60(seconds)?))?;
     }
-    signed_total_number(total)
+    signed_magnitude_number(negative, magnitude, false)
 }
 
 fn parse_sexagesimal_float(groups: &[&str]) -> Option<f64> {
     let (negative, first) = signed_first_group(groups[0])?;
+    let first = first.parse::<f64>().ok()?;
     if groups.len() == 2 {
         let minutes = fractional_group_below_60(groups[1])?;
-        let total = signed_group_value(negative, first)? as f64 * 3600.0 + minutes * 60.0;
+        let magnitude = first * 3600.0 + minutes * 60.0;
+        let total = if negative { -magnitude } else { magnitude };
         return total.is_finite().then_some(total);
     }
 
-    let mut total = signed_group_value(negative, first)? as f64 * 3600.0;
-    total += f64::from(group_value_below_60(groups[1])?) * 60.0;
-    total += fractional_group_below_60(groups[2])?;
+    let mut magnitude = first * 3600.0;
+    magnitude += f64::from(group_value_below_60(groups[1])?) * 60.0;
+    magnitude += fractional_group_below_60(groups[2])?;
+    let total = if negative { -magnitude } else { magnitude };
     total.is_finite().then_some(total)
 }
 
@@ -187,22 +201,6 @@ fn signed_first_group(text: &str) -> Option<(bool, &str)> {
         Some((false, rest))
     } else {
         Some((false, text))
-    }
-}
-
-fn signed_group_value(negative: bool, text: &str) -> Option<i128> {
-    let value = text.parse::<i128>().ok()?;
-    Some(if negative { -value } else { value })
-}
-
-fn signed_total_number(total: i128) -> Option<Number> {
-    if total < 0 {
-        return Some(Number::Integer(total));
-    }
-    if let Ok(value) = i64::try_from(total) {
-        Some(Number::Integer(i128::from(value)))
-    } else {
-        Some(Number::Unsigned(u128::try_from(total).ok()?))
     }
 }
 

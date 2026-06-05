@@ -94,6 +94,20 @@ flag: true
 }
 
 #[test]
+fn document_stream_and_parse_documents_report_same_semantic_error_order() {
+    let input = "b: 1\nb: 2\nc: 3\n... x\n";
+    let batch = saneyaml::parse_documents(input).expect_err("batch parse error");
+    let streamed = DocumentStream::from_str(input)
+        .and_then(|stream| stream.collect::<saneyaml::Result<Vec<Node>>>())
+        .expect_err("streamed parse error");
+
+    assert_eq!(streamed, batch);
+    assert!(batch.to_string().contains("duplicate mapping key `b`"));
+    assert_eq!(batch.line(), Some(2));
+    assert_eq!(batch.column(), Some(1));
+}
+
+#[test]
 fn document_stream_defers_later_document_preprocess_error() {
     let input = "---\nname: one\n---\n:\tbad\n";
     let batch_error = saneyaml::parse_documents(input).expect_err("batch parse error");

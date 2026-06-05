@@ -1,6 +1,6 @@
 use saneyaml::{
     AnchorId, LosslessEffectiveMappingSource, LosslessNodeKind, LosslessStream, NodeId, Value,
-    parse_lossless,
+    parse_events, parse_lossless, parse_lossless_bytes,
 };
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -180,6 +180,44 @@ fn lossless_graph_rejects_unknown_alias() {
 
     assert!(error.to_string().contains("unknown anchor `missing`"));
     assert_eq!(error.location().map(|location| location.line()), Some(1));
+}
+
+#[test]
+fn lossless_graph_shares_event_anchor_alias_validation_boundary() {
+    let accepted = b"a: &\x0e value\nb: *\x0e\n";
+    let accepted = std::str::from_utf8(accepted).expect("accepted input is valid UTF-8");
+    let events =
+        parse_events(accepted).expect("event parser accepts control-character anchor names");
+    assert!(
+        events.iter().any(|event| {
+            matches!(event, saneyaml::Event::Alias { anchor } if anchor.name == "\u{e}")
+        }),
+        "event parser should expose the control-character alias token"
+    );
+    let stream = parse_lossless(accepted)
+        .expect("lossless graph accepts control-character anchor names accepted by events");
+    let alias = stream.aliases().first().expect("alias recorded");
+    let target = stream.anchor(alias.target()).expect("alias target");
+    assert_eq!(alias.name(), "\u{e}");
+    assert_eq!(target.name(), "\u{e}");
+
+    let rejected = b"&&\x0e\n&\x0e\n&\x0e\n*\x0e";
+    let rejected_str = std::str::from_utf8(rejected).expect("rejected input is valid UTF-8");
+    let event_error =
+        parse_events(rejected_str).expect_err("event parser rejects anchors on alias nodes");
+    assert!(
+        event_error
+            .to_string()
+            .contains("alias nodes cannot have anchor or tag properties")
+    );
+
+    let lossless_error =
+        parse_lossless_bytes(rejected).expect_err("lossless parser uses the same boundary");
+    assert!(
+        lossless_error
+            .to_string()
+            .contains("alias nodes cannot have anchor or tag properties")
+    );
 }
 
 #[test]

@@ -150,6 +150,29 @@ root: {? !e!Th>ing key : tagged-v}
 }
 
 #[test]
+fn emitter_round_trips_tags_with_colon_bearing_suffixes() {
+    let input = "!!a:: b\n";
+    let node = parse_str(input).expect("parse colon-bearing core-handle tag");
+    let emitted = to_string(&node).expect("emit colon-bearing core-handle tag");
+    assert!(emitted.contains("!!a%3A"), "{emitted}");
+    let reparsed = parse_str(&emitted)
+        .unwrap_or_else(|error| panic!("parse emitted colon-bearing tag: {error:?}\n{emitted}"));
+
+    assert!(reparsed.equivalent(&node), "{emitted}");
+    assert_eq!(to_string(&reparsed).expect("emit again"), emitted);
+
+    let local = tagged_node("!foo:bar", string_node("value"));
+    let emitted = to_string(&local).expect("emit local colon-bearing tag");
+    assert!(emitted.starts_with("!<foo:bar> value"), "{emitted}");
+    let reparsed = parse_str(&emitted).unwrap_or_else(|error| {
+        panic!("parse emitted local colon-bearing tag: {error:?}\n{emitted}")
+    });
+
+    assert!(reparsed.equivalent(&local), "{emitted}");
+    assert_eq!(to_string(&reparsed).expect("emit again"), emitted);
+}
+
+#[test]
 fn emitter_round_trips_explicit_core_tag_empty_scalars_in_flow_mapping() {
     let input = include_str!("fixtures/yaml-test-suite/data/WZ62/in.yaml");
     let node = parse_str(input).expect("parse tagged empty content");

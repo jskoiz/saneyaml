@@ -18,7 +18,7 @@ the dependency resolves to this crate:
 
 ```toml
 [dependencies]
-serde_yaml = { package = "saneyaml", version = "0.1" }
+serde_yaml = { package = "saneyaml", version = "0.2.0" }
 ```
 
 With this shape, the covered public surface stays spelled
@@ -33,7 +33,7 @@ the old call-site spelling:
 
 ```toml
 [dependencies]
-saneyaml = "0.1"
+saneyaml = "0.2.0"
 ```
 
 ```rust

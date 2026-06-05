@@ -609,7 +609,7 @@ fn yaml11_legacy_scalar_denominator_covers_public_entrypoints() {
         sexagesimal: LegacySexagesimal {
             integer: 45_296,
             short_float: 4_830.0,
-            signed: -2_400,
+            signed: -4_800,
             invalid: "1:60".to_string(),
         },
         timestamps: LegacyTimestampDenominator {
@@ -660,6 +660,18 @@ fn yaml11_legacy_scalar_denominator_covers_public_entrypoints() {
             .tag,
         saneyaml::Tag::new("!<tag:yaml.org,2002:binary>")
     );
+}
+
+#[test]
+fn yaml11_negative_sexagesimal_sign_applies_to_whole_magnitude() {
+    let value: Value = LoadOptions::yaml_1_1()
+        .from_str("int: -1:30:30\nshort: -1:30\nfloat: -1:30:30.5\nshort_float: -1:30.5\n")
+        .expect("negative sexagesimal values parse");
+
+    assert_eq!(value["int"].as_i64(), Some(-5_430));
+    assert_eq!(value["short"].as_i64(), Some(-5_400));
+    assert_eq!(value["float"].as_f64(), Some(-5_430.5));
+    assert_eq!(value["short_float"].as_f64(), Some(-5_430.0));
 }
 
 #[test]

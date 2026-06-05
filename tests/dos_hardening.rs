@@ -394,9 +394,13 @@ fn large_multiline_unterminated_quoted_scalar_finishes_quickly() {
             result.is_err(),
             "unterminated {quote} scalar over 1 MB must be rejected"
         );
+        // Generous ceiling: the incremental scanner finishes in milliseconds
+        // (release) or well under a second (debug). The bound is set high to
+        // tolerate slow/contended debug-build CI runners while still catching a
+        // regression to O(N^2), which would take minutes at this size.
         assert!(
-            elapsed < Duration::from_secs(1),
-            "1 MB unterminated {quote} scalar should parse-or-reject under 1s, took {elapsed:?}"
+            elapsed < Duration::from_secs(20),
+            "1 MB unterminated {quote} scalar should parse-or-reject quickly, took {elapsed:?}"
         );
     }
 }

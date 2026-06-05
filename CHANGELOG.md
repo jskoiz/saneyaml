@@ -19,6 +19,12 @@ effect are omitted.
   `on`, `off`, sexagesimals like `12:34:56`, and octal/hex/binary integers), so
   emitted strings round-trip through YAML 1.1 consumers as well. Disabled by
   default, preserving the minimally quoted YAML 1.2 structural output.
+- Added `EmitOptions::with_enum_representation`, an opt-in emitter setting that
+  selects how Serde enum variants are written: `EnumRepresentation::Tag` (the
+  default) keeps the YAML tag shape, while `EnumRepresentation::SingletonMap`
+  emits each variant as a single-key map globally, matching
+  `serde_yaml::with::singleton_map` writer output without annotating every enum
+  field.
 
 ## 0.2.0
 

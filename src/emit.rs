@@ -20,6 +20,7 @@ pub struct EmitOptions {
     scalar_quote_style: ScalarQuoteStyle,
     block_scalar_style: BlockScalarStyle,
     collection_style: EmitCollectionStyle,
+    yaml_1_1_safe_strings: bool,
 }
 
 /// Emission fidelity mode.
@@ -95,6 +96,7 @@ impl EmitOptions {
             scalar_quote_style: ScalarQuoteStyle::PlainWhereSafe,
             block_scalar_style: BlockScalarStyle::Literal,
             collection_style: EmitCollectionStyle::Block,
+            yaml_1_1_safe_strings: false,
         }
     }
 
@@ -128,6 +130,24 @@ impl EmitOptions {
     pub fn with_collection_style(mut self, collection_style: EmitCollectionStyle) -> Self {
         self.collection_style = collection_style;
         self
+    }
+
+    /// Returns these options with cross-schema string quoting enabled or
+    /// disabled.
+    ///
+    /// When enabled, plain string scalars that YAML 1.2 keeps as strings but
+    /// YAML 1.1 / `serde_yaml`-style readers would resolve to booleans or
+    /// numbers — `no`, `yes`, `on`, `off`, sexagesimals like `12:34:56`, and
+    /// octal/hex/binary integers — are quoted so they round-trip as strings
+    /// through 1.1 consumers as well. Disabled by default, matching the
+    /// minimally quoted YAML 1.2 structural output.
+    pub fn with_yaml_1_1_safe_strings(mut self, yaml_1_1_safe_strings: bool) -> Self {
+        self.yaml_1_1_safe_strings = yaml_1_1_safe_strings;
+        self
+    }
+
+    pub(crate) fn yaml_1_1_safe_strings(self) -> bool {
+        self.yaml_1_1_safe_strings
     }
 
     pub(crate) fn is_byte_compatible(self) -> bool {
@@ -650,15 +670,17 @@ fn quote_if_needed(value: &str, options: EmitOptions) -> String {
         return quote_byte_compatible_if_needed(value);
     }
     match options.scalar_quote_style {
-        ScalarQuoteStyle::PlainWhereSafe => quote_structural_if_needed(value),
+        ScalarQuoteStyle::PlainWhereSafe => {
+            quote_structural_if_needed(value, options.yaml_1_1_safe_strings())
+        }
         ScalarQuoteStyle::SingleQuoted if single_quote_can_represent(value) => single_quote(value),
         ScalarQuoteStyle::SingleQuoted => double_quote(value),
         ScalarQuoteStyle::DoubleQuoted => double_quote(value),
     }
 }
 
-fn quote_structural_if_needed(value: &str) -> String {
-    if is_structural_plain_safe(value) {
+fn quote_structural_if_needed(value: &str, yaml_1_1_safe_strings: bool) -> String {
+    if is_structural_plain_safe(value, yaml_1_1_safe_strings) {
         return value.to_string();
     }
     double_quote(value)
@@ -717,7 +739,7 @@ fn single_quote_can_represent(value: &str) -> bool {
         && value.chars().all(|ch| !ch.is_control() || ch == '\t')
 }
 
-fn is_structural_plain_safe(value: &str) -> bool {
+fn is_structural_plain_safe(value: &str, yaml_1_1_safe_strings: bool) -> bool {
     if value.is_empty() || value.trim() != value {
         return false;
     }
@@ -730,6 +752,9 @@ fn is_structural_plain_safe(value: &str) -> bool {
         "null" | "~" | "true" | "false" | ".nan" | ".inf" | "+.inf"
     ) || looks_like_number(value)
     {
+        return false;
+    }
+    if yaml_1_1_safe_strings && crate::yaml11::is_yaml11_plain_ambiguous(value) {
         return false;
     }
     if value == "..." || value.starts_with("... ") || value.starts_with('%') {

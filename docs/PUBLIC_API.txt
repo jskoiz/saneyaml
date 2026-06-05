@@ -1781,6 +1781,7 @@ pub fn saneyaml::EmitOptions::with_block_scalar_style(self, saneyaml::BlockScala
 pub fn saneyaml::EmitOptions::with_collection_style(self, saneyaml::EmitCollectionStyle) -> Self
 pub fn saneyaml::EmitOptions::with_key_order(self, saneyaml::KeyOrder) -> Self
 pub fn saneyaml::EmitOptions::with_scalar_quote_style(self, saneyaml::ScalarQuoteStyle) -> Self
+pub fn saneyaml::EmitOptions::with_yaml_1_1_safe_strings(self, bool) -> Self
 impl core::default::Default for saneyaml::EmitOptions
 pub fn saneyaml::EmitOptions::default() -> Self
 pub struct saneyaml::Error

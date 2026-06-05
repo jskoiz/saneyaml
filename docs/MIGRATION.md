@@ -528,6 +528,12 @@ testing each adopter's own YAML corpus.
   `Node`/`Value` Serde reads. `Value::apply_merge()` remains available as an explicit
   in-place helper and is idempotent for values parsed by this crate. Explicit
   `!!str <<` and custom-tagged `<<` keys stay literal.
+- `from_value` and direct `Value` Serde reads are spanless. They do not coerce
+  typed numeric, boolean, or null values into `String`/`&str` targets because
+  the original YAML scalar spelling is unavailable after conversion to
+  `Value`. Keep parser-backed reads (`from_str`, `from_slice`, `from_node`, or
+  direct `Node` deserialization) when string targets must preserve source text,
+  or construct `Value::String` explicitly before `from_value`.
 - `saneyaml::Deserializer::from_str("")`, `from_slice(b"")`, and
   `from_reader(empty)` yield one null document, matching
   `serde_yaml::Deserializer::from_str("")`. Direct `from_str::<Value>("")` and

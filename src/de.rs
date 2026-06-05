@@ -108,6 +108,12 @@ where
 }
 
 /// Deserializes from a spanless YAML [`Value`].
+///
+/// Unlike parser-backed entrypoints such as [`from_str`], [`from_slice`], and
+/// [`from_node`], this path cannot recover the original scalar source spelling
+/// for typed `String` or `&str` targets. Non-string [`Value`] scalars therefore
+/// stay typed and reject string targets instead of being coerced to their YAML
+/// source text.
 pub fn from_value<T>(value: Value) -> crate::Result<T>
 where
     T: DeserializeOwned,

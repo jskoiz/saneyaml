@@ -317,6 +317,12 @@ references to the original key. Replacement-facing Serde deserializer surfaces
 (`saneyaml::Deserializer`, stream document deserializers, `Node`, `Value`,
 `&Value`, and `Value::into_deserializer()`) expose the public `saneyaml::Error`
 type as their Serde associated error.
+Spanless `Value` reads do not coerce non-string scalars into `String` or `&str`
+targets, because the original scalar spelling is no longer available. Use
+parser-backed `from_str`, `from_slice`, `from_node`, or a retained `Node` when a
+typed string target must preserve YAML source text such as `1_000`, `0123`, or
+`FALSE`; otherwise construct `Value::String` explicitly before calling
+`from_value`.
 
 Borrowed deserialization is supported from retained data structures and from
 borrowed input buffers: `saneyaml::from_str(&str)`, `saneyaml::from_slice(&[u8])`,

@@ -147,7 +147,7 @@ Default iterations: 20, controlled by `YAML_LARGE_BENCH_ITERS`.
 |---|---:|---:|---:|---:|---:|---:|---:|
 | `saneyaml::parse_documents` | 20 | 245,062 | 20 | 37.887 | 7.73 | 486,188 | 3,983 |
 | `saneyaml::parse_borrowed_documents` | 20 | 245,062 | 20 | 39.063 | 7.97 | 173,556 | 904 |
-| `saneyaml::from_documents_str::<Value>` | 20 | 245,062 | 20 | 42.226 | 8.62 | 217,579 | 3,780 |
+| `saneyaml::from_documents_str::<Value>` | 20 | 245,062 | 20 | 42.226 | 8.62 | 217,483 | 3,780 |
 | `serde_yaml::Value` stream | 20 | 245,062 | 20 | 54.939 | 11.21 | 396,987 | 3,780 |
 | `yaml_rust2::YamlLoader` | 20 | 245,062 | 20 | 40.489 | 8.26 | 382,497 | 3,796 |
 | `saphyr::Yaml::load_from_str` | 20 | 245,062 | 20 | 38.919 | 7.94 | 534,786 | 3,780 |
@@ -160,7 +160,7 @@ One pinned Stackable CRD / 177,556 bytes / 1 YAML document.
 |---|---:|---:|---:|---:|---:|---:|---:|
 | `saneyaml::parse_documents` | 20 | 177,556 | 1 | 23.209 | 6.54 | 486,188 | 3,983 |
 | `saneyaml::parse_borrowed_documents` | 20 | 177,556 | 1 | 24.466 | 6.89 | 173,556 | 904 |
-| `saneyaml::from_documents_str::<Value>` | 20 | 177,556 | 1 | 25.708 | 7.24 | 217,579 | 3,780 |
+| `saneyaml::from_documents_str::<Value>` | 20 | 177,556 | 1 | 25.708 | 7.24 | 217,483 | 3,780 |
 | `serde_yaml::Value` stream | 20 | 177,556 | 1 | 34.069 | 9.59 | 396,987 | 3,780 |
 | `yaml_rust2::YamlLoader` | 20 | 177,556 | 1 | 25.730 | 7.25 | 382,497 | 3,796 |
 | `saphyr::Yaml::load_from_str` | 20 | 177,556 | 1 | 24.722 | 6.96 | 534,786 | 3,780 |
@@ -174,7 +174,7 @@ documents.
 |---|---:|---:|---:|---:|---:|---:|---:|
 | `saneyaml::parse_documents` | 20 | 1,048,680 | 8,020 | 472.805 | 22.54 | 13,006,500 | 128,321 |
 | `saneyaml::parse_borrowed_documents` | 20 | 1,048,680 | 8,020 | 500.419 | 23.86 | 4,106,240 | 32,081 |
-| `saneyaml::from_documents_str::<Value>` | 20 | 1,048,680 | 8,020 | 542.758 | 25.88 | 4,735,364 | 112,281 |
+| `saneyaml::from_documents_str::<Value>` | 20 | 1,048,680 | 8,020 | 542.758 | 25.88 | 4,729,860 | 112,281 |
 | `serde_yaml::Value` stream | 20 | 1,048,680 | 8,020 | 681.650 | 32.50 | 11,607,364 | 112,281 |
 | `yaml_rust2::YamlLoader` | 20 | 1,048,680 | 8,020 | 538.442 | 25.67 | 10,386,948 | 112,281 |
 | `saphyr::Yaml::load_from_str` | 20 | 1,048,680 | 8,020 | 518.104 | 24.70 | 14,770,560 | 112,281 |
@@ -187,7 +187,7 @@ Generated one-document wide service mapping / 262,176 bytes.
 |---|---:|---:|---:|---:|---:|---:|---:|
 | `saneyaml::parse_documents` | 20 | 262,176 | 1 | 86.486 | 16.49 | 2,484,775 | 23,932 |
 | `saneyaml::parse_borrowed_documents` | 20 | 262,176 | 1 | 89.698 | 17.11 | 765,792 | 2,994 |
-| `saneyaml::from_documents_str::<Value>` | 20 | 262,176 | 1 | 98.223 | 18.73 | 938,332 | 17,950 |
+| `saneyaml::from_documents_str::<Value>` | 20 | 262,176 | 1 | 98.223 | 18.73 | 938,236 | 17,950 |
 | `serde_yaml::Value` stream | 20 | 262,176 | 1 | 126.465 | 24.12 | 1,895,692 | 17,950 |
 | `yaml_rust2::YamlLoader` | 20 | 262,176 | 1 | 102.841 | 19.61 | 1,704,220 | 17,950 |
 | `saphyr::Yaml::load_from_str` | 20 | 262,176 | 1 | 93.165 | 17.77 | 2,393,312 | 17,950 |
@@ -200,7 +200,7 @@ Generated one-document wide service mapping / 1,048,661 bytes.
 |---|---:|---:|---:|---:|---:|---:|---:|
 | `saneyaml::parse_documents` | 20 | 1,048,661 | 1 | 355.523 | 16.95 | 9,893,619 | 95,236 |
 | `saneyaml::parse_borrowed_documents` | 20 | 1,048,661 | 1 | 374.905 | 17.88 | 3,047,520 | 11,907 |
-| `saneyaml::from_documents_str::<Value>` | 20 | 1,048,661 | 1 | 417.223 | 19.89 | 3,739,155 | 71,428 |
+| `saneyaml::from_documents_str::<Value>` | 20 | 1,048,661 | 1 | 417.223 | 19.89 | 3,739,059 | 71,428 |
 | `serde_yaml::Value` stream | 20 | 1,048,661 | 1 | 503.740 | 24.02 | 7,548,675 | 71,428 |
 | `yaml_rust2::YamlLoader` | 20 | 1,048,661 | 1 | 412.899 | 19.69 | 6,786,771 | 71,428 |
 | `saphyr::Yaml::load_from_str` | 20 | 1,048,661 | 1 | 371.689 | 17.72 | 9,523,712 | 71,428 |
@@ -208,7 +208,10 @@ Generated one-document wide service mapping / 1,048,661 bytes.
 Large-input story: after zero-copy line storage, the no-merge fast path,
 delayed plain-scalar continuation allocation, and retained vector
 right-sizing, `saneyaml::parse_documents` beats `yaml_rust2` and `saphyr` on every
-large parser path in the latest capture. The retained-memory story is now split
+large parser path in the latest capture on an unloaded machine. The smallest
+corpus (`external_downstream_all`) is the most contention-sensitive, so its
+ordering is the first to wobble under load; the larger corpora hold a clearer
+margin. The retained-memory story is now split
 by output contract: the default spanful tree keeps spans and scalar-source
 spellings and is faster than `saphyr`, while the additive
 `saneyaml::parse_borrowed_documents` tree drops spans/source spellings and borrows
@@ -234,7 +237,12 @@ cargo run --release --example conformance_compare
 
 ### Real-world config corpus (1,000 iterations)
 
-33 files / 39 YAML documents / 25,362 bytes.
+33 files / 39 YAML documents / 25,362 bytes. This is a distinct, later capture
+from a separate same-session run of this milestone, not the same measurement as
+the "Real-World Config Corpus" table above; the corpus is identical but the
+per-loader ns/byte figures differ run to run (for example `saphyr` reads 21.42
+here versus 19.89 there), which is the run-to-run noise the methodology caveat
+describes.
 
 | parser/load path | ns/byte |
 |---|---:|
@@ -256,7 +264,7 @@ On this corpus `saneyaml::parse_documents` is the fastest load path; the owning
 | `saneyaml` stream docs | 184,466 | 13.64 MB | 2.10 MB | 4 |
 | `saneyaml` stream events | 232,594 | 49.28 MB | 2.11 MB | 6 |
 | `saneyaml` borrowed | 80,219 | 17.29 MB | 6.21 MB | 32,081 |
-| `saneyaml` owned | 200,537 | 18.10 MB | 17.16 MB | 128,321 |
+| `saneyaml` owned | 200,519 | 16.05 MB | 15.12 MB | 128,321 |
 | `yaml-rust2` | 585,478 | 29.29 MB | 17.15 MB | 192,481 |
 | `serde_yaml` | 721,821 | 84.73 MB | 21.84 MB | 136,341 |
 | `saphyr` | 216,559 | 22.77 MB | 22.30 MB | 192,481 |
@@ -302,7 +310,10 @@ that `saphyr` accepts, while `serde_yaml` trails the spec set at 333/400.
 Every number in this document comes from an in-repo example, run under Cargo's
 `release` profile. The commands below regenerate each captured table from a
 source checkout of this repository; absolute values vary by machine, but the
-same-run cross-loader ordering is the trustworthy signal.
+same-run cross-loader ordering is the trustworthy signal on an otherwise-idle
+machine. The harness is a hand-rolled `Instant::now()` loop with no warm-up or
+statistics, so under heavy machine load even that ordering can invert; treat any
+single capture as indicative rather than authoritative.
 
 | captured section | checkout-only command |
 |---|---|

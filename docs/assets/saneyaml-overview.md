@@ -25,6 +25,9 @@ Graphic data:
 | `yaml_rust2::YamlLoader` | 23.11 |
 | `serde_yaml::Value` stream | 24.98 |
 
+These are single best-case captures from one idle-machine run; the cross-loader
+margin is often tighter and can shift run to run, so treat them as indicative.
+
 Important caveats:
 
 - Lower ns/byte is better.

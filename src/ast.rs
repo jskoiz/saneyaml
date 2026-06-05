@@ -874,7 +874,6 @@ impl fmt::Display for Tag {
             "!" if tag_suffix_needs_verbatim(&self.suffix) => {
                 write!(formatter, "!<{}>", self.suffix)
             }
-            "!" | "!!" => write!(formatter, "{}{}", self.handle, self.suffix),
             _ => write!(formatter, "{}{}", self.handle, self.suffix),
         }
     }
@@ -3788,7 +3787,7 @@ impl<'de> Visitor<'de> for ValueVisitor {
     }
 
     fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E> {
-        Ok(Value::Number(Number::Float(value)))
+        Ok(Value::Number(Number::from(value)))
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>

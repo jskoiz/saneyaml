@@ -596,17 +596,12 @@ fn write_inline(node: &Node, options: EmitOptions, out: &mut String) {
         Value::Number(Number::Unsigned(value)) => {
             write!(out, "{value}").expect("writing to String cannot fail");
         }
-        Value::Number(Number::Float(value)) if value.is_finite() => {
-            let start = out.len();
-            write!(out, "{value}").expect("writing to String cannot fail");
-            let text = &out[start..];
-            if !text.contains('.') && !text.contains('e') && !text.contains('E') {
-                out.push_str(".0");
-            }
+        Value::Number(Number::Float(value)) => {
+            // Route through `Number`'s ryu-based `Display` so finite floats use the
+            // shortest round-tripping form (e.g. `1e308`, `5.0`) and `.nan`/`.inf`/`-.inf`
+            // are emitted consistently with the rest of the crate.
+            write!(out, "{}", Number::from(*value)).expect("writing to String cannot fail");
         }
-        Value::Number(Number::Float(value)) if value.is_nan() => out.push_str(".nan"),
-        Value::Number(Number::Float(value)) if value.is_sign_negative() => out.push_str("-.inf"),
-        Value::Number(Number::Float(_)) => out.push_str(".inf"),
         Value::String(value) if force_byte_compatible_single_quote(node, options) => {
             out.push_str(&single_quote(value));
         }
@@ -772,7 +767,7 @@ fn is_structural_plain_safe(value: &str, yaml_1_1_safe_strings: bool) -> bool {
     let lower = value.to_ascii_lowercase();
     if matches!(
         lower.as_str(),
-        "null" | "~" | "true" | "false" | ".nan" | ".inf" | "+.inf"
+        "null" | "~" | "true" | "false" | ".nan" | ".inf" | "+.inf" | "-.inf"
     ) || looks_like_number(value)
     {
         return false;

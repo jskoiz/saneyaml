@@ -91,76 +91,46 @@ impl Default for LoadOptions {
 }
 
 impl LoadOptions {
-    /// Creates default load options.
-    pub const fn new() -> Self {
+    /// Creates load options with the given schema and otherwise-default limits.
+    const fn with_schema(schema: Schema) -> Self {
         Self {
-            schema: Schema::Yaml12,
+            schema,
             max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
             max_alias_expansion_nodes: None,
             max_nesting_depth: Some(DEFAULT_MAX_NESTING_DEPTH),
             max_scalar_bytes: Some(DEFAULT_MAX_SCALAR_BYTES),
             max_collection_items: Some(DEFAULT_MAX_COLLECTION_ITEMS),
         }
+    }
+
+    /// Creates default load options.
+    pub const fn new() -> Self {
+        Self::with_schema(Schema::Yaml12)
     }
 
     /// Creates load options using explicit YAML 1.2 Core-compatible construction.
     pub const fn core() -> Self {
-        Self {
-            schema: Schema::Core,
-            max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
-            max_alias_expansion_nodes: None,
-            max_nesting_depth: Some(DEFAULT_MAX_NESTING_DEPTH),
-            max_scalar_bytes: Some(DEFAULT_MAX_SCALAR_BYTES),
-            max_collection_items: Some(DEFAULT_MAX_COLLECTION_ITEMS),
-        }
+        Self::with_schema(Schema::Core)
     }
 
     /// Creates load options using YAML 1.2 JSON schema construction.
     pub const fn json() -> Self {
-        Self {
-            schema: Schema::Json,
-            max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
-            max_alias_expansion_nodes: None,
-            max_nesting_depth: Some(DEFAULT_MAX_NESTING_DEPTH),
-            max_scalar_bytes: Some(DEFAULT_MAX_SCALAR_BYTES),
-            max_collection_items: Some(DEFAULT_MAX_COLLECTION_ITEMS),
-        }
+        Self::with_schema(Schema::Json)
     }
 
     /// Creates load options using YAML Failsafe construction.
     pub const fn failsafe() -> Self {
-        Self {
-            schema: Schema::Failsafe,
-            max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
-            max_alias_expansion_nodes: None,
-            max_nesting_depth: Some(DEFAULT_MAX_NESTING_DEPTH),
-            max_scalar_bytes: Some(DEFAULT_MAX_SCALAR_BYTES),
-            max_collection_items: Some(DEFAULT_MAX_COLLECTION_ITEMS),
-        }
+        Self::with_schema(Schema::Failsafe)
     }
 
     /// Creates load options using explicit YAML 1.1 compatibility construction.
     pub const fn yaml_1_1() -> Self {
-        Self {
-            schema: Schema::Yaml11,
-            max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
-            max_alias_expansion_nodes: None,
-            max_nesting_depth: Some(DEFAULT_MAX_NESTING_DEPTH),
-            max_scalar_bytes: Some(DEFAULT_MAX_SCALAR_BYTES),
-            max_collection_items: Some(DEFAULT_MAX_COLLECTION_ITEMS),
-        }
+        Self::with_schema(Schema::Yaml11)
     }
 
     /// Creates load options using legacy libyaml/serde_yaml-era construction.
     pub const fn legacy_serde_yaml() -> Self {
-        Self {
-            schema: Schema::LegacySerdeYaml,
-            max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
-            max_alias_expansion_nodes: None,
-            max_nesting_depth: Some(DEFAULT_MAX_NESTING_DEPTH),
-            max_scalar_bytes: Some(DEFAULT_MAX_SCALAR_BYTES),
-            max_collection_items: Some(DEFAULT_MAX_COLLECTION_ITEMS),
-        }
+        Self::with_schema(Schema::LegacySerdeYaml)
     }
 
     /// Creates load options that follow each document's `%YAML` version directive.
@@ -169,14 +139,7 @@ impl LoadOptions {
     /// without a version directive, with `%YAML 1.2`, or with newer numeric
     /// versions use the YAML 1.2-oriented default construction.
     pub const fn yaml_version_directive() -> Self {
-        Self {
-            schema: Schema::YamlVersionDirective,
-            max_input_bytes: Some(DEFAULT_MAX_INPUT_BYTES),
-            max_alias_expansion_nodes: None,
-            max_nesting_depth: Some(DEFAULT_MAX_NESTING_DEPTH),
-            max_scalar_bytes: Some(DEFAULT_MAX_SCALAR_BYTES),
-            max_collection_items: Some(DEFAULT_MAX_COLLECTION_ITEMS),
-        }
+        Self::with_schema(Schema::YamlVersionDirective)
     }
 
     /// Returns options with the selected scalar construction schema.
@@ -230,6 +193,11 @@ impl LoadOptions {
     }
 
     /// Returns options without a constructed nesting-depth limit.
+    ///
+    /// Disabling the nesting-depth limit also removes protection against stack
+    /// overflow: adversarially deep alias chains or nested flow collections can
+    /// recurse until the thread's stack is exhausted and the process aborts.
+    /// Only disable the limit for trusted input.
     pub const fn without_nesting_depth_limit(mut self) -> Self {
         self.max_nesting_depth = None;
         self

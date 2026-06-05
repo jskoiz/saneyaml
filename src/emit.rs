@@ -681,10 +681,7 @@ fn push_uri_escaped_tag_suffix(out: &mut String, suffix: &str, escape_colons: bo
     // literal to preserve round-trips for already-correct tags.
     let escape_gt = !escape_colons;
     for ch in suffix.chars() {
-        if ch == '%'
-            || ch.is_control()
-            || (escape_colons && ch == ':')
-            || (escape_gt && ch == '>')
+        if ch == '%' || ch.is_control() || (escape_colons && ch == ':') || (escape_gt && ch == '>')
         {
             let mut bytes = [0; 4];
             for byte in ch.encode_utf8(&mut bytes).as_bytes() {

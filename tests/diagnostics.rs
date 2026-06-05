@@ -1198,6 +1198,19 @@ fn diagnostics_after_non_ascii_stay_in_bounds() {
 }
 
 #[test]
+fn rendered_source_caret_uses_reported_byte_column_after_multibyte() {
+    let input = "éé: [x\n";
+    let error = parse_str(input).expect_err("unterminated flow sequence");
+
+    assert_eq!(error.span().line, 1);
+    assert_eq!(error.span().column, 9);
+    let rendered = error.render_source(input).to_string();
+    assert!(rendered.contains("line 1, column 9"), "{rendered}");
+    let marker = rendered.lines().last().expect("marker line");
+    assert_eq!(marker.strip_prefix("  | "), Some("        ^"));
+}
+
+#[test]
 fn undefined_alias_reports_alias_span() {
     let error = parse_str("service: *missing\n").expect_err("undefined alias");
     assert!(error.to_string().contains("unknown anchor `missing`"));

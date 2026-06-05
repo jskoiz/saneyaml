@@ -550,14 +550,17 @@ fn render_span_block(
         if current_line == line_number {
             writeln!(f)?;
             write!(f, "{:>width$} | ", "", width = width)?;
-            for ch in source[current_start..caret_start].chars() {
-                if ch == '\t' {
+            for byte in source.as_bytes()[current_start..caret_start]
+                .iter()
+                .copied()
+            {
+                if byte == b'\t' {
                     f.write_str("\t")?;
                 } else {
                     f.write_str(" ")?;
                 }
             }
-            let caret_count = source[caret_start..caret_end].chars().count().max(1);
+            let caret_count = caret_end.saturating_sub(caret_start).max(1);
             for _ in 0..caret_count {
                 f.write_str("^")?;
             }

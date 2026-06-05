@@ -1269,6 +1269,13 @@ impl LosslessEdit<'_> {
         node: NodeId,
         replacement: impl Into<String>,
     ) -> Result<&mut Self> {
+        let replacement = replacement.into();
+        if let Some((key, _mapping)) = self.implicit_null_block_mapping_value_parent(node)?
+            && let Some((span, replacement)) =
+                self.implicit_null_mapping_value_replacement(key, node, &replacement)?
+        {
+            return self.push_replacement(span, replacement);
+        }
         let span = self.checked_node_span(node)?;
         self.push_replacement(span, replacement)
     }
@@ -1345,6 +1352,21 @@ impl LosslessEdit<'_> {
         replacement: impl Into<String>,
     ) -> Result<&mut Self> {
         let entry = self.unique_mapping_entry_by_key(mapping, key)?;
+        let replacement = replacement.into();
+        let mapping_node = self.mapping_node(mapping)?;
+        let is_block_mapping = matches!(
+            mapping_node.kind(),
+            LosslessNodeKind::Mapping {
+                style: CollectionStyle::Block,
+                ..
+            }
+        );
+        if is_block_mapping
+            && let Some((span, replacement)) =
+                self.implicit_null_mapping_value_replacement(entry.key, entry.value, &replacement)?
+        {
+            return self.push_replacement(span, replacement);
+        }
         let value_span = self.checked_node_span(entry.value)?;
         self.push_replacement(value_span, replacement)
     }
@@ -1921,6 +1943,80 @@ impl LosslessEdit<'_> {
             ));
         }
         Ok(span)
+    }
+
+    fn implicit_null_block_mapping_value_parent(
+        &self,
+        value: NodeId,
+    ) -> Result<Option<(NodeId, NodeId)>> {
+        let Some(value_node) = self.stream.node(value) else {
+            return Err(Error::new("lossless node id is out of bounds", None));
+        };
+        if !is_implicit_null_mapping_value_node(self.stream, value_node) {
+            return Ok(None);
+        }
+
+        for mapping in self.stream.nodes() {
+            if let LosslessNodeKind::Mapping {
+                style: CollectionStyle::Block,
+                entries,
+            } = mapping.kind()
+                && let Some((key, _)) = entries
+                    .iter()
+                    .find(|(_, entry_value)| *entry_value == value)
+            {
+                return Ok(Some((*key, mapping.id())));
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn implicit_null_mapping_value_replacement(
+        &self,
+        key: NodeId,
+        value: NodeId,
+        replacement: &str,
+    ) -> Result<Option<(Span, String)>> {
+        let key_node = self
+            .stream
+            .node(key)
+            .ok_or_else(|| Error::new("config mapping key node id is out of bounds", None))?;
+        let value_node = self
+            .stream
+            .node(value)
+            .ok_or_else(|| Error::new("config mapping value node id is out of bounds", None))?;
+        if !is_implicit_null_mapping_value_node(self.stream, value_node) {
+            return Ok(None);
+        }
+
+        let source = &self.stream.source;
+        let key_line_start = line_start(source, key_node.span().start);
+        let value_line_start = line_start(source, value_node.span().start);
+        if key_line_start != value_line_start {
+            return Ok(None);
+        }
+
+        let value_line_end = line_end_including_newline(source, value_node.span().end);
+        let body_end = line_body_end(source, value_line_end);
+        let after_colon = block_mapping_value_after_colon(source, key_node, body_end)?;
+        let tail = source
+            .get(after_colon..body_end)
+            .ok_or_else(|| Error::new("config mapping value tail span is invalid", None))?;
+        let comment = comment_start(tail);
+        let value_gap_end = comment
+            .map(|offset| after_colon + offset)
+            .unwrap_or(body_end);
+        let value_gap = source
+            .get(after_colon..value_gap_end)
+            .ok_or_else(|| Error::new("config mapping value gap span is invalid", None))?;
+        if !value_gap.trim().is_empty() {
+            return Ok(None);
+        }
+
+        let span = self.stream.source_span(after_colon, value_gap_end)?;
+        let replacement = format_implicit_null_inline_replacement(replacement, comment.is_some());
+        Ok(Some((span, replacement)))
     }
 
     fn mapping_node(&self, mapping: NodeId) -> Result<&LosslessNode> {
@@ -2938,14 +3034,16 @@ fn replace_block_mapping_value_source(
         .stream
         .node(entry.value)
         .ok_or_else(|| Error::new("config mapping value node id is out of bounds", None))?;
-    ensure_single_node_fragment_with_options(
+    let replacement_root = single_fragment_root_with_options(
         replacement,
         value_node.span(),
         "mapping value source",
         options,
     )?;
+    let needs_nested_block_value =
+        replacement.contains('\n') || is_nested_block_value_fragment(&replacement_root);
 
-    if !replacement.contains('\n') {
+    if !needs_nested_block_value {
         edit.replace_mapping_value_source(mapping, key, replacement.to_owned())?;
         return Ok(());
     }
@@ -2955,14 +3053,8 @@ fn replace_block_mapping_value_source(
     let value_line_start = line_start(source, value_node.span().start);
     let value_line_end = line_end_including_newline(source, value_node.span().end);
     let (span_start, formatted) = if value_line_start == key_line_start {
-        let separator = source
-            .get(key_node.span().end..value_node.span().start)
-            .ok_or_else(|| Error::new("config mapping separator span is invalid", None))?;
-        let span_start = separator
-            .rfind(':')
-            .map(|offset| key_node.span().end + offset + 1)
-            .unwrap_or(value_node.span().start);
         let line_body_end = line_body_end(source, value_line_end);
+        let span_start = block_mapping_value_after_colon(source, key_node, line_body_end)?;
         let trailing = source
             .get(value_node.span().end..line_body_end)
             .ok_or_else(|| Error::new("config mapping trailing comment span is invalid", None))?;
@@ -3088,7 +3180,7 @@ where
             Some(mapping_node.span()),
         ));
     };
-    let entry_source = format_typed_entry_source(key, value, *style)?;
+    let entry_source = format_typed_entry_source(key, value, *style, options)?;
     let mut edit = stream.edit();
     match style {
         CollectionStyle::Block => {
@@ -3217,13 +3309,29 @@ where
     Ok(source)
 }
 
-fn format_typed_entry_source<T>(key: &str, value: &T, style: CollectionStyle) -> Result<String>
+fn format_typed_entry_source<T>(
+    key: &str,
+    value: &T,
+    style: CollectionStyle,
+    options: LoadOptions,
+) -> Result<String>
 where
     T: Serialize,
 {
     let key_source = serialize_key_fragment(key)?;
     let value_source = serialize_value_for_style(value, style)?;
-    if value_source.contains('\n') {
+    let needs_nested_block_value = if style == CollectionStyle::Block {
+        let value_root = single_fragment_root_with_options(
+            &value_source,
+            Span::default(),
+            "mapping entry value source",
+            options,
+        )?;
+        is_nested_block_value_fragment(&value_root)
+    } else {
+        false
+    };
+    if value_source.contains('\n') || needs_nested_block_value {
         let mut entry = String::with_capacity(key_source.len() + value_source.len() + 4);
         entry.push_str(&key_source);
         entry.push_str(":\n");
@@ -3390,6 +3498,61 @@ fn single_fragment_root_with_options(
         .cloned()
         .ok_or_else(|| Error::new(format!("{label} root node is missing"), Some(span)))?;
     Ok(root)
+}
+
+fn is_nested_block_value_fragment(node: &LosslessNode) -> bool {
+    matches!(
+        node.kind(),
+        LosslessNodeKind::Mapping {
+            style: CollectionStyle::Block,
+            ..
+        } | LosslessNodeKind::Sequence {
+            style: CollectionStyle::Block,
+            ..
+        }
+    )
+}
+
+fn is_implicit_null_mapping_value_node(stream: &LosslessStream, node: &LosslessNode) -> bool {
+    matches!(
+        node.kind(),
+        LosslessNodeKind::Scalar {
+            value,
+            style: ScalarStyle::Plain,
+        } if value == "null"
+    ) && stream
+        .source_fragment(node.span())
+        .is_some_and(|fragment| fragment.starts_with(':') && fragment[1..].trim().is_empty())
+}
+
+fn block_mapping_value_after_colon(
+    source: &str,
+    key_node: &LosslessNode,
+    line_body_end: usize,
+) -> Result<usize> {
+    let separator = source
+        .get(key_node.span().end..line_body_end)
+        .ok_or_else(|| Error::new("config mapping separator span is invalid", None))?;
+    separator
+        .find(':')
+        .map(|offset| key_node.span().end + offset + 1)
+        .ok_or_else(|| Error::new("config mapping separator colon is missing", None))
+}
+
+fn format_implicit_null_inline_replacement(replacement: &str, before_comment: bool) -> String {
+    if replacement.is_empty() {
+        return String::new();
+    }
+
+    let mut formatted = if replacement.starts_with(char::is_whitespace) {
+        replacement.to_owned()
+    } else {
+        format!(" {replacement}")
+    };
+    if before_comment && !formatted.ends_with(char::is_whitespace) {
+        formatted.push(' ');
+    }
+    formatted
 }
 
 fn line_start(source: &str, offset: usize) -> usize {

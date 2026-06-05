@@ -603,11 +603,11 @@ fn format_tag(tag: &Tag) -> String {
     let mut out = String::new();
     if tag.handle == "!" && emitted_tag_suffix_needs_verbatim(&tag.suffix) {
         out.push_str("!<");
-        push_uri_escaped_tag_suffix(&mut out, &tag.suffix);
+        push_uri_escaped_tag_suffix(&mut out, &tag.suffix, false);
         out.push('>');
     } else {
         out.push_str(&tag.handle);
-        push_uri_escaped_tag_suffix(&mut out, &tag.suffix);
+        push_uri_escaped_tag_suffix(&mut out, &tag.suffix, true);
     }
     out
 }
@@ -617,6 +617,7 @@ fn emitted_tag_suffix_needs_verbatim(suffix: &str) -> bool {
         && (suffix.starts_with("tag:")
             || suffix.starts_with(':')
             || suffix.starts_with('<')
+            || suffix.contains(':')
             || suffix.ends_with(':')
             || suffix.contains('!')
             || suffix
@@ -624,9 +625,9 @@ fn emitted_tag_suffix_needs_verbatim(suffix: &str) -> bool {
                 .any(|ch| ch.is_whitespace() || matches!(ch, ',' | '[' | ']' | '{' | '}')))
 }
 
-fn push_uri_escaped_tag_suffix(out: &mut String, suffix: &str) {
+fn push_uri_escaped_tag_suffix(out: &mut String, suffix: &str, escape_colons: bool) {
     for ch in suffix.chars() {
-        if ch == '%' || ch.is_control() {
+        if ch == '%' || ch.is_control() || (escape_colons && ch == ':') {
             let mut bytes = [0; 4];
             for byte in ch.encode_utf8(&mut bytes).as_bytes() {
                 write!(out, "%{byte:02X}").expect("writing to String cannot fail");
@@ -667,7 +668,10 @@ fn quote_byte_compatible_if_needed(value: &str) -> String {
     if is_byte_compatible_plain_safe(value) {
         return value.to_string();
     }
-    if value.chars().any(|ch| ch.is_control() && ch != '\n') {
+    if value
+        .chars()
+        .any(|ch| ch.is_control() || is_yaml_line_break(ch))
+    {
         return double_quote(value);
     }
     single_quote(value)
@@ -717,6 +721,9 @@ fn is_structural_plain_safe(value: &str) -> bool {
     if value.is_empty() || value.trim() != value {
         return false;
     }
+    if value.starts_with('\u{feff}') {
+        return false;
+    }
     let lower = value.to_ascii_lowercase();
     if matches!(
         lower.as_str(),
@@ -754,6 +761,9 @@ fn is_byte_compatible_plain_safe(value: &str) -> bool {
     if value.is_empty() || value.trim() != value {
         return false;
     }
+    if value.starts_with('\u{feff}') {
+        return false;
+    }
     let lower = value.to_ascii_lowercase();
     if matches!(
         lower.as_str(),
@@ -762,7 +772,11 @@ fn is_byte_compatible_plain_safe(value: &str) -> bool {
     {
         return false;
     }
-    if value == "..." || value.starts_with("... ") || value.starts_with('%') {
+    if value == "..."
+        || value.starts_with("... ")
+        || value.starts_with("---")
+        || value.starts_with('%')
+    {
         return false;
     }
     if value
@@ -831,6 +845,9 @@ fn has_hash_preceded_by_whitespace(value: &str) -> bool {
 }
 
 fn looks_like_number(value: &str) -> bool {
+    if looks_like_yaml11_radix_number(value) {
+        return true;
+    }
     let bytes = value.as_bytes();
     if bytes.is_empty() {
         return false;
@@ -863,6 +880,9 @@ fn looks_like_byte_compatible_number(value: &str) -> bool {
     if value.contains('_') {
         return false;
     }
+    if looks_like_yaml11_radix_number(value) {
+        return true;
+    }
     let bytes = value.as_bytes();
     if bytes.is_empty() {
         return false;
@@ -885,5 +905,27 @@ fn looks_like_byte_compatible_number(value: &str) -> bool {
             Err(_) => false,
         };
     }
+    false
+}
+
+fn looks_like_yaml11_radix_number(value: &str) -> bool {
+    let unsigned = value
+        .strip_prefix('+')
+        .or_else(|| value.strip_prefix('-'))
+        .unwrap_or(value);
+
+    if let Some(digits) = unsigned.strip_prefix("0x") {
+        return digits.chars().any(|ch| ch.is_ascii_hexdigit())
+            && digits.chars().all(|ch| ch.is_ascii_hexdigit() || ch == '_');
+    }
+    if let Some(digits) = unsigned.strip_prefix("0o") {
+        return digits.chars().any(|ch| matches!(ch, '0'..='7'))
+            && digits.chars().all(|ch| matches!(ch, '0'..='7' | '_'));
+    }
+    if let Some(digits) = unsigned.strip_prefix("0b") {
+        return digits.chars().any(|ch| matches!(ch, '0' | '1'))
+            && digits.chars().all(|ch| matches!(ch, '0' | '1' | '_'));
+    }
+
     false
 }

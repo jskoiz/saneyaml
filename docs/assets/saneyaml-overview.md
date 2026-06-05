@@ -10,7 +10,7 @@ The speed chart in the graphic comes from
 [`docs/BENCHMARKS.md`](../BENCHMARKS.md), under "Streaming And Compact
 Line-Table Milestone" -> "Real-world config corpus (1,000 iterations)".
 
-Captured command:
+Source-checkout-only captured command:
 
 ```sh
 YAML_BENCH_ITERS=1000 cargo run --release --example real_world_benchmark

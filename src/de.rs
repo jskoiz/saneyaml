@@ -21,7 +21,7 @@
 use crate::parse::parse_document_results_with_options;
 use crate::{
     Error, ErrorPathSegment, Mapping, Node, NodeValue, Number, Span, Tag, TaggedValue, Value,
-    error::utf8_error_span, schema::LoadOptions, yaml11,
+    ast::compact_decimal_number_text, error::utf8_error_span, schema::LoadOptions, yaml11,
 };
 use serde::de::{
     self, DeserializeOwned, EnumAccess, IntoDeserializer, MapAccess, SeqAccess, VariantAccess,
@@ -562,18 +562,27 @@ fn integer_source_for_scalar(node: &Node) -> Option<&str> {
 }
 
 fn parse_i128_source(raw: &str, span: Span) -> Result<i128, Error> {
-    raw.replace('_', "")
+    compact_decimal_number_text(raw)
+        .ok_or_else(|| Error::new("integer scalar is out of range for i128", Some(span)))?
         .parse::<i128>()
         .map_err(|_| Error::new("integer scalar is out of range for i128", Some(span)))
 }
 
 fn parse_u128_source(raw: &str, span: Span) -> Result<u128, Error> {
-    raw.replace('_', "").parse::<u128>().map_err(|_| {
-        Error::new(
-            "integer scalar is out of range for unsigned integer",
-            Some(span),
-        )
-    })
+    compact_decimal_number_text(raw)
+        .ok_or_else(|| {
+            Error::new(
+                "integer scalar is out of range for unsigned integer",
+                Some(span),
+            )
+        })?
+        .parse::<u128>()
+        .map_err(|_| {
+            Error::new(
+                "integer scalar is out of range for unsigned integer",
+                Some(span),
+            )
+        })
 }
 
 #[derive(Clone, Copy)]

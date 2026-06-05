@@ -7,7 +7,7 @@ downstream code imports this crate as `saneyaml::...`:
 
 ```toml
 [dependencies]
-saneyaml = "0.1"
+saneyaml = "0.2.0"
 ```
 
 For drop-in `serde_yaml` migration, Cargo dependency renaming keeps existing
@@ -15,7 +15,7 @@ source imports intact:
 
 ```toml
 [dependencies]
-serde_yaml = { package = "saneyaml", version = "0.1" }
+serde_yaml = { package = "saneyaml", version = "0.2.0" }
 ```
 
 or a local source alias:

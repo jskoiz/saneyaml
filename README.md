@@ -28,7 +28,7 @@ Pure Rust, `#![forbid(unsafe_code)]`.
 
 ```toml
 [dependencies]
-saneyaml = "0.1"
+saneyaml = "0.2.0"
 ```
 
 Then use it:

@@ -4,10 +4,15 @@ use saneyaml::Value;
 
 const CARGO_TOML: &str = include_str!("../Cargo.toml");
 const CI_WORKFLOW: &str = include_str!("../.github/workflows/ci.yml");
+const README: &str = include_str!("../README.md");
+const ARCHITECTURE: &str = include_str!("../docs/ARCHITECTURE.md");
+const BENCHMARKS: &str = include_str!("../docs/BENCHMARKS.md");
+const OVERVIEW_SOURCE: &str = include_str!("../docs/assets/saneyaml-overview.md");
 const MIGRATION: &str = include_str!("../docs/MIGRATION.md");
 const SECURITY: &str = include_str!("../SECURITY.md");
 const CHANGELOG: &str = include_str!("../CHANGELOG.md");
 const CONTRIBUTING: &str = include_str!("../CONTRIBUTING.md");
+const FEATURE_CLIPPY: &str = include_str!("../scripts/check-feature-clippy.sh");
 const PR_TEMPLATE: &str = include_str!("../.github/pull_request_template.md");
 const ISSUE_CONFIG: &str = include_str!("../.github/ISSUE_TEMPLATE/config.yml");
 const BUG_TEMPLATE: &str = include_str!("../.github/ISSUE_TEMPLATE/bug_report.yml");
@@ -73,6 +78,64 @@ fn migration_release_wording_tracks_manifest_metadata() {
 }
 
 #[test]
+fn public_dependency_snippets_track_manifest_version() {
+    let manifest = package_manifest();
+    let name = package_field(&manifest, "name");
+    let version = package_field(&manifest, "version");
+    let direct_dependency = format!("{name} = \"{version}\"");
+    let package_alias = format!("serde_yaml = {{ package = \"{name}\", version = \"{version}\" }}");
+
+    assert_contains(README, &direct_dependency);
+    assert_contains(MIGRATION, &direct_dependency);
+    assert_contains(ARCHITECTURE, &direct_dependency);
+    assert_contains(MIGRATION, &package_alias);
+    assert_contains(ARCHITECTURE, &package_alias);
+
+    for (path, source) in [
+        ("README.md", README),
+        ("docs/MIGRATION.md", MIGRATION),
+        ("docs/ARCHITECTURE.md", ARCHITECTURE),
+    ] {
+        assert!(
+            !source.contains("saneyaml = \"0.1\""),
+            "{path} must not carry stale 0.1 direct dependency snippets"
+        );
+        assert!(
+            !source.contains("package = \"saneyaml\", version = \"0.1\""),
+            "{path} must not carry stale 0.1 package-alias snippets"
+        );
+    }
+}
+
+#[test]
+fn packaged_benchmark_docs_mark_checkout_only_commands() {
+    let package_entries = package_include_entries();
+
+    assert!(package_entries.contains("docs/BENCHMARKS.md"));
+    assert!(package_entries.contains("docs/assets/saneyaml-overview.md"));
+    for dev_only_example in [
+        "examples/real_world_benchmark.rs",
+        "examples/large_input_benchmark.rs",
+        "examples/dhat_memory.rs",
+        "examples/conformance_compare.rs",
+    ] {
+        assert!(
+            !package_entries.contains(dev_only_example),
+            "{dev_only_example} should stay checkout-only unless package docs are reworded"
+        );
+    }
+
+    for term in [
+        "source-checkout-only",
+        "dev-dependency examples and fixture corpora",
+        "| captured section | checkout-only command |",
+    ] {
+        assert_contains(BENCHMARKS, term);
+    }
+    assert_contains(OVERVIEW_SOURCE, "Source-checkout-only captured command");
+}
+
+#[test]
 fn github_templates_parse_as_yaml_and_route_sensitive_reports() {
     for (path, source) in [
         (".github/ISSUE_TEMPLATE/config.yml", ISSUE_CONFIG),
@@ -112,7 +175,10 @@ fn ci_triggers_on_public_package_claim_inputs() {
         "automatic CI must avoid hosted Apple runners unless a specific run is approved"
     );
 
-    let required_filters = public_package_claim_filters();
+    let required_filters = public_package_claim_filters()
+        .into_iter()
+        .chain(trust_metadata_input_filters())
+        .collect::<BTreeSet<_>>();
     for filter in required_filters {
         assert!(
             push_filters.contains(&filter),
@@ -123,6 +189,27 @@ fn ci_triggers_on_public_package_claim_inputs() {
             "expected {filter:?} in pull_request CI path filters"
         );
     }
+}
+
+#[test]
+fn feature_clippy_covers_non_default_feature_matrix() {
+    assert_contains(
+        FEATURE_CLIPPY,
+        "cargo clippy --locked --no-default-features --lib -- -D warnings",
+    );
+    assert_contains(FEATURE_CLIPPY, "for features in serde emit serde,emit; do");
+    assert_contains(
+        FEATURE_CLIPPY,
+        "cargo clippy --locked --no-default-features --features \"$features\" --lib -- -D warnings",
+    );
+    assert_contains(
+        FEATURE_CLIPPY,
+        "for features in lossless serde,lossless emit,lossless; do",
+    );
+    assert_contains(
+        FEATURE_CLIPPY,
+        "cargo clippy --locked --no-default-features --features \"$features\" --all-targets -- -D warnings",
+    );
 }
 
 fn public_package_claim_filters() -> BTreeSet<String> {
@@ -138,6 +225,14 @@ fn public_package_claim_filters() -> BTreeSet<String> {
             }
         })
         .collect()
+}
+
+fn trust_metadata_input_filters() -> BTreeSet<String> {
+    BTreeSet::from([
+        ".github/ISSUE_TEMPLATE/**".to_owned(),
+        ".github/pull_request_template.md".to_owned(),
+        ".github/workflows/ci.yml".to_owned(),
+    ])
 }
 
 fn package_include_entries() -> BTreeSet<String> {

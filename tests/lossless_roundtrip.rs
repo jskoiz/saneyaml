@@ -2,6 +2,7 @@ use saneyaml::{
     CollectionStyle, ConfigPath, DEFAULT_MAX_COLLECTION_ITEMS, LoadOptions, LosslessNodeKind,
     LosslessTriviaKind, PathSegment, ScalarStyle, parse_lossless, parse_lossless_bytes,
 };
+use std::collections::BTreeMap;
 
 #[test]
 fn lossless_stream_keeps_source_comments_directives_and_markers() {
@@ -1229,6 +1230,55 @@ flow: { spec: [a, b] }
 ";
     assert_eq!(output, expected);
     parse_lossless(&output).expect("edited config reparses losslessly");
+    Ok(())
+}
+
+#[test]
+fn config_editor_set_replaces_implicit_null_mapping_values() -> saneyaml::Result<()> {
+    let mut editor = saneyaml::edit("a:\nb: 2\n")?;
+    editor.set(ConfigPath::keys(["a"]), 99)?;
+    assert_eq!(editor.finish()?, "a: 99\nb: 2\n");
+
+    let mut editor = saneyaml::edit("root:\n  a: \n  b: 2\n")?;
+    editor.set(ConfigPath::keys(["root", "a"]), "updated")?;
+    assert_eq!(editor.finish()?, "root:\n  a: updated\n  b: 2\n");
+
+    let stream = parse_lossless("a:\nb: 2\n")?;
+    let root = stream.documents()[0].root().expect("root mapping");
+    let output = stream
+        .replace_mapping_value_source(root, "a", "99")
+        .expect("replace implicit-null mapping value");
+    assert_eq!(output, "a: 99\nb: 2\n");
+
+    let value = stream.resolve_path(0, &[PathSegment::from("a")])?;
+    let output = stream
+        .replace_node_source(value, "100")
+        .expect("replace implicit-null value node");
+    assert_eq!(output, "a: 100\nb: 2\n");
+
+    Ok(())
+}
+
+#[test]
+fn config_editor_formats_single_line_structural_block_values() -> saneyaml::Result<()> {
+    let one_entry_map = BTreeMap::from([("x", 1)]);
+
+    let mut editor = saneyaml::edit("a: 1\nb: 2\n")?;
+    editor.set(ConfigPath::keys(["a"]), one_entry_map.clone())?;
+    assert_eq!(editor.finish()?, "a:\n  x: 1\nb: 2\n");
+
+    let mut editor = saneyaml::edit("a: 1\nb: 2\n")?;
+    editor.set(ConfigPath::keys(["a"]), vec![7])?;
+    assert_eq!(editor.finish()?, "a:\n  - 7\nb: 2\n");
+
+    let mut editor = saneyaml::edit("a: 1\n")?;
+    editor.insert(ConfigPath::root(), "c", one_entry_map)?;
+    assert_eq!(editor.finish()?, "a: 1\nc:\n  x: 1\n");
+
+    let mut editor = saneyaml::edit("a: 1\n")?;
+    editor.insert(ConfigPath::root(), "c", vec![7])?;
+    assert_eq!(editor.finish()?, "a: 1\nc:\n  - 7\n");
+
     Ok(())
 }
 

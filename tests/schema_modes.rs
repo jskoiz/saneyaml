@@ -554,6 +554,8 @@ float_seconds: 1:20:30.5
 invalid_sexagesimal: 1:60
 too_many_sexagesimal: 1:20:30:40
 underscored: 1_000
+hex_underscored: 0xF_F
+binary_underscored: 0b10_01
 ";
     let value: Value = LoadOptions::new()
         .schema(Schema::Yaml11)
@@ -567,12 +569,73 @@ underscored: 1_000
     assert_eq!(value["binary"].as_i64(), Some(10));
     assert_eq!(value["sexagesimal"].as_i64(), Some(4830));
     assert_eq!(value["short_sexagesimal"].as_i64(), Some(4800));
-    assert_eq!(value["negative_sexagesimal"].as_i64(), Some(-2400));
+    assert_eq!(value["negative_sexagesimal"].as_i64(), Some(-4800));
     assert_eq!(value["float_sexagesimal"].as_f64(), Some(4830.0));
     assert_eq!(value["float_seconds"].as_f64(), Some(4830.5));
     assert_eq!(value["invalid_sexagesimal"].as_str(), Some("1:60"));
     assert_eq!(value["too_many_sexagesimal"].as_str(), Some("1:20:30:40"));
     assert_eq!(value["underscored"].as_i64(), Some(1000));
+    assert_eq!(value["hex_underscored"].as_i64(), Some(255));
+    assert_eq!(value["binary_underscored"].as_i64(), Some(9));
+}
+
+#[test]
+fn schema_modes_keep_malformed_numeric_underscore_scalars_as_strings() {
+    let input = "\
+trailing: 1_
+double: 1__2
+signed: -_1
+inf_split: .i_n_f
+nan_split: .na_n
+valid_int: 1_000
+valid_float: 1_2.3_4
+";
+    let value: Value = saneyaml::from_str(input).expect("default schema parses");
+
+    assert_eq!(value["trailing"].as_str(), Some("1_"));
+    assert_eq!(value["double"].as_str(), Some("1__2"));
+    assert_eq!(value["signed"].as_str(), Some("-_1"));
+    assert_eq!(value["inf_split"].as_str(), Some(".i_n_f"));
+    assert_eq!(value["nan_split"].as_str(), Some(".na_n"));
+    assert_eq!(value["valid_int"].as_i64(), Some(1000));
+    assert_eq!(value["valid_float"].as_f64(), Some(12.34));
+
+    let mapping = saneyaml::parse_str("1: a\n1_: b\n").expect("keys remain distinct");
+    let saneyaml::NodeValue::Mapping(entries) = mapping.value else {
+        panic!("expected mapping");
+    };
+    assert_eq!(entries.len(), 2);
+    assert!(matches!(
+        entries[0].0.value,
+        saneyaml::NodeValue::Number(saneyaml::Number::Integer(1))
+    ));
+    assert_eq!(entries[1].0.as_str(), Some("1_"));
+}
+
+#[test]
+fn yaml_11_schema_keeps_malformed_radix_underscores_as_strings() {
+    let input = "\
+leading: _0x1F
+prefix_split: 0_x1F
+after_prefix: 0x_1F
+trailing_hex: 0xF_
+trailing_binary: 0b10_
+bad_binary_digit: 0b1_2
+valid_hex: 0xF_F
+valid_binary: 0b10_01
+";
+    let value: Value = LoadOptions::yaml_1_1()
+        .from_str(input)
+        .expect("YAML 1.1 radix values parse");
+
+    assert_eq!(value["leading"].as_str(), Some("_0x1F"));
+    assert_eq!(value["prefix_split"].as_str(), Some("0_x1F"));
+    assert_eq!(value["after_prefix"].as_str(), Some("0x_1F"));
+    assert_eq!(value["trailing_hex"].as_str(), Some("0xF_"));
+    assert_eq!(value["trailing_binary"].as_str(), Some("0b10_"));
+    assert_eq!(value["bad_binary_digit"].as_str(), Some("0b1_2"));
+    assert_eq!(value["valid_hex"].as_i64(), Some(255));
+    assert_eq!(value["valid_binary"].as_i64(), Some(9));
 }
 
 #[test]

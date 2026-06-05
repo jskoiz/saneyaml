@@ -54,3 +54,11 @@ path = "adversarial/alias-expansion-bomb.yaml"
 limit = 0
 limit_kind = "input-derived alias expansion budget"
 expected_error = "alias expansion limit exceeded"
+
+[[case]]
+name = "multiline-unterminated-flow"
+class = "nesting-depth"
+generator = "flow-sequence-open-per-line"
+path = "adversarial/multiline-unterminated-flow.yaml"
+limit = 128
+expected_error = "maximum YAML nesting depth exceeded"

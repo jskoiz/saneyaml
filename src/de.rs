@@ -503,7 +503,26 @@ fn value_needs_default_merge(value: &Value) -> bool {
     false
 }
 
+/// Upper bound on how deep `<<` merge expansion may recurse on the borrowed
+/// deserialization paths (`&Node`, `from_node`, `from_value`, `&Value`). Merge
+/// keys can splice caller-built subtrees together, producing chains far deeper
+/// than any source text, so the borrowed paths must cap recursion just like the
+/// owned path does. Reuses the same default cap the rest of the crate applies to
+/// nesting depth, keeping owned and borrowed merge handling in agreement.
+const MAX_MERGE_DEPTH: usize = DEFAULT_MAX_NESTING_DEPTH;
+
+fn merge_depth_exceeded() -> Error {
+    Error::limit("maximum YAML nesting depth exceeded", None)
+}
+
 fn merged_node_ref_entries(entries: &[(Node, Node)]) -> Result<Option<Vec<(&Node, &Node)>>, Error> {
+    merged_node_ref_entries_at_depth(entries, 0)
+}
+
+fn merged_node_ref_entries_at_depth(
+    entries: &[(Node, Node)],
+    depth: usize,
+) -> Result<Option<Vec<(&Node, &Node)>>, Error> {
     let Some(merge_index) = entries
         .iter()
         .position(|(key, _)| node_key_is_merge_key(key))
@@ -516,22 +535,32 @@ fn merged_node_ref_entries(entries: &[(Node, Node)]) -> Result<Option<Vec<(&Node
         .enumerate()
         .filter_map(|(index, (key, value))| (index != merge_index).then_some((key, value)))
         .collect::<Vec<_>>();
-    let merge_entries = node_ref_merge_entries(&entries[merge_index].1)?;
+    let merge_entries = node_ref_merge_entries(&entries[merge_index].1, depth)?;
     insert_missing_node_ref_entries(&mut merged, merge_entries);
     Ok(Some(merged))
 }
 
-fn node_ref_merge_entries(merge: &Node) -> Result<Vec<(&Node, &Node)>, Error> {
+fn node_ref_merge_entries(merge: &Node, depth: usize) -> Result<Vec<(&Node, &Node)>, Error> {
+    // Charge the merge-depth budget before descending into a merge payload, so
+    // a caller-built merge chain cannot recurse without bound. This mirrors the
+    // owned path's accounting in `merge_node_mapping` (src/ast.rs) and enforces
+    // the same `MAX_MERGE_DEPTH` cap so both paths agree.
+    let Some(next_depth) = depth
+        .checked_add(1)
+        .filter(|next| *next <= MAX_MERGE_DEPTH)
+    else {
+        return Err(merge_depth_exceeded());
+    };
     match &merge.value {
-        NodeValue::Mapping(entries) => Ok(merged_node_ref_entries(entries)?
+        NodeValue::Mapping(entries) => Ok(merged_node_ref_entries_at_depth(entries, next_depth)?
             .unwrap_or_else(|| entries.iter().map(|(key, value)| (key, value)).collect())),
         NodeValue::Sequence(sequence) => {
             let mut entries = Vec::new();
             for node in sequence {
                 match &node.value {
                     NodeValue::Mapping(mapping) => {
-                        let merge_entries =
-                            merged_node_ref_entries(mapping)?.unwrap_or_else(|| {
+                        let merge_entries = merged_node_ref_entries_at_depth(mapping, next_depth)?
+                            .unwrap_or_else(|| {
                                 mapping.iter().map(|(key, value)| (key, value)).collect()
                             });
                         insert_missing_node_ref_entries(&mut entries, merge_entries);
@@ -579,6 +608,13 @@ fn apply_default_value_merges(mut value: Value) -> Result<Value, Error> {
 }
 
 fn merged_value_ref_entries(mapping: &Mapping) -> Result<Option<Vec<(&Value, &Value)>>, Error> {
+    merged_value_ref_entries_at_depth(mapping, 0)
+}
+
+fn merged_value_ref_entries_at_depth(
+    mapping: &Mapping,
+    depth: usize,
+) -> Result<Option<Vec<(&Value, &Value)>>, Error> {
     let Some(merge_index) = mapping
         .as_slice()
         .iter()
@@ -594,33 +630,47 @@ fn merged_value_ref_entries(mapping: &Mapping) -> Result<Option<Vec<(&Value, &Va
         .filter_map(|(index, (key, value))| (index != merge_index).then_some((key, value)))
         .collect::<Vec<_>>();
     let merge = &mapping.as_slice()[merge_index].1;
-    let merge_entries = value_ref_merge_entries(merge)?;
+    let merge_entries = value_ref_merge_entries(merge, depth)?;
     insert_missing_value_ref_entries(&mut entries, merge_entries);
     Ok(Some(entries))
 }
 
-fn value_ref_merge_entries(merge: &Value) -> Result<Vec<(&Value, &Value)>, Error> {
+fn value_ref_merge_entries(merge: &Value, depth: usize) -> Result<Vec<(&Value, &Value)>, Error> {
+    // Charge the merge-depth budget before descending into a merge payload, so
+    // a caller-built merge chain cannot recurse without bound. This mirrors the
+    // owned path's accounting in `merge_node_mapping` (src/ast.rs) and enforces
+    // the same `MAX_MERGE_DEPTH` cap so both paths agree.
+    let Some(next_depth) = depth
+        .checked_add(1)
+        .filter(|next| *next <= MAX_MERGE_DEPTH)
+    else {
+        return Err(merge_depth_exceeded());
+    };
     match merge {
-        Value::Mapping(mapping) => Ok(merged_value_ref_entries(mapping)?.unwrap_or_else(|| {
-            mapping
-                .as_slice()
-                .iter()
-                .map(|(key, value)| (key, value))
-                .collect()
-        })),
+        Value::Mapping(mapping) => {
+            Ok(merged_value_ref_entries_at_depth(mapping, next_depth)?.unwrap_or_else(|| {
+                mapping
+                    .as_slice()
+                    .iter()
+                    .map(|(key, value)| (key, value))
+                    .collect()
+            }))
+        }
         Value::Sequence(sequence) => {
             let mut entries = Vec::new();
             for value in sequence {
                 match value {
                     Value::Mapping(mapping) => {
                         let merge_entries =
-                            merged_value_ref_entries(mapping)?.unwrap_or_else(|| {
-                                mapping
-                                    .as_slice()
-                                    .iter()
-                                    .map(|(key, value)| (key, value))
-                                    .collect()
-                            });
+                            merged_value_ref_entries_at_depth(mapping, next_depth)?.unwrap_or_else(
+                                || {
+                                    mapping
+                                        .as_slice()
+                                        .iter()
+                                        .map(|(key, value)| (key, value))
+                                        .collect()
+                                },
+                            );
                         insert_missing_value_ref_entries(&mut entries, merge_entries);
                     }
                     Value::Sequence(_) => {

@@ -1211,7 +1211,7 @@ impl AnchorRegistry {
         if self
             .options
             .selected_max_nesting_depth()
-            .is_some_and(|max| depth.saturating_add(node_depth(target)) > max)
+            .is_some_and(|max| depth.saturating_add(node_depth(target).saturating_sub(1)) > max)
         {
             return Err(Error::limit(
                 "maximum YAML nesting depth exceeded while expanding alias",
@@ -1219,9 +1219,7 @@ impl AnchorRegistry {
             ));
         }
 
-        let mut node = target.clone();
-        node.span = span;
-        Ok(node)
+        Ok(clone_node_with_root_span(target, span))
     }
 
     fn validate_alias(&self, name: &str, span: Span) -> Result<()> {
@@ -3256,7 +3254,7 @@ impl Parser {
             }
         }
         if text.starts_with('[') || text.starts_with('{') {
-            let buffer = self.collect_flow_buffer(text, line, local_start, parent_indent)?;
+            let buffer = self.collect_flow_buffer(text, line, local_start, parent_indent, depth)?;
             let (node, has_merge_key) = FlowParser::new(
                 buffer,
                 depth,
@@ -3363,22 +3361,19 @@ impl Parser {
         first_line: &Line,
         first_start: usize,
         parent_indent: usize,
+        depth: usize,
     ) -> Result<FlowBuffer> {
         let mut buffer = FlowBuffer::single(first_text, first_line, first_start);
+        let mut flow_state = FlowCollectionState::new();
+        flow_state.scan(first_text);
+        self.options.check_nesting_depth(
+            depth.saturating_add(flow_state.open_depth()),
+            first_line.local_span(first_start, first_start + first_text.len()),
+        )?;
         let source = Rc::clone(&self.source);
         let require_continuation_indent =
             (first_line.indent() + first_start > parent_indent).then_some(parent_indent);
-
-        // Track close-detection state incrementally so each iteration scans only
-        // the newly appended slice of `buffer.text` instead of rescanning the
-        // whole buffer from byte 0 (which would be O(N^2) for a flow collection
-        // spread across N lines). The collection is closed once the scanner has
-        // balanced the outermost bracket.
-        let mut scanner = FlowCloseScanner::default();
-        let mut closed = scanner.scan(&buffer.text);
-        let mut scanned = buffer.text.len();
-
-        while !closed {
+        while !flow_state.is_closed() {
             let Some(line) = self.line_at(self.pos)? else {
                 break;
             };
@@ -3390,6 +3385,7 @@ impl Parser {
                         line.raw_len() + 1,
                     );
                     buffer.push_virtual_separator(mark);
+                    flow_state.scan("\n");
                     self.pos += 1;
                 }
                 LineKind::Content | LineKind::Directive => {
@@ -3405,14 +3401,18 @@ impl Parser {
                         ));
                     }
                     buffer.push_virtual_separator(SourceMark::for_line_content(&line, 0));
+                    flow_state.scan("\n");
                     let content = line.content(&source);
                     buffer.push_source_text(content, &line, 0);
+                    flow_state.scan(content);
+                    self.options.check_nesting_depth(
+                        depth.saturating_add(flow_state.open_depth()),
+                        line.span(),
+                    )?;
                     self.pos += 1;
                 }
                 LineKind::DocumentStart | LineKind::DocumentEnd => break,
             }
-            closed = scanner.scan(&buffer.text[scanned..]);
-            scanned = buffer.text.len();
         }
         Ok(buffer)
     }
@@ -4379,32 +4379,170 @@ fn core_scalar_tag_preserves_source(tag: &Tag) -> bool {
 }
 
 fn count_nodes(node: &Node) -> usize {
-    match &node.value {
-        Value::Sequence(items) => 1 + items.iter().map(count_nodes).sum::<usize>(),
-        Value::Mapping(entries) => {
-            1 + entries
-                .iter()
-                .map(|(key, value)| count_nodes(key) + count_nodes(value))
-                .sum::<usize>()
+    let mut count = 0usize;
+    let mut stack = vec![node];
+    while let Some(node) = stack.pop() {
+        count = count.saturating_add(1);
+        match &node.value {
+            Value::Sequence(items) => stack.extend(items),
+            Value::Mapping(entries) => {
+                for (key, value) in entries {
+                    stack.push(key);
+                    stack.push(value);
+                }
+            }
+            Value::Tagged(tagged) => stack.push(&tagged.value),
+            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
         }
-        Value::Tagged(tagged) => 1 + count_nodes(&tagged.value),
-        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => 1,
     }
+    count
 }
 
 fn node_depth(node: &Node) -> usize {
-    match &node.value {
-        Value::Sequence(items) => 1 + items.iter().map(node_depth).max().unwrap_or(0),
-        Value::Mapping(entries) => {
-            1 + entries
-                .iter()
-                .map(|(key, value)| node_depth(key).max(node_depth(value)))
-                .max()
-                .unwrap_or(0)
+    let mut max_depth = 0usize;
+    let mut stack = vec![(node, 1usize)];
+    while let Some((node, depth)) = stack.pop() {
+        max_depth = max_depth.max(depth);
+        let child_depth = depth.saturating_add(1);
+        match &node.value {
+            Value::Sequence(items) => stack.extend(items.iter().map(|item| (item, child_depth))),
+            Value::Mapping(entries) => {
+                for (key, value) in entries {
+                    stack.push((key, child_depth));
+                    stack.push((value, child_depth));
+                }
+            }
+            Value::Tagged(tagged) => stack.push((&tagged.value, child_depth)),
+            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
         }
-        Value::Tagged(tagged) => 1 + node_depth(&tagged.value),
-        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => 1,
     }
+    max_depth
+}
+
+fn clone_node_with_root_span(root: &Node, span: Span) -> Node {
+    enum Frame<'a> {
+        Clone(&'a Node, Option<Span>),
+        Sequence {
+            span: Span,
+            source: Option<crate::ScalarSource>,
+            len: usize,
+        },
+        Mapping {
+            span: Span,
+            source: Option<crate::ScalarSource>,
+            len: usize,
+        },
+        Tagged {
+            tag: Tag,
+            tag_span: Span,
+            span: Span,
+            source: Option<crate::ScalarSource>,
+        },
+    }
+
+    let mut frames = vec![Frame::Clone(root, Some(span))];
+    let mut nodes = Vec::new();
+    while let Some(frame) = frames.pop() {
+        match frame {
+            Frame::Clone(node, override_span) => {
+                let span = override_span.unwrap_or(node.span);
+                match &node.value {
+                    Value::Null => nodes.push(Node {
+                        value: Value::Null,
+                        span,
+                        source: node.source.clone(),
+                    }),
+                    Value::Bool(value) => nodes.push(Node {
+                        value: Value::Bool(*value),
+                        span,
+                        source: node.source.clone(),
+                    }),
+                    Value::Number(value) => nodes.push(Node {
+                        value: Value::Number(*value),
+                        span,
+                        source: node.source.clone(),
+                    }),
+                    Value::String(value) => nodes.push(Node {
+                        value: Value::String(value.clone()),
+                        span,
+                        source: node.source.clone(),
+                    }),
+                    Value::Sequence(items) => {
+                        frames.push(Frame::Sequence {
+                            span,
+                            source: node.source.clone(),
+                            len: items.len(),
+                        });
+                        for item in items.iter().rev() {
+                            frames.push(Frame::Clone(item, None));
+                        }
+                    }
+                    Value::Mapping(entries) => {
+                        frames.push(Frame::Mapping {
+                            span,
+                            source: node.source.clone(),
+                            len: entries.len(),
+                        });
+                        for (key, value) in entries.iter().rev() {
+                            frames.push(Frame::Clone(value, None));
+                            frames.push(Frame::Clone(key, None));
+                        }
+                    }
+                    Value::Tagged(tagged) => {
+                        frames.push(Frame::Tagged {
+                            tag: tagged.tag.clone(),
+                            tag_span: tagged.tag_span,
+                            span,
+                            source: node.source.clone(),
+                        });
+                        frames.push(Frame::Clone(&tagged.value, None));
+                    }
+                }
+            }
+            Frame::Sequence { span, source, len } => {
+                let start = nodes.len() - len;
+                let items = nodes.split_off(start);
+                nodes.push(Node {
+                    value: Value::Sequence(items),
+                    span,
+                    source,
+                });
+            }
+            Frame::Mapping { span, source, len } => {
+                let start = nodes.len() - len * 2;
+                let cloned = nodes.split_off(start);
+                let mut entries = Vec::with_capacity(len);
+                let mut iter = cloned.into_iter();
+                while let Some(key) = iter.next() {
+                    let value = iter.next().expect("mapping clone value follows key");
+                    entries.push((key, value));
+                }
+                nodes.push(Node {
+                    value: Value::Mapping(entries),
+                    span,
+                    source,
+                });
+            }
+            Frame::Tagged {
+                tag,
+                tag_span,
+                span,
+                source,
+            } => {
+                let value = nodes.pop().expect("tagged clone value exists");
+                nodes.push(Node {
+                    value: Value::Tagged(Box::new(TaggedNode {
+                        tag,
+                        tag_span,
+                        value,
+                    })),
+                    span,
+                    source,
+                });
+            }
+        }
+    }
+    nodes.pop().expect("root clone produced one node")
 }
 
 fn event_scalar_value(node: &Node) -> String {
@@ -4677,7 +4815,7 @@ fn parse_double_quoted(text: &str, span: Span, source: Option<&Rc<str>>) -> Resu
             }
             'u' => {
                 let code = take_hex_escape(&mut chars, 4, span)?;
-                out.push(char_from_escape(code, span)?);
+                out.push(char_from_utf16_escape(code, &mut chars, span)?);
             }
             'U' => {
                 let code = take_hex_escape(&mut chars, 8, span)?;
@@ -4788,6 +4926,27 @@ fn take_hex_escape(chars: &mut std::str::Chars<'_>, digits: usize, span: Span) -
         value = (value << 4) | digit;
     }
     Ok(value)
+}
+
+fn char_from_utf16_escape(code: u32, chars: &mut std::str::Chars<'_>, span: Span) -> Result<char> {
+    if !(0xD800..=0xDFFF).contains(&code) {
+        return char_from_escape(code, span);
+    }
+    if !(0xD800..=0xDBFF).contains(&code) {
+        return Err(Error::new("invalid Unicode escape scalar", span));
+    }
+    let Some('\\') = chars.next() else {
+        return Err(Error::new("invalid Unicode escape scalar", span));
+    };
+    let Some('u') = chars.next() else {
+        return Err(Error::new("invalid Unicode escape scalar", span));
+    };
+    let low = take_hex_escape(chars, 4, span)?;
+    if !(0xDC00..=0xDFFF).contains(&low) {
+        return Err(Error::new("invalid Unicode escape scalar", span));
+    }
+    let scalar = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00);
+    char_from_escape(scalar, span)
 }
 
 fn char_from_escape(code: u32, span: Span) -> Result<char> {
@@ -4974,35 +5133,33 @@ fn is_float_like(text: &str) -> bool {
     digits > 0
 }
 
-/// Incremental scanner for flow-collection close detection.
-///
-/// A flow collection (`[...]` / `{...}`) may span many source lines, so the
-/// parser appends one line at a time until the outermost bracket closes. A
-/// naive close check rescans the whole accumulated buffer from byte 0 on every
-/// appended line, which is O(N^2) in the number of accumulated bytes — an
-/// attacker can stall the parser with an unterminated flow collection spread
-/// over tens of thousands of lines.
-///
-/// This scanner keeps the running quote/bracket state between calls so callers
-/// can feed only the newly appended slice each iteration, making accumulation
-/// linear in the input size. Once it reports the collection is closed the
-/// caller stops feeding it, exactly as a single full-buffer scan would stop at
-/// the first balanced close.
 #[derive(Default)]
-struct FlowCloseScanner {
+struct FlowCollectionState {
     single: bool,
     double: bool,
     escaped: bool,
     depth: usize,
     started: bool,
+    closed: bool,
 }
 
-impl FlowCloseScanner {
-    /// Advance the scanner over a freshly appended slice, returning `true` as
-    /// soon as the outermost flow collection has been closed. Once this returns
-    /// `true` the caller must not feed it further input (mirroring the original
-    /// function's early return).
-    fn scan(&mut self, text: &str) -> bool {
+impl FlowCollectionState {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn is_closed(&self) -> bool {
+        self.closed
+    }
+
+    fn open_depth(&self) -> usize {
+        self.depth
+    }
+
+    fn scan(&mut self, text: &str) {
+        if self.closed {
+            return;
+        }
         for ch in text.chars() {
             if self.double && self.escaped {
                 self.escaped = false;
@@ -5019,13 +5176,13 @@ impl FlowCloseScanner {
                 ']' | '}' if !self.single && !self.double && self.depth > 0 => {
                     self.depth -= 1;
                     if self.started && self.depth == 0 {
-                        return true;
+                        self.closed = true;
+                        return;
                     }
                 }
                 _ => {}
             }
         }
-        false
     }
 }
 
@@ -6065,7 +6222,7 @@ impl<'a> FlowParser<'a> {
     }
 
     fn skip_ws(&mut self) {
-        while let Some(ch) = self.peek().filter(|c| c.is_whitespace()) {
+        while let Some(ch) = self.peek().filter(|ch| ch.is_whitespace()) {
             self.bump(ch);
         }
     }

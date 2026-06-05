@@ -615,8 +615,6 @@ fn parse_yaml11_timestamp(text: &str) -> Option<Timestamp> {
         while pos < bytes.len() && bytes[pos].is_ascii_digit() {
             if pos - fraction_start < 9 {
                 nanosecond = nanosecond * 10 + u32::from(bytes[pos] - b'0');
-            } else if bytes[pos] != b'0' {
-                return None;
             }
             pos += 1;
         }
@@ -3304,9 +3302,8 @@ impl Eq for Number {}
 impl PartialOrd for Number {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (*self, *other) {
-            (Number::Float(left), Number::Float(right)) if left.is_nan() && right.is_nan() => {
-                Some(Ordering::Equal)
-            }
+            (Number::Float(left), _) if left.is_nan() => None,
+            (_, Number::Float(right)) if right.is_nan() => None,
             (Number::Float(left), Number::Float(right)) => left.partial_cmp(&right),
             _ => Some(total_number_cmp(self, other)),
         }

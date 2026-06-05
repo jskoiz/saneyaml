@@ -309,10 +309,10 @@ fn swap_harness_merge_null_bytes_and_empty_input_decisions_are_explicit() {
     );
 
     let bytes = BytePayload(&[1, 2, 255]);
-    let value_bytes = saneyaml::to_value(&bytes).expect("yaml value bytes");
     let reference_bytes = serde_yaml::to_value(&bytes).expect("serde_yaml value bytes");
-    assert_eq!(value_bytes.as_sequence().map(Vec::len), Some(3));
-    assert_eq!(value_bytes[2].as_u64(), reference_bytes[2].as_u64());
+    let value_error = saneyaml::to_value(&bytes).expect_err("yaml rejects value bytes");
+    assert_eq!(reference_bytes.as_sequence().map(Vec::len), Some(3));
+    assert!(value_error.to_string().contains("serialization of bytes"));
     assert!(saneyaml::to_string(&bytes).is_err());
     assert!(serde_yaml::to_string(&bytes).is_err());
 
@@ -422,7 +422,7 @@ date: 2026-05-24
         truthy: true,
         hex: 16,
         octal: 83,
-        clock: 4800,
+        clock: 80,
         date: Timestamp::parse_yaml_1_1("2026-05-24").expect("date timestamp"),
     };
     let directive: Value = LoadOptions::yaml_version_directive()
@@ -432,7 +432,7 @@ date: 2026-05-24
     assert_eq!(directive["truthy"].as_bool(), Some(true));
     assert_eq!(directive["hex"].as_i64(), Some(16));
     assert_eq!(directive["octal"].as_i64(), Some(83));
-    assert_eq!(directive["clock"].as_i64(), Some(4800));
+    assert_eq!(directive["clock"].as_i64(), Some(80));
     assert_eq!(directive["date"].as_timestamp(), Some(expected.date));
 
     let typed: LegacyYaml11Migration = LoadOptions::yaml_version_directive()

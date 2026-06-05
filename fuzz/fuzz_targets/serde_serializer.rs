@@ -5,6 +5,8 @@ use serde::Serialize;
 use std::collections::BTreeMap;
 use saneyaml::{BlockScalarStyle, EmitCollectionStyle, EmitOptions, ScalarQuoteStyle, Value};
 
+const BYTES_UNSUPPORTED: &str = "serialization of bytes in YAML is not implemented";
+
 fuzz_target!(|input: &[u8]| {
     let Some((&selector, payload)) = input.split_first() else {
         return;
@@ -298,35 +300,35 @@ where
 
 fn assert_bytes_rejection(input: &[u8]) {
     let payload = BytesPayload(&input[..input.len().min(128)]);
-    let reference = serde_yaml::to_string(&payload).expect_err("serde_yaml rejects bytes");
+    serde_yaml::to_string(&payload).expect_err("serde_yaml rejects bytes");
 
     let error = saneyaml::to_string(&payload).expect_err("document writer rejects bytes");
-    assert_eq!(error.to_string(), reference.to_string());
+    assert_eq!(error.to_string(), BYTES_UNSUPPORTED);
     let byte_error = saneyaml::to_string_with_options(&payload, EmitOptions::byte_compatible())
         .expect_err("byte-compatible document writer rejects bytes");
-    assert_eq!(byte_error.to_string(), reference.to_string());
+    assert_eq!(byte_error.to_string(), BYTES_UNSUPPORTED);
 
     let mut written = Vec::new();
     let error = saneyaml::to_writer(&mut written, &payload).expect_err("writer rejects bytes");
-    assert_eq!(error.to_string(), reference.to_string());
+    assert_eq!(error.to_string(), BYTES_UNSUPPORTED);
     assert!(written.is_empty());
     let byte_error =
         saneyaml::to_writer_with_options(&mut written, &payload, EmitOptions::byte_compatible())
             .expect_err("byte-compatible writer rejects bytes");
-    assert_eq!(byte_error.to_string(), reference.to_string());
+    assert_eq!(byte_error.to_string(), BYTES_UNSUPPORTED);
     assert!(written.is_empty());
 
     let mut stream = saneyaml::Serializer::new(Vec::new());
     let error = payload
         .serialize(&mut stream)
         .expect_err("streaming writer rejects bytes");
-    assert_eq!(error.to_string(), reference.to_string());
+    assert_eq!(error.to_string(), BYTES_UNSUPPORTED);
     assert!(stream.into_inner().expect("stream into inner").is_empty());
     let mut byte_stream = saneyaml::Serializer::with_options(Vec::new(), EmitOptions::byte_compatible());
     let error = payload
         .serialize(&mut byte_stream)
         .expect_err("byte-compatible streaming writer rejects bytes");
-    assert_eq!(error.to_string(), reference.to_string());
+    assert_eq!(error.to_string(), BYTES_UNSUPPORTED);
     assert!(
         byte_stream
             .into_inner()
@@ -335,12 +337,12 @@ fn assert_bytes_rejection(input: &[u8]) {
     );
 
     let nested = BTreeMap::from([("payload", payload)]);
-    let nested_reference = serde_yaml::to_string(&nested).expect_err("serde_yaml rejects nested bytes");
+    serde_yaml::to_string(&nested).expect_err("serde_yaml rejects nested bytes");
     let nested_error = saneyaml::to_string(&nested).expect_err("document writer rejects nested bytes");
-    assert_eq!(nested_error.to_string(), nested_reference.to_string());
+    assert_eq!(nested_error.to_string(), BYTES_UNSUPPORTED);
     let nested_byte_error = saneyaml::to_string_with_options(&nested, EmitOptions::byte_compatible())
         .expect_err("byte-compatible document writer rejects nested bytes");
-    assert_eq!(nested_byte_error.to_string(), nested_reference.to_string());
+    assert_eq!(nested_byte_error.to_string(), BYTES_UNSUPPORTED);
 }
 
 fn service_config(input: &[u8]) -> ServiceConfig {

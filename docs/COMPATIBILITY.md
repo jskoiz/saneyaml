@@ -65,7 +65,7 @@ surface that this crate can or should emulate.
 | Default tag-style enum input/output | Supported | `Value::Tagged` and Serde enum dispatch cover common `!Variant` and unit variant shapes. |
 | `Error`, `Result` | Supported | Root names resolve; `Error::location()`, `line()`, and `column()` are covered. Richer diagnostics are additive. |
 | `Location::{index,line,column}` | Supported | Location accessors resolve under both rename paths. |
-| `serde_yaml::Value` merge-key retention | Intentionally divergent | Loaded `Node`/`Value`, `from_value`, and direct `Value` deserializers expand untagged and explicit merge keys by default; raw events and `LosslessStream` preserve source syntax. |
+| `serde_yaml::Value` merge-key retention | Intentionally divergent | Loaded `Node`/`Value`, `from_node`, `from_value`, and direct owned/borrowed `Node`/`Value` deserializers expand untagged and explicit merge keys by default; raw events and `LosslessStream` preserve source syntax. |
 | Default YAML 1.1/libyaml scalar construction | Intentionally divergent | Default loading stays YAML 1.2-oriented. Use explicit `LoadOptions` schema modes for legacy behavior. |
 | Exact `Number` private representation | Not preservable | `serde_yaml` keeps internals private; this crate preserves public helpers while widening integer support. |
 | Downstream implementations of `Index` / `mapping::Index` | Not preservable | The traits are sealed here and were sealed upstream; callers should use built-in lookup forms. |
@@ -96,17 +96,17 @@ Python, or C++ runtimes.
 | YAML version | Numeric `%YAML` version directives are accepted as syntax metadata; scalar resolution remains YAML 1.2/core-config oriented unless the caller selects `LoadOptions::yaml_1_1()` or `LoadOptions::yaml_version_directive()` for per-document `%YAML 1.1` opt-in | Often YAML 1.1 heritage | Compare as YAML 1.2-oriented Rust parsers | Serde data model |
 | `on`, `off`, `yes`, `no` | Strings by default; booleans in explicit YAML 1.1 construction, including duplicate-key collisions such as `on` and `yes` | Often booleans; aliases like `on` and `yes` can collide as the same key | Compare per schema | Usually data-model dependent |
 | Duplicate keys | Error for duplicate scalar, sequence, and mapping keys after alias expansion, with mapping-key identity order-insensitive like public `Mapping` equality and typed scalar key domains distinct (`1` and `"1"` are different keys); nonnegative signed and unsigned integer keys share identity; signed-zero float keys share identity; raw events still expose duplicate keys | Psych/libyaml can construct duplicate scalar keys as last-wins values | yaml-rust2 rejects some duplicate collection keys, while saphyr accepts selected cases such as X38W | `serde_yaml` rejects duplicate scalar keys |
-| Merge key `<<` | Expanded by default in loaded trees, `from_value`, direct owned/borrowed `Value` deserializers, and Serde reads after alias expansion, including untagged keys and explicit `!!merge` / canonical `tag:yaml.org,2002:merge` keys; raw events still expose `<<`, key tags, and alias references; `LosslessStream::effective_mapping_entries` expands merge aliases for inspection while keeping raw source and provenance; `Value::apply_merge()` remains available as an explicit in-place helper | Common legacy feature, often expanded with earlier merge-list mappings winning, explicit merge tags honored, and explicit target keys overriding merged keys | Preserved literally in current tree loaders | Preserved literally in `Value`; opt-in `Value::apply_merge()` expands merges |
+| Merge key `<<` | Expanded by default in loaded trees, `from_node`, `from_value`, direct owned/borrowed `Node`/`Value` deserializers, and Serde reads after alias expansion, including untagged keys and explicit `!!merge` / canonical `tag:yaml.org,2002:merge` keys; raw events still expose `<<`, key tags, and alias references; `LosslessStream::effective_mapping_entries` expands merge aliases for inspection while keeping raw source and provenance; `Value::apply_merge()` remains available as an explicit in-place helper | Common legacy feature, often expanded with earlier merge-list mappings winning, explicit merge tags honored, and explicit target keys overriding merged keys | Preserved literally in current tree loaders | Preserved literally in `Value`; opt-in `Value::apply_merge()` expands merges |
 | Anchors and aliases | Semantic `Node`/`Value` loading supports acyclic value expansion and intentionally does not preserve graph identity; `LosslessStream` is the graph-identity surface and preserves alias-to-anchor identity with stable graph ids, including merge-derived effective mapping provenance; colon-bearing anchor names and anchors on empty scalar nodes are accepted with recorded tree-shape divergences | Supported, sometimes with graph identity and legacy loader-specific tree shapes | Supported by clone-on-alias loading; saphyr loads selected empty scalar anchor nodes as empty strings | Data-model dependent, accepted in common read paths |
 | Custom tags | Preserved as tagged tree/Value nodes for `Value` and Serde enum support; transparent metadata for ordinary typed Serde reads; `%TAG` handles are resolved for the following explicit document; undeclared named handles are rejected; canonical YAML core URI tags are recognized for the supported core targets, while broader schema coercion is not implemented | Supported as tags | Supported as tags | Partial/lossy |
 | Multiline quoted flow scalars | Supported with YAML line folding | Some libyaml paths reject selected YAML 1.2 flow-key cases | Accepted by yaml-rust2/saphyr | Some cases rejected |
 | Adjacent flow mapping values | Accept YAML 1.2 adjacent flow mapping values, including colon-prefixed adjacent plain scalars | Psych/libyaml accepts C2DT but rejects 5MUD, 5T43, and 58MP | yaml-rust2/saphyr accept all four selected cases | `serde_yaml` accepts C2DT but rejects 5MUD, 5T43, and 58MP |
 | Bare/explicit document streams | YAML 1.2 bare documents after `...` are supported, including root literal scalars whose content begins at column 1, and directive-looking lines inside open flow collections are parsed as content | Some libyaml-era paths reject these streams or treat percent-prefixed flow content as directive-sensitive | Accepted by yaml-rust2/saphyr | `serde_yaml` rejects the full M7A3 stream after the first document and rejects UT92 |
 | Comments/formatting | Semantic `Node`/`Value` loaders discard comments and formatting; `LosslessStream` retains the original source for byte-stable replay, exposes comments/blank lines as trivia, and validates node/source-span edits plus scalar-keyed block/flow mapping entry and block/flow sequence item value/insert/delete edits through `LosslessEdit` | Not semantic | Not semantic | Discarded |
-| Emission | `EmitOptions::structural()` produces deterministic structural YAML for emittable trees; duplicate-effective mapping keys, over-depth trees including caller-built complex keys, and directly nested tags are rejected before output; public writers follow `serde_yaml` document-marker policy by omitting `---` for the first ordinary document and inserting `---` between stream documents; emitter round-trip fuzz covers `to_string`, `to_writer`, streaming `Serializer`, and opt-in byte-compatible value output. Structural options can preserve or sort mapping keys, choose tag or singleton-map Serde enum output, use plain-where-safe/single/double quoted scalars, emit literal or folded block scalars where representable, choose block or flow collections, and quote YAML 1.1-ambiguous strings with `EmitOptions::with_yaml_1_1_safe_strings(true)`. `EmitOptions::byte_compatible()` matches `serde_yaml` bytes for common Serde structural values, enum tags, mapping-value sequences, typed real-world config writer shapes, and bytes rejection; `byte_compatible().with_enum_representation(EnumRepresentation::SingletonMap)` matches `serde_yaml::with::singleton_map` writer bytes for external enum values; comments, source style, graph identity, directives, anchors/aliases, and arbitrary lossless formatting remain out of this tier. | Manual comparison only | Manual comparison only | Public writer document-marker policy is matched; byte-compatible parity is covered for the supported structural writer corpus, not for arbitrary source-preserving YAML |
-| Numeric, timestamp, and binary extensions | Decimal ints/floats plus underscores, YAML special floats, and decimal-looking leading-zero values such as `0123` are resolved by default; explicit YAML 1.1 construction also resolves leading-zero octal, hex, binary numeric, and two/three-part sexagesimal int/float forms that fit `Number`, retains timestamp-shaped plain scalars as `!!timestamp` tagged strings with `saneyaml::Timestamp` typed reads, and decodes explicit `!!binary` only for typed byte targets | YAML 1.1 has broad numeric/timestamp/binary typing, including sexagesimal and legacy radix forms in libyaml/Psych paths | YAML 1.2 core support varies by crate | Data-model dependent |
+| Emission | `EmitOptions::structural()` produces deterministic structural YAML for emittable trees; duplicate-effective mapping keys, over-depth trees including caller-built complex keys, and directly nested tags are rejected before output; public writers follow `serde_yaml` document-marker policy by omitting `---` for the first ordinary document and inserting `---` between stream documents; emitter round-trip fuzz covers `to_string`, `to_writer`, and streaming `Serializer`. Structural options can preserve or sort mapping keys, choose tag or singleton-map Serde enum output, use plain-where-safe/single/double quoted scalars, emit literal or folded block scalars where representable, choose block or flow collections, and quote YAML 1.1-ambiguous strings with `EmitOptions::with_yaml_1_1_safe_strings(true)`. `EmitOptions::byte_compatible()` matches `serde_yaml` bytes for common Serde structural values, enum tags, mapping-value sequences, typed real-world config writer shapes, and bytes rejection; `byte_compatible().with_enum_representation(EnumRepresentation::SingletonMap)` matches `serde_yaml::with::singleton_map` writer bytes for external enum values; comments, source style, graph identity, directives, anchors/aliases, and arbitrary lossless formatting remain out of this tier. | Manual comparison only | Manual comparison only | Public writer document-marker policy is matched; byte-compatible parity is covered for the supported structural writer corpus, not for arbitrary source-preserving YAML |
+| Numeric, timestamp, and binary extensions | Decimal ints/floats plus underscores, YAML special floats, and decimal-looking leading-zero values such as `0123` are resolved by default; explicit YAML 1.1 construction also resolves leading-zero octal, hex, binary numeric, and spec-weighted two/three-part sexagesimal int/float forms that fit `Number`, retains timestamp-shaped plain scalars as `!!timestamp` tagged strings with `saneyaml::Timestamp` typed reads and truncates timestamp fractions to nanoseconds, and decodes explicit `!!binary` only for typed byte targets | YAML 1.1 has broad numeric/timestamp/binary typing, including sexagesimal and legacy radix forms in libyaml/Psych paths | YAML 1.2 core support varies by crate | Data-model dependent |
 | Directives | Numeric `%YAML` version directives and `%TAG` are accepted as syntax/event inputs; reserved unknown directives are ignored but still require an explicit document start; default loading does not switch scalar schema, while `LoadOptions::yaml_version_directive()` lets `%YAML 1.1` select legacy construction per document; directive metadata is exposed on `DocumentStart` events | Exposed and may affect version/schema handling | Exposed by parser layers | Usually not a Serde value |
-| Explicit core tags | Tree and `Value` loading preserve explicit `!!binary`, `!!str`, `!!bool`, `!!null`, `!!timestamp`, `!!int`, and `!!float` tags, including canonical `tag:yaml.org,2002:*` forms written verbatim or through `%TAG` handles; typed Serde reads coerce explicit `!!str`, `!!bool`, `!!null`, `!!int`, and `!!float` targets, including legacy boolean/null, radix, and sexagesimal spellings; retained `Value` numeric helpers parse explicit `!!int`/`!!float` spellings without erasing tag/source metadata; explicit `!!timestamp` is exposed as `saneyaml::Timestamp`, and explicit `!!binary` byte targets decode while preserving tags in retained values | YAML 1.1 typed binary/timestamp/string/bool/null/numeric support is common | Tag-aware behavior varies, including `BadValue` for some explicit core tags | Partial/lossy |
+| Explicit core tags | Tree and `Value` loading preserve explicit `!!binary`, `!!str`, `!!bool`, `!!null`, `!!timestamp`, `!!int`, and `!!float` tags, including canonical `tag:yaml.org,2002:*` forms written verbatim or through `%TAG` handles; typed Serde reads coerce explicit `!!bool`, `!!null`, `!!int`, and `!!float` targets, including legacy boolean/null, radix, and sexagesimal spellings, while explicit `!!str` remains a string tag and does not coerce to numeric targets; retained `Value` numeric helpers parse explicit `!!int`/`!!float` spellings without erasing tag/source metadata; explicit `!!timestamp` is exposed as `saneyaml::Timestamp`, and explicit `!!binary` byte targets decode while preserving tags in retained values | YAML 1.1 typed binary/timestamp/string/bool/null/numeric support is common | Tag-aware behavior varies, including `BadValue` for some explicit core tags | Partial/lossy |
 | YAML 1.1 collection and structural tags | Tree and `Value` loading preserve explicit `!!set`, `!!omap`, `!!pairs`, `!!seq`, `!!map`, and `!!value` as tagged payloads, including canonical `tag:yaml.org,2002:*` spellings and custom `%TAG` handles that resolve to those core tags. Typed Serde reads expose `!!set` as set-like sequence targets from null-valued mapping keys, `!!omap` as pair sequences or map targets, `!!pairs` as pair sequences that preserve duplicates, `!!seq` as sequence targets, `!!map` as map/struct targets, and `!!value` as the scalar value. Malformed typed collection payloads are rejected with spans instead of following Psych's lossy recovery. | Psych/libyaml constructs `Psych::Set`, `Psych::Omap`, pair arrays, arrays, hashes, and `!!value =` as a string, and can recover malformed collection-tag payloads by retaining or reshaping them | Parser/event tag information is available, but loaded-tree and typed-Serde contracts differ | Tag metadata is not retained |
 
 ## Scalar Resolution Modes
@@ -221,13 +221,13 @@ Migration-facing API status is tracked by `docs/MIGRATION.md` and the executable
 | `from_str`, `from_slice`, `from_reader` | `saneyaml::from_str`, `saneyaml::from_slice`, `saneyaml::from_reader` | Config-shaped typed reads and `Value` reads covered; reader-backed borrowed targets remain owned-only |
 | `Deserializer::{from_str, from_slice, from_reader}` | `saneyaml::Deserializer::{from_str, from_slice, from_reader}` | Direct Serde use, stream iteration, and empty-stream behavior covered |
 | `Value`, `Mapping`, `Number` | `saneyaml::Value`, `saneyaml::Mapping`, `saneyaml::Number` | Common read, mutation, sealed indexing, helper, trait, and number conversion surfaces covered |
-| `value::to_value`, `value::Serializer` | `saneyaml::value::to_value`, `saneyaml::value::Serializer` | Value-backed serialization covered for common config shapes, tags, bytes, and 128-bit integer policy |
+| `value::to_value`, `value::Serializer` | `saneyaml::value::to_value`, `saneyaml::value::Serializer` | Value-backed serialization covered for common config shapes, tags, byte rejection, and 128-bit integer policy |
 | `to_string`, `to_writer`, `Serializer` | `saneyaml::to_string`, `saneyaml::to_writer`, `saneyaml::Serializer`, optioned writer paths | `EmitOptions::structural()` writer support covered as the default; `byte_compatible()` byte parity covered for the supported structural writer corpus; structural style knobs are opt-in, including `EnumRepresentation::SingletonMap` for global singleton-map enum writer output |
 | `with::singleton_map`, `with::singleton_map_recursive` | `saneyaml::with::singleton_map`, `saneyaml::with::singleton_map_recursive` | Read/write enum-field annotation paths covered, including singleton-map shape rejection of tag shorthand |
 
 The migration harness also contains a dedicated default-merge test showing the
-intentional split from `serde_yaml::Value`: parsed `saneyaml::Value` and
-caller-built `Value` deserialization expand untagged `<<` immediately, while
+intentional split from `serde_yaml::Value`: parsed `saneyaml::Node`/`Value` and
+caller-built `Node`/`Value` deserialization expand untagged `<<` immediately, while
 `serde_yaml::Value` keeps the literal merge key until `apply_merge()` is called.
 The packaged downstream smoke path also copies representative real-world
 fixtures into a clean crate that depends on this package as `serde_yaml`, so
@@ -238,8 +238,8 @@ Docker Compose, Kubernetes, Helm, OpenAPI, Wrangler, and Ansible inputs.
 direction of `serde_yaml::Value`: sequences contain `Vec<Value>`, mappings use
 `saneyaml::Mapping`, `Value::Tagged` preserves YAML tags, and tagged nodes remain
 visible when deserializing into `Value` or into YAML-tagged enum variants.
-YAML merge keys are expanded by default in loaded trees, `from_value`, direct
-owned/borrowed `Value` deserializers, and Serde `Value` reads using the common
+YAML merge keys are expanded by default in loaded trees, `from_node`,
+`from_value`, direct owned/borrowed `Node`/`Value` deserializers, and Serde `Value` reads using the common
 libyaml/Psych construction shape: nested merge sources are expanded before they
 are merged into aliases, earlier merge-list mappings win, explicit `!!merge` /
 canonical `tag:yaml.org,2002:merge` keys are honored, and explicit target keys
@@ -273,10 +273,11 @@ Callers that want document headers to select scalar construction can use
 construction mode, while absent, `%YAML 1.2`, and newer numeric directives use
 YAML 1.2-oriented construction. The YAML 1.1 mode resolves boolean aliases and
 numeric forms that fit `saneyaml::Number`, including signed/underscored
-leading-zero octal, hex, binary, two/three-part sexagesimal int/float forms,
-and overflow spellings retained as strings, and retains timestamp-shaped plain
-scalars as `!!timestamp` tagged strings with `saneyaml::Timestamp` available
-through `as_timestamp()` and typed Serde fields.
+leading-zero octal, hex, binary, spec-weighted two/three-part sexagesimal
+int/float forms, and overflow spellings retained as strings, and retains
+timestamp-shaped plain scalars as `!!timestamp` tagged strings with
+`saneyaml::Timestamp` available through `as_timestamp()` and typed Serde fields.
+Timestamp fractional seconds are truncated to nanosecond precision.
 The directive-driven migration fixtures cover the same scalar construction
 surface in block and flow collections together with default merge-key expansion
 and boolean, numeric, signed-zero, and alias-expanded key collision diagnostics,
@@ -400,11 +401,10 @@ singleton `collect_str` tag-map shape for `TaggedValue`; empty public tag
 constructors and empty Serde variant tags are rejected like `serde_yaml`, while
 parser events and lossless streams retain explicit non-specific `!` tag
 spelling and semantic loaded trees treat those scalar tags as string-forcing.
-Value-backed byte
-serialization follows `serde_yaml::value::Serializer` by producing a numeric
-sequence, while document writers reject `serialize_bytes` inputs like
-`serde_yaml` during the normal value serialization pass, so custom
-`Serialize` implementations are not invoked a second time for byte preflight.
+Byte serialization is rejected consistently by `saneyaml::to_value`,
+`saneyaml::value::Serializer`, document writers, and streaming serializers.
+This matches the document-writer contract and avoids producing a numeric
+sequence that cannot round-trip to byte visitors.
 Read-side byte visitors follow `serde_yaml` for plain values: parser-backed
 plain YAML scalars reject `deserialize_bytes`/`deserialize_byte_buf`,
 value-backed numeric byte sequences deserialize to `Vec<u8>` through normal
@@ -612,12 +612,12 @@ parity/divergence cases where libyaml-backed `serde_yaml` disagrees, for:
   flow collection cases, stream-marker and empty-key document shapes, unusual
   anchor-character cases, and A2M4 block-indentation behavior each have
   separate migration-impact records.
-  `tests/fixtures/yaml-test-suite/coverage.toml` also pins the full upstream
-  denominator at 402 cases from the same upstream commit, with 402 selected
-  cases and 0 not-imported cases partitioned explicitly by
-  `yaml_suite_coverage`; `conformance_dashboard` prints this 402-case
-  denominator with selected outcomes, parity deferrals, and pinned
-  Psych/libyaml divergence overlays in one auditable report.
+  `tests/fixtures/yaml-test-suite/coverage.toml` also pins the selected-suite
+  denominator at 402 copied fixtures from the same upstream commit, with 402
+  selected cases and 0 not-imported cases partitioned explicitly by
+  `yaml_suite_coverage`; `conformance_dashboard` prints this 402-case selected
+  denominator with selected outcomes, parity deferrals, and pinned Psych/libyaml
+  divergence overlays in one auditable report.
 - core scalars
 - explicit YAML 1.1 schema-mode scalars, including boolean aliases, retained
   timestamp tags, legacy radix and sexagesimal numeric forms, duplicate-key

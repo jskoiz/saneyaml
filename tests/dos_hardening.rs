@@ -312,6 +312,26 @@ fn multiline_unterminated_flow_scales_subquadratically() {
     );
 }
 
+#[test]
+fn nesting_depth_opt_out_alias_expansion_uses_iterative_accounting() {
+    let depth = 160usize;
+    let mut input = String::from("root: &root ");
+    for _ in 0..depth {
+        input.push('[');
+    }
+    input.push('0');
+    for _ in 0..depth {
+        input.push(']');
+    }
+    input.push_str("\nalias: *root\n");
+
+    let value: Value = LoadOptions::new()
+        .without_nesting_depth_limit()
+        .from_str(&input)
+        .expect("depth opt-out expands deep alias without recursive accounting");
+    assert!(value["alias"].is_sequence());
+}
+
 fn assert_all_expanding_entrypoints_reject(input: &str, options: LoadOptions, expected: &str) {
     for error in [
         options.parse_str(input).expect_err("parse_str rejects"),

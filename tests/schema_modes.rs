@@ -236,7 +236,7 @@ fn named_schema_modes_resolve_scalars_from_authoritative_table() {
             ExpectedScalar::Str("1:20"),
             ExpectedScalar::Str("1:20"),
             ExpectedScalar::Str("1:20"),
-            ExpectedScalar::I64(4800),
+            ExpectedScalar::I64(80),
         ),
         (
             "1.5",
@@ -357,7 +357,7 @@ clock: 1:20
     assert_eq!(docs[0]["flag"].as_bool(), Some(true));
     assert_eq!(docs[0]["count"].as_i64(), Some(16));
     assert_eq!(docs[0]["octal"].as_i64(), Some(83));
-    assert_eq!(docs[0]["clock"].as_i64(), Some(4800));
+    assert_eq!(docs[0]["clock"].as_i64(), Some(80));
     assert_eq!(docs[1]["flag"].as_str(), Some("ON"));
     assert_eq!(docs[1]["count"].as_str(), Some("0x10"));
     assert_eq!(docs[1]["octal"].as_i64(), Some(123));
@@ -405,7 +405,7 @@ items: [ON, 012, 0x10, 1:20, 2026-05-24]
     assert_eq!(directive["items"][0].as_bool(), Some(true));
     assert_eq!(directive["items"][1].as_i64(), Some(10));
     assert_eq!(directive["items"][2].as_i64(), Some(16));
-    assert_eq!(directive["items"][3].as_i64(), Some(4800));
+    assert_eq!(directive["items"][3].as_i64(), Some(80));
     assert_eq!(
         directive["items"][4].as_timestamp(),
         Timestamp::parse_yaml_1_1("2026-05-24")
@@ -568,9 +568,9 @@ binary_underscored: 0b10_01
     assert_eq!(value["hex"].as_i64(), Some(123));
     assert_eq!(value["binary"].as_i64(), Some(10));
     assert_eq!(value["sexagesimal"].as_i64(), Some(4830));
-    assert_eq!(value["short_sexagesimal"].as_i64(), Some(4800));
-    assert_eq!(value["negative_sexagesimal"].as_i64(), Some(-4800));
-    assert_eq!(value["float_sexagesimal"].as_f64(), Some(4830.0));
+    assert_eq!(value["short_sexagesimal"].as_i64(), Some(80));
+    assert_eq!(value["negative_sexagesimal"].as_i64(), Some(-80));
+    assert_eq!(value["float_sexagesimal"].as_f64(), Some(80.5));
     assert_eq!(value["float_seconds"].as_f64(), Some(4830.5));
     assert_eq!(value["invalid_sexagesimal"].as_str(), Some("1:60"));
     assert_eq!(value["too_many_sexagesimal"].as_str(), Some("1:20:30:40"));

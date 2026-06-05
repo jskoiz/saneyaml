@@ -21,14 +21,18 @@
 use crate::parse::parse_document_results_with_options;
 use crate::{
     Error, ErrorPathSegment, Mapping, Node, NodeValue, Number, Span, Tag, TaggedValue, Value,
-    ast::compact_decimal_number_text, error::utf8_error_span, schema::LoadOptions, yaml11,
+    ast::MergePolicy,
+    error::utf8_error_span,
+    key_identity::{DuplicateKeyTracker, check_duplicate_with_tracker_at_depth_limit},
+    schema::{DEFAULT_MAX_NESTING_DEPTH, LoadOptions},
+    yaml11,
 };
 use serde::de::{
     self, DeserializeOwned, EnumAccess, IntoDeserializer, MapAccess, SeqAccess, VariantAccess,
     Visitor,
 };
 use serde::forward_to_deserialize_any;
-use std::io::Read;
+use std::{collections::HashSet, io::Read};
 
 /// Deserializes a single YAML document from a string.
 pub fn from_str<'de, T>(input: &'de str) -> crate::Result<T>
@@ -443,6 +447,36 @@ fn value_key_is_merge_key(key: &Value) -> bool {
     }
 }
 
+fn node_key_is_merge_key(key: &Node) -> bool {
+    match &key.value {
+        NodeValue::String(_) => key.as_str() == Some("<<"),
+        NodeValue::Tagged(tagged) if tagged.tag.is_yaml_core("merge") => {
+            tagged.value.as_str() == Some("<<")
+        }
+        _ => false,
+    }
+}
+
+fn node_needs_default_merge(node: &Node) -> bool {
+    let mut nodes = vec![node];
+    while let Some(node) = nodes.pop() {
+        match &node.value {
+            NodeValue::Mapping(entries) => {
+                for (key, value) in entries {
+                    if node_key_is_merge_key(key) {
+                        return true;
+                    }
+                    nodes.push(value);
+                }
+            }
+            NodeValue::Sequence(items) => nodes.extend(items),
+            NodeValue::Tagged(tagged) => nodes.push(&tagged.value),
+            _ => {}
+        }
+    }
+    false
+}
+
 fn value_needs_default_merge(value: &Value) -> bool {
     let mut values = vec![value];
     while let Some(value) = values.pop() {
@@ -461,6 +495,74 @@ fn value_needs_default_merge(value: &Value) -> bool {
         }
     }
     false
+}
+
+fn merged_node_ref_entries(entries: &[(Node, Node)]) -> Result<Option<Vec<(&Node, &Node)>>, Error> {
+    let Some(merge_index) = entries
+        .iter()
+        .position(|(key, _)| node_key_is_merge_key(key))
+    else {
+        return Ok(None);
+    };
+
+    let mut merged = entries
+        .iter()
+        .enumerate()
+        .filter_map(|(index, (key, value))| (index != merge_index).then_some((key, value)))
+        .collect::<Vec<_>>();
+    let merge_entries = node_ref_merge_entries(&entries[merge_index].1)?;
+    insert_missing_node_ref_entries(&mut merged, merge_entries);
+    Ok(Some(merged))
+}
+
+fn node_ref_merge_entries(merge: &Node) -> Result<Vec<(&Node, &Node)>, Error> {
+    match &merge.value {
+        NodeValue::Mapping(entries) => Ok(merged_node_ref_entries(entries)?
+            .unwrap_or_else(|| entries.iter().map(|(key, value)| (key, value)).collect())),
+        NodeValue::Sequence(sequence) => {
+            let mut entries = Vec::new();
+            for node in sequence {
+                match &node.value {
+                    NodeValue::Mapping(mapping) => {
+                        let merge_entries =
+                            merged_node_ref_entries(mapping)?.unwrap_or_else(|| {
+                                mapping.iter().map(|(key, value)| (key, value)).collect()
+                            });
+                        insert_missing_node_ref_entries(&mut entries, merge_entries);
+                    }
+                    NodeValue::Sequence(_) => {
+                        return Err(value_merge_error(
+                            "expected a mapping for merging, but found sequence",
+                        ));
+                    }
+                    NodeValue::Tagged(_) => {
+                        return Err(value_merge_error("unexpected tagged value in merge"));
+                    }
+                    _ => {
+                        return Err(value_merge_error(
+                            "expected a mapping for merging, but found scalar",
+                        ));
+                    }
+                }
+            }
+            Ok(entries)
+        }
+        NodeValue::Tagged(_) => Err(value_merge_error("unexpected tagged value in merge")),
+        _ => Err(value_merge_error(
+            "expected a mapping or list of mappings for merging, but found scalar",
+        )),
+    }
+}
+
+fn insert_missing_node_ref_entries<'a>(
+    entries: &mut Vec<(&'a Node, &'a Node)>,
+    merge_entries: Vec<(&'a Node, &'a Node)>,
+) {
+    for (key, value) in merge_entries {
+        if entries.iter().all(|(existing_key, _)| *existing_key != key) {
+            entries.push((key, value));
+        }
+    }
 }
 
 fn apply_default_value_merges(mut value: Value) -> Result<Value, Error> {
@@ -568,37 +670,6 @@ fn string_source_for_scalar(node: &Node) -> Option<&str> {
         }
         _ => None,
     }
-}
-
-fn integer_source_for_scalar(node: &Node) -> Option<&str> {
-    match node.value {
-        NodeValue::String(_) => node.scalar_source().map(|source| source.raw()),
-        _ => None,
-    }
-}
-
-fn parse_i128_source(raw: &str, span: Span) -> Result<i128, Error> {
-    compact_decimal_number_text(raw)
-        .ok_or_else(|| Error::new("integer scalar is out of range for i128", Some(span)))?
-        .parse::<i128>()
-        .map_err(|_| Error::new("integer scalar is out of range for i128", Some(span)))
-}
-
-fn parse_u128_source(raw: &str, span: Span) -> Result<u128, Error> {
-    compact_decimal_number_text(raw)
-        .ok_or_else(|| {
-            Error::new(
-                "integer scalar is out of range for unsigned integer",
-                Some(span),
-            )
-        })?
-        .parse::<u128>()
-        .map_err(|_| {
-            Error::new(
-                "integer scalar is out of range for unsigned integer",
-                Some(span),
-            )
-        })
 }
 
 #[derive(Clone, Copy)]
@@ -909,6 +980,31 @@ fn take_yaml11_pair_items_value(value: Value, suffix: &'static str) -> Option<Ve
         Value::Sequence(items) => Some(items),
         _ => None,
     }
+}
+
+fn validate_yaml11_omap_node_keys(items: &[Node]) -> Result<(), Error> {
+    let mut seen = DuplicateKeyTracker::new();
+    for item in items {
+        let (key, _) = yaml11_singleton_pair_node(item, "omap")?;
+        check_duplicate_with_tracker_at_depth_limit(
+            &mut seen,
+            key,
+            1,
+            Some(DEFAULT_MAX_NESTING_DEPTH),
+        )?;
+    }
+    Ok(())
+}
+
+fn validate_yaml11_omap_value_keys(items: &[Value]) -> Result<(), Error> {
+    let mut seen = HashSet::new();
+    for item in items {
+        let (key, _) = yaml11_singleton_pair_value(item, "omap")?;
+        if !seen.insert(key) {
+            return Err(Error::new("duplicate mapping key in explicit !!omap", None));
+        }
+    }
+    Ok(())
 }
 
 fn ensure_yaml11_set_null_node(value: &Node) -> Result<(), Error> {
@@ -1474,13 +1570,6 @@ impl<'de, 'tree> de::Deserializer<'de> for InputNode<'tree, 'de> {
                     Some(node.span),
                 )),
             },
-            NodeValue::String(_) if integer_source_for_scalar(node).is_some() => {
-                let value = parse_i128_source(
-                    integer_source_for_scalar(node).expect("integer source checked"),
-                    node.span,
-                )?;
-                with_span(visitor.visit_i128(value), node.span)
-            }
             _ => Err(type_error("integer", node)),
         }
     }
@@ -1500,13 +1589,6 @@ impl<'de, 'tree> de::Deserializer<'de> for InputNode<'tree, 'de> {
             }
             NodeValue::Number(Number::Unsigned(value)) => {
                 with_span(visitor.visit_u128(*value), node.span)
-            }
-            NodeValue::String(_) if integer_source_for_scalar(node).is_some() => {
-                let value = parse_u128_source(
-                    integer_source_for_scalar(node).expect("integer source checked"),
-                    node.span,
-                )?;
-                with_span(visitor.visit_u128(value), node.span)
             }
             _ => Err(type_error("unsigned integer", node)),
         }
@@ -1736,6 +1818,7 @@ impl<'de, 'tree> de::Deserializer<'de> for InputNode<'tree, 'de> {
         V: Visitor<'de>,
     {
         if let Some(items) = yaml11_pair_items_node(self.node, "omap")? {
+            validate_yaml11_omap_node_keys(items)?;
             return visitor.visit_map(InputYaml11OmapDeserializer {
                 items,
                 input: self.input,
@@ -1843,11 +1926,18 @@ impl<'de> de::Deserializer<'de> for &'de Node {
             NodeValue::Number(number) => visit_any_number(*number, Some(self.span), visitor),
             NodeValue::String(value) => visitor.visit_borrowed_str(value),
             NodeValue::Sequence(items) => visitor.visit_seq(SeqDeserializer { items, index: 0 }),
-            NodeValue::Mapping(entries) => visitor.visit_map(MapDeserializer {
-                entries,
-                index: 0,
-                value: None,
-            }),
+            NodeValue::Mapping(entries) => match merged_node_ref_entries(entries)? {
+                Some(entries) => visitor.visit_map(MergedMapDeserializer {
+                    entries,
+                    index: 0,
+                    value: None,
+                }),
+                None => visitor.visit_map(MapDeserializer {
+                    entries,
+                    index: 0,
+                    value: None,
+                }),
+            },
             NodeValue::Tagged(tagged) => visitor.visit_enum(TaggedEnumDeserializer {
                 tag: &tagged.tag,
                 value: &tagged.value,
@@ -1978,13 +2068,6 @@ impl<'de> de::Deserializer<'de> for &'de Node {
                     Some(node.span),
                 )),
             },
-            NodeValue::String(_) if integer_source_for_scalar(node).is_some() => {
-                let value = parse_i128_source(
-                    integer_source_for_scalar(node).expect("integer source checked"),
-                    node.span,
-                )?;
-                with_span(visitor.visit_i128(value), node.span)
-            }
             _ => Err(type_error("integer", node)),
         }
     }
@@ -2004,13 +2087,6 @@ impl<'de> de::Deserializer<'de> for &'de Node {
             }
             NodeValue::Number(Number::Unsigned(value)) => {
                 with_span(visitor.visit_u128(*value), node.span)
-            }
-            NodeValue::String(_) if integer_source_for_scalar(node).is_some() => {
-                let value = parse_u128_source(
-                    integer_source_for_scalar(node).expect("integer source checked"),
-                    node.span,
-                )?;
-                with_span(visitor.visit_u128(value), node.span)
             }
             _ => Err(type_error("unsigned integer", node)),
         }
@@ -2234,6 +2310,7 @@ impl<'de> de::Deserializer<'de> for &'de Node {
         V: Visitor<'de>,
     {
         if let Some(items) = yaml11_pair_items_node(self, "omap")? {
+            validate_yaml11_omap_node_keys(items)?;
             return visitor.visit_map(Yaml11OmapDeserializer {
                 items,
                 index: 0,
@@ -2249,11 +2326,18 @@ impl<'de> de::Deserializer<'de> for &'de Node {
             });
         }
         match &node.value {
-            NodeValue::Mapping(entries) => visitor.visit_map(MapDeserializer {
-                entries,
-                index: 0,
-                value: None,
-            }),
+            NodeValue::Mapping(entries) => match merged_node_ref_entries(entries)? {
+                Some(entries) => visitor.visit_map(MergedMapDeserializer {
+                    entries,
+                    index: 0,
+                    value: None,
+                }),
+                None => visitor.visit_map(MapDeserializer {
+                    entries,
+                    index: 0,
+                    value: None,
+                }),
+            },
             _ => Err(type_error("mapping", node)),
         }
     }
@@ -2317,8 +2401,12 @@ impl<'de> de::Deserializer<'de> for Node {
     where
         V: Visitor<'de>,
     {
-        let span = self.span;
-        match self.value {
+        let mut node = self;
+        if node_needs_default_merge(&node) {
+            node.apply_merge_keys_with_policy(MergePolicy::Strict)?;
+        }
+        let span = node.span;
+        match node.value {
             NodeValue::Null => visitor.visit_unit(),
             NodeValue::Bool(value) => visitor.visit_bool(value),
             NodeValue::Number(number) => visit_any_number(number, Some(span), visitor),
@@ -2464,13 +2552,6 @@ impl<'de> de::Deserializer<'de> for Node {
                     Some(node.span),
                 )),
             },
-            NodeValue::String(_) if integer_source_for_scalar(&node).is_some() => {
-                let value = parse_i128_source(
-                    integer_source_for_scalar(&node).expect("integer source checked"),
-                    node.span,
-                )?;
-                with_span(visitor.visit_i128(value), node.span)
-            }
             other => Err(type_error_owned("integer", other, node.span)),
         }
     }
@@ -2490,13 +2571,6 @@ impl<'de> de::Deserializer<'de> for Node {
             }
             NodeValue::Number(Number::Unsigned(value)) => {
                 with_span(visitor.visit_u128(*value), node.span)
-            }
-            NodeValue::String(_) if integer_source_for_scalar(&node).is_some() => {
-                let value = parse_u128_source(
-                    integer_source_for_scalar(&node).expect("integer source checked"),
-                    node.span,
-                )?;
-                with_span(visitor.visit_u128(value), node.span)
             }
             other => Err(type_error_owned("unsigned integer", other, node.span)),
         }
@@ -2720,12 +2794,16 @@ impl<'de> de::Deserializer<'de> for Node {
     {
         if yaml11_pair_items_node(&self, "omap")?.is_some() {
             let items = take_yaml11_pair_items_node(self, "omap").expect("checked explicit !!omap");
+            validate_yaml11_omap_node_keys(&items)?;
             return visitor.visit_map(OwnedYaml11OmapDeserializer {
                 items: items.into_iter(),
                 value: None,
             });
         }
-        let node = untag_node_owned(self);
+        let mut node = untag_node_owned(self);
+        if node_needs_default_merge(&node) {
+            node.apply_merge_keys_with_policy(MergePolicy::Strict)?;
+        }
         if is_empty_null_node(&node) {
             return visitor.visit_map(OwnedMapDeserializer {
                 entries: Vec::<(Node, Node)>::new().into_iter(),
@@ -3156,6 +3234,7 @@ impl<'de> de::Deserializer<'de> for Value {
         if yaml11_pair_items_value(&value, "omap")?.is_some() {
             let items =
                 take_yaml11_pair_items_value(value, "omap").expect("checked explicit !!omap");
+            validate_yaml11_omap_value_keys(&items)?;
             return visitor.visit_map(ValueYaml11OmapDeserializer {
                 items: items.into_iter(),
                 value: None,
@@ -4555,6 +4634,7 @@ impl<'de> de::Deserializer<'de> for &'de Value {
         V: Visitor<'de>,
     {
         if let Some(items) = yaml11_pair_items_value(self, "omap")? {
+            validate_yaml11_omap_value_keys(items)?;
             return visitor.visit_map(ValueRefYaml11OmapDeserializer {
                 items,
                 index: 0,
@@ -5659,6 +5739,12 @@ struct MapDeserializer<'a> {
     value: Option<(&'a Node, ErrorPathSegment)>,
 }
 
+struct MergedMapDeserializer<'a> {
+    entries: Vec<(&'a Node, &'a Node)>,
+    index: usize,
+    value: Option<(&'a Node, ErrorPathSegment)>,
+}
+
 struct InputMapDeserializer<'tree, 'de> {
     entries: &'tree [(Node, Node)],
     input: &'de str,
@@ -5727,6 +5813,41 @@ impl<'de> MapAccess<'de> for MapDeserializer<'de> {
         let segment = node_path_segment(key);
         self.value = Some((value, segment.clone()));
         with_key_path(seed.deserialize(key), segment)
+            .map(Some)
+            .map_err(|error| error.with_span_if_missing(key.span))
+    }
+
+    fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
+    where
+        V: de::DeserializeSeed<'de>,
+    {
+        let (value, segment) = self
+            .value
+            .take()
+            .ok_or_else(|| Error::new("value requested before key", None))?;
+        with_value_path(seed.deserialize(value), segment)
+            .map_err(|error| error.with_span_if_missing(value.span))
+    }
+
+    fn size_hint(&self) -> Option<usize> {
+        Some(self.entries.len().saturating_sub(self.index))
+    }
+}
+
+impl<'de> MapAccess<'de> for MergedMapDeserializer<'de> {
+    type Error = Error;
+
+    fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error>
+    where
+        K: de::DeserializeSeed<'de>,
+    {
+        let Some((key, value)) = self.entries.get(self.index) else {
+            return Ok(None);
+        };
+        self.index += 1;
+        let segment = node_path_segment(key);
+        self.value = Some((value, segment.clone()));
+        with_key_path(seed.deserialize(*key), segment)
             .map(Some)
             .map_err(|error| error.with_span_if_missing(key.span))
     }

@@ -1,4 +1,6 @@
-use saneyaml::{LoadOptions, Mapping, Number, Sequence, Tag, TaggedValue, Value};
+use saneyaml::{
+    LoadOptions, Mapping, Node, NodeValue, Number, Sequence, Span, Tag, TaggedValue, Value,
+};
 use serde::{
     Deserialize, Serialize,
     de::{self, IgnoredAny, IntoDeserializer, Visitor},
@@ -258,6 +260,34 @@ fn caller_built_merge_value() -> Value {
     let mut root = Mapping::new();
     root.insert(Value::from("job"), Value::Mapping(job));
     Value::Mapping(root)
+}
+
+fn string_node(value: &str) -> Node {
+    Node::new(NodeValue::String(value.to_string()), Span::default())
+}
+
+fn unsigned_node(value: u128) -> Node {
+    Node::new(NodeValue::Number(Number::Unsigned(value)), Span::default())
+}
+
+fn mapping_node(entries: Vec<(Node, Node)>) -> Node {
+    Node::new(NodeValue::Mapping(entries), Span::default())
+}
+
+fn caller_built_merge_node() -> Node {
+    let defaults = mapping_node(vec![
+        (string_node("retries"), unsigned_node(3)),
+        (string_node("timeout"), unsigned_node(30)),
+        (string_node("command"), string_node("deploy")),
+    ]);
+
+    let job = mapping_node(vec![
+        (string_node("<<"), defaults),
+        (string_node("timeout"), unsigned_node(10)),
+        (string_node("command"), string_node("smoke")),
+    ]);
+
+    mapping_node(vec![(string_node("job"), job)])
 }
 
 fn caller_built_enum_merge_value() -> Value {
@@ -1151,31 +1181,29 @@ fn serde_api_value_module_serializer_matches_to_value_path() {
 }
 
 #[test]
-fn serde_api_to_value_serializes_bytes_like_serde_yaml_value_serializer() {
+fn serde_api_to_value_rejects_bytes_like_document_writers() {
     let bytes = SerializableBytes(b"\0A\xff");
-    let value = saneyaml::to_value(bytes).expect("yaml to_value bytes");
-    let direct = bytes
+    let value_error = saneyaml::to_value(bytes).expect_err("yaml to_value rejects bytes");
+    let direct_error = bytes
         .serialize(saneyaml::value::Serializer)
-        .expect("yaml value serializer bytes");
-    let reference = serde_yaml::to_value(bytes).expect("serde_yaml to_value bytes");
+        .expect_err("yaml value serializer rejects bytes");
 
-    assert_eq!(value, direct);
-    let sequence = value.as_sequence().expect("yaml bytes become sequence");
-    let serde_yaml::Value::Sequence(reference_sequence) = reference else {
-        panic!("serde_yaml bytes become sequence");
-    };
-    assert_eq!(sequence.len(), reference_sequence.len());
-    for (item, reference_item) in sequence.iter().zip(reference_sequence.iter()) {
-        assert_eq!(item.as_u64(), reference_item.as_u64());
-    }
+    assert!(value_error.to_string().contains("serialization of bytes"));
+    assert!(direct_error.to_string().contains("serialization of bytes"));
+    assert!(saneyaml::to_string(&bytes).is_err());
 }
 
 #[test]
 fn serde_api_value_byte_deserialization_matches_serde_yaml_value_policy() {
     let expected = vec![0, 65, 255];
-    let bytes = SerializableBytes(b"\0A\xff");
-    let value = saneyaml::to_value(bytes).expect("yaml to_value bytes");
-    let reference = serde_yaml::to_value(bytes).expect("serde_yaml to_value bytes");
+    let value = Value::Sequence(expected.iter().copied().map(Value::from).collect());
+    let reference = serde_yaml::Value::Sequence(
+        expected
+            .iter()
+            .copied()
+            .map(serde_yaml::Value::from)
+            .collect(),
+    );
 
     let ours_vec: Vec<u8> =
         saneyaml::from_value(value.clone()).expect("yaml byte sequence to Vec<u8>");
@@ -1886,18 +1914,20 @@ fn serde_api_emit_style_options_thread_through_all_writers() {
 fn serde_api_document_writers_reject_bytes_like_serde_yaml() {
     let bytes = SerializableBytes(b"\0A\xff");
     let reference = serde_yaml::to_string(&bytes).expect_err("serde_yaml rejects bytes");
+    let expected = "serialization of bytes in YAML is not implemented";
+    assert!(reference.to_string().contains("bytes in YAML"));
 
     let error = saneyaml::to_string(&bytes).expect_err("yaml to_string rejects bytes");
-    assert_eq!(error.to_string(), reference.to_string());
+    assert_eq!(error.to_string(), expected);
     let byte_error =
         saneyaml::to_string_with_options(&bytes, saneyaml::EmitOptions::byte_compatible())
             .expect_err("byte compatible to_string rejects bytes");
-    assert_eq!(byte_error.to_string(), reference.to_string());
+    assert_eq!(byte_error.to_string(), expected);
 
     let mut written = Vec::new();
     let error =
         saneyaml::to_writer(&mut written, &bytes).expect_err("yaml to_writer rejects bytes");
-    assert_eq!(error.to_string(), reference.to_string());
+    assert_eq!(error.to_string(), expected);
     assert!(written.is_empty());
     let byte_writer_error = saneyaml::to_writer_with_options(
         &mut written,
@@ -1905,21 +1935,22 @@ fn serde_api_document_writers_reject_bytes_like_serde_yaml() {
         saneyaml::EmitOptions::byte_compatible(),
     )
     .expect_err("byte compatible to_writer rejects bytes");
-    assert_eq!(byte_writer_error.to_string(), reference.to_string());
+    assert_eq!(byte_writer_error.to_string(), expected);
     assert!(written.is_empty());
 
     let nested = BTreeMap::from([("payload", bytes)]);
     let nested_error = saneyaml::to_string(&nested).expect_err("yaml rejects nested bytes");
     let nested_reference =
         serde_yaml::to_string(&nested).expect_err("serde_yaml rejects nested bytes");
-    assert_eq!(nested_error.to_string(), nested_reference.to_string());
+    assert_eq!(nested_error.to_string(), expected);
+    assert!(nested_reference.to_string().contains("bytes in YAML"));
 
     let mut buffer = Vec::new();
     let mut serializer = saneyaml::Serializer::new(&mut buffer);
     let streaming_error = bytes
         .serialize(&mut serializer)
         .expect_err("yaml streaming serializer rejects bytes");
-    assert_eq!(streaming_error.to_string(), reference.to_string());
+    assert_eq!(streaming_error.to_string(), expected);
     assert!(buffer.is_empty());
     let mut byte_buffer = Vec::new();
     let mut byte_serializer = saneyaml::Serializer::with_options(
@@ -1929,7 +1960,7 @@ fn serde_api_document_writers_reject_bytes_like_serde_yaml() {
     let byte_streaming_error = bytes
         .serialize(&mut byte_serializer)
         .expect_err("byte compatible streaming serializer rejects bytes");
-    assert_eq!(byte_streaming_error.to_string(), reference.to_string());
+    assert_eq!(byte_streaming_error.to_string(), expected);
     assert!(byte_buffer.is_empty());
 
     let mut nested_buffer = Vec::new();
@@ -1937,7 +1968,7 @@ fn serde_api_document_writers_reject_bytes_like_serde_yaml() {
     let nested_streaming_error = nested
         .serialize(&mut nested_serializer)
         .expect_err("yaml streaming serializer rejects nested bytes");
-    assert_eq!(nested_streaming_error.to_string(), reference.to_string());
+    assert_eq!(nested_streaming_error.to_string(), expected);
     assert!(nested_buffer.is_empty());
 }
 
@@ -2586,6 +2617,33 @@ fn serde_api_value_public_traits_match_serde_yaml_adoption_surface() {
     let second_nan = Value::Number(Number::Float(f64::from_bits(0x7ff8_0000_0000_0002)));
     assert_eq!(first_nan, second_nan);
     assert_eq!(hash_of(&first_nan), hash_of(&second_nan));
+    assert_eq!(first_nan.partial_cmp(&second_nan), None);
+    assert_eq!(
+        Number::Float(f64::NAN).partial_cmp(&Number::Integer(5)),
+        None
+    );
+    assert_eq!(
+        Number::Integer(5).partial_cmp(&Number::Float(f64::NAN)),
+        None
+    );
+    assert_eq!(
+        first_nan.partial_cmp(&Value::Number(Number::Integer(5))),
+        None
+    );
+    assert_eq!(
+        Value::Number(Number::Integer(5)).partial_cmp(&first_nan),
+        None
+    );
+    let visitor_nan_bits = 0x7ff8_0000_0000_0007;
+    let visitor_nan_deserializer: de::value::F64Deserializer<de::value::Error> =
+        f64::from_bits(visitor_nan_bits).into_deserializer();
+    let visitor_nan =
+        Value::deserialize(visitor_nan_deserializer).expect("f64 visitor builds value");
+    let Value::Number(Number::Float(visitor_nan)) = visitor_nan else {
+        panic!("expected visitor float value");
+    };
+    assert!(visitor_nan.is_nan());
+    assert_eq!(visitor_nan.to_bits(), f64::NAN.copysign(1.0).to_bits());
 
     let positive_zero = Value::Number(Number::Float(0.0));
     let negative_zero = Value::Number(Number::Float(-0.0));
@@ -3877,12 +3935,12 @@ fn serde_api_explicit_core_numeric_tags_support_yaml11_legacy_typed_reads() {
     fn assert_explicit_core_numbers(actual: &ExplicitCoreNumbers) {
         assert_eq!(actual.hex, 123);
         assert_eq!(actual.octal, 83);
-        assert_eq!(actual.sexagesimal, 4800);
-        assert_eq!(actual.negative_sexagesimal, -4800);
+        assert_eq!(actual.sexagesimal, 80);
+        assert_eq!(actual.negative_sexagesimal, -80);
         assert_eq!(actual.unsigned, 42);
         assert_eq!(actual.as_float, 7.0);
-        assert_eq!(actual.float_from_int_tag, 4830.0);
-        assert_eq!(actual.sexagesimal_float, 4830.0);
+        assert_eq!(actual.float_from_int_tag, 80.5);
+        assert_eq!(actual.sexagesimal_float, 80.5);
         assert_eq!(actual.sexagesimal_seconds_float, 4830.5);
         assert_eq!(actual.inf, f64::INFINITY);
         assert_eq!(actual.neg_inf, f64::NEG_INFINITY);
@@ -3929,14 +3987,14 @@ nan: !!float .nan
     assert_eq!(value["octal"].as_str(), Some("0123"));
     assert_eq!(value["octal"].as_u64(), Some(83));
     assert_eq!(value["sexagesimal"].as_str(), Some("1:20"));
-    assert_eq!(value["sexagesimal"].as_i64(), Some(4800));
-    assert_eq!(value["negative_sexagesimal"].as_i64(), Some(-4800));
+    assert_eq!(value["sexagesimal"].as_i64(), Some(80));
+    assert_eq!(value["negative_sexagesimal"].as_i64(), Some(-80));
     assert_eq!(value["unsigned"].as_u64(), Some(42));
     assert_eq!(value["as_float"].as_f64(), Some(7.0));
     assert_eq!(value["float_from_int_tag"].as_i64(), None);
-    assert_eq!(value["float_from_int_tag"].as_f64(), Some(4830.0));
+    assert_eq!(value["float_from_int_tag"].as_f64(), Some(80.5));
     assert!(value["float_from_int_tag"].is_f64());
-    assert_eq!(value["sexagesimal_float"].as_f64(), Some(4830.0));
+    assert_eq!(value["sexagesimal_float"].as_f64(), Some(80.5));
     assert_eq!(value["sexagesimal_seconds_float"].as_f64(), Some(4830.5));
     assert_eq!(value["inf"].as_f64(), Some(f64::INFINITY));
     assert_eq!(value["neg_inf"].as_f64(), Some(f64::NEG_INFINITY));
@@ -5600,6 +5658,52 @@ fn serde_api_caller_built_value_deserializers_expand_merge_keys_by_default() {
 }
 
 #[test]
+fn serde_api_caller_built_node_deserializers_expand_merge_keys_by_default() {
+    let node = caller_built_merge_node();
+    let expected = CallerBuiltMergeRoot {
+        job: CallerBuiltMergeJob {
+            retries: 3,
+            timeout: 10,
+            command: "smoke".to_string(),
+        },
+    };
+
+    let from_node: CallerBuiltMergeRoot =
+        saneyaml::from_node(&node).expect("from_node expands caller-built merge");
+    let direct: CallerBuiltMergeRoot =
+        CallerBuiltMergeRoot::deserialize(node.clone()).expect("Node deserializer expands merge");
+    let by_ref: CallerBuiltMergeRoot =
+        CallerBuiltMergeRoot::deserialize(&node).expect("&Node deserializer expands merge");
+
+    assert_eq!(from_node, expected);
+    assert_eq!(direct, expected);
+    assert_eq!(by_ref, expected);
+
+    let normalized: Value = saneyaml::from_node(&node).expect("from_node to Value");
+    assert!(normalized["job"]["<<"].is_null());
+    assert_eq!(normalized["job"]["retries"].as_u64(), Some(3));
+    assert_eq!(normalized["job"]["timeout"].as_u64(), Some(10));
+    assert_eq!(normalized["job"]["command"].as_str(), Some("smoke"));
+
+    match &node.value {
+        NodeValue::Mapping(root) => {
+            let (_, job) = root
+                .iter()
+                .find(|(key, _)| key.as_str() == Some("job"))
+                .expect("raw job mapping");
+            match &job.value {
+                NodeValue::Mapping(job) => assert!(
+                    job.iter().any(|(key, _)| key.as_str() == Some("<<")),
+                    "borrowed/default reads must not mutate the caller-built node"
+                ),
+                other => panic!("expected raw job mapping, got {other:?}"),
+            }
+        }
+        other => panic!("expected raw root mapping, got {other:?}"),
+    }
+}
+
+#[test]
 fn serde_api_caller_built_value_enum_deserializers_expand_merge_keys_by_default() {
     let value = caller_built_enum_merge_value();
     let expected = SingletonAction::Shell {
@@ -5738,6 +5842,29 @@ fn serde_api_caller_built_value_merge_reports_invalid_payloads() {
 
     let error = Value::deserialize(Value::Mapping(target))
         .expect_err("direct Value deserializer rejects invalid caller-built merge payload");
+    assert!(
+        error
+            .to_string()
+            .contains("expected a mapping or list of mappings for merging, but found scalar"),
+        "{error}"
+    );
+}
+
+#[test]
+fn serde_api_caller_built_node_merge_reports_invalid_payloads() {
+    let target = mapping_node(vec![(string_node("<<"), string_node("scalar"))]);
+
+    let error = saneyaml::from_node::<Value>(&target)
+        .expect_err("from_node rejects invalid caller-built merge payload");
+    assert!(
+        error
+            .to_string()
+            .contains("expected a mapping or list of mappings for merging, but found scalar"),
+        "{error}"
+    );
+
+    let error = Value::deserialize(&target)
+        .expect_err("direct &Node deserializer rejects invalid caller-built merge payload");
     assert!(
         error
             .to_string()
@@ -6184,6 +6311,37 @@ fn serde_api_target_aware_i128_u128_scalars_match_serde_yaml() {
             .unwrap_or_else(|error| panic!("serde_yaml parses {scalar} into u128: {error}"));
         assert_eq!(parsed, reference, "{scalar}");
     }
+}
+
+#[test]
+fn serde_api_explicit_str_numeric_scalars_do_not_coerce_to_integers() {
+    let input = "!!str 7\n";
+
+    let i64_error = saneyaml::from_str::<i64>(input).expect_err("!!str does not coerce to i64");
+    assert!(i64_error.to_string().contains("expected integer"));
+    let u64_error = saneyaml::from_str::<u64>(input).expect_err("!!str does not coerce to u64");
+    assert!(u64_error.to_string().contains("expected unsigned integer"));
+    let i128_error = saneyaml::from_str::<i128>(input).expect_err("!!str does not coerce to i128");
+    assert!(i128_error.to_string().contains("expected integer"));
+    let u128_error = saneyaml::from_str::<u128>(input).expect_err("!!str does not coerce to u128");
+    assert!(u128_error.to_string().contains("expected unsigned integer"));
+
+    let node = saneyaml::parse_str(input).expect("explicit string node");
+    assert!(i128::deserialize(&node).is_err());
+    assert!(u128::deserialize(node.clone()).is_err());
+
+    let tagged_value: Value = node.into();
+    assert!(saneyaml::from_value::<i128>(tagged_value.clone()).is_err());
+    assert!(saneyaml::from_value::<u128>(tagged_value).is_err());
+
+    assert_eq!(
+        saneyaml::from_str::<i128>("!!int 7\n").expect("!!int i128"),
+        7
+    );
+    assert_eq!(
+        saneyaml::from_str::<u128>("!!int 7\n").expect("!!int u128"),
+        7
+    );
 }
 
 #[test]

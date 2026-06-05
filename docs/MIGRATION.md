@@ -241,7 +241,7 @@ are additive diagnostics.
 | `serde_yaml::Mapping` | `saneyaml::Mapping` | Covered for insertion, lookup, entry API, iteration, equality, hashing, and ordering |
 | `serde_yaml::Number` | `saneyaml::Number` | Covered for helpers, parsing, display, direct deserialization, and widened integer targets |
 | `serde_yaml::value::to_value` | `saneyaml::value::to_value` | Covered for common config-shaped serialization |
-| `serde_yaml::value::Serializer` | `saneyaml::value::Serializer` | Covered for value-backed serialization, bytes, tags, and 128-bit integer policy |
+| `serde_yaml::value::Serializer` | `saneyaml::value::Serializer` | Covered for value-backed serialization, byte rejection, tags, and 128-bit integer policy |
 | `serde_yaml::to_string` | `saneyaml::to_string`; `saneyaml::to_string_with_options` | `EmitOptions::structural()` output covered as the default; `byte_compatible()` matches `serde_yaml` bytes for the supported structural writer corpus; structural style knobs are opt-in, including `EnumRepresentation::SingletonMap` for global singleton-map enum output |
 | `serde_yaml::to_writer` | `saneyaml::to_writer`; `saneyaml::to_writer_with_options` | `EmitOptions::structural()` output covered as the default; `byte_compatible()` writer bytes covered for the supported structural writer corpus; structural style knobs are opt-in, including `EnumRepresentation::SingletonMap` for global singleton-map enum output |
 | `serde_yaml::Serializer` | `saneyaml::Serializer` | Covered for multi-document writer usage and document marker policy; `Serializer::with_options(..., EmitOptions::structural())` matches the default writer path, and `Serializer::with_options(..., EmitOptions::byte_compatible())` matches `serde_yaml` for the supported structural stream corpus; `Serializer::with_options(..., options.with_enum_representation(EnumRepresentation::SingletonMap))` applies the singleton-map enum writer shape globally |
@@ -310,12 +310,13 @@ currently covers:
 - `with::singleton_map` enum field annotations, including upstream-style
   rejection of YAML tag shorthand through those helper paths
 - default untagged and explicit merge-tag expansion for parsed and caller-built
-  `Value` deserialization plus idempotent `Value::apply_merge` as an in-place
+  `Node`/`Value` deserialization plus idempotent `Value::apply_merge` as an in-place
   helper
-- value-backed bytes and writer byte rejection policy
+- value-backed and writer byte rejection policy
 - empty input and empty stream behavior
-- the default merge-key migration decision: parsed `saneyaml::Value`, `from_value`,
-  and direct owned/borrowed `Value` Serde reads expand `<<`, while
+- the default merge-key migration decision: parsed `saneyaml::Node`/`Value`,
+  `from_node`, `from_value`, and direct owned/borrowed `Node`/`Value` Serde
+  reads expand `<<`, while
   `serde_yaml::Value` keeps the literal key until `apply_merge()`
 - real-world GitHub Actions, Docker Compose, Kubernetes, Helm, OpenAPI,
   Wrangler, and Ansible fixture fields compared against `serde_yaml`, including
@@ -481,10 +482,11 @@ testing each adopter's own YAML corpus.
   `docs/COMPATIBILITY.md`.
 - YAML 1.1 scalar construction is explicit. `LoadOptions` can resolve legacy
   boolean/null aliases plus timestamp-shaped plain scalars, signed and
-  underscored leading-zero octal, hex, binary numeric, two/three-part
-  sexagesimal int/float forms, and numeric forms that fit `saneyaml::Number`, while
-  oversized numeric spellings stay strings. Timestamps keep `!!timestamp`
-  tag/source metadata in `Value`/`Node` and expose `saneyaml::Timestamp` through
+  underscored leading-zero octal, hex, binary numeric, spec-weighted
+  two/three-part sexagesimal int/float forms, and numeric forms that fit
+  `saneyaml::Number`, while oversized numeric spellings stay strings.
+  Timestamps keep `!!timestamp` tag/source metadata in `Value`/`Node`, truncate
+  fractional seconds to nanoseconds, and expose `saneyaml::Timestamp` through
   `as_timestamp()` and typed Serde reads. `!!binary` payloads, including
   whitespace-separated payloads, are retained as tagged strings in `Value`/`Node`
   while decoding for typed byte targets such as `Vec<u8>`,
@@ -522,8 +524,8 @@ testing each adopter's own YAML corpus.
   values and non-singleton `!!omap`/`!!pairs` entries are rejected for those
   typed reads instead of being silently dropped or flattened.
 - Untagged and explicit `!!merge` / canonical merge-tag keys are expanded by
-  default in loaded trees, `from_value`, and direct owned/borrowed `Value`
-  Serde reads. `Value::apply_merge()` remains available as an explicit
+  default in loaded trees, `from_node`, `from_value`, and direct owned/borrowed
+  `Node`/`Value` Serde reads. `Value::apply_merge()` remains available as an explicit
   in-place helper and is idempotent for values parsed by this crate. Explicit
   `!!str <<` and custom-tagged `<<` keys stay literal.
 - `saneyaml::Deserializer::from_str("")`, `from_slice(b"")`, and
@@ -541,19 +543,19 @@ testing each adopter's own YAML corpus.
   `usize` indexes `Value` sequences and numeric mapping keys; direct
   `Mapping` indexing accepts string-like keys or `Value` keys, not sequence
   positions.
-- Full upstream YAML test-suite coverage is now classified; the pinned coverage
-  ledger records 402 upstream cases, 402 selected cases, and 0 not-imported
-  cases, while selected-suite scope and deferred parity cases remain documented
-  in `docs/COMPATIBILITY.md`. `cargo test --test
-  conformance_dashboard -- --nocapture` prints the current 402-case dashboard
-  and keeps documented divergence overlays separate from accepted/rejected
-  outcome counts.
+- Selected-suite YAML test coverage is now classified; the pinned coverage
+  ledger records 402 copied upstream fixtures, 402 selected cases, and 0
+  not-imported cases for that copied fixture set, while selected-suite scope and
+  deferred parity cases remain documented in `docs/COMPATIBILITY.md`.
+  `cargo test --test conformance_dashboard -- --nocapture` prints the current
+  402-case selected-suite dashboard and keeps documented divergence overlays
+  separate from accepted/rejected outcome counts.
 
 ## Migration Impact Ledger
 
 | Area | Migration impact |
 |---|---|
-| Default merge expansion | Parsed `Node`/`Value`, `from_value`, direct owned/borrowed `Value` deserializers, and other Serde reads expand untagged and explicit merge-tag `<<` keys by default. Code that inspected merge syntax should switch to `parse_events`, `LosslessStream`, `LosslessStream::effective_mapping_entries`, or inspect caller-built `Value` before deserializing; explicit `!!str <<` and custom-tagged `<<` keys remain literal. |
+| Default merge expansion | Parsed `Node`/`Value`, `from_node`, `from_value`, direct owned/borrowed `Node`/`Value` deserializers, and other Serde reads expand untagged and explicit merge-tag `<<` keys by default. Code that inspected merge syntax should switch to `parse_events`, `LosslessStream`, `LosslessStream::effective_mapping_entries`, or inspect caller-built `Node`/`Value` before deserializing; explicit `!!str <<` and custom-tagged `<<` keys remain literal. |
 | YAML 1.1 compatibility | Legacy scalar, collection, and merge-edge recovery behavior is available through explicit schema/tag paths. Default entrypoints stay YAML 1.2-oriented, so corpora that require YAML 1.1 typing or Psych-style repeated/invalid merge recovery need opt-in tests. |
 | Alias graph identity | Semantic `Node`/`Value` trees intentionally clone acyclic aliases and reject recursive alias expansion. Graph-sensitive callers should use `LosslessStream`; its anchor definitions and alias targets are checked against reference parser anchor events for redefinition, recursive, document-reset, merge, YAML 1.1 merge/comment graph fixtures, post-edit source output, manifest-owned selected YAML-suite anchor/alias cases, and manifest-owned real-world Docker Compose anchor cases including an adapted official Compose Specification fragment. `LosslessStream::effective_mapping_entries` exposes merge-derived entries with alias/anchor provenance for callers that need effective config inspection without losing graph identity. |
 | Lossless formatting | `LosslessStream` preserves source, comments, trivia, directives, anchors, aliases, tags, and scalar spelling for replay/inspection, including a merge-effective mapping view that leaves the original source untouched. `LosslessEdit` can replace retained node or raw source spans, update scalar-keyed block/flow mapping values, insert or delete block/flow mapping entries, update block/flow sequence items, insert or delete block/flow sequence items, insert source, delete source spans, and validate the final YAML while preserving untouched bytes. `ConfigEditor` reparses between high-level path operations so chained config edits use current-source spans, and `ConfigPath::json_pointer` covers keys containing `/` or `~` without relying on dotted splitting. Manifest-owned real-world replay now gates GitHub Actions comments, flow-style lists, and expression strings, Ansible tagged scalars, plus Kubernetes streams and block scalar fixtures. |

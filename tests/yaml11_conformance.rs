@@ -1,4 +1,4 @@
-use saneyaml::{LoadOptions, LosslessNodeKind, Timestamp, Value};
+use saneyaml::{LoadOptions, LosslessNodeKind, Mapping, Tag, TaggedValue, Timestamp, Value};
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -494,6 +494,64 @@ fn yaml11_collection_tags_reject_lossy_typed_shapes() {
 }
 
 #[test]
+fn yaml11_omap_map_targets_reject_duplicate_keys_before_deduping() {
+    let source = "!!omap\n- z: 1\n- a: 2\n- z: 3\n";
+    let pairs: Vec<(String, i64)> =
+        saneyaml::from_str(source).expect("pair sequence preserves duplicate omap entries");
+    assert_eq!(
+        pairs,
+        vec![
+            ("z".to_string(), 1),
+            ("a".to_string(), 2),
+            ("z".to_string(), 3)
+        ]
+    );
+
+    let error = saneyaml::from_str::<BTreeMap<String, i64>>(source)
+        .expect_err("parser-backed omap map rejects duplicate keys");
+    assert!(error.to_string().contains("duplicate mapping key `z`"));
+    assert_eq!(error.line(), Some(4));
+    assert_eq!(error.column(), Some(3));
+
+    let node = saneyaml::parse_str(source).expect("explicit omap node");
+    let error = saneyaml::from_node::<BTreeMap<String, i64>>(&node)
+        .expect_err("from_node omap map rejects duplicate keys");
+    assert!(error.to_string().contains("duplicate mapping key `z`"));
+
+    let mut first = Mapping::new();
+    first.insert(Value::from("z"), Value::from(1u64));
+    let mut second = Mapping::new();
+    second.insert(Value::from("a"), Value::from(2u64));
+    let mut third = Mapping::new();
+    third.insert(Value::from("z"), Value::from(3u64));
+    let value = Value::Tagged(Box::new(TaggedValue {
+        tag: Tag::new("!!omap"),
+        value: Value::Sequence(vec![
+            Value::Mapping(first),
+            Value::Mapping(second),
+            Value::Mapping(third),
+        ]),
+    }));
+
+    let error = saneyaml::from_value::<BTreeMap<String, i64>>(value.clone())
+        .expect_err("from_value omap map rejects duplicate keys");
+    assert!(
+        error
+            .to_string()
+            .contains("duplicate mapping key in explicit !!omap"),
+        "{error}"
+    );
+    let error = BTreeMap::<String, i64>::deserialize(&value)
+        .expect_err("&Value omap map rejects duplicate keys");
+    assert!(
+        error
+            .to_string()
+            .contains("duplicate mapping key in explicit !!omap"),
+        "{error}"
+    );
+}
+
+#[test]
 fn yaml11_legacy_migration_pack_covers_default_explicit_and_directive_modes() {
     let source = read_fixture("legacy-migration-pack.yaml");
 
@@ -608,8 +666,8 @@ fn yaml11_legacy_scalar_denominator_covers_public_entrypoints() {
         },
         sexagesimal: LegacySexagesimal {
             integer: 45_296,
-            short_float: 4_830.0,
-            signed: -4_800,
+            short_float: 80.5,
+            signed: -80,
             invalid: "1:60".to_string(),
         },
         timestamps: LegacyTimestampDenominator {
@@ -669,9 +727,9 @@ fn yaml11_negative_sexagesimal_sign_applies_to_whole_magnitude() {
         .expect("negative sexagesimal values parse");
 
     assert_eq!(value["int"].as_i64(), Some(-5_430));
-    assert_eq!(value["short"].as_i64(), Some(-5_400));
+    assert_eq!(value["short"].as_i64(), Some(-90));
     assert_eq!(value["float"].as_f64(), Some(-5_430.5));
-    assert_eq!(value["short_float"].as_f64(), Some(-5_430.0));
+    assert_eq!(value["short_float"].as_f64(), Some(-90.5));
 }
 
 #[test]
@@ -1218,6 +1276,21 @@ fn yaml11_legacy_scalar_edge_stream_switches_per_document() {
 }
 
 #[test]
+fn yaml11_timestamps_truncate_fractional_seconds_to_nanoseconds() {
+    let timestamp =
+        Timestamp::parse_yaml_1_1("2026-05-24T12:34:56.123456789987Z").expect("timestamp");
+    assert_eq!(
+        timestamp.time().expect("time component").nanosecond(),
+        123_456_789
+    );
+
+    let value: Value = LoadOptions::yaml_1_1()
+        .from_str("ts: 2026-05-24T12:34:56.123456789987Z\n")
+        .expect("YAML 1.1 timestamp with long fraction");
+    assert_eq!(value["ts"].as_timestamp(), Some(timestamp));
+}
+
+#[test]
 fn yaml11_directive_boundary_stream_resets_schema_and_tag_handles() {
     let source = read_fixture("directive-boundary-stream.yaml");
     let options = LoadOptions::yaml_version_directive();
@@ -1407,7 +1480,7 @@ fn yaml11_legacy_flow_scalar_fixture_switches_inside_flow_collections() {
     assert_eq!(directive["flow_scalars"][0].as_bool(), Some(true));
     assert_eq!(directive["flow_scalars"][1].as_i64(), Some(10));
     assert_eq!(directive["flow_scalars"][2].as_i64(), Some(16));
-    assert_eq!(directive["flow_scalars"][3].as_i64(), Some(4800));
+    assert_eq!(directive["flow_scalars"][3].as_i64(), Some(80));
     assert_eq!(
         directive["flow_scalars"][4].as_timestamp(),
         Timestamp::parse_yaml_1_1("2026-05-24")
@@ -1415,7 +1488,7 @@ fn yaml11_legacy_flow_scalar_fixture_switches_inside_flow_collections() {
     assert_eq!(directive["flow_mapping"]["enabled"].as_bool(), Some(false));
     assert_eq!(directive["flow_mapping"]["octal"].as_i64(), Some(10));
     assert_eq!(directive["flow_mapping"]["hex"].as_i64(), Some(16));
-    assert_eq!(directive["flow_mapping"]["clock"].as_i64(), Some(4800));
+    assert_eq!(directive["flow_mapping"]["clock"].as_i64(), Some(80));
 
     let flow_keys = directive["flow_keys"]
         .as_mapping()

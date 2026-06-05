@@ -32,8 +32,7 @@ use serde::ser::{
 use std::io::Write;
 
 const NUMBER_STRUCT: &str = "$saneyaml::Number";
-const BYTES_UNSUPPORTED: &str =
-    "serialization and deserialization of bytes in YAML is not implemented";
+const BYTES_UNSUPPORTED: &str = "serialization of bytes in YAML is not implemented";
 const MAX_SERIALIZE_HINT_PREALLOC: usize = 4096;
 
 /// Converts a serializable value into a YAML [`Value`].
@@ -709,10 +708,8 @@ impl ser::Serializer for ValueSerializer {
         Ok(Value::String(value.to_string()))
     }
 
-    fn serialize_bytes(self, value: &[u8]) -> Result<Value> {
-        Ok(Value::Sequence(
-            value.iter().copied().map(Value::from).collect(),
-        ))
+    fn serialize_bytes(self, _value: &[u8]) -> Result<Value> {
+        Err(bytes_unsupported_error())
     }
 
     fn serialize_none(self) -> Result<Value> {

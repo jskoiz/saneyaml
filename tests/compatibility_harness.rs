@@ -1619,7 +1619,7 @@ fn compatibility_yaml_11_schema_is_explicit_not_directive_implicit() {
     );
     assert_eq!(
         saneyaml::Value::from(&legacy_entries[3].1).as_i64(),
-        Some(4800)
+        Some(80)
     );
 }
 
@@ -1641,7 +1641,7 @@ fn compatibility_yaml_11_schema_can_follow_version_directives_explicitly() {
     );
     assert_eq!(
         saneyaml::Value::from(&directive_entries[3].1).as_i64(),
-        Some(4800)
+        Some(80)
     );
 
     let fallback_doc = LoadOptions::yaml_version_directive()

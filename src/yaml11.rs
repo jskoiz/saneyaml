@@ -142,28 +142,21 @@ fn sexagesimal_groups(text: &str) -> Option<Vec<&str>> {
 
 fn parse_sexagesimal_integer(groups: &[&str]) -> Option<Number> {
     let (negative, first) = signed_first_group(groups[0])?;
-    let mut magnitude = first.parse::<u128>().ok()?.checked_mul(3600)?;
-    let minutes = u128::from(group_value_below_60(groups[1])?).checked_mul(60)?;
-    magnitude = magnitude.checked_add(minutes)?;
-    if let Some(seconds) = groups.get(2) {
-        magnitude = magnitude.checked_add(u128::from(group_value_below_60(seconds)?))?;
+    let mut magnitude = first.parse::<u128>().ok()?;
+    for group in &groups[1..] {
+        magnitude = magnitude.checked_mul(60)?;
+        magnitude = magnitude.checked_add(u128::from(group_value_below_60(group)?))?;
     }
     signed_magnitude_number(negative, magnitude, false)
 }
 
 fn parse_sexagesimal_float(groups: &[&str]) -> Option<f64> {
     let (negative, first) = signed_first_group(groups[0])?;
-    let first = first.parse::<f64>().ok()?;
-    if groups.len() == 2 {
-        let minutes = fractional_group_below_60(groups[1])?;
-        let magnitude = first * 3600.0 + minutes * 60.0;
-        let total = if negative { -magnitude } else { magnitude };
-        return total.is_finite().then_some(total);
+    let mut magnitude = first.parse::<f64>().ok()?;
+    for group in &groups[1..groups.len() - 1] {
+        magnitude = magnitude * 60.0 + f64::from(group_value_below_60(group)?);
     }
-
-    let mut magnitude = first * 3600.0;
-    magnitude += f64::from(group_value_below_60(groups[1])?) * 60.0;
-    magnitude += fractional_group_below_60(groups[2])?;
+    magnitude = magnitude * 60.0 + fractional_group_below_60(groups[groups.len() - 1])?;
     let total = if negative { -magnitude } else { magnitude };
     total.is_finite().then_some(total)
 }
@@ -245,6 +238,11 @@ mod tests {
             parse_sexagesimal_number("1:30:59"),
             Some(Number::Integer(5459))
         );
+        assert_eq!(parse_sexagesimal_number("1:30"), Some(Number::Integer(90)));
+        assert_eq!(
+            parse_sexagesimal_number("-1:30"),
+            Some(Number::Integer(-90))
+        );
     }
 
     #[test]
@@ -260,6 +258,14 @@ mod tests {
         assert_eq!(
             parse_sexagesimal_number("1:30:30.5"),
             Some(Number::Float(5430.5))
+        );
+        assert_eq!(
+            parse_sexagesimal_number("1:30.5"),
+            Some(Number::Float(90.5))
+        );
+        assert_eq!(
+            parse_sexagesimal_number("-1:30.5"),
+            Some(Number::Float(-90.5))
         );
     }
 

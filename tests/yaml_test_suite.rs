@@ -2850,6 +2850,24 @@ fn yts_parse_yaml_double_quoted_escape_set() {
 }
 
 #[test]
+fn yts_parse_double_quoted_utf16_surrogate_pair_escape() {
+    let doc = parse_str("emoji: \"\\uD83D\\uDE00\"\n").expect("parse surrogate pair escape");
+    let Value::Mapping(entries) = doc.value else {
+        panic!("expected top-level mapping");
+    };
+    assert_eq!(entries[0].1.as_str(), Some("😀"));
+
+    for input in [
+        "bad: \"\\uD83D\"\n",
+        "bad: \"\\uDE00\"\n",
+        "bad: \"\\uD83D\\u0041\"\n",
+    ] {
+        let error = parse_str(input).expect_err("lone or mismatched surrogate escape rejected");
+        assert!(error.to_string().contains("invalid Unicode escape scalar"));
+    }
+}
+
+#[test]
 fn yts_parse_flow_sequence_implicit_mapping_entries() {
     let doc = parse_str("root: [a: b, c: d, empty:]\n")
         .expect("parse flow sequence with implicit mappings");

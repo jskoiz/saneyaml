@@ -21,7 +21,7 @@ use crate::{
 };
 use serde::Serialize;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt, fs,
     path::{Path, PathBuf},
     sync::Arc,
@@ -962,15 +962,13 @@ impl LosslessStream {
     }
 
     fn mark_effective_mapping_overrides(&self, entries: &mut [LosslessEffectiveMappingEntry]) {
-        let mut seen = Vec::<String>::new();
+        let mut seen = HashSet::<&str>::new();
         for entry in entries {
             let Some(key) = self.scalar_key(entry.key) else {
                 continue;
             };
-            if seen.iter().any(|seen| seen == key) {
+            if !seen.insert(key) {
                 entry.overridden = true;
-            } else {
-                seen.push(key.to_owned());
             }
         }
     }
@@ -1236,7 +1234,6 @@ impl ConfigEditor {
     ) -> Result<&mut Self> {
         let stream = parse_lossless_with_options(&self.source, self.options)?;
         let edited = edit(&stream, self.options)?;
-        parse_lossless_with_options(&edited, self.options)?;
         self.source = edited;
         Ok(self)
     }

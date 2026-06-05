@@ -44,7 +44,7 @@ pub struct Span {
     pub end: usize,
     /// One-based source line for the start of the span.
     pub line: usize,
-    /// One-based source column for the start of the span.
+    /// One-based UTF-8 byte column for the start of the span (counts bytes, not characters).
     pub column: usize,
 }
 
@@ -76,7 +76,7 @@ impl Location {
         self.line
     }
 
-    /// Returns the one-based source column.
+    /// Returns the one-based UTF-8 byte column (counts bytes, not characters).
     pub fn column(&self) -> usize {
         self.column
     }
@@ -534,7 +534,10 @@ fn render_span_block(
     let width = context_end.to_string().len();
     writeln!(f)?;
     writeln!(f, "{:>width$} |", "", width = width)?;
-    let caret_start = floor_char_boundary(source, span.start.clamp(line_start, line_end));
+    // `span.start` is already a char boundary within `[line_start, line_end]`:
+    // `line_bounds` returns `None` for non-boundary offsets and derives both
+    // line bounds from `span.start`, so the clamp here is exact.
+    let caret_start = span.start.clamp(line_start, line_end);
     let caret_end = floor_char_boundary(source, span.end.clamp(caret_start, line_end));
     let mut rendered_line = false;
     for current_line in context_start..=context_end {

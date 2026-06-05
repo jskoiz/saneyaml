@@ -11,6 +11,15 @@ effect are omitted.
 
 ## Unreleased
 
+### Added
+
+- Added `EmitOptions::with_yaml_1_1_safe_strings`, an opt-in emitter setting that
+  quotes plain string scalars which YAML 1.2 keeps as strings but YAML 1.1 /
+  `serde_yaml`-style readers would resolve to booleans or numbers (`no`, `yes`,
+  `on`, `off`, sexagesimals like `12:34:56`, and octal/hex/binary integers), so
+  emitted strings round-trip through YAML 1.1 consumers as well. Disabled by
+  default, preserving the minimally quoted YAML 1.2 structural output.
+
 ## 0.2.0
 
 ### Added

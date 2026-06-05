@@ -19,6 +19,18 @@ pub(crate) fn is_null(text: &str) -> bool {
     text.is_empty() || text == "~" || text.eq_ignore_ascii_case("null")
 }
 
+/// Returns true if `text`, emitted as a plain scalar, would resolve to a
+/// non-string value under YAML 1.1 / legacy `serde_yaml` scalar resolution but
+/// stays a string under YAML 1.2.
+///
+/// Covers the classic 1.1-only conversions: booleans (`yes`/`no`/`on`/`off` and
+/// case variants), sexagesimals (`12:34:56`), and octal/hex/binary integers.
+/// The emitter consults this to optionally quote such strings so they survive a
+/// round-trip through YAML 1.1 readers.
+pub(crate) fn is_yaml11_plain_ambiguous(text: &str) -> bool {
+    parse_bool(text).is_some() || parse_implicit_numeric_extension(text).is_some()
+}
+
 pub(crate) fn parse_implicit_numeric_extension(text: &str) -> Option<Number> {
     if let Some(number) = parse_sexagesimal_number(text) {
         return Some(number);

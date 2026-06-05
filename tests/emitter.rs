@@ -673,3 +673,70 @@ fn emitter_quotes_root_document_marker_and_directive_like_scalars() {
         );
     }
 }
+
+#[test]
+fn emitter_yaml_1_1_safe_strings_quotes_cross_schema_ambiguous_scalars() {
+    // Strings YAML 1.2 keeps as strings, but YAML 1.1 / legacy `serde_yaml`
+    // resolution would turn into booleans or numbers. The octal/hex forms are
+    // already quoted by the default 1.2 number check, so they are not included
+    // here; these are the YAML-1.1-only ambiguities.
+    for value in ["no", "yes", "on", "off", "NO", "Off", "12:34:56"] {
+        let node = string_node(value);
+
+        // Default structural output emits these plain, which is only safe for a
+        // YAML 1.2 reader.
+        let default_out = to_string(&node).expect("default emit");
+        assert_eq!(
+            default_out,
+            format!("{value}\n"),
+            "default output should emit {value:?} as a plain scalar"
+        );
+        let legacy_default: saneyaml::Value = saneyaml::LoadOptions::legacy_serde_yaml()
+            .from_str(&default_out)
+            .expect("legacy parse of default output");
+        assert_eq!(
+            legacy_default.as_str(),
+            None,
+            "plain {value:?} should resolve to a non-string under YAML 1.1"
+        );
+
+        // With the opt-in flag the scalar is quoted...
+        let safe_out = to_string_with_options(
+            &node,
+            EmitOptions::structural().with_yaml_1_1_safe_strings(true),
+        )
+        .expect("yaml 1.1 safe emit");
+        assert_ne!(
+            safe_out,
+            format!("{value}\n"),
+            "yaml-1.1-safe output should quote {value:?}"
+        );
+
+        // ...and round-trips as a string even under the legacy schema, while the
+        // default YAML 1.2 schema already keeps it a string.
+        let legacy_safe: saneyaml::Value = saneyaml::LoadOptions::legacy_serde_yaml()
+            .from_str(&safe_out)
+            .expect("legacy parse of safe output");
+        assert_eq!(
+            legacy_safe.as_str(),
+            Some(value),
+            "yaml-1.1-safe {value:?} should round-trip as a string under YAML 1.1"
+        );
+        let reparsed = parse_str(&safe_out).expect("reparse safe output");
+        assert!(
+            reparsed.equivalent(&node),
+            "yaml-1.1-safe output did not preserve {value:?}: {safe_out}"
+        );
+    }
+}
+
+#[test]
+fn emitter_yaml_1_1_safe_strings_leaves_unambiguous_scalars_plain() {
+    // Ordinary strings and genuine YAML 1.2 values are unaffected by the flag.
+    let options = EmitOptions::structural().with_yaml_1_1_safe_strings(true);
+    for (value, expected) in [("web", "web\n"), ("api-server", "api-server\n")] {
+        let emitted =
+            to_string_with_options(&string_node(value), options).expect("yaml 1.1 safe emit");
+        assert_eq!(emitted, expected, "{value:?} should stay plain");
+    }
+}

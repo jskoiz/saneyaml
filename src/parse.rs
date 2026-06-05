@@ -3296,7 +3296,15 @@ impl Parser {
         let require_indented_continuation =
             !allow_parent_indent_continuation && first_line.indent() + first_start > parent_indent;
 
-        while quoted_scalar_accepted_end(&text, quote).is_none() {
+        // Incremental close detector: re-scanning the whole buffer with
+        // `quoted_scalar_accepted_end` on every appended line is O(N²); this
+        // carries scan state across lines and only inspects new bytes.
+        let mut scan = QuotedScalarScan::new(quote);
+        loop {
+            scan.scan(&text);
+            if scan.accepted_end().is_some() {
+                break;
+            }
             let Some(line) = self.line_at(self.pos)? else {
                 break;
             };
@@ -3322,7 +3330,9 @@ impl Parser {
                     let content = line.content(&source);
                     let line_text = quoted_line_text(&source, &line, 0, content, quote);
                     text.push_str(&line_text);
-                    end = quoted_scalar_accepted_end(&text, quote)
+                    scan.scan(&text);
+                    end = scan
+                        .accepted_end()
                         .filter(|close_end| *close_end >= line_text_start)
                         .map(|close_end| {
                             line.start() + line.content_start() + close_end - line_text_start
@@ -3342,7 +3352,8 @@ impl Parser {
             first_line.no(),
             first_line.indent() + first_start + 1,
         );
-        let text_end = quoted_scalar_accepted_end(&text, quote).unwrap_or(text.len());
+        scan.scan(&text);
+        let text_end = scan.accepted_end().unwrap_or(text.len());
         let text = fold_flow_quoted_scalar(&text[..text_end], quote);
         let node = parse_scalar_with_span(&text, span)?;
         let style = if quote == '"' {
@@ -4916,17 +4927,6 @@ fn quoted_scalar_is_closed(text: &str, quote: char) -> bool {
         .is_some_and(|end| text[end..].chars().all(char::is_whitespace))
 }
 
-fn quoted_scalar_accepted_end(text: &str, quote: char) -> Option<usize> {
-    let end = quoted_scalar_close_end(text, quote)?;
-    let trailing = &text[end..];
-    if trailing.chars().all(char::is_whitespace) {
-        return Some(end);
-    }
-    let separated_comment = trailing.chars().next().is_some_and(char::is_whitespace)
-        && trailing.trim_start().starts_with('#');
-    separated_comment.then_some(end)
-}
-
 fn quoted_scalar_trailing_start(text: &str, quote: char) -> Option<usize> {
     let end = quoted_scalar_close_end(text, quote)?;
     let trailing = &text[end..];
@@ -4962,6 +4962,148 @@ fn quoted_scalar_close_end(text: &str, quote: char) -> Option<usize> {
         offset += ch.len_utf8();
     }
     None
+}
+
+/// Incremental close detector for multi-line quoted scalars.
+///
+/// `quoted_scalar_close_end` re-scans the whole buffer from byte 0 on every
+/// call, so driving the multi-line collector loop with it is O(N²) in the
+/// number of accumulated bytes. This scanner carries the close-detection state
+/// across appended lines and only inspects bytes it has not seen yet, so the
+/// collector stays linear. It reproduces `quoted_scalar_close_end` /
+/// `quoted_scalar_accepted_end` exactly: `close_end` is the byte offset just
+/// past the first closing quote, and `accepted_end` additionally requires the
+/// trailing text to be all-whitespace or a whitespace-separated comment.
+///
+/// The collector evaluates the close state after every appended line, so the
+/// end of each scanned chunk is always the current end of the accumulated
+/// buffer. That matches `quoted_scalar_close_end`'s `chars.peek()`, which sees
+/// `None` at the buffer end: a lone `'` at the chunk boundary therefore closes
+/// (a `''` escape can never straddle the boundary, because the first `'` would
+/// already have closed the scalar and stopped the collector).
+struct QuotedScalarScan {
+    quote: char,
+    /// Absolute byte offset into the accumulated buffer that has been scanned.
+    scanned: usize,
+    /// `"`-style escape carried across the previous character.
+    escaped: bool,
+    /// Byte offset just past the first closing quote, once found.
+    close_end: Option<usize>,
+    /// The very first character following `close_end`, if any.
+    trailing_first: Option<char>,
+    /// First non-whitespace character seen after `close_end`, if any.
+    trailing_first_nonws: Option<char>,
+}
+
+impl QuotedScalarScan {
+    fn new(quote: char) -> Self {
+        Self {
+            quote,
+            // The opening quote is consumed up front, mirroring the
+            // `text[quote.len_utf8()..]` skip in `quoted_scalar_close_end`.
+            scanned: quote.len_utf8(),
+            escaped: false,
+            close_end: None,
+            trailing_first: None,
+            trailing_first_nonws: None,
+        }
+    }
+
+    /// Consumes any bytes of `text` (the full accumulated buffer) not yet seen.
+    ///
+    /// `text` must always be the same buffer grown by appends; the scanner
+    /// resumes from `self.scanned` and never re-reads earlier bytes.
+    fn scan(&mut self, text: &str) {
+        if self.close_end.is_none() {
+            self.scan_for_close(text);
+        }
+        if self.close_end.is_some() {
+            self.scan_trailing(text);
+        }
+    }
+
+    fn scan_for_close(&mut self, text: &str) {
+        let quote = self.quote;
+        let mut chars = text[self.scanned..].chars().peekable();
+        while let Some(ch) = chars.next() {
+            if quote == '"' && self.escaped {
+                self.escaped = false;
+                self.scanned += ch.len_utf8();
+                continue;
+            }
+            if quote == '"' && ch == '\\' {
+                self.escaped = true;
+                self.scanned += ch.len_utf8();
+                continue;
+            }
+            if quote == '\'' && ch == '\'' && chars.peek() == Some(&'\'') {
+                chars.next();
+                self.scanned += ch.len_utf8() * 2;
+                continue;
+            }
+            if ch == quote {
+                let end = self.scanned + ch.len_utf8();
+                self.close_end = Some(end);
+                self.scan_trailing_rest(end, &mut chars);
+                return;
+            }
+            self.scanned += ch.len_utf8();
+        }
+    }
+
+    /// After a close is found at `end`, record trailing characteristics from
+    /// the remaining characters of the current chunk.
+    fn scan_trailing_rest(
+        &mut self,
+        end: usize,
+        chars: &mut std::iter::Peekable<std::str::Chars<'_>>,
+    ) {
+        self.scanned = end;
+        for ch in chars {
+            self.observe_trailing(ch);
+            self.scanned += ch.len_utf8();
+            if self.trailing_first_nonws.is_some() {
+                break;
+            }
+        }
+    }
+
+    /// Continues recording trailing characteristics from already-appended bytes
+    /// that the close-detection pass did not consume.
+    fn scan_trailing(&mut self, text: &str) {
+        if self.trailing_first_nonws.is_some() {
+            self.scanned = text.len();
+            return;
+        }
+        for ch in text[self.scanned..].chars() {
+            self.observe_trailing(ch);
+            if self.trailing_first_nonws.is_some() {
+                break;
+            }
+        }
+        self.scanned = text.len();
+    }
+
+    fn observe_trailing(&mut self, ch: char) {
+        if self.trailing_first.is_none() {
+            self.trailing_first = Some(ch);
+        }
+        if self.trailing_first_nonws.is_none() && !ch.is_whitespace() {
+            self.trailing_first_nonws = Some(ch);
+        }
+    }
+
+    /// Equivalent of the former `quoted_scalar_accepted_end`: a close whose trailing text
+    /// is all-whitespace or a whitespace-separated comment (the first trailing
+    /// character must be whitespace and the first non-whitespace one `#`).
+    fn accepted_end(&self) -> Option<usize> {
+        let end = self.close_end?;
+        match self.trailing_first_nonws {
+            None => Some(end),
+            Some('#') if self.trailing_first.is_some_and(char::is_whitespace) => Some(end),
+            Some(_) => None,
+        }
+    }
 }
 
 fn take_hex_escape(chars: &mut std::str::Chars<'_>, digits: usize, span: Span) -> Result<u32> {

@@ -312,65 +312,97 @@ fn multiline_unterminated_flow_scales_subquadratically() {
     );
 }
 
-/// A single line consisting only of quote characters (no newlines) used to make
-/// mapping-colon detection quadratic: every candidate quote re-scanned the line
-/// from the end while deciding whether it could open a quoted scalar, so a line
-/// of N quotes did O(N^2) work even though the input never reaches the
-/// multi-line quoted-scalar collector. The per-line scan is now linear, so a
-/// large single-line run of quotes parses-or-rejects in bounded time rather than
-/// the tens of seconds the old scan required.
+/// A multi-line quoted scalar that opens a quote and never closes it used to
+/// re-scan the entire accumulated buffer from byte 0 on every appended line,
+/// making close detection O(N^2) in the input size — the same vulnerability
+/// class fixed for flow collections, but on the quoted-scalar path. Close
+/// detection is now incremental.
+///
+/// Unlike the flow-collection case, an unterminated quoted scalar is not a
+/// nested collection, so the nesting-depth limit never short-circuits it: the
+/// parser scans every continuation line to end-of-input. That makes the timing
+/// below a genuine measurement of close-detection cost rather than an artifact
+/// of an early depth bail-out.
 #[test]
-fn single_line_quote_run_is_handled_quickly() {
-    for quote in ['"', '\''] {
-        let input = quote.to_string().repeat(500_000);
-        let started = Instant::now();
-        // The result (parsed scalar vs. error) is intentionally unconstrained;
-        // the guarantee is only that the parser terminates promptly without the
-        // old quadratic blow-up.
-        let _ = saneyaml::parse_str(&input);
-        let elapsed = started.elapsed();
-        assert!(
-            elapsed < Duration::from_secs(5),
-            "single-line run of {} {quote:?} characters must parse-or-reject quickly, took {elapsed:?}",
-            input.len()
-        );
+fn multiline_unterminated_quoted_scalar_scales_subquadratically() {
+    fn unterminated_quoted(quote: char, lines: usize) -> String {
+        let mut input = String::with_capacity(lines * 2 + 1);
+        input.push(quote);
+        for _ in 0..lines {
+            input.push_str("a\n");
+        }
+        input
     }
-}
 
-/// Prove the single-line quote-scan fix is sub-quadratic by measuring how parse
-/// time scales with line length. Doubling the number of quote characters on one
-/// line roughly doubles the work with the linear scanner, whereas the old
-/// per-position rescan quadrupled it. Comparing the ratio (rather than an
-/// absolute wall-clock bound) keeps the test robust across debug/release builds
-/// and machines while still failing loudly if quadratic behavior returns.
-#[test]
-fn single_line_quote_run_scales_subquadratically() {
-    fn time_parse(quote_count: usize) -> Duration {
-        let input = "\"".repeat(quote_count);
-        // Best-of-several runs to damp scheduler noise on the small absolute times.
+    fn time_reject(quote: char, lines: usize) -> Duration {
+        let input = unterminated_quoted(quote, lines);
+        // Best-of-several runs to damp scheduler noise on small absolute times.
         let mut best = Duration::from_secs(3600);
         for _ in 0..5 {
             let started = Instant::now();
-            let _ = saneyaml::parse_str(&input);
-            best = best.min(started.elapsed());
+            let result = LoadOptions::new().parse_str(&input);
+            let elapsed = started.elapsed();
+            assert!(
+                result.is_err(),
+                "unterminated {quote} scalar with {lines} lines must be rejected"
+            );
+            best = best.min(elapsed);
         }
         best
     }
 
-    let small = time_parse(200_000);
-    let large = time_parse(400_000);
+    for quote in ['"', '\''] {
+        let small = time_reject(quote, 100_000);
+        let large = time_reject(quote, 200_000);
 
-    // Linear scanning gives a ~2x ratio; the old O(N^2) scan gave ~4x. Allow
-    // generous headroom (3x) for timer granularity and allocator noise while
-    // still catching a regression back to quadratic behavior.
-    let small_nanos = small.as_nanos().max(1);
-    let large_nanos = large.as_nanos();
-    assert!(
-        large_nanos <= small_nanos.saturating_mul(3),
-        "doubling a single-line quote run should scale sub-quadratically: \
-         200k quotes took {small:?}, 400k quotes took {large:?} ({}x)",
-        large_nanos as f64 / small_nanos as f64
-    );
+        // Linear scanning gives a ~2x ratio; the old full-buffer rescan gave
+        // ~4x. Allow generous headroom (3x) for timer granularity and allocator
+        // noise while still catching a regression back to quadratic behavior.
+        let small_nanos = small.as_nanos().max(1);
+        let large_nanos = large.as_nanos();
+        assert!(
+            large_nanos <= small_nanos.saturating_mul(3),
+            "doubling an unterminated {quote} scalar should scale sub-quadratically: \
+             100k lines took {small:?}, 200k lines took {large:?} ({}x)",
+            large_nanos as f64 / small_nanos as f64
+        );
+    }
+}
+
+/// A standalone wall-clock ceiling: a >1 MB multi-line quoted scalar that never
+/// closes must be fully scanned and rejected well under a generous bound. With
+/// the old O(N^2) scan this size took tens of seconds; the incremental scanner
+/// finishes in milliseconds.
+#[test]
+fn large_multiline_unterminated_quoted_scalar_finishes_quickly() {
+    for quote in ['"', '\''] {
+        let mut input = String::with_capacity(1_200_000 + 1);
+        input.push(quote);
+        while input.len() < 1_200_000 {
+            input.push_str("x\n");
+        }
+        assert!(
+            input.len() > 1_000_000,
+            "regression fixture must exceed 1 MB, got {} bytes",
+            input.len()
+        );
+
+        let started = Instant::now();
+        let result = LoadOptions::new().parse_str(&input);
+        let elapsed = started.elapsed();
+        assert!(
+            result.is_err(),
+            "unterminated {quote} scalar over 1 MB must be rejected"
+        );
+        // Generous ceiling: the incremental scanner finishes in milliseconds
+        // (release) or well under a second (debug). The bound is set high to
+        // tolerate slow/contended debug-build CI runners while still catching a
+        // regression to O(N^2), which would take minutes at this size.
+        assert!(
+            elapsed < Duration::from_secs(20),
+            "1 MB unterminated {quote} scalar should parse-or-reject quickly, took {elapsed:?}"
+        );
+    }
 }
 
 #[test]
@@ -501,5 +533,66 @@ fn assert_limit_error(input: &str, error: &Error, expected: &str) {
         span.start <= span.end && span.end <= input.len(),
         "limit error span stays inside input: {span:?}, len={}",
         input.len()
+    );
+}
+
+/// A single line consisting only of quote characters (no newlines) used to make
+/// mapping-colon detection quadratic: every candidate quote re-scanned the line
+/// from the end while deciding whether it could open a quoted scalar, so a line
+/// of N quotes did O(N^2) work even though the input never reaches the
+/// multi-line quoted-scalar collector. The per-line scan is now linear, so a
+/// large single-line run of quotes parses-or-rejects in bounded time rather than
+/// the tens of seconds the old scan required.
+#[test]
+fn single_line_quote_run_is_handled_quickly() {
+    for quote in ['"', '\''] {
+        let input = quote.to_string().repeat(500_000);
+        let started = Instant::now();
+        // The result (parsed scalar vs. error) is intentionally unconstrained;
+        // the guarantee is only that the parser terminates promptly without the
+        // old quadratic blow-up.
+        let _ = saneyaml::parse_str(&input);
+        let elapsed = started.elapsed();
+        assert!(
+            elapsed < Duration::from_secs(5),
+            "single-line run of {} {quote:?} characters must parse-or-reject quickly, took {elapsed:?}",
+            input.len()
+        );
+    }
+}
+
+/// Prove the single-line quote-scan fix is sub-quadratic by measuring how parse
+/// time scales with line length. Doubling the number of quote characters on one
+/// line roughly doubles the work with the linear scanner, whereas the old
+/// per-position rescan quadrupled it. Comparing the ratio (rather than an
+/// absolute wall-clock bound) keeps the test robust across debug/release builds
+/// and machines while still failing loudly if quadratic behavior returns.
+#[test]
+fn single_line_quote_run_scales_subquadratically() {
+    fn time_parse(quote_count: usize) -> Duration {
+        let input = "\"".repeat(quote_count);
+        // Best-of-several runs to damp scheduler noise on the small absolute times.
+        let mut best = Duration::from_secs(3600);
+        for _ in 0..5 {
+            let started = Instant::now();
+            let _ = saneyaml::parse_str(&input);
+            best = best.min(started.elapsed());
+        }
+        best
+    }
+
+    let small = time_parse(200_000);
+    let large = time_parse(400_000);
+
+    // Linear scanning gives a ~2x ratio; the old O(N^2) scan gave ~4x. Allow
+    // generous headroom (3x) for timer granularity and allocator noise while
+    // still catching a regression back to quadratic behavior.
+    let small_nanos = small.as_nanos().max(1);
+    let large_nanos = large.as_nanos();
+    assert!(
+        large_nanos <= small_nanos.saturating_mul(3),
+        "doubling a single-line quote run should scale sub-quadratically: \
+         200k quotes took {small:?}, 400k quotes took {large:?} ({}x)",
+        large_nanos as f64 / small_nanos as f64
     );
 }

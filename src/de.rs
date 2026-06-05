@@ -404,7 +404,23 @@ fn with_optional_span<T>(result: Result<T, Error>, span: Option<Span>) -> Result
 }
 
 fn node_path_segment(node: &Node) -> ErrorPathSegment {
-    value_path_segment(&node.value.clone().into())
+    node_value_path_segment(&node.value)
+}
+
+fn node_value_path_segment(value: &NodeValue) -> ErrorPathSegment {
+    let mut value = value;
+    while let NodeValue::Tagged(tagged) = value {
+        value = &tagged.value.value;
+    }
+    match value {
+        NodeValue::String(value) => ErrorPathSegment::Key(value.clone()),
+        NodeValue::Bool(value) => ErrorPathSegment::ScalarKey(value.to_string()),
+        NodeValue::Number(number) => ErrorPathSegment::ScalarKey(number.to_string()),
+        NodeValue::Null => ErrorPathSegment::ScalarKey("null".to_string()),
+        NodeValue::Sequence(_) | NodeValue::Mapping(_) | NodeValue::Tagged(_) => {
+            ErrorPathSegment::ComplexKey
+        }
+    }
 }
 
 fn value_path_segment(value: &Value) -> ErrorPathSegment {

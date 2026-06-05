@@ -1728,6 +1728,124 @@ fn serde_api_emit_options_byte_compatible_streams_multiple_documents() {
 }
 
 #[test]
+fn serde_api_emit_options_singleton_map_serializes_enum_variants_globally() {
+    let options = saneyaml::EmitOptions::structural()
+        .with_enum_representation(saneyaml::EnumRepresentation::SingletonMap);
+
+    assert_eq!(
+        saneyaml::to_string_with_options(&SerializableAction::Unit, options).expect("unit variant"),
+        "Unit\n"
+    );
+    assert_eq!(
+        saneyaml::to_string_with_options(
+            &SerializableAction::Newtype("deploy".to_string()),
+            options,
+        )
+        .expect("newtype variant"),
+        "Newtype: deploy\n"
+    );
+    assert_eq!(
+        saneyaml::to_string_with_options(&SerializableAction::Tuple(4, 2), options)
+            .expect("tuple variant"),
+        "Tuple:\n  - 4\n  - 2\n"
+    );
+    assert_eq!(
+        saneyaml::to_string_with_options(
+            &SerializableAction::Shell {
+                run: "cargo test".to_string(),
+            },
+            options,
+        )
+        .expect("struct variant"),
+        "Shell:\n  run: cargo test\n"
+    );
+
+    let actions = SerializableActions {
+        primary: SerializableAction::Shell {
+            run: "cargo test".to_string(),
+        },
+        steps: vec![
+            SerializableAction::Unit,
+            SerializableAction::Newtype("deploy".to_string()),
+            SerializableAction::Tuple(4, 2),
+        ],
+        by_name: BTreeMap::from([(
+            "release".to_string(),
+            SerializableAction::Newtype("ship".to_string()),
+        )]),
+    };
+
+    let emitted = saneyaml::to_string_with_options(&actions, options).expect("nested actions");
+    assert!(!emitted.contains("!Newtype"));
+    assert!(!emitted.contains("!Shell"));
+
+    let mut written = Vec::new();
+    saneyaml::to_writer_with_options(&mut written, &actions, options).expect("singleton writer");
+    assert_eq!(written, emitted.as_bytes());
+
+    let mut streamed = Vec::new();
+    {
+        let mut serializer = saneyaml::Serializer::with_options(&mut streamed, options);
+        actions
+            .serialize(&mut serializer)
+            .expect("singleton stream");
+        serializer.flush().expect("flush singleton stream");
+    }
+    assert_eq!(streamed, emitted.as_bytes());
+
+    let reparsed: Value = saneyaml::from_str(&emitted).expect("parse singleton output");
+    assert_eq!(
+        reparsed["primary"]["Shell"]["run"].as_str(),
+        Some("cargo test")
+    );
+    assert_eq!(reparsed["steps"][0].as_str(), Some("Unit"));
+    assert_eq!(reparsed["steps"][1]["Newtype"].as_str(), Some("deploy"));
+    assert_eq!(reparsed["steps"][2]["Tuple"][0].as_u64(), Some(4));
+    assert_eq!(reparsed["steps"][2]["Tuple"][1].as_u64(), Some(2));
+    assert_eq!(
+        reparsed["by_name"]["release"]["Newtype"].as_str(),
+        Some("ship")
+    );
+
+    let value = saneyaml::to_value(SerializableAction::Newtype("deploy".to_string()))
+        .expect("to_value remains tagged");
+    assert!(value.as_tagged().is_some());
+}
+
+#[test]
+fn serde_api_emit_options_singleton_map_matches_serde_yaml_helper_output() {
+    fn serde_yaml_singleton_map<T>(value: &T) -> String
+    where
+        T: Serialize,
+    {
+        let mut bytes = Vec::new();
+        {
+            let mut serializer = serde_yaml::Serializer::new(&mut bytes);
+            serde_yaml::with::singleton_map::serialize(value, &mut serializer)
+                .expect("serde_yaml singleton map");
+        }
+        String::from_utf8(bytes).expect("serde_yaml utf8")
+    }
+
+    fn assert_singleton_map<T>(value: &T)
+    where
+        T: Serialize,
+    {
+        let options = saneyaml::EmitOptions::byte_compatible()
+            .with_enum_representation(saneyaml::EnumRepresentation::SingletonMap);
+        let emitted = saneyaml::to_string_with_options(value, options).expect("singleton map emit");
+        assert_eq!(emitted, serde_yaml_singleton_map(value));
+    }
+
+    assert_singleton_map(&SerializableAction::Unit);
+    assert_singleton_map(&SerializableAction::Newtype("deploy".to_string()));
+    assert_singleton_map(&SerializableAction::Tuple(4, 2));
+    assert_singleton_map(&SerializableAction::Shell {
+        run: "cargo test".to_string(),
+    });
+}
+
+#[test]
 fn serde_api_emit_style_options_thread_through_all_writers() {
     let config = SerializableConfig {
         name: "app".to_string(),

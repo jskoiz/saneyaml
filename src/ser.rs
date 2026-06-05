@@ -21,8 +21,8 @@
 //! ```
 
 use crate::{
-    EmitOptions, Error, Mapping, Node, NodeValue, Number, Result, Span, Tag, TaggedNode,
-    TaggedValue, Timestamp, Value,
+    EmitOptions, EnumRepresentation, Error, Mapping, Node, NodeValue, Number, Result, Span, Tag,
+    TaggedNode, TaggedValue, Timestamp, Value,
 };
 use serde::Serialize;
 use serde::ser::{
@@ -97,7 +97,7 @@ fn serialized_node<T>(value: &T) -> Result<Node>
 where
     T: ?Sized + Serialize,
 {
-    let value = value.serialize(DocumentValueSerializer)?;
+    let value = value.serialize(NestedValueSerializer::document(EnumRepresentation::Tag))?;
     Ok(node_from_value(value))
 }
 
@@ -106,9 +106,14 @@ where
     T: ?Sized + Serialize,
 {
     if options.is_byte_compatible() {
-        value.serialize(ByteCompatibleRootSerializer)
+        value.serialize(ByteCompatibleRootSerializer {
+            enum_representation: options.enum_representation(),
+        })
     } else {
-        serialized_node(value)
+        let value = value.serialize(NestedValueSerializer::document(
+            options.enum_representation(),
+        ))?;
+        Ok(node_from_value(value))
     }
 }
 
@@ -119,6 +124,24 @@ fn node_from_value(value: Value) -> Node {
 fn byte_compatible_single_quoted_node(value: impl Into<String>) -> Node {
     Node::new(NodeValue::String(value.into()), Default::default())
         .with_scalar_source(crate::emit::BYTE_COMPATIBLE_SINGLE_QUOTED_SOURCE)
+}
+
+fn enum_variant_value(
+    variant: &'static str,
+    value: Value,
+    enum_representation: EnumRepresentation,
+) -> Value {
+    match enum_representation {
+        EnumRepresentation::Tag => Value::Tagged(Box::new(TaggedValue {
+            tag: Tag::new(variant),
+            value,
+        })),
+        EnumRepresentation::SingletonMap => {
+            let mut mapping = mapping_with_hinted_capacity(Some(1));
+            mapping.insert(Value::String(variant.to_string()), value);
+            Value::Mapping(mapping)
+        }
+    }
 }
 
 /// Streaming YAML serializer for writing one document at a time.
@@ -309,16 +332,21 @@ where
         T: ?Sized + Serialize,
     {
         validate_variant_tag(variant)?;
-        self.write_value(Value::Tagged(Box::new(TaggedValue {
-            tag: Tag::new(variant),
-            value: value.serialize(DocumentValueSerializer)?,
-        })))
+        let value = value.serialize(NestedValueSerializer::document(
+            self.emit_options.enum_representation(),
+        ))?;
+        self.write_value(enum_variant_value(
+            variant,
+            value,
+            self.emit_options.enum_representation(),
+        ))
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<DocumentSequenceSerializer<'a, W>> {
+        let enum_representation = self.emit_options.enum_representation();
         Ok(DocumentSequenceSerializer {
             serializer: self,
-            inner: sequence_serializer_with_capacity(len, true),
+            inner: sequence_serializer_with_capacity(len, true, enum_representation),
         })
     }
 
@@ -342,16 +370,18 @@ where
         len: usize,
     ) -> Result<DocumentTupleVariantSerializer<'a, W>> {
         validate_variant_tag(variant)?;
+        let enum_representation = self.emit_options.enum_representation();
         Ok(DocumentTupleVariantSerializer {
             serializer: self,
-            inner: tuple_variant_serializer_with_capacity(variant, len, true),
+            inner: tuple_variant_serializer_with_capacity(variant, len, true, enum_representation),
         })
     }
 
     fn serialize_map(self, len: Option<usize>) -> Result<DocumentMappingSerializer<'a, W>> {
+        let enum_representation = self.emit_options.enum_representation();
         Ok(DocumentMappingSerializer {
             serializer: self,
-            inner: MappingSerializer::new(len, len == Some(1), true),
+            inner: MappingSerializer::new(len, len == Some(1), true, enum_representation),
         })
     }
 
@@ -360,11 +390,13 @@ where
         _name: &'static str,
         len: usize,
     ) -> Result<DocumentStructSerializer<'a, W>> {
+        let enum_representation = self.emit_options.enum_representation();
         Ok(DocumentStructSerializer {
             serializer: self,
             inner: StructSerializer {
                 entries: mapping_with_hinted_capacity(Some(len)),
                 reject_bytes: true,
+                enum_representation,
             },
         })
     }
@@ -377,12 +409,14 @@ where
         len: usize,
     ) -> Result<DocumentStructVariantSerializer<'a, W>> {
         validate_variant_tag(variant)?;
+        let enum_representation = self.emit_options.enum_representation();
         Ok(DocumentStructVariantSerializer {
             serializer: self,
             inner: StructVariantSerializer {
                 variant,
                 entries: mapping_with_hinted_capacity(Some(len)),
                 reject_bytes: true,
+                enum_representation,
             },
         })
     }
@@ -730,14 +764,19 @@ impl ser::Serializer for ValueSerializer {
         T: ?Sized + Serialize,
     {
         validate_variant_tag(variant)?;
-        Ok(Value::Tagged(Box::new(TaggedValue {
-            tag: Tag::new(variant),
-            value: value.serialize(self)?,
-        })))
+        Ok(enum_variant_value(
+            variant,
+            value.serialize(self)?,
+            EnumRepresentation::Tag,
+        ))
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<SequenceSerializer> {
-        Ok(sequence_serializer_with_capacity(len, false))
+        Ok(sequence_serializer_with_capacity(
+            len,
+            false,
+            EnumRepresentation::Tag,
+        ))
     }
 
     fn serialize_tuple(self, len: usize) -> Result<SequenceSerializer> {
@@ -756,17 +795,28 @@ impl ser::Serializer for ValueSerializer {
         len: usize,
     ) -> Result<TupleVariantSerializer> {
         validate_variant_tag(variant)?;
-        Ok(tuple_variant_serializer_with_capacity(variant, len, false))
+        Ok(tuple_variant_serializer_with_capacity(
+            variant,
+            len,
+            false,
+            EnumRepresentation::Tag,
+        ))
     }
 
     fn serialize_map(self, len: Option<usize>) -> Result<MappingSerializer> {
-        Ok(MappingSerializer::new(len, len == Some(1), false))
+        Ok(MappingSerializer::new(
+            len,
+            len == Some(1),
+            false,
+            EnumRepresentation::Tag,
+        ))
     }
 
     fn serialize_struct(self, _name: &'static str, len: usize) -> Result<StructSerializer> {
         Ok(StructSerializer {
             entries: mapping_with_hinted_capacity(Some(len)),
             reject_bytes: false,
+            enum_representation: EnumRepresentation::Tag,
         })
     }
 
@@ -782,6 +832,7 @@ impl ser::Serializer for ValueSerializer {
             variant,
             entries: mapping_with_hinted_capacity(Some(len)),
             reject_bytes: false,
+            enum_representation: EnumRepresentation::Tag,
         })
     }
 
@@ -793,9 +844,22 @@ impl ser::Serializer for ValueSerializer {
     }
 }
 
-struct DocumentValueSerializer;
+#[derive(Clone, Copy)]
+struct NestedValueSerializer {
+    reject_bytes: bool,
+    enum_representation: EnumRepresentation,
+}
 
-impl ser::Serializer for DocumentValueSerializer {
+impl NestedValueSerializer {
+    fn document(enum_representation: EnumRepresentation) -> Self {
+        Self {
+            reject_bytes: true,
+            enum_representation,
+        }
+    }
+}
+
+impl ser::Serializer for NestedValueSerializer {
     type Ok = Value;
     type Error = Error;
     type SerializeSeq = SequenceSerializer;
@@ -866,8 +930,11 @@ impl ser::Serializer for DocumentValueSerializer {
         ValueSerializer.serialize_str(value)
     }
 
-    fn serialize_bytes(self, _value: &[u8]) -> Result<Value> {
-        Err(bytes_unsupported_error())
+    fn serialize_bytes(self, value: &[u8]) -> Result<Value> {
+        if self.reject_bytes {
+            return Err(bytes_unsupported_error());
+        }
+        ValueSerializer.serialize_bytes(value)
     }
 
     fn serialize_none(self) -> Result<Value> {
@@ -919,14 +986,19 @@ impl ser::Serializer for DocumentValueSerializer {
         T: ?Sized + Serialize,
     {
         validate_variant_tag(variant)?;
-        Ok(Value::Tagged(Box::new(TaggedValue {
-            tag: Tag::new(variant),
-            value: value.serialize(self)?,
-        })))
+        Ok(enum_variant_value(
+            variant,
+            value.serialize(self)?,
+            self.enum_representation,
+        ))
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<SequenceSerializer> {
-        Ok(sequence_serializer_with_capacity(len, true))
+        Ok(sequence_serializer_with_capacity(
+            len,
+            self.reject_bytes,
+            self.enum_representation,
+        ))
     }
 
     fn serialize_tuple(self, len: usize) -> Result<SequenceSerializer> {
@@ -945,17 +1017,28 @@ impl ser::Serializer for DocumentValueSerializer {
         len: usize,
     ) -> Result<TupleVariantSerializer> {
         validate_variant_tag(variant)?;
-        Ok(tuple_variant_serializer_with_capacity(variant, len, true))
+        Ok(tuple_variant_serializer_with_capacity(
+            variant,
+            len,
+            self.reject_bytes,
+            self.enum_representation,
+        ))
     }
 
     fn serialize_map(self, len: Option<usize>) -> Result<MappingSerializer> {
-        Ok(MappingSerializer::new(len, len == Some(1), true))
+        Ok(MappingSerializer::new(
+            len,
+            len == Some(1),
+            self.reject_bytes,
+            self.enum_representation,
+        ))
     }
 
     fn serialize_struct(self, _name: &'static str, len: usize) -> Result<StructSerializer> {
         Ok(StructSerializer {
             entries: mapping_with_hinted_capacity(Some(len)),
-            reject_bytes: true,
+            reject_bytes: self.reject_bytes,
+            enum_representation: self.enum_representation,
         })
     }
 
@@ -970,7 +1053,8 @@ impl ser::Serializer for DocumentValueSerializer {
         Ok(StructVariantSerializer {
             variant,
             entries: mapping_with_hinted_capacity(Some(len)),
-            reject_bytes: true,
+            reject_bytes: self.reject_bytes,
+            enum_representation: self.enum_representation,
         })
     }
 
@@ -982,7 +1066,10 @@ impl ser::Serializer for DocumentValueSerializer {
     }
 }
 
-struct ByteCompatibleRootSerializer;
+#[derive(Clone, Copy)]
+struct ByteCompatibleRootSerializer {
+    enum_representation: EnumRepresentation,
+}
 
 impl ser::Serializer for ByteCompatibleRootSerializer {
     type Ok = Node;
@@ -1108,15 +1195,18 @@ impl ser::Serializer for ByteCompatibleRootSerializer {
         T: ?Sized + Serialize,
     {
         validate_variant_tag(variant)?;
-        Ok(node_from_value(Value::Tagged(Box::new(TaggedValue {
-            tag: Tag::new(variant),
-            value: value.serialize(DocumentValueSerializer)?,
-        }))))
+        Ok(node_from_value(enum_variant_value(
+            variant,
+            value.serialize(NestedValueSerializer::document(self.enum_representation))?,
+            self.enum_representation,
+        )))
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<RootSequenceSerializer> {
         Ok(RootSequenceSerializer(sequence_serializer_with_capacity(
-            len, true,
+            len,
+            true,
+            self.enum_representation,
         )))
     }
 
@@ -1141,7 +1231,7 @@ impl ser::Serializer for ByteCompatibleRootSerializer {
     ) -> Result<RootTupleVariantSerializer> {
         validate_variant_tag(variant)?;
         Ok(RootTupleVariantSerializer(
-            tuple_variant_serializer_with_capacity(variant, len, true),
+            tuple_variant_serializer_with_capacity(variant, len, true, self.enum_representation),
         ))
     }
 
@@ -1150,6 +1240,7 @@ impl ser::Serializer for ByteCompatibleRootSerializer {
             len,
             len == Some(1),
             true,
+            self.enum_representation,
         )))
     }
 
@@ -1157,6 +1248,7 @@ impl ser::Serializer for ByteCompatibleRootSerializer {
         Ok(RootStructSerializer(StructSerializer {
             entries: mapping_with_hinted_capacity(Some(len)),
             reject_bytes: true,
+            enum_representation: self.enum_representation,
         }))
     }
 
@@ -1172,6 +1264,7 @@ impl ser::Serializer for ByteCompatibleRootSerializer {
             variant,
             entries: mapping_with_hinted_capacity(Some(len)),
             reject_bytes: true,
+            enum_representation: self.enum_representation,
         }))
     }
 
@@ -1320,12 +1413,19 @@ impl SerializeStructVariant for RootStructVariantSerializer {
     }
 }
 
-fn serialize_nested_value<T>(value: &T, reject_bytes: bool) -> Result<Value>
+fn serialize_nested_value<T>(
+    value: &T,
+    reject_bytes: bool,
+    enum_representation: EnumRepresentation,
+) -> Result<Value>
 where
     T: ?Sized + Serialize,
 {
-    if reject_bytes {
-        value.serialize(DocumentValueSerializer)
+    if reject_bytes || !matches!(enum_representation, EnumRepresentation::Tag) {
+        value.serialize(NestedValueSerializer {
+            reject_bytes,
+            enum_representation,
+        })
     } else {
         value.serialize(ValueSerializer)
     }
@@ -1335,10 +1435,15 @@ fn hinted_capacity(len: Option<usize>) -> usize {
     len.unwrap_or(0).min(MAX_SERIALIZE_HINT_PREALLOC)
 }
 
-fn sequence_serializer_with_capacity(len: Option<usize>, reject_bytes: bool) -> SequenceSerializer {
+fn sequence_serializer_with_capacity(
+    len: Option<usize>,
+    reject_bytes: bool,
+    enum_representation: EnumRepresentation,
+) -> SequenceSerializer {
     SequenceSerializer {
         items: Vec::with_capacity(hinted_capacity(len)),
         reject_bytes,
+        enum_representation,
     }
 }
 
@@ -1346,11 +1451,13 @@ fn tuple_variant_serializer_with_capacity(
     variant: &'static str,
     len: usize,
     reject_bytes: bool,
+    enum_representation: EnumRepresentation,
 ) -> TupleVariantSerializer {
     TupleVariantSerializer {
         variant,
         items: Vec::with_capacity(hinted_capacity(Some(len))),
         reject_bytes,
+        enum_representation,
     }
 }
 
@@ -1362,6 +1469,7 @@ fn mapping_with_hinted_capacity(len: Option<usize>) -> Mapping {
 pub struct SequenceSerializer {
     items: Vec<Value>,
     reject_bytes: bool,
+    enum_representation: EnumRepresentation,
 }
 
 impl SerializeSeq for SequenceSerializer {
@@ -1372,8 +1480,11 @@ impl SerializeSeq for SequenceSerializer {
     where
         T: ?Sized + Serialize,
     {
-        self.items
-            .push(serialize_nested_value(value, self.reject_bytes)?);
+        self.items.push(serialize_nested_value(
+            value,
+            self.reject_bytes,
+            self.enum_representation,
+        )?);
         Ok(())
     }
 
@@ -1419,6 +1530,7 @@ pub struct TupleVariantSerializer {
     variant: &'static str,
     items: Vec<Value>,
     reject_bytes: bool,
+    enum_representation: EnumRepresentation,
 }
 
 impl SerializeTupleVariant for TupleVariantSerializer {
@@ -1429,16 +1541,20 @@ impl SerializeTupleVariant for TupleVariantSerializer {
     where
         T: ?Sized + Serialize,
     {
-        self.items
-            .push(serialize_nested_value(value, self.reject_bytes)?);
+        self.items.push(serialize_nested_value(
+            value,
+            self.reject_bytes,
+            self.enum_representation,
+        )?);
         Ok(())
     }
 
     fn end(self) -> Result<Value> {
-        Ok(Value::Tagged(Box::new(TaggedValue {
-            tag: Tag::new(self.variant),
-            value: Value::Sequence(self.items),
-        })))
+        Ok(enum_variant_value(
+            self.variant,
+            Value::Sequence(self.items),
+            self.enum_representation,
+        ))
     }
 }
 
@@ -1449,6 +1565,7 @@ pub struct MappingSerializer {
     tagged: Option<TaggedValue>,
     detect_tag: bool,
     reject_bytes: bool,
+    enum_representation: EnumRepresentation,
 }
 
 enum SerializedKey {
@@ -1482,6 +1599,7 @@ impl SerializeMap for MappingSerializer {
             key,
             self.should_detect_tag(),
             self.reject_bytes,
+            self.enum_representation,
         )?);
         Ok(())
     }
@@ -1494,7 +1612,7 @@ impl SerializeMap for MappingSerializer {
             .next_key
             .take()
             .ok_or_else(|| serialize_error("serialize_value called before serialize_key"))?;
-        let value = serialize_nested_value(value, self.reject_bytes)?;
+        let value = serialize_nested_value(value, self.reject_bytes, self.enum_representation)?;
         self.insert_entry(key, value)
     }
 
@@ -1503,8 +1621,13 @@ impl SerializeMap for MappingSerializer {
         K: ?Sized + Serialize,
         V: ?Sized + Serialize,
     {
-        let key = serialize_mapping_key(key, self.should_detect_tag(), self.reject_bytes)?;
-        let value = serialize_nested_value(value, self.reject_bytes)?;
+        let key = serialize_mapping_key(
+            key,
+            self.should_detect_tag(),
+            self.reject_bytes,
+            self.enum_representation,
+        )?;
+        let value = serialize_nested_value(value, self.reject_bytes, self.enum_representation)?;
         self.insert_entry(key, value)
     }
 
@@ -1525,13 +1648,19 @@ impl SerializeMap for MappingSerializer {
 }
 
 impl MappingSerializer {
-    fn new(len: Option<usize>, detect_tag: bool, reject_bytes: bool) -> Self {
+    fn new(
+        len: Option<usize>,
+        detect_tag: bool,
+        reject_bytes: bool,
+        enum_representation: EnumRepresentation,
+    ) -> Self {
         Self {
             entries: mapping_with_hinted_capacity(len),
             next_key: None,
             tagged: None,
             detect_tag,
             reject_bytes,
+            enum_representation,
         }
     }
 
@@ -1564,16 +1693,25 @@ impl MappingSerializer {
     }
 }
 
-fn serialize_mapping_key<T>(key: &T, detect_tag: bool, reject_bytes: bool) -> Result<SerializedKey>
+fn serialize_mapping_key<T>(
+    key: &T,
+    detect_tag: bool,
+    reject_bytes: bool,
+    enum_representation: EnumRepresentation,
+) -> Result<SerializedKey>
 where
     T: ?Sized + Serialize,
 {
     if detect_tag {
-        key.serialize(TagDetectingKeySerializer { reject_bytes })
+        key.serialize(TagDetectingKeySerializer {
+            reject_bytes,
+            enum_representation,
+        })
     } else {
         Ok(SerializedKey::Value(serialize_nested_value(
             key,
             reject_bytes,
+            enum_representation,
         )?))
     }
 }
@@ -1581,6 +1719,7 @@ where
 #[derive(Clone, Copy)]
 struct TagDetectingKeySerializer {
     reject_bytes: bool,
+    enum_representation: EnumRepresentation,
 }
 
 impl ser::Serializer for TagDetectingKeySerializer {
@@ -1715,16 +1854,18 @@ impl ser::Serializer for TagDetectingKeySerializer {
         T: ?Sized + Serialize,
     {
         validate_variant_tag(variant)?;
-        Ok(SerializedKey::Value(Value::Tagged(Box::new(TaggedValue {
-            tag: Tag::new(variant),
-            value: serialize_nested_value(value, self.reject_bytes)?,
-        }))))
+        Ok(SerializedKey::Value(enum_variant_value(
+            variant,
+            serialize_nested_value(value, self.reject_bytes, self.enum_representation)?,
+            self.enum_representation,
+        )))
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq> {
         Ok(KeySequenceSerializer(sequence_serializer_with_capacity(
             len,
             self.reject_bytes,
+            self.enum_representation,
         )))
     }
 
@@ -1732,6 +1873,7 @@ impl ser::Serializer for TagDetectingKeySerializer {
         Ok(KeySequenceSerializer(sequence_serializer_with_capacity(
             Some(len),
             self.reject_bytes,
+            self.enum_representation,
         )))
     }
 
@@ -1743,6 +1885,7 @@ impl ser::Serializer for TagDetectingKeySerializer {
         Ok(KeySequenceSerializer(sequence_serializer_with_capacity(
             Some(len),
             self.reject_bytes,
+            self.enum_representation,
         )))
     }
 
@@ -1755,7 +1898,12 @@ impl ser::Serializer for TagDetectingKeySerializer {
     ) -> Result<Self::SerializeTupleVariant> {
         validate_variant_tag(variant)?;
         Ok(KeyTupleVariantSerializer(
-            tuple_variant_serializer_with_capacity(variant, len, self.reject_bytes),
+            tuple_variant_serializer_with_capacity(
+                variant,
+                len,
+                self.reject_bytes,
+                self.enum_representation,
+            ),
         ))
     }
 
@@ -1764,6 +1912,7 @@ impl ser::Serializer for TagDetectingKeySerializer {
             len,
             len == Some(1),
             self.reject_bytes,
+            self.enum_representation,
         )))
     }
 
@@ -1771,6 +1920,7 @@ impl ser::Serializer for TagDetectingKeySerializer {
         Ok(KeyStructSerializer(StructSerializer {
             entries: mapping_with_hinted_capacity(Some(len)),
             reject_bytes: self.reject_bytes,
+            enum_representation: self.enum_representation,
         }))
     }
 
@@ -1786,6 +1936,7 @@ impl ser::Serializer for TagDetectingKeySerializer {
             variant,
             entries: mapping_with_hinted_capacity(Some(len)),
             reject_bytes: self.reject_bytes,
+            enum_representation: self.enum_representation,
         }))
     }
 
@@ -1999,6 +2150,7 @@ impl SerializeStructVariant for KeyStructVariantSerializer {
 pub struct StructSerializer {
     entries: Mapping,
     reject_bytes: bool,
+    enum_representation: EnumRepresentation,
 }
 
 impl SerializeStruct for StructSerializer {
@@ -2012,7 +2164,7 @@ impl SerializeStruct for StructSerializer {
         insert_unique(
             &mut self.entries,
             Value::String(key.to_string()),
-            serialize_nested_value(value, self.reject_bytes)?,
+            serialize_nested_value(value, self.reject_bytes, self.enum_representation)?,
         )
     }
 
@@ -2026,6 +2178,7 @@ pub struct StructVariantSerializer {
     variant: &'static str,
     entries: Mapping,
     reject_bytes: bool,
+    enum_representation: EnumRepresentation,
 }
 
 impl SerializeStructVariant for StructVariantSerializer {
@@ -2039,15 +2192,16 @@ impl SerializeStructVariant for StructVariantSerializer {
         insert_unique(
             &mut self.entries,
             Value::String(key.to_string()),
-            serialize_nested_value(value, self.reject_bytes)?,
+            serialize_nested_value(value, self.reject_bytes, self.enum_representation)?,
         )
     }
 
     fn end(self) -> Result<Value> {
-        Ok(Value::Tagged(Box::new(TaggedValue {
-            tag: Tag::new(self.variant),
-            value: Value::Mapping(self.entries),
-        })))
+        Ok(enum_variant_value(
+            self.variant,
+            Value::Mapping(self.entries),
+            self.enum_representation,
+        ))
     }
 }
 

@@ -1125,6 +1125,9 @@ pub fn saneyaml::Entry<'a>::and_modify<F>(self, F) -> Self where F: core::ops::f
 pub fn saneyaml::Entry<'a>::key(&self) -> &saneyaml::Value
 pub fn saneyaml::Entry<'a>::or_insert(self, saneyaml::Value) -> &'a mut saneyaml::Value
 pub fn saneyaml::Entry<'a>::or_insert_with<F>(self, F) -> &'a mut saneyaml::Value where F: core::ops::function::FnOnce() -> saneyaml::Value
+pub enum saneyaml::EnumRepresentation
+pub saneyaml::EnumRepresentation::SingletonMap
+pub saneyaml::EnumRepresentation::Tag
 #[non_exhaustive] pub enum saneyaml::ErrorCategory
 pub saneyaml::ErrorCategory::Data
 pub saneyaml::ErrorCategory::DuplicateKey
@@ -1779,6 +1782,7 @@ pub fn saneyaml::EmitOptions::byte_compatible() -> Self
 pub fn saneyaml::EmitOptions::structural() -> Self
 pub fn saneyaml::EmitOptions::with_block_scalar_style(self, saneyaml::BlockScalarStyle) -> Self
 pub fn saneyaml::EmitOptions::with_collection_style(self, saneyaml::EmitCollectionStyle) -> Self
+pub fn saneyaml::EmitOptions::with_enum_representation(self, saneyaml::EnumRepresentation) -> Self
 pub fn saneyaml::EmitOptions::with_key_order(self, saneyaml::KeyOrder) -> Self
 pub fn saneyaml::EmitOptions::with_scalar_quote_style(self, saneyaml::ScalarQuoteStyle) -> Self
 pub fn saneyaml::EmitOptions::with_yaml_1_1_safe_strings(self, bool) -> Self

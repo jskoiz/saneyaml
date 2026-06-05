@@ -72,7 +72,8 @@ pub use de::{
     from_reader, from_slice, from_str, from_value,
 };
 pub use emit::{
-    BlockScalarStyle, EmitCollectionStyle, EmitFidelity, EmitOptions, KeyOrder, ScalarQuoteStyle,
+    BlockScalarStyle, EmitCollectionStyle, EmitFidelity, EmitOptions, EnumRepresentation, KeyOrder,
+    ScalarQuoteStyle,
 };
 pub use error::{
     Diagnostic, Error, ErrorCategory, ErrorPath, ErrorPathSegment, Location, RelatedDiagnostic,

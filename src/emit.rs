@@ -16,6 +16,7 @@ pub(crate) const BYTE_COMPATIBLE_SINGLE_QUOTED_SOURCE: &str =
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EmitOptions {
     fidelity: EmitFidelity,
+    enum_representation: EnumRepresentation,
     key_order: KeyOrder,
     scalar_quote_style: ScalarQuoteStyle,
     block_scalar_style: BlockScalarStyle,
@@ -33,6 +34,17 @@ pub enum EmitFidelity {
     /// Opt-in byte compatibility with `serde_yaml` for the supported
     /// structural writer corpus.
     ByteCompatible,
+}
+
+/// Serde enum representation used by option-aware writers.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum EnumRepresentation {
+    /// Emit data-carrying enum variants as YAML tags, such as `!Variant value`.
+    #[default]
+    Tag,
+    /// Emit data-carrying enum variants as one-entry mappings, such as
+    /// `Variant: value`.
+    SingletonMap,
 }
 
 /// Mapping key ordering policy.
@@ -92,6 +104,7 @@ impl EmitOptions {
     pub fn structural() -> Self {
         Self {
             fidelity: EmitFidelity::Structural,
+            enum_representation: EnumRepresentation::Tag,
             key_order: KeyOrder::Preserve,
             scalar_quote_style: ScalarQuoteStyle::PlainWhereSafe,
             block_scalar_style: BlockScalarStyle::Literal,
@@ -111,6 +124,12 @@ impl EmitOptions {
     /// Returns these options with an updated mapping key ordering policy.
     pub fn with_key_order(mut self, key_order: KeyOrder) -> Self {
         self.key_order = key_order;
+        self
+    }
+
+    /// Returns these options with an updated Serde enum representation.
+    pub fn with_enum_representation(mut self, enum_representation: EnumRepresentation) -> Self {
+        self.enum_representation = enum_representation;
         self
     }
 
@@ -152,6 +171,10 @@ impl EmitOptions {
 
     pub(crate) fn is_byte_compatible(self) -> bool {
         matches!(self.fidelity, EmitFidelity::ByteCompatible)
+    }
+
+    pub(crate) fn enum_representation(self) -> EnumRepresentation {
+        self.enum_representation
     }
 
     fn uses_flow_collections(self) -> bool {

@@ -242,9 +242,9 @@ are additive diagnostics.
 | `serde_yaml::Number` | `saneyaml::Number` | Covered for helpers, parsing, display, direct deserialization, and widened integer targets |
 | `serde_yaml::value::to_value` | `saneyaml::value::to_value` | Covered for common config-shaped serialization |
 | `serde_yaml::value::Serializer` | `saneyaml::value::Serializer` | Covered for value-backed serialization, bytes, tags, and 128-bit integer policy |
-| `serde_yaml::to_string` | `saneyaml::to_string`; `saneyaml::to_string_with_options` | `EmitOptions::structural()` output covered as the default; `byte_compatible()` matches `serde_yaml` bytes for the supported structural writer corpus; structural style knobs are opt-in |
-| `serde_yaml::to_writer` | `saneyaml::to_writer`; `saneyaml::to_writer_with_options` | `EmitOptions::structural()` output covered as the default; `byte_compatible()` writer bytes covered for the supported structural writer corpus; structural style knobs are opt-in |
-| `serde_yaml::Serializer` | `saneyaml::Serializer` | Covered for multi-document writer usage and document marker policy; `Serializer::with_options(..., EmitOptions::structural())` matches the default writer path, and `Serializer::with_options(..., EmitOptions::byte_compatible())` matches `serde_yaml` for the supported structural stream corpus |
+| `serde_yaml::to_string` | `saneyaml::to_string`; `saneyaml::to_string_with_options` | `EmitOptions::structural()` output covered as the default; `byte_compatible()` matches `serde_yaml` bytes for the supported structural writer corpus; structural style knobs are opt-in, including `EnumRepresentation::SingletonMap` for global singleton-map enum output |
+| `serde_yaml::to_writer` | `saneyaml::to_writer`; `saneyaml::to_writer_with_options` | `EmitOptions::structural()` output covered as the default; `byte_compatible()` writer bytes covered for the supported structural writer corpus; structural style knobs are opt-in, including `EnumRepresentation::SingletonMap` for global singleton-map enum output |
+| `serde_yaml::Serializer` | `saneyaml::Serializer` | Covered for multi-document writer usage and document marker policy; `Serializer::with_options(..., EmitOptions::structural())` matches the default writer path, and `Serializer::with_options(..., EmitOptions::byte_compatible())` matches `serde_yaml` for the supported structural stream corpus; `Serializer::with_options(..., options.with_enum_representation(EnumRepresentation::SingletonMap))` applies the singleton-map enum writer shape globally |
 | `serde_yaml::with::singleton_map` | `saneyaml::with::singleton_map` | Covered for read and write enum-field annotations |
 | `serde_yaml::with::singleton_map_recursive` | `saneyaml::with::singleton_map_recursive` | Covered for nested read and write enum-field annotations |
 | `serde_yaml::Error` / `Result` | `saneyaml::Error` / `Result` | Covered for parser, Serde, writer, and direct-deserializer errors; richer diagnostics are additive |
@@ -460,7 +460,11 @@ testing each adopter's own YAML corpus.
   corpus: common scalars, maps, sequences, Serde enum tags, document markers,
   typed real-world config writer shapes, and bytes rejection. Structural style
   knobs can sort keys, choose scalar quote style, prefer literal or folded
-  block scalars where representable, and choose block or flow collections.
+  block scalars where representable, choose block or flow collections, and use
+  `with_enum_representation(EnumRepresentation::SingletonMap)` when a migration
+  needs singleton-map enum writer output globally instead of per-field
+  `with::singleton_map` annotations. `to_value` still produces tagged enum
+  values.
   Comments, original source style, anchors/aliases, directives, and arbitrary
   lossless formatting are not byte-compatible migration surfaces; use
   `LosslessStream` for source-preserving replay.

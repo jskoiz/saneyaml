@@ -2666,14 +2666,38 @@ fn value_type_name(value: &Value) -> &'static str {
 
 impl Value {
     /// Expands YAML merge keys in place using `serde_yaml::Value`-style rules.
+    ///
+    /// Merge keys can splice caller-built subtrees together, producing merge
+    /// chains far deeper than any source text. To stay in agreement with the
+    /// owned `Node` and the borrowed `&Node`/`&Value` deserialization paths —
+    /// and to keep a pathological chain from exhausting the stack downstream —
+    /// the traversal carries a per-link merge-depth budget capped at
+    /// `MAX_MERGE_DEPTH`, returning the same depth-exceeded error those paths do
+    /// once the budget is spent.
     pub fn apply_merge(&mut self) -> crate::Result<()> {
-        let mut values = vec![self];
-        while let Some(value) = values.pop() {
+        // Each work item tracks the merge-chain depth at which it was reached.
+        // The value reached through a residual `<<` source continues the current
+        // chain and so descends one level; values reached through ordinary keys
+        // (and through sequences or tagged wrappers) begin their own chain at
+        // depth zero. This mirrors the `<<`-only accounting the borrowed
+        // ref-merge paths use, so independent nested mappings never consume the
+        // budget while a genuine merge chain does.
+        let mut values = vec![(0usize, self)];
+        while let Some((depth, value)) = values.pop() {
             match value {
                 Value::Mapping(mapping) => {
-                    match shift_remove_merge_value(mapping) {
-                        Some(Value::Mapping(merge)) => merge_mapping(mapping, merge),
-                        Some(Value::Sequence(sequence)) => {
+                    let Some(merge) = shift_remove_merge_value(mapping) else {
+                        push_mapping_values(&mut values, mapping, 0);
+                        continue;
+                    };
+                    let Some(next_depth) =
+                        depth.checked_add(1).filter(|next| *next <= MAX_MERGE_DEPTH)
+                    else {
+                        return Err(merge_depth_exceeded(Span::default()));
+                    };
+                    match merge {
+                        Value::Mapping(merge) => merge_mapping(mapping, merge),
+                        Value::Sequence(sequence) => {
                             for value in sequence {
                                 match value {
                                     Value::Mapping(merge) => merge_mapping(mapping, merge),
@@ -2695,20 +2719,28 @@ impl Value {
                                 }
                             }
                         }
-                        Some(Value::Tagged(_)) => {
+                        Value::Tagged(_) => {
                             return Err(merge_error("unexpected tagged value in merge"));
                         }
-                        Some(_) => {
+                        _ => {
                             return Err(merge_error(
                                 "expected a mapping or list of mappings for merging, but found scalar",
                             ));
                         }
-                        None => {}
                     }
-                    values.extend(mapping.values_mut());
+                    // Splicing the merge source flattens its top level into this
+                    // mapping, so a residual `<<` now points at the source's own
+                    // merge source — one `<<` level deeper than `next_depth`.
+                    // Charging `next_depth + 1` for that continuation keeps the
+                    // accounting in step with the per-`<<` recursion the borrowed
+                    // ref-merge paths perform; every other entry restarts its own
+                    // chain at depth zero.
+                    push_mapping_values(&mut values, mapping, next_depth + 1);
                 }
-                Value::Sequence(sequence) => values.extend(sequence),
-                Value::Tagged(tagged) => values.push(&mut tagged.value),
+                Value::Sequence(sequence) => {
+                    values.extend(sequence.iter_mut().map(|value| (0usize, value)));
+                }
+                Value::Tagged(tagged) => values.push((0usize, &mut tagged.value)),
                 _ => {}
             }
         }
@@ -3006,6 +3038,26 @@ fn merge_mapping(mapping: &mut Mapping, merge: Mapping) {
         if !mapping.contains_key(&key) {
             mapping.insert(key, value);
         }
+    }
+}
+
+/// Queues a mapping's values for further merge traversal. A value reached
+/// through a residual `<<` key continues the active merge chain and is queued at
+/// `merge_depth`; every other value begins its own chain and is queued at depth
+/// zero. Keeping ordinary entries at zero matches the `<<`-only accounting on the
+/// borrowed deserialization paths, so only genuine merge chains consume budget.
+fn push_mapping_values<'a>(
+    values: &mut Vec<(usize, &'a mut Value)>,
+    mapping: &'a mut Mapping,
+    merge_depth: usize,
+) {
+    for (key, value) in mapping.iter_mut() {
+        let depth = if value_is_merge_key(key) {
+            merge_depth
+        } else {
+            0
+        };
+        values.push((depth, value));
     }
 }
 

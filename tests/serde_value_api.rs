@@ -1,5 +1,6 @@
 use saneyaml::{
-    LoadOptions, Mapping, Node, NodeValue, Number, Sequence, Span, Tag, TaggedValue, Value,
+    ErrorCategory, LoadOptions, Mapping, Node, NodeValue, Number, Sequence, Span, Tag, TaggedValue,
+    Value,
 };
 use serde::{
     Deserialize, Serialize,
@@ -5700,6 +5701,92 @@ fn serde_api_caller_built_node_deserializers_expand_merge_keys_by_default() {
             }
         }
         other => panic!("expected raw root mapping, got {other:?}"),
+    }
+}
+
+/// Builds a `Value` mapping whose `<<` merge source nests `depth` levels deep.
+/// Each level carries a unique sibling key so the merge resolves to a single
+/// flattened mapping, exercising real merge expansion at the requested depth.
+fn caller_built_merge_value_chain(depth: usize) -> Value {
+    let mut inner = Mapping::new();
+    inner.insert(Value::from("leaf"), Value::from(0u64));
+    let mut current = Value::Mapping(inner);
+    for level in 0..depth {
+        let mut mapping = Mapping::new();
+        mapping.insert(Value::from("<<"), current);
+        mapping.insert(Value::from(format!("k{level}")), Value::from(level as u64));
+        current = Value::Mapping(mapping);
+    }
+    current
+}
+
+/// Mirror of [`caller_built_merge_value_chain`] for the borrowed/owned `Node`
+/// deserialization paths.
+fn caller_built_merge_node_chain(depth: usize) -> Node {
+    let mut current = mapping_node(vec![(string_node("leaf"), unsigned_node(0))]);
+    for level in 0..depth {
+        current = mapping_node(vec![
+            (string_node("<<"), current),
+            (
+                string_node(&format!("k{level}")),
+                unsigned_node(level as u128),
+            ),
+        ]);
+    }
+    current
+}
+
+/// A previous fix taught the borrowed `&Node`/`&Value` deserializers to expand
+/// `<<` merge keys but gave them no recursion budget, so a deep caller-built
+/// merge chain could abort the process with a stack overflow and disagree with
+/// the depth-capped owned path. The owned `Node`, `&Node`, `from_node`,
+/// `from_value`, and `&Value` paths must now all enforce the same merge-depth
+/// cap: a chain at the limit resolves, and a chain just past it fails with the
+/// same depth-exceeded error on every path.
+#[test]
+fn serde_api_caller_built_merge_depth_limit_is_consistent_across_paths() {
+    // `MAX_MERGE_DEPTH` is 128; a 128-deep chain is exactly at the cap. Use a
+    // boundary modestly above the cap so the guard fires well before recursion
+    // could approach a real stack overflow.
+    const AT_LIMIT: usize = 128;
+    const OVER_LIMIT: usize = 160;
+
+    // At the limit every path expands the chain successfully.
+    let value = caller_built_merge_value_chain(AT_LIMIT);
+    let node = caller_built_merge_node_chain(AT_LIMIT);
+    saneyaml::from_value::<Value>(value.clone()).expect("from_value expands chain at the limit");
+    Value::deserialize(&value).expect("&Value expands chain at the limit");
+    saneyaml::from_node::<Value>(&node).expect("from_node expands chain at the limit");
+    Value::deserialize(&node).expect("&Node expands chain at the limit");
+    Value::deserialize(node.clone()).expect("owned Node expands chain at the limit");
+
+    // Just past the limit every path rejects the chain with the same error,
+    // and none of them overflow the stack.
+    let value = caller_built_merge_value_chain(OVER_LIMIT);
+    let node = caller_built_merge_node_chain(OVER_LIMIT);
+
+    let errors = [
+        saneyaml::from_value::<Value>(value.clone())
+            .expect_err("from_value rejects an over-limit merge chain"),
+        Value::deserialize(&value).expect_err("&Value rejects an over-limit merge chain"),
+        saneyaml::from_node::<Value>(&node)
+            .expect_err("from_node rejects an over-limit merge chain"),
+        Value::deserialize(&node).expect_err("&Node rejects an over-limit merge chain"),
+        Value::deserialize(node.clone()).expect_err("owned Node rejects an over-limit merge chain"),
+    ];
+
+    for error in &errors {
+        assert_eq!(
+            error.category(),
+            ErrorCategory::Limit,
+            "every path must report a depth-limit error: {error}"
+        );
+        assert!(
+            error
+                .to_string()
+                .contains("maximum YAML nesting depth exceeded"),
+            "unexpected merge-depth error message: {error}"
+        );
     }
 }
 

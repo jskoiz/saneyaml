@@ -606,6 +606,42 @@ fn emitter_round_trips_special_floats() {
 }
 
 #[test]
+fn emitter_round_trips_finite_floats_in_shortest_form() {
+    let cases = [
+        0.1f64,
+        0.3,
+        1e308,
+        1e-308,
+        5e-324,
+        -0.0,
+        1e17,
+        f64::MAX,
+        f64::MIN_POSITIVE,
+    ];
+    for value in cases {
+        let node = float_node(value);
+        let emitted = to_string(&node).expect("emit finite float");
+        let scalar = emitted.trim_end();
+        // ryu yields the shortest round-tripping form; guard against the old
+        // full-decimal `Display` output that ballooned to hundreds of digits.
+        assert!(
+            scalar.len() <= 32,
+            "emitted float scalar is not shortest form for {value:?}: {scalar:?}"
+        );
+
+        let reparsed = parse_str(&emitted).expect("reparse emitted finite float");
+        let Value::Number(Number::Float(parsed)) = reparsed.value else {
+            panic!("expected a float, got {reparsed:?} for {value:?} ({scalar:?})");
+        };
+        assert_eq!(
+            parsed.to_bits(),
+            value.to_bits(),
+            "round-trip was not bit-exact for {value:?}: {scalar:?}"
+        );
+    }
+}
+
+#[test]
 fn emitter_quotes_strings_that_look_like_special_floats() {
     for input in [
         "\".nan\"\n",

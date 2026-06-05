@@ -209,3 +209,52 @@ fn emitter_round_trips_verbatim_tags_with_mapping_and_handle_like_suffixes() {
         assert_eq!(to_string(&reparsed).expect("emit again"), emitted);
     }
 }
+
+#[test]
+fn emitter_escapes_inner_gt_in_verbatim_tag_suffix() {
+    // A `:` forces verbatim emission and an inner `>` would close the verbatim
+    // tag early on reparse unless it is percent-escaped to `%3E`. These suffixes
+    // exercised the original bug where `!<>:G> value` was emitted and rejected
+    // on reparse.
+    for suffix in [">:G", "a>:b", ">>:c", "a>:b c"] {
+        let node = Node::new(
+            NodeValue::Tagged(Box::new(TaggedNode {
+                tag: Tag {
+                    handle: "!".to_string(),
+                    suffix: suffix.to_string(),
+                },
+                tag_span: Span::default(),
+                value: string_node("value"),
+            })),
+            Span::default(),
+        );
+        let emitted = to_string(&node).expect("emit verbatim tag with inner `>`");
+        assert!(emitted.starts_with("!<"), "{emitted}");
+        // The only literal `>` in the emitted tag is the closing delimiter; every
+        // inner `>` from the suffix must have become `%3E`.
+        assert_eq!(
+            emitted.matches('>').count(),
+            1,
+            "inner `>` was not escaped: {emitted}"
+        );
+        let reparsed = parse_str(&emitted)
+            .unwrap_or_else(|error| panic!("parse emitted verbatim tag: {error:?}\n{emitted}"));
+
+        assert!(reparsed.equivalent(&node), "{emitted}");
+        assert_eq!(to_string(&reparsed).expect("emit again"), emitted);
+    }
+}
+
+#[test]
+fn emitter_round_trips_parsed_percent_escaped_gt_tag() {
+    // The parser un-escapes `%3E` to `>` on read; re-emitting must escape it
+    // again so the round-trip is stable.
+    let node = parse_str("!<%3E:G> value").expect("parse percent-escaped `>` tag");
+    let emitted = to_string(&node).expect("emit percent-escaped `>` tag");
+    assert!(emitted.starts_with("!<%3E:G> value"), "{emitted}");
+    let reparsed = parse_str(&emitted)
+        .unwrap_or_else(|error| panic!("parse emitted percent-escaped tag: {error:?}\n{emitted}"));
+
+    assert!(reparsed.equivalent(&node), "{emitted}");
+    assert_eq!(to_string(&reparsed).expect("emit again"), emitted);
+}

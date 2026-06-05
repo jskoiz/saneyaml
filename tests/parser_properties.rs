@@ -2947,7 +2947,40 @@ fn arb_tag() -> impl Strategy<Value = Tag> {
         Just(Tag::new("!<flow[bracket]>")),
         Just(Tag::new("!<space tag>")),
         Just(Tag::new("!<brace{tag}>")),
+        // Suffixes carrying the indicator characters that force verbatim
+        // emission (`:`/`!`/space/flow chars) and, crucially, an inner `>` that
+        // the emitter must percent-escape so the verbatim tag is not closed
+        // early on reparse.
+        arb_indicator_tag_suffix().prop_map(|suffix| Tag {
+            handle: "!".to_string(),
+            suffix,
+        }),
     ]
+}
+
+/// Builds tag suffixes from a vocabulary that includes the YAML indicator
+/// characters (`>`, `:`, space, and the flow indicators). These are exactly the
+/// characters that decide between handle and verbatim emission and that can
+/// terminate a verbatim tag, so the round-trip property must exercise them.
+fn arb_indicator_tag_suffix() -> impl Strategy<Value = String> {
+    let token = prop_oneof![
+        Just("a"),
+        Just("Thing"),
+        Just(">"),
+        Just(":"),
+        Just("!"),
+        Just(" "),
+        Just(","),
+        Just("["),
+        Just("]"),
+        Just("{"),
+        Just("}"),
+        Just("<"),
+        Just(">:"),
+        Just("tag:example.com,2026:"),
+        Just("%"),
+    ];
+    prop::collection::vec(token, 1..6).prop_map(|parts| parts.concat())
 }
 
 fn arb_complex_key() -> impl Strategy<Value = Node> {

@@ -3931,10 +3931,22 @@ fn find_mapping_col(text: &str) -> Option<usize> {
     let mut can_start_flow_collection = true;
     let mut can_start_node_property = true;
     let mut pos = 0usize;
+    // Incrementally track the start of the current unquoted token so that
+    // `can_start_quoted_context` does not have to re-scan `text[..idx]` from the
+    // end on every quote candidate. `token_start` is the byte offset of the first
+    // character of the most recent token of `text[..pos]` (with trailing
+    // whitespace ignored, mirroring `trim_end`), where tokens are delimited by
+    // whitespace and the flow-collection openers `[`/`{`. `in_trailing_ws` records
+    // whether the characters consumed since that token are all whitespace, which
+    // is what `trim_end` would strip. Keeping this running state turns the
+    // per-position backward scan into a single linear forward pass.
+    let mut token_start = 0usize;
+    let mut in_trailing_ws = true;
     while let Some(ch) = text[pos..].chars().next() {
         let idx = pos;
         if double && escaped {
             escaped = false;
+            update_token_start(ch, idx, &mut token_start, &mut in_trailing_ws);
             pos += ch.len_utf8();
             continue;
         }
@@ -3944,6 +3956,10 @@ fn find_mapping_col(text: &str) -> Option<usize> {
             && can_start_node_property
             && matches!(ch, '&' | '*')
         {
+            // An anchor/alias token begins here; record its start before skipping
+            // over the rest of the token so a following quote sees the `&`/`*`.
+            token_start = idx;
+            in_trailing_ws = false;
             pos = skip_block_metadata_token(text, idx, ch);
             continue;
         }
@@ -3954,13 +3970,20 @@ fn find_mapping_col(text: &str) -> Option<usize> {
             && ch == '!'
             && let Some(next) = skip_block_tag_token(text, idx)
         {
+            // A tag token begins here; record its start before skipping it.
+            token_start = idx;
+            in_trailing_ws = false;
             pos = next;
             continue;
         }
         match ch {
             '\\' if double => escaped = true,
-            '"' if !single && (double || can_start_quoted_context(text, idx)) => double = !double,
-            '\'' if !double && (single || can_start_quoted_context(text, idx)) => single = !single,
+            '"' if !single && (double || can_start_quoted_context(text, idx, token_start)) => {
+                double = !double
+            }
+            '\'' if !double && (single || can_start_quoted_context(text, idx, token_start)) => {
+                single = !single
+            }
             '[' | '{' if !single && !double && can_start_flow_collection => flow_depth += 1,
             ']' | '}' if !single && !double => flow_depth = flow_depth.saturating_sub(1),
             ':' if !single && !double && flow_depth == 0 => {
@@ -3975,9 +3998,33 @@ fn find_mapping_col(text: &str) -> Option<usize> {
             can_start_flow_collection = false;
             can_start_node_property = false;
         }
+        update_token_start(ch, idx, &mut token_start, &mut in_trailing_ws);
         pos += ch.len_utf8();
     }
     None
+}
+
+/// Advance the running token-start state by one character.
+///
+/// `token_start`/`in_trailing_ws` together identify the start of the last
+/// non-empty token of the prefix consumed so far, matching the result of
+/// scanning `text[..pos].trim_end()` backwards for the last whitespace or
+/// flow-collection opener. Whitespace is treated as (potentially trailing)
+/// padding; `[`/`{` are hard boundaries that are never trimmed; any other
+/// character either continues the current token or, if it follows whitespace,
+/// starts a new one.
+fn update_token_start(ch: char, idx: usize, token_start: &mut usize, in_trailing_ws: &mut bool) {
+    if ch.is_whitespace() {
+        *in_trailing_ws = true;
+    } else if matches!(ch, '[' | '{') {
+        *token_start = idx + ch.len_utf8();
+        *in_trailing_ws = false;
+    } else {
+        if *in_trailing_ws {
+            *token_start = idx;
+        }
+        *in_trailing_ws = false;
+    }
 }
 
 fn skip_block_metadata_token(text: &str, idx: usize, sigil: char) -> usize {
@@ -4007,7 +4054,14 @@ fn skip_block_tag_token(text: &str, idx: usize) -> Option<usize> {
     Some(pos)
 }
 
-fn can_start_quoted_context(text: &str, idx: usize) -> bool {
+/// Decide whether a quote at `idx` opens a quoted scalar.
+///
+/// `token_start` is the byte offset of the first character of the token that the
+/// quote belongs to, as tracked by `find_mapping_col`'s forward scan (see
+/// `update_token_start`). It is equivalent to scanning `text[..idx].trim_end()`
+/// backwards for the last whitespace or flow-collection opener, but is supplied
+/// precomputed so this check stays O(1) instead of re-scanning the prefix.
+fn can_start_quoted_context(text: &str, idx: usize, token_start: usize) -> bool {
     let prefix = text[..idx].trim_end();
     if prefix.is_empty() {
         return true;
@@ -4033,14 +4087,10 @@ fn can_start_quoted_context(text: &str, idx: usize) -> bool {
         }
     }
 
-    let token_start = prefix
-        .char_indices()
-        .rev()
-        .find_map(|(idx, ch)| {
-            (ch.is_whitespace() || matches!(ch, '[' | '{')).then_some(idx + ch.len_utf8())
-        })
-        .unwrap_or(0);
-    matches!(prefix[token_start..].chars().next(), Some('!' | '&'))
+    // `text[token_start..idx]` is the current token; only its first character
+    // matters, and it equals the first character of `prefix[token_start..]`
+    // because `token_start` always points at a non-whitespace token start.
+    matches!(text[token_start..idx].chars().next(), Some('!' | '&'))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

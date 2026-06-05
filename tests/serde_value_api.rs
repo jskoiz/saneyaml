@@ -5727,7 +5727,10 @@ fn caller_built_merge_node_chain(depth: usize) -> Node {
     for level in 0..depth {
         current = mapping_node(vec![
             (string_node("<<"), current),
-            (string_node(&format!("k{level}")), unsigned_node(level as u128)),
+            (
+                string_node(&format!("k{level}")),
+                unsigned_node(level as u128),
+            ),
         ]);
     }
     current
@@ -5769,8 +5772,7 @@ fn serde_api_caller_built_merge_depth_limit_is_consistent_across_paths() {
         saneyaml::from_node::<Value>(&node)
             .expect_err("from_node rejects an over-limit merge chain"),
         Value::deserialize(&node).expect_err("&Node rejects an over-limit merge chain"),
-        Value::deserialize(node.clone())
-            .expect_err("owned Node rejects an over-limit merge chain"),
+        Value::deserialize(node.clone()).expect_err("owned Node rejects an over-limit merge chain"),
     ];
 
     for error in &errors {

@@ -1,8 +1,9 @@
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, fs, path::Path};
 
 use saneyaml::Value;
 
 const CARGO_TOML: &str = include_str!("../Cargo.toml");
+const FUZZ_CARGO_TOML: &str = include_str!("../fuzz/Cargo.toml");
 const CI_WORKFLOW: &str = include_str!("../.github/workflows/ci.yml");
 const README: &str = include_str!("../README.md");
 const ARCHITECTURE: &str = include_str!("../docs/ARCHITECTURE.md");
@@ -13,6 +14,8 @@ const SECURITY: &str = include_str!("../SECURITY.md");
 const CHANGELOG: &str = include_str!("../CHANGELOG.md");
 const CONTRIBUTING: &str = include_str!("../CONTRIBUTING.md");
 const FEATURE_CLIPPY: &str = include_str!("../scripts/check-feature-clippy.sh");
+const FUZZ_SMOKE: &str = include_str!("../scripts/fuzz-smoke-nonmutating.sh");
+const FUZZ_RELEASE_SWEEP: &str = include_str!("../scripts/fuzz-release-sweep.sh");
 const PR_TEMPLATE: &str = include_str!("../.github/pull_request_template.md");
 const ISSUE_CONFIG: &str = include_str!("../.github/ISSUE_TEMPLATE/config.yml");
 const BUG_TEMPLATE: &str = include_str!("../.github/ISSUE_TEMPLATE/bug_report.yml");
@@ -21,6 +24,14 @@ const FUZZ_TEMPLATE: &str = include_str!("../.github/ISSUE_TEMPLATE/fuzz_crash.y
 
 #[test]
 fn security_policy_states_supported_preview_and_limits() {
+    let fuzz_targets = configured_fuzz_targets();
+    assert_eq!(
+        fuzz_targets,
+        fuzz_target_files(),
+        "fuzz/Cargo.toml target list must match fuzz/fuzz_targets/*.rs"
+    );
+    let fuzz_count_claim = format!("{} configured fuzz targets", fuzz_targets.len());
+
     for term in [
         "current repository",
         "`main` line only",
@@ -29,10 +40,21 @@ fn security_policy_states_supported_preview_and_limits() {
         "max_alias_expansion_nodes()",
         "Recursive aliases are rejected",
         "Reader-backed entrypoints still fully buffer",
-        "ten fuzz targets",
+        fuzz_count_claim.as_str(),
         "scripts/fuzz-release-sweep.sh",
+        "1000 requested runs per target across all\nconfigured targets",
     ] {
         assert_contains(SECURITY, term);
+    }
+
+    assert!(
+        !SECURITY.contains("ten fuzz targets") && !SECURITY.contains("all ten"),
+        "security policy must not carry stale hard-coded fuzz target counts"
+    );
+
+    for target in fuzz_targets {
+        assert_contains(FUZZ_SMOKE, &target);
+        assert_contains(FUZZ_RELEASE_SWEEP, &target);
     }
 }
 
@@ -193,22 +215,48 @@ fn ci_triggers_on_public_package_claim_inputs() {
 
 #[test]
 fn feature_clippy_covers_non_default_feature_matrix() {
+    let manifest = package_manifest();
+    let features = manifest
+        .get("features")
+        .and_then(toml::Value::as_table)
+        .expect("Cargo.toml has [features]");
+    assert_eq!(
+        features.keys().map(String::as_str).collect::<BTreeSet<_>>(),
+        BTreeSet::from(["default", "lossless"]),
+        "only real optional features should be exposed"
+    );
+    assert_eq!(
+        feature_list(features, "default"),
+        BTreeSet::from(["lossless".to_owned()]),
+        "default features should track the real optional surface"
+    );
+    assert_eq!(
+        feature_list(features, "lossless"),
+        BTreeSet::new(),
+        "lossless should not pull facade subfeatures"
+    );
+
+    assert_contains(ARCHITECTURE, "default = [\"lossless\"]");
+    assert_contains(
+        ARCHITECTURE,
+        "Serde integration, `Value`, structural writers, and emitter controls\nare always part of the package contract",
+    );
+    assert!(
+        !ARCHITECTURE.contains("default = [\"serde\", \"emit\", \"lossless\"]"),
+        "architecture docs must not advertise removed facade features"
+    );
+
     assert_contains(
         FEATURE_CLIPPY,
         "cargo clippy --locked --no-default-features --lib -- -D warnings",
     );
-    assert_contains(FEATURE_CLIPPY, "for features in serde emit serde,emit; do");
     assert_contains(
         FEATURE_CLIPPY,
-        "cargo clippy --locked --no-default-features --features \"$features\" --lib -- -D warnings",
+        "cargo clippy --locked --no-default-features --features lossless --all-targets -- -D warnings",
     );
-    assert_contains(
-        FEATURE_CLIPPY,
-        "for features in lossless serde,lossless emit,lossless; do",
-    );
-    assert_contains(
-        FEATURE_CLIPPY,
-        "cargo clippy --locked --no-default-features --features \"$features\" --all-targets -- -D warnings",
+    assert!(
+        !FEATURE_CLIPPY.contains("serde") && !FEATURE_CLIPPY.contains("emit"),
+        "feature clippy script must not exercise removed no-op features"
     );
 }
 
@@ -284,6 +332,57 @@ fn ci_string_sequence_for(workflow: &Value, path: &[&str]) -> BTreeSet<String> {
 
 fn package_manifest() -> toml::Value {
     toml::from_str(CARGO_TOML).expect("Cargo.toml parses")
+}
+
+fn configured_fuzz_targets() -> BTreeSet<String> {
+    let manifest: toml::Value = toml::from_str(FUZZ_CARGO_TOML).expect("fuzz/Cargo.toml parses");
+    manifest
+        .get("bin")
+        .and_then(toml::Value::as_array)
+        .expect("fuzz/Cargo.toml has [[bin]] targets")
+        .iter()
+        .map(|target| {
+            target
+                .get("name")
+                .and_then(toml::Value::as_str)
+                .expect("fuzz target has a name")
+                .to_owned()
+        })
+        .collect()
+}
+
+fn fuzz_target_files() -> BTreeSet<String> {
+    fs::read_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("fuzz/fuzz_targets"))
+        .expect("fuzz target directory exists")
+        .filter_map(|entry| {
+            let entry = entry.expect("fuzz target directory entry reads");
+            let path = entry.path();
+            if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
+                return None;
+            }
+            Some(
+                path.file_stem()
+                    .and_then(|stem| stem.to_str())
+                    .expect("fuzz target file has UTF-8 stem")
+                    .to_owned(),
+            )
+        })
+        .collect()
+}
+
+fn feature_list(features: &toml::map::Map<String, toml::Value>, name: &str) -> BTreeSet<String> {
+    features
+        .get(name)
+        .and_then(toml::Value::as_array)
+        .unwrap_or_else(|| panic!("feature {name} is an array"))
+        .iter()
+        .map(|feature| {
+            feature
+                .as_str()
+                .unwrap_or_else(|| panic!("feature {name} entries are strings"))
+                .to_owned()
+        })
+        .collect()
 }
 
 fn package_field<'a>(manifest: &'a toml::Value, field: &str) -> &'a str {

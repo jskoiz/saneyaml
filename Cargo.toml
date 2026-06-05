@@ -37,9 +37,7 @@ name = "saneyaml"
 path = "src/lib.rs"
 
 [features]
-default = ["serde", "emit", "lossless"]
-serde = []
-emit = []
+default = ["lossless"]
 lossless = []
 
 [lints.rust]

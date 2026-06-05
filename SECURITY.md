@@ -37,12 +37,12 @@ wall-clock, resident-memory, or sandbox guarantee.
 
 ## Fuzzing and Regression Coverage
 
-The repository carries ten fuzz targets, non-mutating corpus replay through
-`scripts/fuzz-smoke-nonmutating.sh`, and a manual release sweep through
+The repository carries 11 configured fuzz targets, non-mutating corpus replay
+through `scripts/fuzz-smoke-nonmutating.sh`, and a manual release sweep through
 `scripts/fuzz-release-sweep.sh`. Corpus release floors and named safety seeds
-are also gated by the property-test suite. The current committed hygiene sweep records, on a clean checkout, all ten
-configured targets at 1000 requested runs per target with zero crash artifacts
-observed.
+are also gated by the property-test suite. The current committed hygiene sweep
+records, on a clean checkout, 1000 requested runs per target across all
+configured targets with zero crash artifacts observed.
 
 Security-relevant fixes should include the narrowest reproducible test,
 fixture, corpus seed, or divergence record that proves the issue stays fixed

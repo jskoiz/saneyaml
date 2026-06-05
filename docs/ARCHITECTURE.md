@@ -41,23 +41,20 @@ and one package alias story for `serde_yaml` migration.
 
 ## Feature Facade
 
-The default feature set is:
+The only optional crate feature currently exposed is:
 
 ```toml
-default = ["serde", "emit", "lossless"]
+default = ["lossless"]
+lossless = []
 ```
 
-Feature intent:
-
-- `serde`: the default Serde read/write facade and migration surface.
-- `emit`: structural writer and serializer-facing emission controls.
-- `lossless`: source-backed graph inspection and format-preserving edit helpers.
-
-The `lossless` surface is feature-gated and enabled by default. The `serde` and
-`emit` features are named facade features for the 0.1 line; they remain enabled
-by default because Serde integration and structural emission are part of the
-first package contract. A future non-default build can narrow those surfaces
-only with explicit tests and documentation.
+`lossless` controls source-backed graph inspection and format-preserving edit
+helpers. Serde integration, `Value`, structural writers, and emitter controls
+are always part of the package contract because `serde` is a runtime dependency
+and the migration surface is not currently split into optional subfeatures.
+Future feature narrowing should add real `cfg(feature = "...")` boundaries,
+tests, and documentation instead of naming facade features that do not alter
+compiled API.
 
 ## Stability Boundary
 

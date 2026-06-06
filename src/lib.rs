@@ -34,6 +34,7 @@ pub mod lossless;
 mod parse;
 mod schema;
 mod ser;
+mod spanned;
 mod yaml11;
 
 /// Serde helper modules matching selected `serde_yaml::with` paths.
@@ -102,3 +103,4 @@ pub use schema::{
 pub use ser::{
     Serializer, to_string, to_string_with_options, to_value, to_writer, to_writer_with_options,
 };
+pub use spanned::Spanned;

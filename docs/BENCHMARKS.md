@@ -305,6 +305,73 @@ is not a sole leader there. Its differentiation is the combination of full spec
 conformance with tree-policy rejection of the duplicate-key/tree-error cases
 that `saphyr` accepts, while `serde_yaml` trails the spec set at 333/400.
 
+## serde-saphyr Head-To-Head
+
+[`serde-saphyr`](https://crates.io/crates/serde-saphyr) is the closest active
+competitor: a pure-Rust, Serde-based YAML layer (built on `granit-parser`) that
+deserializes straight into Rust types without first building an intermediate
+node tree. Because both crates drive Serde, the fair comparison feeds identical
+bytes into identical target types through each crate's idiomatic `from_str`
+(one warm-up pass, then a timed `Instant::now()` loop), isolating the YAML
+layer. Captured 2026-06-06 on an Apple M4 Pro against
+`serde-saphyr 0.0.27`, both libraries on their shipping defaults:
+
+```sh
+cargo run --release --example serde_saphyr_headtohead
+```
+
+**Axis 1 — dynamic value (`serde_json::Value`) over the real-world corpus.**
+The neutral target both crates deserialize into; 27 of the 30 single-document
+corpus fixtures are accepted by both (see the tag caveat below).
+
+| load path | iterations | bytes/iter | ns/byte |
+|---|---:|---:|---:|
+| `saneyaml::from_str::<serde_json::Value>` | 500 | 19,346 | 20.26 |
+| `serde_saphyr::from_str::<serde_json::Value>` | 500 | 19,346 | 38.78 |
+| `saneyaml::parse_documents` (native tree, reference) | 500 | 19,346 | 15.99 |
+
+**Axis 2 — typed deserialize into a nested `Config` struct** (generated, 4,000
+services, 983,795 bytes).
+
+| load path | iterations | bytes/iter | ns/byte |
+|---|---:|---:|---:|
+| `saneyaml::from_str::<Config>` | 40 | 983,795 | 22.20 |
+| `serde_saphyr::from_str::<Config>` | 40 | 983,795 | 39.98 |
+
+**Axis 3 — typed deserialize into a flat `Vec<Record>`** (generated, 15,000
+records, 912,130 bytes) — the "load a large homogeneous file straight into
+structs" shape `serde-saphyr` is designed around.
+
+| load path | iterations | bytes/iter | ns/byte |
+|---|---:|---:|---:|
+| `saneyaml::from_str::<Vec<Record>>` | 40 | 912,130 | 23.62 |
+| `serde_saphyr::from_str::<Vec<Record>>` | 40 | 912,130 | 51.98 |
+
+Result: on this machine and these inputs `saneyaml` is ~1.9x faster on the
+dynamic-value corpus, ~1.8x on the nested typed struct, and ~2.2x on the flat
+typed records — the widest margin on the very shape `serde-saphyr` targets. As
+everywhere in this document the trustworthy signal is the same-run ratio, not
+the absolute ns/byte, which is machine- and structure-dependent. (`serde-saphyr`'s
+own published ~11 ns/byte figure was measured on a single large homogeneous file
+and, at 25 MiB, would have required raising its default node budget — so it is
+not directly comparable to these default-settings captures.)
+
+Two non-speed differences surfaced and are worth recording:
+
+- **Custom tags.** Three corpus fixtures (`ansible/vault-and-unsafe-tags.yaml`,
+  `cloudformation/sam-api.yaml`, `symfony/services.yaml`) carry application tags
+  (`!vault`, `!Ref`, Symfony service tags). `saneyaml` surfaces these as typed
+  tagged values that `serde_json::Value` cannot represent and rejects them
+  (`invalid type: enum`); `serde-saphyr` discards the tag and accepts the
+  underlying value. Neither is "wrong" — `saneyaml` is the more tag-faithful of
+  the two — but it is why the dynamic-value axis is timed on the 27-fixture
+  intersection both accept.
+- **Default resource caps differ.** Both crates are safe-by-default but tuned
+  differently: `saneyaml` caps collections at 16,384 items (plus input-byte,
+  scalar, and nesting limits); `serde-saphyr` caps total nodes at ~250,000. The
+  generated inputs above stay under the tighter of the two so both run on
+  defaults; neither is unbounded out of the box.
+
 ## Reproduction & Tooling
 
 Every number in this document comes from an in-repo example, run under Cargo's
@@ -324,6 +391,7 @@ single capture as indicative rather than authoritative.
 | Allocator-backed memory (dhat) | `cargo run --release --example dhat_memory -- --all` |
 | dhat single (library, corpus) pair | `cargo run --release --example dhat_memory -- saneyaml-borrowed multidoc` |
 | Conformance (402 curated cases) | `cargo run --release --example conformance_compare` |
+| serde-saphyr head-to-head | `cargo run --release --example serde_saphyr_headtohead` |
 
 Iteration counts default to 200 for `real_world_benchmark` (`YAML_BENCH_ITERS`)
 and 20 for `large_input_benchmark` (`YAML_LARGE_BENCH_ITERS`). The
@@ -342,6 +410,7 @@ dev-dependency versions (see `Cargo.toml`):
 | `saphyr` | 0.0.6 |
 | `saphyr-parser` | 0.0.6 |
 | `yaml-rust2` | 0.11.0 |
+| `serde-saphyr` | 0.0.27 |
 | `dhat` | 0.3.3 |
 
 To reproduce against the exact pinned set, build with the checked-in

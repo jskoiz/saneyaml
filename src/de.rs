@@ -1895,13 +1895,16 @@ impl<'de, 'tree> de::Deserializer<'de> for InputNode<'tree, 'de> {
 
     fn deserialize_struct<V>(
         self,
-        _name: &'static str,
+        name: &'static str,
         _fields: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
+        if name == crate::spanned::NAME {
+            return crate::spanned::deserialize_spanned(self.node.span, self, visitor);
+        }
         self.deserialize_map(visitor)
     }
 
@@ -2391,13 +2394,16 @@ impl<'de> de::Deserializer<'de> for &'de Node {
 
     fn deserialize_struct<V>(
         self,
-        _name: &'static str,
+        name: &'static str,
         _fields: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
+        if name == crate::spanned::NAME {
+            return crate::spanned::deserialize_spanned(self.span, self, visitor);
+        }
         self.deserialize_map(visitor)
     }
 
@@ -2868,13 +2874,17 @@ impl<'de> de::Deserializer<'de> for Node {
 
     fn deserialize_struct<V>(
         self,
-        _name: &'static str,
+        name: &'static str,
         _fields: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
+        if name == crate::spanned::NAME {
+            let span = self.span;
+            return crate::spanned::deserialize_spanned(span, self, visitor);
+        }
         self.deserialize_map(visitor)
     }
 
@@ -3302,13 +3312,21 @@ impl<'de> de::Deserializer<'de> for Value {
 
     fn deserialize_struct<V>(
         self,
-        _name: &'static str,
+        name: &'static str,
         _fields: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
+        if name == crate::spanned::NAME {
+            // The Value tree is spanless; report a default (zero) span.
+            return crate::spanned::deserialize_spanned(
+                crate::error::Span::default(),
+                self,
+                visitor,
+            );
+        }
         self.deserialize_map(visitor)
     }
 
@@ -4720,7 +4738,15 @@ impl<'de> de::Deserializer<'de> for &'de Value {
     where
         V: Visitor<'de>,
     {
-        let _ = (name, fields);
+        let _ = fields;
+        if name == crate::spanned::NAME {
+            // The Value tree is spanless; report a default (zero) span.
+            return crate::spanned::deserialize_spanned(
+                crate::error::Span::default(),
+                self,
+                visitor,
+            );
+        }
         self.deserialize_map(visitor)
     }
 

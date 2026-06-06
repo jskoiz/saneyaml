@@ -28,6 +28,7 @@ mod ast;
 mod de;
 mod emit;
 mod error;
+mod event_de;
 mod key_identity;
 #[cfg(feature = "lossless")]
 pub mod lossless;
@@ -42,6 +43,46 @@ pub mod with;
 /// Pull-based YAML event and document streaming APIs.
 pub mod stream {
     pub use crate::parse::{DocumentStream, EventStream};
+}
+
+#[doc(hidden)]
+pub mod __unstable_event_serde {
+    use std::io::Read;
+
+    use crate::{LoadOptions, Result};
+
+    pub fn from_documents_str<T>(input: &str) -> Result<Vec<T>>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        from_documents_str_with_options(input, LoadOptions::new())
+    }
+
+    pub fn from_documents_str_with_options<T>(input: &str, options: LoadOptions) -> Result<Vec<T>>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        crate::event_de::from_documents_str_with_options(input, options)
+    }
+
+    pub fn from_documents_reader<T, R>(reader: R) -> Result<Vec<T>>
+    where
+        T: serde::de::DeserializeOwned,
+        R: Read,
+    {
+        from_documents_reader_with_options(reader, LoadOptions::new())
+    }
+
+    pub fn from_documents_reader_with_options<T, R>(
+        reader: R,
+        options: LoadOptions,
+    ) -> Result<Vec<T>>
+    where
+        T: serde::de::DeserializeOwned,
+        R: Read,
+    {
+        crate::event_de::document_iter_reader_with_options(reader, options)?.collect()
+    }
 }
 
 /// Mapping types and iterators for YAML [`Mapping`].

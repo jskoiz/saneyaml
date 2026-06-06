@@ -24,9 +24,16 @@ where
 {
     let configured_schema = options.selected_schema();
     let replay_budget = options.alias_expansion_budget(input.len());
+    let max_nesting_depth = options.selected_max_nesting_depth();
     let events = crate::parse::EventStream::from_str_with_options(input, options)?
         .collect::<Result<Vec<_>>>()?;
-    let mut source = EventSource::new(input, events, configured_schema, replay_budget);
+    let mut source = EventSource::new(
+        input,
+        events,
+        configured_schema,
+        replay_budget,
+        max_nesting_depth,
+    );
     source.enter_stream()?;
     source.enter_document()?;
     let value = T::deserialize(EventNodeDeserializer {
@@ -63,11 +70,13 @@ where
 {
     let configured_schema = options.selected_schema();
     let replay_budget = options.alias_expansion_budget(input.len());
+    let max_nesting_depth = options.selected_max_nesting_depth();
     Ok(EventDocumentIter {
         input,
         frames: EventDocumentFrames::from_str_with_options(input, options)?,
         configured_schema,
         replay_budget,
+        max_nesting_depth,
         _marker: PhantomData,
     })
 }
@@ -102,12 +111,14 @@ where
     })?;
     let configured_schema = options.selected_schema();
     let replay_budget = options.alias_expansion_budget(input.len());
+    let max_nesting_depth = options.selected_max_nesting_depth();
     let frames = EventDocumentFrames::from_str_with_options(&input, options)?;
     Ok(OwnedEventDocumentIter {
         input,
         frames,
         configured_schema,
         replay_budget,
+        max_nesting_depth,
         _marker: PhantomData,
     })
 }
@@ -117,6 +128,7 @@ pub(crate) struct EventDocumentIter<'de, T> {
     frames: EventDocumentFrames,
     configured_schema: Schema,
     replay_budget: usize,
+    max_nesting_depth: Option<usize>,
     _marker: PhantomData<T>,
 }
 
@@ -136,6 +148,7 @@ where
                         events,
                         self.configured_schema,
                         self.replay_budget,
+                        self.max_nesting_depth,
                     )
                 })
                 .map_err(|error| error.with_document_index(index)),
@@ -148,6 +161,7 @@ pub(crate) struct OwnedEventDocumentIter<T> {
     frames: EventDocumentFrames,
     configured_schema: Schema,
     replay_budget: usize,
+    max_nesting_depth: Option<usize>,
     _marker: PhantomData<T>,
 }
 
@@ -167,6 +181,7 @@ where
                         events,
                         self.configured_schema,
                         self.replay_budget,
+                        self.max_nesting_depth,
                     )
                 })
                 .map_err(|error| error.with_document_index(index)),
@@ -273,11 +288,18 @@ fn deserialize_document_frame<'de, T>(
     events: Vec<Event>,
     configured_schema: Schema,
     replay_budget: usize,
+    max_nesting_depth: Option<usize>,
 ) -> Result<T>
 where
     T: serde::Deserialize<'de>,
 {
-    let mut source = EventSource::new(input, events, configured_schema, replay_budget);
+    let mut source = EventSource::new(
+        input,
+        events,
+        configured_schema,
+        replay_budget,
+        max_nesting_depth,
+    );
     source.enter_stream()?;
     source.enter_document()?;
     let value = T::deserialize(EventNodeDeserializer {
@@ -301,6 +323,8 @@ struct EventSource<'de> {
     inject: Vec<InjectedEvents>,
     replayed_events: usize,
     replay_budget: usize,
+    max_nesting_depth: Option<usize>,
+    depth: usize,
 }
 
 struct InjectedEvents {
@@ -315,6 +339,7 @@ impl<'de> EventSource<'de> {
         events: Vec<Event>,
         configured_schema: Schema,
         replay_budget: usize,
+        max_nesting_depth: Option<usize>,
     ) -> Self {
         Self {
             input,
@@ -326,7 +351,43 @@ impl<'de> EventSource<'de> {
             inject: Vec::new(),
             replayed_events: 0,
             replay_budget,
+            max_nesting_depth,
+            depth: 0,
         }
+    }
+
+    /// Records descent into a nested collection and enforces the configured
+    /// nesting-depth ceiling. The event-backed path expands aliases lazily as
+    /// it walks, so — unlike the tree-backed path's `AnchorTable::resolve` — the
+    /// parser's literal-depth check does not bound the *expanded* depth. Without
+    /// this guard a literally shallow document with a long alias chain recurses
+    /// until the stack overflows. Mirrors the tree-backed `depth > max` check.
+    fn enter_depth(&mut self, span: Span) -> Result<()> {
+        self.depth = self.depth.saturating_add(1);
+        if self.max_nesting_depth.is_some_and(|max| self.depth > max) {
+            return Err(Error::limit(
+                "maximum YAML nesting depth exceeded while expanding alias",
+                span,
+            ));
+        }
+        Ok(())
+    }
+
+    fn exit_depth(&mut self) {
+        self.depth = self.depth.saturating_sub(1);
+    }
+
+    /// Same ceiling as [`enter_depth`], but for the read-only key/merge
+    /// materialization walk in [`node_at_for_key`], which threads an explicit
+    /// `depth` because it borrows `self` immutably.
+    fn check_depth(&self, depth: usize, span: impl Into<Option<Span>>) -> Result<()> {
+        if self.max_nesting_depth.is_some_and(|max| depth > max) {
+            return Err(Error::limit(
+                "maximum YAML nesting depth exceeded while expanding alias",
+                span,
+            ));
+        }
+        Ok(())
     }
 
     fn peek(&self) -> Option<&Event> {
@@ -437,6 +498,7 @@ impl<'de> EventSource<'de> {
                 self.anchors.clear();
                 self.inject.clear();
                 self.replayed_events = 0;
+                self.depth = 0;
                 self.schema = schema_for_directives(self.configured_schema, &directives);
                 Ok(())
             }
@@ -558,17 +620,19 @@ impl<'de> EventSource<'de> {
                 "event-backed alias replay is not implemented",
                 anchor.span,
             )),
-            Some(Event::SequenceStart { .. }) => {
+            Some(Event::SequenceStart { span, .. }) => {
+                self.enter_depth(span)?;
                 self.next()?;
                 loop {
                     if matches!(self.peek(), Some(Event::SequenceEnd { .. })) {
                         self.next()?;
+                        self.exit_depth();
                         return Ok(());
                     }
                     self.skip_node()?;
                 }
             }
-            Some(Event::MappingStart { .. }) => {
+            Some(Event::MappingStart { span, .. }) => {
                 if self.next_mapping_has_merge_key()? {
                     let mut node = self.materialize_current_node_for_merge()?;
                     node.apply_merge_keys_with_policy(merge_policy_for_schema(self.schema))?;
@@ -576,10 +640,12 @@ impl<'de> EventSource<'de> {
                     return Ok(());
                 }
                 self.validate_next_mapping_duplicates()?;
+                self.enter_depth(span)?;
                 self.next()?;
                 loop {
                     if matches!(self.peek(), Some(Event::MappingEnd { .. })) {
                         self.next()?;
+                        self.exit_depth();
                         return Ok(());
                     }
                     self.skip_node()?;
@@ -598,21 +664,29 @@ impl<'de> EventSource<'de> {
                 "event-backed alias replay is not implemented",
                 anchor.span,
             )),
-            Event::SequenceStart { .. } => loop {
-                if matches!(self.peek(), Some(Event::SequenceEnd { .. })) {
-                    self.next()?;
-                    return Ok(());
+            Event::SequenceStart { span, .. } => {
+                self.enter_depth(span)?;
+                loop {
+                    if matches!(self.peek(), Some(Event::SequenceEnd { .. })) {
+                        self.next()?;
+                        self.exit_depth();
+                        return Ok(());
+                    }
+                    self.skip_node_raw()?;
                 }
-                self.skip_node_raw()?;
-            },
-            Event::MappingStart { .. } => loop {
-                if matches!(self.peek(), Some(Event::MappingEnd { .. })) {
-                    self.next()?;
-                    return Ok(());
+            }
+            Event::MappingStart { span, .. } => {
+                self.enter_depth(span)?;
+                loop {
+                    if matches!(self.peek(), Some(Event::MappingEnd { .. })) {
+                        self.next()?;
+                        self.exit_depth();
+                        return Ok(());
+                    }
+                    self.skip_node_raw()?;
+                    self.skip_node_raw()?;
                 }
-                self.skip_node_raw()?;
-                self.skip_node_raw()?;
-            },
+            }
             event => Err(unexpected_event("node", &event)),
         }
     }
@@ -628,6 +702,7 @@ impl<'de> EventSource<'de> {
             &mut Vec::new(),
             &mut replayed_events,
             true,
+            self.depth,
         )?;
         let expected = skip_node_in(events, pos)?;
         if next != expected {
@@ -658,6 +733,7 @@ impl<'de> EventSource<'de> {
                 &mut Vec::new(),
                 &mut replayed_events,
                 true,
+                self.depth,
             )?;
             if node_is_merge_key(&key) {
                 return Ok(true);
@@ -681,9 +757,13 @@ impl<'de> EventSource<'de> {
             if matches!(event, Event::MappingEnd { .. }) {
                 return Ok(());
             }
-            if let Some((key, next_pos)) =
-                self.mapping_key_at(events, pos, &mut scan_anchors, &mut replayed_events)?
-            {
+            if let Some((key, next_pos)) = self.mapping_key_at(
+                events,
+                pos,
+                &mut scan_anchors,
+                &mut replayed_events,
+                self.depth,
+            )? {
                 if node_is_merge_key(&key) {
                     return Err(Error::data(
                         "event-backed merge-key expansion is not implemented",
@@ -715,6 +795,7 @@ impl<'de> EventSource<'de> {
         pos: usize,
         scan_anchors: &mut HashMap<String, Vec<Event>>,
         replayed_events: &mut usize,
+        depth: usize,
     ) -> Result<Option<(Node, usize)>> {
         if let Some(name) = events.get(pos).and_then(event_anchor_name) {
             let end = skip_node_in(events, pos)?;
@@ -732,6 +813,7 @@ impl<'de> EventSource<'de> {
                     &mut Vec::new(),
                     replayed_events,
                     false,
+                    depth,
                 )
                 .map(|(node, next)| Some((node, next))),
             Some(_) | None => Ok(None),
@@ -797,6 +879,7 @@ impl<'de> EventSource<'de> {
         Ok(tagged_key_node(tag.tag.clone(), tag.span, inner))
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn node_at_for_key(
         &self,
         events: &[Event],
@@ -805,10 +888,12 @@ impl<'de> EventSource<'de> {
         active_aliases: &mut Vec<String>,
         replayed_events: &mut usize,
         allow_merge_key: bool,
+        depth: usize,
     ) -> Result<(Node, usize)> {
         let Some(event) = events.get(pos) else {
             return Err(Error::data("unexpected end of YAML event stream", None));
         };
+        self.check_depth(depth, event_span(event))?;
         if let Some(name) = event_anchor_name(event) {
             let end = skip_node_in(events, pos)?;
             scan_anchors.insert(name.to_string(), events[pos..end].to_vec());
@@ -849,6 +934,7 @@ impl<'de> EventSource<'de> {
                     active_aliases,
                     replayed_events,
                     allow_merge_key,
+                    depth,
                 )?;
                 active_aliases.pop();
                 if end != target.len() {
@@ -875,6 +961,7 @@ impl<'de> EventSource<'de> {
                                 active_aliases,
                                 replayed_events,
                                 allow_merge_key,
+                                depth + 1,
                             )?;
                             items.push(item);
                             next = after_item;
@@ -906,6 +993,7 @@ impl<'de> EventSource<'de> {
                                 active_aliases,
                                 replayed_events,
                                 allow_merge_key,
+                                depth + 1,
                             )?;
                             if !allow_merge_key && node_is_merge_key(&key) {
                                 return Err(Error::data(
@@ -928,6 +1016,7 @@ impl<'de> EventSource<'de> {
                                 active_aliases,
                                 replayed_events,
                                 allow_merge_key,
+                                depth + 1,
                             )?;
                             entries.push((key, value));
                             next = after_value;
@@ -1365,10 +1454,15 @@ impl<'de> de::Deserializer<'de> for EventNodeDeserializer<'_, 'de> {
             return self.deserialize_prepared_current_seq(visitor);
         }
         match self.source.next()? {
-            Event::SequenceStart { .. } => visitor.visit_seq(EventSeqAccess {
-                source: self.source,
-                index: 0,
-            }),
+            Event::SequenceStart { span, .. } => {
+                self.source.enter_depth(span)?;
+                let value = visitor.visit_seq(EventSeqAccess {
+                    source: &mut *self.source,
+                    index: 0,
+                });
+                self.source.exit_depth();
+                value
+            }
             event => Err(unexpected_event("sequence", &event)),
         }
     }
@@ -1408,10 +1502,15 @@ impl<'de> de::Deserializer<'de> for EventNodeDeserializer<'_, 'de> {
         }
         self.source.validate_next_mapping_duplicates()?;
         match self.source.next()? {
-            Event::MappingStart { .. } => visitor.visit_map(EventMapAccess {
-                source: self.source,
-                value: None,
-            }),
+            Event::MappingStart { span, .. } => {
+                self.source.enter_depth(span)?;
+                let value = visitor.visit_map(EventMapAccess {
+                    source: &mut *self.source,
+                    value: None,
+                });
+                self.source.exit_depth();
+                value
+            }
             event => Err(unexpected_event("mapping", &event)),
         }
     }
@@ -1430,18 +1529,29 @@ impl<'de> de::Deserializer<'de> for EventNodeDeserializer<'_, 'de> {
 
     fn deserialize_enum<V>(
         self,
-        _name: &'static str,
-        _variants: &'static [&'static str],
+        name: &'static str,
+        variants: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        let node = self.source.take_scalar()?;
-        let Some(value) = prepared_string_target_text(&node) else {
-            return Err(type_error("enum string", &node));
-        };
-        visitor.visit_enum(value.to_string().into_deserializer())
+        // Materialize the current node and reuse the tree-backed enum logic so
+        // the event path accepts the same forms as `de.rs`: bare-scalar unit
+        // variants, single-key `{Variant: payload}` mappings (newtype/tuple/
+        // struct variants), and tag-shorthand variants. The previous
+        // scalar-only path rejected every externally-tagged variant that
+        // carried a payload.
+        self.source.resolve_aliases_until_non_alias()?;
+        let mut node = self.source.materialize_current_node_for_merge()?;
+        node.apply_merge_keys_with_policy(merge_policy_for_schema(self.source.schema))?;
+        self.source.skip_node_raw()?;
+        de::Deserializer::deserialize_enum(
+            PreparedNodeDeserializer { node },
+            name,
+            variants,
+            visitor,
+        )
     }
 
     fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value>
@@ -1529,12 +1639,13 @@ impl<'de> MapAccess<'de> for EventMapAccess<'_, 'de> {
             self.source.next()?;
             return Ok(None);
         }
+        let depth = self.source.depth;
         let (events, pos) = self.source.current_events_and_pos();
         let mut scan_anchors = self.source.anchors.clone();
         let mut replayed_events = 0usize;
         let segment = self
             .source
-            .mapping_key_at(events, pos, &mut scan_anchors, &mut replayed_events)?
+            .mapping_key_at(events, pos, &mut scan_anchors, &mut replayed_events, depth)?
             .map(|(node, _)| path_segment_for_node(&node))
             .unwrap_or(ErrorPathSegment::ComplexKey);
         self.value = Some(segment.clone());
@@ -3436,10 +3547,101 @@ target: *base
                     .expect("events"),
                 Schema::Yaml12,
                 LoadOptions::new().alias_expansion_budget(input.len()),
+                LoadOptions::new().selected_max_nesting_depth(),
             ),
         })
         .expect_err("raw stream markers must still be explicit");
 
         from_str_with_options::<IgnoredAny>(input, LoadOptions::new()).expect("ignored any");
+    }
+
+    fn alias_depth_chain(levels: usize) -> String {
+        // A literally shallow document (max nesting depth 2) whose final anchor
+        // expands, via the alias chain, to a structure `levels` deep.
+        let mut input = String::from("- &n0 0\n");
+        for k in 1..levels {
+            input.push_str(&format!("- &n{k} [*n{prev}]\n", prev = k - 1));
+        }
+        input
+    }
+
+    #[test]
+    fn event_deserializer_bounds_alias_expansion_depth() {
+        // The event-backed path expands aliases lazily while walking, so the
+        // parser's literal-depth check does not bound the expanded depth. Without
+        // an explicit ceiling this recurses until the stack overflows; it must
+        // instead reject, matching the tree-backed `AnchorTable::resolve` guard.
+        let input = alias_depth_chain(400);
+        let error = from_str_with_options::<Vec<crate::Value>>(&input, LoadOptions::new())
+            .expect_err("deep alias chain must hit the nesting-depth ceiling");
+        assert!(
+            error.to_string().contains("nesting depth"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn event_deserializer_allows_alias_chain_within_depth_limit() {
+        let input = alias_depth_chain(8);
+        let parsed = from_str_with_options::<Vec<crate::Value>>(&input, LoadOptions::new())
+            .expect("alias chain within the depth limit deserializes");
+        assert_eq!(parsed.len(), 8);
+    }
+
+    #[test]
+    fn event_deserializer_reads_map_form_enum_variants() {
+        // Externally-tagged enum variants carrying a payload — the forms the
+        // earlier scalar-only path rejected. Covers unit, newtype, tuple, and
+        // struct variants in one sequence.
+        #[derive(Debug, Deserialize, PartialEq)]
+        enum EventEnum {
+            Unit,
+            Newtype(u32),
+            Tuple(u8, u8),
+            Struct { width: u32, height: u32 },
+        }
+
+        let input = "\
+- Unit
+- Newtype: 7
+- Tuple: [1, 2]
+- Struct:
+    width: 3
+    height: 4
+";
+        let parsed: Vec<EventEnum> =
+            from_str_with_options(input, LoadOptions::new()).expect("event-backed enum variants");
+        assert_eq!(
+            parsed,
+            vec![
+                EventEnum::Unit,
+                EventEnum::Newtype(7),
+                EventEnum::Tuple(1, 2),
+                EventEnum::Struct {
+                    width: 3,
+                    height: 4,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn event_deserializer_reads_map_form_enum_variant_through_alias() {
+        #[derive(Debug, Deserialize, PartialEq)]
+        enum Mode {
+            Tuned { level: u8 },
+        }
+
+        // The anchored definition and the alias must both resolve to the same
+        // map-form variant.
+        let parsed = from_str_with_options::<Vec<Mode>>(
+            "- &m {Tuned: {level: 9}}\n- *m\n",
+            LoadOptions::new(),
+        )
+        .expect("aliased map-form enum variant");
+        assert_eq!(
+            parsed,
+            vec![Mode::Tuned { level: 9 }, Mode::Tuned { level: 9 }]
+        );
     }
 }

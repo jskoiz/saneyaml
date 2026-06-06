@@ -237,12 +237,19 @@ fn main() {
     let (e, c) = measure(iters, || {
         let mut n = 0u64;
         for f in &both_ok {
-            n += saneyaml::from_str::<serde_json::Value>(&f.input).unwrap().is_object() as u64;
+            n += saneyaml::from_str::<serde_json::Value>(&f.input)
+                .unwrap()
+                .is_object() as u64;
         }
         n
     });
     black_box(c);
-    row("saneyaml::from_str::<serde_json::Value>", iters, dyn_bytes, e);
+    row(
+        "saneyaml::from_str::<serde_json::Value>",
+        iters,
+        dyn_bytes,
+        e,
+    );
 
     let (e, c) = measure(iters, || {
         let mut n = 0u64;
@@ -254,7 +261,12 @@ fn main() {
         n
     });
     black_box(c);
-    row("serde_saphyr::from_str::<serde_json::Value>", iters, dyn_bytes, e);
+    row(
+        "serde_saphyr::from_str::<serde_json::Value>",
+        iters,
+        dyn_bytes,
+        e,
+    );
 
     // saneyaml native tree, for reference (not a head-to-head row).
     let (e, c) = measure(iters, || {
@@ -265,7 +277,12 @@ fn main() {
         n
     });
     black_box(c);
-    row("saneyaml::parse_documents (native, ref)", iters, dyn_bytes, e);
+    row(
+        "saneyaml::parse_documents (native, ref)",
+        iters,
+        dyn_bytes,
+        e,
+    );
 
     // ---- Axis 2: typed struct, generated config ----------------------------
     let typed = generate_typed(service_count);
@@ -293,7 +310,12 @@ fn main() {
         cfg.services.len() as u64
     });
     black_box(c);
-    row("serde_saphyr::from_str::<Config>", large_iters, typed_bytes, e);
+    row(
+        "serde_saphyr::from_str::<Config>",
+        large_iters,
+        typed_bytes,
+        e,
+    );
 
     // ---- Axis 3: typed flat records (serde-saphyr's home-turf shape) -------
     let record_count = std::env::var("REC_COUNT")
@@ -316,12 +338,22 @@ fn main() {
         v.len() as u64
     });
     black_box(c);
-    row("saneyaml::from_str::<Vec<Record>>", large_iters, rec_bytes, e);
+    row(
+        "saneyaml::from_str::<Vec<Record>>",
+        large_iters,
+        rec_bytes,
+        e,
+    );
 
     let (e, c) = measure(large_iters, || {
         let v: Vec<Record> = serde_saphyr::from_str(&records).unwrap();
         v.len() as u64
     });
     black_box(c);
-    row("serde_saphyr::from_str::<Vec<Record>>", large_iters, rec_bytes, e);
+    row(
+        "serde_saphyr::from_str::<Vec<Record>>",
+        large_iters,
+        rec_bytes,
+        e,
+    );
 }

@@ -2241,6 +2241,35 @@ pub saneyaml::Span::start: usize
 impl saneyaml::Span
 pub fn saneyaml::Span::new(usize, usize, usize, usize) -> Self
 pub fn saneyaml::Span::point(usize, usize, usize) -> Self
+pub struct saneyaml::Spanned<T>
+impl<T> saneyaml::Spanned<T>
+pub fn saneyaml::Spanned<T>::column(&self) -> usize
+pub fn saneyaml::Spanned<T>::end(&self) -> usize
+pub fn saneyaml::Spanned<T>::get_mut(&mut self) -> &mut T
+pub fn saneyaml::Spanned<T>::get_ref(&self) -> &T
+pub fn saneyaml::Spanned<T>::into_inner(self) -> T
+pub fn saneyaml::Spanned<T>::line(&self) -> usize
+pub fn saneyaml::Spanned<T>::new(saneyaml::Span, T) -> Self
+pub fn saneyaml::Spanned<T>::span(&self) -> saneyaml::Span
+pub fn saneyaml::Spanned<T>::start(&self) -> usize
+impl<'de, T> serde_core::de::Deserialize<'de> for saneyaml::Spanned<T> where T: serde_core::de::Deserialize<'de>
+pub fn saneyaml::Spanned<T>::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+impl<T: core::cmp::Eq> core::cmp::Eq for saneyaml::Spanned<T>
+impl<T: core::cmp::Ord> core::cmp::Ord for saneyaml::Spanned<T>
+pub fn saneyaml::Spanned<T>::cmp(&self, &Self) -> core::cmp::Ordering
+impl<T: core::cmp::PartialEq> core::cmp::PartialEq for saneyaml::Spanned<T>
+pub fn saneyaml::Spanned<T>::eq(&self, &Self) -> bool
+impl<T: core::cmp::PartialOrd> core::cmp::PartialOrd for saneyaml::Spanned<T>
+pub fn saneyaml::Spanned<T>::partial_cmp(&self, &Self) -> core::option::Option<core::cmp::Ordering>
+impl<T: core::hash::Hash> core::hash::Hash for saneyaml::Spanned<T>
+pub fn saneyaml::Spanned<T>::hash<H: core::hash::Hasher>(&self, &mut H)
+impl<T: serde_core::ser::Serialize> serde_core::ser::Serialize for saneyaml::Spanned<T>
+pub fn saneyaml::Spanned<T>::serialize<S>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
+impl<T> core::convert::AsRef<T> for saneyaml::Spanned<T>
+pub fn saneyaml::Spanned<T>::as_ref(&self) -> &T
+impl<T> core::ops::deref::Deref for saneyaml::Spanned<T>
+pub type saneyaml::Spanned<T>::Target = T
+pub fn saneyaml::Spanned<T>::deref(&self) -> &T
 pub struct saneyaml::Tag
 pub saneyaml::Tag::handle: alloc::string::String
 pub saneyaml::Tag::suffix: alloc::string::String

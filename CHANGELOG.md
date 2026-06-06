@@ -11,6 +11,8 @@ effect are omitted.
 
 ## Unreleased
 
+## 0.3.0
+
 ### Added
 
 - Added `EmitOptions::with_yaml_1_1_safe_strings`, an opt-in emitter setting that
@@ -25,6 +27,56 @@ effect are omitted.
   emits each variant as a single-key map globally, matching
   `serde_yaml::with::singleton_map` writer output without annotating every enum
   field.
+
+### Changed
+
+- YAML 1.1 two-part sexagesimal scalars now resolve with base-60 positional
+  weighting (`1:20` is `80`, `1:20.5` is `80.5`), matching the YAML 1.1 spec and
+  PyYAML. This intentionally diverges from the pinned Psych/libyaml hour:minute
+  construction that produced `4800`; three-part sexagesimals are unchanged. Code
+  that relied on the previous two-part values must adjust.
+- Byte serialization is now rejected consistently across `to_value`, the value
+  serializers, and the string/writer/streaming serializers, instead of `to_value`
+  silently lowering bytes to a `u8` sequence. Read-side `!!binary` decoding into
+  byte targets is unchanged.
+- Explicit `!!str`-tagged numeric scalars (for example `!!str 7`) now stay strings
+  for every integer and float Serde target instead of being coerced to integers
+  only for `i128`/`u128`. `from_str` and `from_value` now agree on these inputs.
+- Caller-built owned and borrowed `Node` / `Value` Serde deserializers now expand
+  `<<` merge keys by default, matching `from_value`; parser-produced reads keep
+  their schema-driven recovery behavior.
+- Floats are now emitted in shortest round-tripping form (for example `1e308`
+  rather than a 300-plus digit expansion), matching `Number`'s display output.
+- `Span` / `Location` columns are documented as one-based UTF-8 byte columns.
+
+### Fixed
+
+- Combined UTF-16 surrogate-pair escapes (for example `"😀"`) in
+  double-quoted scalars into the intended astral code point; lone or mismatched
+  surrogate escapes are rejected.
+- `!!omap` deserialized into a map target now rejects duplicate keys, matching the
+  crate's strict duplicate-key policy, instead of silently keeping the last value.
+  Pair-sequence targets still preserve ordered duplicates.
+- `Number::partial_cmp` now returns `None` whenever either operand is `NaN`,
+  including integer/float comparisons, and `NaN` is sign-normalized when
+  deserialized into `Value`.
+- Emitting a verbatim tag whose suffix contains `>` now percent-escapes it, so the
+  emitted tag round-trips through the parser instead of producing invalid YAML.
+- Merge-key expansion depth is bounded consistently across owned and borrowed
+  `Node` / `Value` deserializers, preventing a stack overflow on deeply nested
+  caller-built merge chains.
+- YAML 1.1 timestamps with more than nine fractional-second digits are truncated
+  to nanosecond precision instead of rejected.
+- Resolved a broad batch of parser, emitter, lossless-editing, numeric-parsing,
+  and diagnostic correctness issues (#19–#40), including a UTF-8 block-scalar
+  boundary panic.
+
+### Security
+
+- Fixed three quadratic-time parsing denial-of-service vectors that were reachable
+  under the default limits: unterminated multi-line flow collections, unterminated
+  multi-line quoted scalars, and long single-line runs of quote characters. Each
+  now scans in linear time.
 
 ## 0.2.0
 

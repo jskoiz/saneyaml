@@ -3741,7 +3741,10 @@ fn default_construction_schema(schema: Schema) -> Schema {
     }
 }
 
-fn schema_for_directives(schema: Schema, directives: &EventDocumentDirectives) -> Schema {
+pub(crate) fn schema_for_directives(
+    schema: Schema,
+    directives: &EventDocumentDirectives,
+) -> Schema {
     match schema {
         Schema::YamlVersionDirective
             if directives
@@ -3756,7 +3759,7 @@ fn schema_for_directives(schema: Schema, directives: &EventDocumentDirectives) -
     }
 }
 
-fn merge_policy_for_schema(schema: Schema) -> MergePolicy {
+pub(crate) fn merge_policy_for_schema(schema: Schema) -> MergePolicy {
     if schema.is_legacy_compatible() {
         MergePolicy::Yaml11Compatible
     } else {
@@ -4660,7 +4663,7 @@ fn parse_scalar_with_span(text: &str, span: Span) -> Result<Node> {
     parse_scalar_with_schema(text, span, Schema::Yaml12)
 }
 
-fn parse_scalar_with_schema(text: &str, span: Span, schema: Schema) -> Result<Node> {
+pub(crate) fn parse_scalar_with_schema(text: &str, span: Span, schema: Schema) -> Result<Node> {
     parse_scalar_with_schema_and_source(text, span, schema, None)
 }
 

@@ -7,18 +7,34 @@ crate package ships this document, but it intentionally excludes the
 dev-dependency examples and fixture corpora used to regenerate the tables.
 
 ```sh
-cargo run --release --example real_world_benchmark
-YAML_BENCH_ITERS=1000 cargo run --release --example real_world_benchmark
-cargo run --release --example large_input_benchmark
-YAML_LARGE_BENCH_ITERS=20 cargo run --release --example large_input_benchmark
+cargo run --locked --release --example real_world_benchmark
+YAML_BENCH_ITERS=1000 cargo run --locked --release --example real_world_benchmark
+cargo run --locked --release --example large_input_benchmark
+YAML_LARGE_BENCH_ITERS=20 cargo run --locked --release --example large_input_benchmark
 ```
 
 Environment for the latest captured run:
 
-- Reference crates: `yaml-rust2 0.11.0`, `saphyr 0.0.6`
+- Reference crates: `serde-saphyr 0.0.27` with `deserialize` only,
+  `yaml-rust2 0.11.0`, `saphyr 0.0.6`
 - Small fixture set: 33 files / 39 YAML documents / 25,362 bytes
 - Large fixture set: pinned downstream fixtures plus generated 1 MiB inputs
-- Captured: 2026-06-01 with Cargo's `release` profile
+- Captured: 2026-06-06 with Cargo's `release` profile and `--locked`
+
+The linked `serde-saphyr` repository was ahead of crates.io at the time of this
+capture (`0.0.28` in Git, latest published `0.0.27`). The benchmark pins the
+published crate so the checked-in `Cargo.lock` and package checks remain
+registry-reproducible.
+
+The `serde-saphyr` rows use benchmark options rather than the crate defaults:
+`strict_booleans: true` plus relaxed event, alias, document, node, scalar, and
+merge budgets so the generated corpora are comparable throughput inputs. Because
+`serde-saphyr` does not expose a native YAML value tree, the matched generic
+Serde lane deserializes both libraries into `serde_yaml::Value`. The preflight
+normalizes two public-contract differences before asserting equality:
+`serde-saphyr::from_multiple_with_options` skips empty/null-like documents, and
+serde-saphyr treats YAML tags as transparent for this target while saneyaml
+preserves them.
 
 The README overview graphic is a static summary of selected benchmark and
 feature rows. Its source notes and update checklist live at
@@ -73,16 +89,25 @@ behavior.
 
 ## Real-World Config Corpus
 
-Corpus re-capture after adding CloudFormation/SAM, Symfony, GitLab CI,
-CircleCI, Azure Pipelines, and an additional reusable GitHub Actions workflow:
+Latest same-run capture after adding the matched `serde-saphyr` lane, using
+`YAML_BENCH_ITERS=1000`:
 
 | parser/load path | iterations | bytes per iteration | docs per iteration | elapsed ms | ns/byte |
 |---|---:|---:|---:|---:|---:|
-| `saneyaml::parse_documents` | 200 | 25,362 | 39 | 94.316 | 18.59 |
-| `saneyaml::from_documents_str::<Value>` | 200 | 25,362 | 39 | 127.839 | 25.20 |
-| `serde_yaml::Value` stream | 200 | 25,362 | 39 | 135.863 | 26.78 |
-| `yaml_rust2::YamlLoader` | 200 | 25,362 | 39 | 108.641 | 21.42 |
-| `saphyr::Yaml::load_from_str` | 200 | 25,362 | 39 | 100.915 | 19.89 |
+| `saneyaml::parse_documents` | 1,000 | 25,362 | 39 | 431.314 | 17.01 |
+| `saneyaml::from_documents_str::<Value>` | 1,000 | 25,362 | 39 | 572.477 | 22.57 |
+| `saneyaml::from_documents_str::<serde_yaml::Value>` | 1,000 | 25,362 | 39 | 578.399 | 22.81 |
+| `saneyaml::__unstable_event_serde::from_documents_str::<serde_yaml::Value>` | 1,000 | 25,362 | 39 | 1,165.027 | 45.94 |
+| `serde_saphyr::from_multiple_with_options::<serde_yaml::Value>` | 1,000 | 25,362 | 39 | 1,055.332 | 41.61 |
+| `serde_yaml::Value` stream | 1,000 | 25,362 | 39 | 644.638 | 25.42 |
+| `yaml_rust2::YamlLoader` | 1,000 | 25,362 | 39 | 539.894 | 21.29 |
+| `saphyr::Yaml::load_from_str` | 1,000 | 25,362 | 39 | 502.288 | 19.80 |
+
+On this corpus, the matched generic Serde value lane measured saneyaml at
+22.81 ns/byte versus serde-saphyr at 41.61 ns/byte. The private event-backed
+prototype measured 45.94 ns/byte on the same target, so it is not a replacement
+for the tree-backed Serde path yet. The raw tree-load rows are shown for context
+but are a different contract from serde-saphyr's Serde-only API.
 
 Same-turn pre-optimization baseline, captured before this milestone with the
 default 200 iterations:
@@ -106,9 +131,9 @@ Post zero-copy line-slice re-capture with 1,000 iterations (independent run,
 | `yaml_rust2::YamlLoader` | 1,000 | 19,727 | 33 | 434.222 | 22.01 |
 | `saphyr::Yaml::load_from_str` | 1,000 | 19,727 | 33 | 402.909 | 20.42 |
 
-Result: after the zero-copy line slice, `saneyaml::parse_documents` is faster than
-the pinned reference loaders on this small corpus in the latest 1,000-iteration
-same-run capture (18.01 ns/byte vs `saphyr` at 20.42 and `yaml_rust2` at
+Result: after the zero-copy line slice, `saneyaml::parse_documents` was faster than
+the pinned reference loaders on this small corpus in that 2026-06-01
+1,000-iteration same-run capture (18.01 ns/byte vs `saphyr` at 20.42 and `yaml_rust2` at
 22.01). The owning `Value` path also remains ahead of the `serde_yaml` `Value`
 stream and roughly ties `yaml_rust2` on this corpus.
 
@@ -134,7 +159,7 @@ lower-noise inputs below — not the across-table delta.
 Command:
 
 ```sh
-cargo run --release --example large_input_benchmark
+cargo run --locked --release --example large_input_benchmark
 ```
 
 Default iterations: 20, controlled by `YAML_LARGE_BENCH_ITERS`.
@@ -145,12 +170,15 @@ Default iterations: 20, controlled by `YAML_LARGE_BENCH_ITERS`.
 
 | parser/load path | iterations | bytes per iteration | docs per iteration | elapsed ms | ns/byte | peak retained bytes | peak retained heap objects |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| `saneyaml::parse_documents` | 20 | 245,062 | 20 | 37.887 | 7.73 | 486,188 | 3,983 |
-| `saneyaml::parse_borrowed_documents` | 20 | 245,062 | 20 | 39.063 | 7.97 | 173,556 | 904 |
-| `saneyaml::from_documents_str::<Value>` | 20 | 245,062 | 20 | 42.226 | 8.62 | 217,483 | 3,780 |
-| `serde_yaml::Value` stream | 20 | 245,062 | 20 | 54.939 | 11.21 | 396,987 | 3,780 |
-| `yaml_rust2::YamlLoader` | 20 | 245,062 | 20 | 40.489 | 8.26 | 382,497 | 3,796 |
-| `saphyr::Yaml::load_from_str` | 20 | 245,062 | 20 | 38.919 | 7.94 | 534,786 | 3,780 |
+| `saneyaml::parse_documents` | 20 | 245,062 | 20 | 31.887 | 6.51 | 486,188 | 3,983 |
+| `saneyaml::parse_borrowed_documents` | 20 | 245,062 | 20 | 30.256 | 6.17 | 173,556 | 904 |
+| `saneyaml::from_documents_str::<Value>` | 20 | 245,062 | 20 | 40.035 | 8.17 | 217,483 | 3,780 |
+| `saneyaml::from_documents_str::<serde_yaml::Value>` | 20 | 245,062 | 20 | 41.333 | 8.43 | 378,843 | 3,780 |
+| `saneyaml::__unstable_event_serde::from_documents_str::<serde_yaml::Value>` | 20 | 245,062 | 20 | 77.032 | 15.72 | 396,987 | 3,780 |
+| `serde_saphyr::from_multiple_with_options::<serde_yaml::Value>` | 20 | 245,062 | 20 | 67.763 | 13.83 | 396,987 | 3,780 |
+| `serde_yaml::Value` stream | 20 | 245,062 | 20 | 51.019 | 10.41 | 396,987 | 3,780 |
+| `yaml_rust2::YamlLoader` | 20 | 245,062 | 20 | 38.470 | 7.85 | 382,497 | 3,796 |
+| `saphyr::Yaml::load_from_str` | 20 | 245,062 | 20 | 36.419 | 7.43 | 534,786 | 3,780 |
 
 ### stackable_dummy_cluster
 
@@ -158,12 +186,15 @@ One pinned Stackable CRD / 177,556 bytes / 1 YAML document.
 
 | parser/load path | iterations | bytes per iteration | docs per iteration | elapsed ms | ns/byte | peak retained bytes | peak retained heap objects |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| `saneyaml::parse_documents` | 20 | 177,556 | 1 | 23.209 | 6.54 | 486,188 | 3,983 |
-| `saneyaml::parse_borrowed_documents` | 20 | 177,556 | 1 | 24.466 | 6.89 | 173,556 | 904 |
-| `saneyaml::from_documents_str::<Value>` | 20 | 177,556 | 1 | 25.708 | 7.24 | 217,483 | 3,780 |
-| `serde_yaml::Value` stream | 20 | 177,556 | 1 | 34.069 | 9.59 | 396,987 | 3,780 |
-| `yaml_rust2::YamlLoader` | 20 | 177,556 | 1 | 25.730 | 7.25 | 382,497 | 3,796 |
-| `saphyr::Yaml::load_from_str` | 20 | 177,556 | 1 | 24.722 | 6.96 | 534,786 | 3,780 |
+| `saneyaml::parse_documents` | 20 | 177,556 | 1 | 20.570 | 5.79 | 486,188 | 3,983 |
+| `saneyaml::parse_borrowed_documents` | 20 | 177,556 | 1 | 19.159 | 5.40 | 173,556 | 904 |
+| `saneyaml::from_documents_str::<Value>` | 20 | 177,556 | 1 | 24.524 | 6.91 | 217,483 | 3,780 |
+| `saneyaml::from_documents_str::<serde_yaml::Value>` | 20 | 177,556 | 1 | 25.203 | 7.10 | 378,843 | 3,780 |
+| `saneyaml::__unstable_event_serde::from_documents_str::<serde_yaml::Value>` | 20 | 177,556 | 1 | 47.657 | 13.42 | 396,987 | 3,780 |
+| `serde_saphyr::from_multiple_with_options::<serde_yaml::Value>` | 20 | 177,556 | 1 | 41.445 | 11.67 | 396,987 | 3,780 |
+| `serde_yaml::Value` stream | 20 | 177,556 | 1 | 32.343 | 9.11 | 396,987 | 3,780 |
+| `yaml_rust2::YamlLoader` | 20 | 177,556 | 1 | 24.245 | 6.83 | 382,497 | 3,796 |
+| `saphyr::Yaml::load_from_str` | 20 | 177,556 | 1 | 23.095 | 6.50 | 534,786 | 3,780 |
 
 ### generated_multi_doc_stream_1mib
 
@@ -172,12 +203,15 @@ documents.
 
 | parser/load path | iterations | bytes per iteration | docs per iteration | elapsed ms | ns/byte | peak retained bytes | peak retained heap objects |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| `saneyaml::parse_documents` | 20 | 1,048,680 | 8,020 | 472.805 | 22.54 | 13,006,500 | 128,321 |
-| `saneyaml::parse_borrowed_documents` | 20 | 1,048,680 | 8,020 | 500.419 | 23.86 | 4,106,240 | 32,081 |
-| `saneyaml::from_documents_str::<Value>` | 20 | 1,048,680 | 8,020 | 542.758 | 25.88 | 4,729,860 | 112,281 |
-| `serde_yaml::Value` stream | 20 | 1,048,680 | 8,020 | 681.650 | 32.50 | 11,607,364 | 112,281 |
-| `yaml_rust2::YamlLoader` | 20 | 1,048,680 | 8,020 | 538.442 | 25.67 | 10,386,948 | 112,281 |
-| `saphyr::Yaml::load_from_str` | 20 | 1,048,680 | 8,020 | 518.104 | 24.70 | 14,770,560 | 112,281 |
+| `saneyaml::parse_documents` | 20 | 1,048,680 | 8,020 | 367.321 | 17.51 | 13,006,500 | 128,321 |
+| `saneyaml::parse_borrowed_documents` | 20 | 1,048,680 | 8,020 | 361.229 | 17.22 | 4,106,240 | 32,081 |
+| `saneyaml::from_documents_str::<Value>` | 20 | 1,048,680 | 8,020 | 495.592 | 23.63 | 4,729,860 | 112,281 |
+| `saneyaml::from_documents_str::<serde_yaml::Value>` | 20 | 1,048,680 | 8,020 | 538.155 | 25.66 | 9,862,660 | 112,281 |
+| `saneyaml::__unstable_event_serde::from_documents_str::<serde_yaml::Value>` | 20 | 1,048,680 | 8,020 | 1,116.471 | 53.23 | 11,607,364 | 112,281 |
+| `serde_saphyr::from_multiple_with_options::<serde_yaml::Value>` | 20 | 1,048,680 | 8,020 | 1,223.597 | 58.34 | 11,607,364 | 112,281 |
+| `serde_yaml::Value` stream | 20 | 1,048,680 | 8,020 | 661.464 | 31.54 | 11,607,364 | 112,281 |
+| `yaml_rust2::YamlLoader` | 20 | 1,048,680 | 8,020 | 545.253 | 26.00 | 10,386,948 | 112,281 |
+| `saphyr::Yaml::load_from_str` | 20 | 1,048,680 | 8,020 | 534.700 | 25.49 | 14,770,560 | 112,281 |
 
 ### generated_wide_mapping_256kib
 
@@ -185,12 +219,15 @@ Generated one-document wide service mapping / 262,176 bytes.
 
 | parser/load path | iterations | bytes per iteration | docs per iteration | elapsed ms | ns/byte | peak retained bytes | peak retained heap objects |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| `saneyaml::parse_documents` | 20 | 262,176 | 1 | 86.486 | 16.49 | 2,484,775 | 23,932 |
-| `saneyaml::parse_borrowed_documents` | 20 | 262,176 | 1 | 89.698 | 17.11 | 765,792 | 2,994 |
-| `saneyaml::from_documents_str::<Value>` | 20 | 262,176 | 1 | 98.223 | 18.73 | 938,236 | 17,950 |
-| `serde_yaml::Value` stream | 20 | 262,176 | 1 | 126.465 | 24.12 | 1,895,692 | 17,950 |
-| `yaml_rust2::YamlLoader` | 20 | 262,176 | 1 | 102.841 | 19.61 | 1,704,220 | 17,950 |
-| `saphyr::Yaml::load_from_str` | 20 | 262,176 | 1 | 93.165 | 17.77 | 2,393,312 | 17,950 |
+| `saneyaml::parse_documents` | 20 | 262,176 | 1 | 78.226 | 14.92 | 2,484,775 | 23,932 |
+| `saneyaml::parse_borrowed_documents` | 20 | 262,176 | 1 | 73.898 | 14.09 | 765,792 | 2,994 |
+| `saneyaml::from_documents_str::<Value>` | 20 | 262,176 | 1 | 107.359 | 20.47 | 938,236 | 17,950 |
+| `saneyaml::from_documents_str::<serde_yaml::Value>` | 20 | 262,176 | 1 | 106.085 | 20.23 | 1,895,476 | 17,950 |
+| `saneyaml::__unstable_event_serde::from_documents_str::<serde_yaml::Value>` | 20 | 262,176 | 1 | 223.815 | 42.68 | 1,895,692 | 17,950 |
+| `serde_saphyr::from_multiple_with_options::<serde_yaml::Value>` | 20 | 262,176 | 1 | 212.831 | 40.59 | 1,895,692 | 17,950 |
+| `serde_yaml::Value` stream | 20 | 262,176 | 1 | 114.758 | 21.89 | 1,895,692 | 17,950 |
+| `yaml_rust2::YamlLoader` | 20 | 262,176 | 1 | 102.762 | 19.60 | 1,704,220 | 17,950 |
+| `saphyr::Yaml::load_from_str` | 20 | 262,176 | 1 | 97.245 | 18.55 | 2,393,312 | 17,950 |
 
 ### generated_wide_mapping_1mib
 
@@ -198,17 +235,26 @@ Generated one-document wide service mapping / 1,048,661 bytes.
 
 | parser/load path | iterations | bytes per iteration | docs per iteration | elapsed ms | ns/byte | peak retained bytes | peak retained heap objects |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| `saneyaml::parse_documents` | 20 | 1,048,661 | 1 | 355.523 | 16.95 | 9,893,619 | 95,236 |
-| `saneyaml::parse_borrowed_documents` | 20 | 1,048,661 | 1 | 374.905 | 17.88 | 3,047,520 | 11,907 |
-| `saneyaml::from_documents_str::<Value>` | 20 | 1,048,661 | 1 | 417.223 | 19.89 | 3,739,059 | 71,428 |
-| `serde_yaml::Value` stream | 20 | 1,048,661 | 1 | 503.740 | 24.02 | 7,548,675 | 71,428 |
-| `yaml_rust2::YamlLoader` | 20 | 1,048,661 | 1 | 412.899 | 19.69 | 6,786,771 | 71,428 |
-| `saphyr::Yaml::load_from_str` | 20 | 1,048,661 | 1 | 371.689 | 17.72 | 9,523,712 | 71,428 |
+| `saneyaml::parse_documents` | 20 | 1,048,661 | 1 | 309.172 | 14.74 | 9,893,619 | 95,236 |
+| `saneyaml::parse_borrowed_documents` | 20 | 1,048,661 | 1 | 282.013 | 13.45 | 3,047,520 | 11,907 |
+| `saneyaml::from_documents_str::<Value>` | 20 | 1,048,661 | 1 | 419.435 | 20.00 | 3,739,059 | 71,428 |
+| `saneyaml::from_documents_str::<serde_yaml::Value>` | 20 | 1,048,661 | 1 | 417.003 | 19.88 | 7,548,459 | 71,428 |
+| `saneyaml::__unstable_event_serde::from_documents_str::<serde_yaml::Value>` | 20 | 1,048,661 | 1 | 878.512 | 41.89 | 7,548,675 | 71,428 |
+| `serde_saphyr::from_multiple_with_options::<serde_yaml::Value>` | 20 | 1,048,661 | 1 | 843.638 | 40.22 | 7,548,675 | 71,428 |
+| `serde_yaml::Value` stream | 20 | 1,048,661 | 1 | 477.817 | 22.78 | 7,548,675 | 71,428 |
+| `yaml_rust2::YamlLoader` | 20 | 1,048,661 | 1 | 420.142 | 20.03 | 6,786,771 | 71,428 |
+| `saphyr::Yaml::load_from_str` | 20 | 1,048,661 | 1 | 401.299 | 19.13 | 9,523,712 | 71,428 |
 
 Large-input story: after zero-copy line storage, the no-merge fast path,
 delayed plain-scalar continuation allocation, and retained vector
 right-sizing, `saneyaml::parse_documents` beats `yaml_rust2` and `saphyr` on every
-large parser path in the latest capture on an unloaded machine. The smallest
+large parser path in the latest capture on an unloaded machine. In the matched
+Serde value lane, `saneyaml::from_documents_str::<serde_yaml::Value>` is faster
+than `serde_saphyr::from_multiple_with_options::<serde_yaml::Value>` on every
+large-input row. The hidden event-backed Serde prototype only wins against
+serde-saphyr on the generated multi-document stream in this capture and remains
+slower on the other large rows; it also retains the same `serde_yaml::Value`
+output shape, so it does not improve retained output memory yet. The smallest
 corpus (`external_downstream_all`) is the most contention-sensitive, so its
 ordering is the first to wobble under load; the larger corpora hold a clearer
 margin. The retained-memory story is now split
@@ -230,9 +276,9 @@ paths, not constant-memory readers.
 Captured in a single `release` session against the in-repo harnesses:
 
 ```sh
-YAML_BENCH_ITERS=1000 cargo run --release --example real_world_benchmark
-cargo run --release --example dhat_memory -- --all
-cargo run --release --example conformance_compare
+YAML_BENCH_ITERS=1000 cargo run --locked --release --example real_world_benchmark
+cargo run --locked --release --example dhat_memory -- --all
+cargo run --locked --release --example conformance_compare
 ```
 
 ### Real-world config corpus (1,000 iterations)
@@ -241,7 +287,7 @@ cargo run --release --example conformance_compare
 from a separate same-session run of this milestone, not the same measurement as
 the "Real-World Config Corpus" table above; the corpus is identical but the
 per-loader ns/byte figures differ run to run (for example `saphyr` reads 21.42
-here versus 19.89 there), which is the run-to-run noise the methodology caveat
+here versus 19.80 there), which is the run-to-run noise the methodology caveat
 describes.
 
 | parser/load path | ns/byte |
@@ -257,7 +303,8 @@ On this corpus `saneyaml::parse_documents` is the fastest load path; the owning
 
 ### Allocator-backed memory (dhat), 1 MiB multi-document stream
 
-8,020 documents. `retained blocks` is the count of live allocations at peak.
+8,020 documents. `retained blocks` is the count of live allocations still held
+while the parsed output is retained.
 
 | path | allocs | bytes allocated | peak | retained blocks |
 |---|---:|---:|---:|---:|
@@ -265,31 +312,44 @@ On this corpus `saneyaml::parse_documents` is the fastest load path; the owning
 | `saneyaml` stream events | 232,594 | 49.28 MB | 2.11 MB | 6 |
 | `saneyaml` borrowed | 80,219 | 17.29 MB | 6.21 MB | 32,081 |
 | `saneyaml` owned | 200,519 | 16.05 MB | 15.12 MB | 128,321 |
+| `saneyaml` Value | 449,140 | 25.07 MB | 15.12 MB | 112,281 |
 | `yaml-rust2` | 585,478 | 29.29 MB | 17.15 MB | 192,481 |
+| `saneyaml` as `serde_yaml::Value` | 465,180 | 39.73 MB | 20.79 MB | 136,341 |
+| `saneyaml` event-backed as `serde_yaml::Value` | 1,114,806 | 175.38 MB | 22.83 MB | 136,341 |
+| `serde-saphyr` as `serde_yaml::Value` | 577,465 | 59.71 MB | 21.79 MB | 136,344 |
 | `serde_yaml` | 721,821 | 84.73 MB | 21.84 MB | 136,341 |
 | `saphyr` | 216,559 | 22.77 MB | 22.30 MB | 192,481 |
 
 On a multi-document stream the streaming loaders hold a bounded working set
 (retained blocks stay at 4–6 regardless of stream length) and post the lowest
 peak; the borrowed batch tree has the lowest peak among the non-streaming
-loaders.
+loaders. The event-backed Serde prototype is allocation-heavy here because it
+still consumes parser-recorded event frames rather than a direct parser-to-Serde
+stream.
 
 ### Allocator-backed memory (dhat), 1 MiB wide single document
 
 | path | peak | retained blocks |
 |---|---:|---:|
+| `serde-saphyr` as `serde_yaml::Value` | 10.73 MB | 83,337 |
 | `yaml-rust2` | 10.98 MB | 130,951 |
 | `saphyr` | 14.10 MB | 130,951 |
 | `saneyaml` borrowed | 15.32 MB | 11,907 |
-| `saneyaml` owned | 15.66 MB | 95,236 |
+| `saneyaml` owned | 16.16 MB | 95,236 |
 | `saneyaml` stream docs | 16.16 MB | 4 |
+| `saneyaml` Value | 16.39 MB | 71,428 |
+| `saneyaml` as `serde_yaml::Value` | 19.91 MB | 83,334 |
+| `serde_yaml` | 23.42 MB | 83,334 |
 | `saneyaml` stream events | 62.22 MB | 6 |
+| `saneyaml` event-backed as `serde_yaml::Value` | 78.54 MB | 83,334 |
 
 Streaming only helps when there are document boundaries to reclaim at. On a
 single wide document there is nothing to reclaim mid-parse, so `yaml-rust2` and
 `saphyr` post lower peaks than saneyaml on this shape, and the event-streaming
-path is the worst here because it buffers per-event output for one large
-document. Streaming is a multi-document memory win, not a universal one.
+path is expensive here because it buffers per-event output for one large
+document. The matched `serde-saphyr` value row posts a low wide-document peak,
+while the event-backed Serde prototype is the highest peak in this capture.
+Streaming is a multi-document memory win, not a universal one.
 
 ### Conformance (402 curated cases)
 
@@ -317,13 +377,13 @@ single capture as indicative rather than authoritative.
 
 | captured section | checkout-only command |
 |---|---|
-| Real-World Config Corpus | `cargo run --release --example real_world_benchmark` |
-| Real-world corpus (1,000 iterations) | `YAML_BENCH_ITERS=1000 cargo run --release --example real_world_benchmark` |
-| Large Inputs (all corpora) | `cargo run --release --example large_input_benchmark` |
-| Large Inputs (custom iteration count) | `YAML_LARGE_BENCH_ITERS=20 cargo run --release --example large_input_benchmark` |
-| Allocator-backed memory (dhat) | `cargo run --release --example dhat_memory -- --all` |
-| dhat single (library, corpus) pair | `cargo run --release --example dhat_memory -- saneyaml-borrowed multidoc` |
-| Conformance (402 curated cases) | `cargo run --release --example conformance_compare` |
+| Real-World Config Corpus | `cargo run --locked --release --example real_world_benchmark` |
+| Real-world corpus (1,000 iterations) | `YAML_BENCH_ITERS=1000 cargo run --locked --release --example real_world_benchmark` |
+| Large Inputs (all corpora) | `cargo run --locked --release --example large_input_benchmark` |
+| Large Inputs (custom iteration count) | `YAML_LARGE_BENCH_ITERS=20 cargo run --locked --release --example large_input_benchmark` |
+| Allocator-backed memory (dhat) | `cargo run --locked --release --example dhat_memory -- --all` |
+| dhat single (library, corpus) pair | `cargo run --locked --release --example dhat_memory -- saneyaml-borrowed multidoc` |
+| Conformance (402 curated cases) | `cargo run --locked --release --example conformance_compare` |
 
 Iteration counts default to 200 for `real_world_benchmark` (`YAML_BENCH_ITERS`)
 and 20 for `large_input_benchmark` (`YAML_LARGE_BENCH_ITERS`). The
@@ -338,6 +398,7 @@ dev-dependency versions (see `Cargo.toml`):
 
 | crate | version |
 |---|---|
+| `serde-saphyr` | 0.0.27 (`default-features = false`, `deserialize`) |
 | `serde_yaml` | 0.9.34 |
 | `saphyr` | 0.0.6 |
 | `saphyr-parser` | 0.0.6 |

@@ -4,20 +4,23 @@
 //! dhat installs a global allocator, so each library must be measured in its
 //! own process to keep the numbers clean. Run one at a time:
 //!
-//!   cargo run --release --example dhat_memory -- saneyaml-borrowed multidoc
-//!   cargo run --release --example dhat_memory -- saphyr           multidoc
-//!   cargo run --release --example dhat_memory -- saneyaml-stream-docs multidoc16
+//!   cargo run --locked --release --example dhat_memory -- saneyaml-borrowed multidoc
+//!   cargo run --locked --release --example dhat_memory -- serde-saphyr-yaml-value multidoc
+//!   cargo run --locked --release --example dhat_memory -- saneyaml-event-yaml-value multidoc
+//!   cargo run --locked --release --example dhat_memory -- saphyr           multidoc
+//!   cargo run --locked --release --example dhat_memory -- saneyaml-stream-docs multidoc16
 //!
 //! Or use the bundled driver that sweeps every (library, corpus) pair:
 //!
-//!   cargo run --release --example dhat_memory -- --all
+//!   cargo run --locked --release --example dhat_memory -- --all
 //!
-//! Reported per parse (deltas measured *after* the input is generated, so the
-//! ~1 MiB input string is excluded from the figures):
+//! Reported per parse. Allocation and retained deltas are measured *after* the
+//! input is generated, so the input string is excluded from those figures.
+//! `peak` is dhat's absolute process peak and can include the resident input:
 //!   - allocations    : number of heap allocations made during the parse
 //!   - bytes allocated : total bytes allocated during the parse
 //!   - retained        : heap still live while the parsed tree is held
-//!   - peak            : max simultaneously-live heap during the parse
+//!   - peak            : max simultaneously-live heap reported by dhat
 
 use std::env;
 use std::hint::black_box;
@@ -29,8 +32,11 @@ const LIBS: &[&str] = &[
     "saneyaml-borrowed",
     "saneyaml-owned",
     "saneyaml-value",
+    "saneyaml-yaml-value",
+    "saneyaml-event-yaml-value",
     "saneyaml-stream-docs",
     "saneyaml-stream-events",
+    "serde-saphyr-yaml-value",
     "serde_yaml",
     "yaml-rust2",
     "saphyr",
@@ -93,10 +99,11 @@ fn report(lib: &str, corpus: &str, before: &dhat::HeapStats, after: &dhat::HeapS
 fn measure(lib: &str, corpus: &str) {
     let input = corpus_input(corpus);
 
-    // `before` is snapshotted after the input string exists, so the ~1 MiB
-    // input is excluded. The parsed value is held (black_box) across `after`
-    // so retained memory reflects the live tree. The borrowed tree borrows
-    // from `input`, hence the per-arm measurement rather than a boxed return.
+    // `before` is snapshotted after the input string exists, so allocation and
+    // retained deltas exclude it. The parsed value is held (black_box) across
+    // `after` so retained memory reflects the live tree. The borrowed tree
+    // borrows from `input`, hence the per-arm measurement rather than a boxed
+    // return.
     macro_rules! measure_arm {
         ($parse:expr) => {{
             let before = dhat::HeapStats::get();
@@ -116,6 +123,14 @@ fn measure(lib: &str, corpus: &str) {
         }
         "saneyaml-value" => measure_arm!(
             saneyaml::from_documents_str::<saneyaml::Value>(&input).expect("saneyaml value")
+        ),
+        "saneyaml-yaml-value" => measure_arm!(
+            saneyaml::from_documents_str::<serde_yaml::Value>(&input)
+                .expect("saneyaml serde_yaml value")
+        ),
+        "saneyaml-event-yaml-value" => measure_arm!(
+            saneyaml::__unstable_event_serde::from_documents_str::<serde_yaml::Value>(&input)
+                .expect("saneyaml event-backed serde_yaml value")
         ),
         "saneyaml-stream-docs" => {
             let before = dhat::HeapStats::get();
@@ -155,6 +170,7 @@ fn measure(lib: &str, corpus: &str) {
                     .collect::<Vec<serde_yaml::Value>>()
             )
         }
+        "serde-saphyr-yaml-value" => measure_arm!(serde_saphyr_yaml_value_documents(&input)),
         "yaml-rust2" => {
             measure_arm!(yaml_rust2::YamlLoader::load_from_str(&input).expect("yaml-rust2 load"))
         }
@@ -206,7 +222,20 @@ fn main() {
                 use saphyr::LoadableYamlNode;
                 black_box(saphyr::Yaml::load_from_str(&input).expect("saphyr"));
             }
-            other => panic!("profile supports saneyaml-borrowed | saphyr, got {other:?}"),
+            "serde-saphyr-yaml-value" => {
+                black_box(serde_saphyr_yaml_value_documents(&input));
+            }
+            "saneyaml-event-yaml-value" => {
+                black_box(
+                    saneyaml::__unstable_event_serde::from_documents_str::<serde_yaml::Value>(
+                        &input,
+                    )
+                    .expect("saneyaml event-backed serde_yaml value"),
+                );
+            }
+            other => panic!(
+                "profile supports saneyaml-borrowed | saphyr | serde-saphyr-yaml-value | saneyaml-event-yaml-value, got {other:?}"
+            ),
         }
         black_box(input.len());
         return;
@@ -220,4 +249,35 @@ fn main() {
 
     let _profiler = dhat::Profiler::builder().testing().build();
     measure(lib, corpus);
+}
+
+fn serde_saphyr_yaml_value_documents(input: &str) -> Vec<serde_yaml::Value> {
+    serde_saphyr::from_multiple_with_options::<serde_yaml::Value>(
+        input,
+        serde_saphyr_benchmark_options(),
+    )
+    .expect("serde-saphyr serde_yaml value")
+}
+
+fn serde_saphyr_benchmark_options() -> serde_saphyr::Options {
+    let many = usize::MAX;
+    serde_saphyr::options! {
+        strict_booleans: true,
+        budget: serde_saphyr::budget! {
+            max_reader_input_bytes: None,
+            max_events: many,
+            max_aliases: many,
+            max_anchors: many,
+            max_depth: many,
+            max_inclusion_depth: u32::MAX,
+            max_documents: many,
+            max_nodes: many,
+            max_total_scalar_bytes: many,
+            max_total_comment_bytes: many,
+            max_merge_keys: many,
+            enforce_alias_anchor_ratio: false,
+            alias_anchor_min_aliases: many,
+            alias_anchor_ratio_multiplier: many,
+        },
+    }
 }

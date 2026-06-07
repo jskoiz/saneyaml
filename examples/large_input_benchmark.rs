@@ -306,6 +306,9 @@ fn main() {
             measure_yaml_parse_documents(corpus, iterations),
             measure_yaml_parse_borrowed_documents(corpus, iterations),
             measure_yaml_value(corpus, iterations),
+            measure_yaml_serde_yaml_value(corpus, iterations),
+            measure_yaml_event_serde_yaml_value(corpus, iterations),
+            measure_serde_saphyr_serde_yaml_value(corpus, iterations),
             measure_serde_yaml_value(corpus, iterations),
             measure_yaml_rust2(corpus, iterations),
             measure_saphyr(corpus, iterations),
@@ -338,14 +341,53 @@ fn downstream_fixtures() -> Vec<Fixture<'static>> {
 }
 
 fn validate_corpus(corpus: &Corpus<'_>) {
+    let serde_saphyr_options = serde_saphyr_benchmark_options();
     for fixture in &corpus.fixtures {
         let owned = saneyaml::parse_documents(&fixture.input).expect(fixture.path);
         let borrowed = saneyaml::parse_borrowed_documents(&fixture.input).expect(fixture.path);
+        let saneyaml_serde_yaml_docs =
+            saneyaml::from_documents_str::<serde_yaml::Value>(&fixture.input).expect(fixture.path);
+        let saneyaml_event_serde_yaml_docs =
+            saneyaml::__unstable_event_serde::from_documents_str::<serde_yaml::Value>(
+                &fixture.input,
+            )
+            .expect(fixture.path);
+        let serde_saphyr_serde_yaml_docs =
+            serde_saphyr_serde_yaml_documents(&fixture.input, fixture.path, &serde_saphyr_options);
         assert_eq!(owned.len(), fixture.docs, "{} document count", fixture.path);
         assert_eq!(
             borrowed.len(),
             fixture.docs,
             "{} borrowed document count",
+            fixture.path
+        );
+        assert_eq!(
+            saneyaml_serde_yaml_docs.len(),
+            fixture.docs,
+            "{} saneyaml serde_yaml::Value document count",
+            fixture.path
+        );
+        assert_eq!(
+            saneyaml_event_serde_yaml_docs.len(),
+            fixture.docs,
+            "{} saneyaml event-backed serde_yaml::Value document count",
+            fixture.path
+        );
+        assert_eq!(
+            saneyaml_event_serde_yaml_docs, saneyaml_serde_yaml_docs,
+            "{} event-backed serde_yaml::Value document shape",
+            fixture.path
+        );
+        assert_eq!(
+            serde_saphyr_serde_yaml_docs.len(),
+            serde_saphyr_comparable_documents(&saneyaml_serde_yaml_docs).len(),
+            "{} serde-saphyr serde_yaml::Value document count",
+            fixture.path
+        );
+        assert_eq!(
+            serde_saphyr_serde_yaml_docs,
+            serde_saphyr_comparable_documents(&saneyaml_serde_yaml_docs),
+            "{} generic serde_yaml::Value document shape",
             fixture.path
         );
         for (index, (owned, borrowed)) in owned.iter().zip(&borrowed).enumerate() {
@@ -399,6 +441,56 @@ fn measure_yaml_value(corpus: &Corpus<'_>, iterations: usize) -> BenchResult {
         |input, path| {
             let docs = saneyaml::from_documents_str::<saneyaml::Value>(input).expect(path);
             retained_yaml_value_docs(&docs)
+        },
+    )
+}
+
+fn measure_yaml_serde_yaml_value(corpus: &Corpus<'_>, iterations: usize) -> BenchResult {
+    measure(
+        "saneyaml::from_documents_str::<serde_yaml::Value>",
+        corpus,
+        iterations,
+        |input, path| {
+            saneyaml::from_documents_str::<serde_yaml::Value>(input)
+                .expect(path)
+                .len()
+        },
+        |input, path| {
+            let docs = saneyaml::from_documents_str::<serde_yaml::Value>(input).expect(path);
+            retained_serde_yaml_docs(&docs)
+        },
+    )
+}
+
+fn measure_yaml_event_serde_yaml_value(corpus: &Corpus<'_>, iterations: usize) -> BenchResult {
+    measure(
+        "saneyaml::__unstable_event_serde::from_documents_str::<serde_yaml::Value>",
+        corpus,
+        iterations,
+        |input, path| {
+            saneyaml::__unstable_event_serde::from_documents_str::<serde_yaml::Value>(input)
+                .expect(path)
+                .len()
+        },
+        |input, path| {
+            let docs =
+                saneyaml::__unstable_event_serde::from_documents_str::<serde_yaml::Value>(input)
+                    .expect(path);
+            retained_serde_yaml_docs(&docs)
+        },
+    )
+}
+
+fn measure_serde_saphyr_serde_yaml_value(corpus: &Corpus<'_>, iterations: usize) -> BenchResult {
+    let options = serde_saphyr_benchmark_options();
+    measure(
+        "serde_saphyr::from_multiple_with_options::<serde_yaml::Value>",
+        corpus,
+        iterations,
+        |input, path| serde_saphyr_serde_yaml_documents(input, path, &options).len(),
+        |input, path| {
+            let docs = serde_saphyr_serde_yaml_documents(input, path, &options);
+            retained_serde_yaml_docs(&docs)
         },
     )
 }
@@ -797,5 +889,63 @@ fn retained_saphyr_scalar(scalar: &saphyr::Scalar<'_>) -> Retained {
         | saphyr::Scalar::Boolean(_)
         | saphyr::Scalar::Integer(_)
         | saphyr::Scalar::FloatingPoint(_) => Retained::default(),
+    }
+}
+
+fn serde_saphyr_serde_yaml_documents(
+    input: &str,
+    path: &str,
+    options: &serde_saphyr::Options,
+) -> Vec<serde_yaml::Value> {
+    serde_saphyr::from_multiple_with_options::<serde_yaml::Value>(input, options.clone())
+        .unwrap_or_else(|error| panic!("{path}: {error}"))
+}
+
+fn serde_saphyr_comparable_documents(docs: &[serde_yaml::Value]) -> Vec<serde_yaml::Value> {
+    // Match serde-saphyr's serde_yaml::Value contract: skip null docs and
+    // treat tags as transparent.
+    docs.iter()
+        .filter(|doc| !doc.is_null())
+        .map(strip_serde_yaml_tags)
+        .collect()
+}
+
+fn strip_serde_yaml_tags(value: &serde_yaml::Value) -> serde_yaml::Value {
+    match value {
+        serde_yaml::Value::Sequence(items) => {
+            serde_yaml::Value::Sequence(items.iter().map(strip_serde_yaml_tags).collect())
+        }
+        serde_yaml::Value::Mapping(mapping) => {
+            let mut stripped = serde_yaml::Mapping::new();
+            for (key, value) in mapping {
+                stripped.insert(strip_serde_yaml_tags(key), strip_serde_yaml_tags(value));
+            }
+            serde_yaml::Value::Mapping(stripped)
+        }
+        serde_yaml::Value::Tagged(tagged) => strip_serde_yaml_tags(&tagged.value),
+        value => value.clone(),
+    }
+}
+
+fn serde_saphyr_benchmark_options() -> serde_saphyr::Options {
+    let many = usize::MAX;
+    serde_saphyr::options! {
+        strict_booleans: true,
+        budget: serde_saphyr::budget! {
+            max_reader_input_bytes: None,
+            max_events: many,
+            max_aliases: many,
+            max_anchors: many,
+            max_depth: many,
+            max_inclusion_depth: u32::MAX,
+            max_documents: many,
+            max_nodes: many,
+            max_total_scalar_bytes: many,
+            max_total_comment_bytes: many,
+            max_merge_keys: many,
+            enforce_alias_anchor_ratio: false,
+            alias_anchor_min_aliases: many,
+            alias_anchor_ratio_multiplier: many,
+        },
     }
 }

@@ -14,7 +14,7 @@ local development, benchmarking, and conformance checks against the source tree.
 | `conformance_compare.rs` | no | Head-to-head YAML test-suite conformance comparison. |
 
 The benchmark and conformance examples depend on dev-dependencies (for example
-`serde_yaml`, `saphyr`, `yaml-rust2`, `dhat`) and on in-repo fixtures that are
-not part of the published package, so they only build from a checkout of this
-repository. See `docs/BENCHMARKS.md` for the exact commands and pinned
-reference-crate versions used to capture the published numbers.
+`serde_yaml`, `serde-saphyr`, `saphyr`, `yaml-rust2`, `dhat`) and on in-repo
+fixtures that are not part of the published package, so they only build from a
+checkout of this repository. See `docs/BENCHMARKS.md` for the exact commands and
+pinned reference-crate versions used to capture the published numbers.

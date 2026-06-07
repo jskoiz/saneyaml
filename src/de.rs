@@ -1163,22 +1163,25 @@ fn take_yaml11_singleton_pair_value(
     }
 }
 
-fn parse_explicit_core_int_text(raw: &str, span: Option<Span>) -> Result<Number, Error> {
+pub(crate) fn parse_explicit_core_int_text(raw: &str, span: Option<Span>) -> Result<Number, Error> {
     yaml11::parse_explicit_int_number(raw)
         .ok_or_else(|| Error::new("failed to parse explicit !!int scalar", span))
 }
 
-fn parse_explicit_core_float_text(raw: &str, span: Option<Span>) -> Result<Number, Error> {
+pub(crate) fn parse_explicit_core_float_text(
+    raw: &str,
+    span: Option<Span>,
+) -> Result<Number, Error> {
     yaml11::parse_explicit_float_number(raw)
         .ok_or_else(|| Error::new("failed to parse explicit !!float scalar", span))
 }
 
-fn parse_explicit_core_bool_text(raw: &str, span: Option<Span>) -> Result<bool, Error> {
+pub(crate) fn parse_explicit_core_bool_text(raw: &str, span: Option<Span>) -> Result<bool, Error> {
     yaml11::parse_bool(raw)
         .ok_or_else(|| Error::new("failed to parse explicit !!bool scalar", span))
 }
 
-fn parse_explicit_core_null_text(raw: &str, span: Option<Span>) -> Result<(), Error> {
+pub(crate) fn parse_explicit_core_null_text(raw: &str, span: Option<Span>) -> Result<(), Error> {
     yaml11::is_null(raw)
         .then_some(())
         .ok_or_else(|| Error::new("failed to parse explicit !!null scalar", span))

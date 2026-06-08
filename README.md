@@ -91,10 +91,20 @@ locking the surface down, not expanding it — stability is the goal.
 
 ## Documentation
 
-- [MIGRATION.md](docs/MIGRATION.md) — `serde_yaml` migration cookbook + support matrix
-- [COMPATIBILITY.md](docs/COMPATIBILITY.md) — schema modes, scalar resolution, divergences, threat model
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — crate layout and design
-- [BENCHMARKS.md](docs/BENCHMARKS.md) · [SECURITY.md](SECURITY.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [CHANGELOG.md](CHANGELOG.md)
+Start with **[Getting started](docs/getting-started.md)** and the
+**[Cookbook](docs/cookbook.md)**. The [docs index](docs/README.md) maps
+everything else.
+
+- **Guides** — [Getting started](docs/getting-started.md) ·
+  [Cookbook](docs/cookbook.md) · [Schema modes](docs/schema-modes.md) ·
+  [Diagnostics](docs/diagnostics.md) · [Untrusted input](docs/untrusted-input.md)
+  · [Editing files](docs/editing.md) · [Streaming](docs/streaming.md)
+- **Migrating** — [from `serde_yaml`](docs/MIGRATION.md)
+- **Reference** — [Compatibility](docs/COMPATIBILITY.md) ·
+  [Architecture](docs/ARCHITECTURE.md) · [Benchmarks](docs/BENCHMARKS.md) ·
+  [API docs](https://docs.rs/saneyaml)
+- **Project** — [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) ·
+  [Changelog](CHANGELOG.md)
 
 ## License
 

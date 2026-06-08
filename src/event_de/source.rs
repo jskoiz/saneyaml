@@ -631,24 +631,6 @@ impl<'de> EventSource<'de> {
         }
     }
 
-    fn scalar_key_at(&self, pos: usize) -> Result<Option<(Node, usize)>> {
-        self.scalar_key_at_in(&self.events, pos)
-    }
-
-    fn scalar_key_at_in(&self, events: &[Event], pos: usize) -> Result<Option<(Node, usize)>> {
-        let Some(Event::Scalar {
-            value,
-            style,
-            meta,
-            span,
-        }) = events.get(pos)
-        else {
-            return Ok(None);
-        };
-        self.scalar_from_event(value.clone(), *style, meta, *span)
-            .map(|node| Some((node, pos + 1)))
-    }
-
     fn scalar_key_node_from_event(
         &self,
         value: String,

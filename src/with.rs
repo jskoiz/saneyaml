@@ -24,6 +24,41 @@
 
 use crate::{Mapping, Value};
 
+/// Generates the trivial single-visitor-argument `Deserializer` forwarding
+/// methods shared by the `singleton_map` and `singleton_map_recursive` wrappers.
+///
+/// `|visitor| <expr>` describes how the incoming visitor is handed to the
+/// delegate: verbatim for the non-recursive wrapper, re-wrapped for the
+/// recursive one.
+macro_rules! forward_singleton_deserialize {
+    (|$visitor:ident| $wrapped:expr; $($method:ident),+ $(,)?) => {
+        $(
+            fn $method<V>(self, $visitor: V) -> Result<V::Value, Self::Error>
+            where
+                V: Visitor<'de>,
+            {
+                self.delegate.$method($wrapped)
+            }
+        )+
+    };
+}
+
+/// Generates the trivial value-carrying `Visitor` scalar forwarding methods.
+/// Scalars cannot contain nested enums, so the recursive wrapper forwards them
+/// to its delegate unchanged.
+macro_rules! forward_visit_scalars {
+    ($($method:ident($ty:ty)),+ $(,)?) => {
+        $(
+            fn $method<E>(self, value: $ty) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                self.delegate.$method(value)
+            }
+        )+
+    };
+}
+
 fn tagged_to_singleton_map(value: Value, recursive: bool) -> Value {
     match value {
         Value::Tagged(tagged) => {
@@ -108,137 +143,32 @@ pub mod singleton_map {
     {
         type Error = D::Error;
 
-        fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_any(visitor)
-        }
-
-        fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_bool(visitor)
-        }
-
-        fn deserialize_i8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_i8(visitor)
-        }
-
-        fn deserialize_i16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_i16(visitor)
-        }
-
-        fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_i32(visitor)
-        }
-
-        fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_i64(visitor)
-        }
-
-        fn deserialize_i128<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_i128(visitor)
-        }
-
-        fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_u8(visitor)
-        }
-
-        fn deserialize_u16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_u16(visitor)
-        }
-
-        fn deserialize_u32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_u32(visitor)
-        }
-
-        fn deserialize_u64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_u64(visitor)
-        }
-
-        fn deserialize_u128<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_u128(visitor)
-        }
-
-        fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_f32(visitor)
-        }
-
-        fn deserialize_f64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_f64(visitor)
-        }
-
-        fn deserialize_char<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_char(visitor)
-        }
-
-        fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_str(visitor)
-        }
-
-        fn deserialize_string<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_string(visitor)
-        }
-
-        fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_bytes(visitor)
-        }
-
-        fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_byte_buf(visitor)
+        forward_singleton_deserialize! {
+            |visitor| visitor;
+            deserialize_any,
+            deserialize_bool,
+            deserialize_i8,
+            deserialize_i16,
+            deserialize_i32,
+            deserialize_i64,
+            deserialize_i128,
+            deserialize_u8,
+            deserialize_u16,
+            deserialize_u32,
+            deserialize_u64,
+            deserialize_u128,
+            deserialize_f32,
+            deserialize_f64,
+            deserialize_char,
+            deserialize_str,
+            deserialize_string,
+            deserialize_bytes,
+            deserialize_byte_buf,
+            deserialize_unit,
+            deserialize_seq,
+            deserialize_map,
+            deserialize_identifier,
+            deserialize_ignored_any,
         }
 
         fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -249,13 +179,6 @@ pub mod singleton_map {
                 name: "",
                 delegate: visitor,
             })
-        }
-
-        fn deserialize_unit<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_unit(visitor)
         }
 
         fn deserialize_unit_struct<V>(
@@ -280,13 +203,6 @@ pub mod singleton_map {
             self.delegate.deserialize_newtype_struct(name, visitor)
         }
 
-        fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_seq(visitor)
-        }
-
         fn deserialize_tuple<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
         where
             V: Visitor<'de>,
@@ -304,13 +220,6 @@ pub mod singleton_map {
             V: Visitor<'de>,
         {
             self.delegate.deserialize_tuple_struct(name, len, visitor)
-        }
-
-        fn deserialize_map<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_map(visitor)
         }
 
         fn deserialize_struct<V>(
@@ -338,20 +247,6 @@ pub mod singleton_map {
                 name,
                 delegate: visitor,
             })
-        }
-
-        fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_identifier(visitor)
-        }
-
-        fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate.deserialize_ignored_any(visitor)
         }
 
         fn is_human_readable(&self) -> bool {
@@ -602,156 +497,32 @@ pub mod singleton_map_recursive {
     {
         type Error = D::Error;
 
-        fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_any(SingletonMapRecursive { delegate: visitor })
-        }
-
-        fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_bool(SingletonMapRecursive { delegate: visitor })
-        }
-
-        fn deserialize_i8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_i8(SingletonMapRecursive { delegate: visitor })
-        }
-
-        fn deserialize_i16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_i16(SingletonMapRecursive { delegate: visitor })
-        }
-
-        fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_i32(SingletonMapRecursive { delegate: visitor })
-        }
-
-        fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_i64(SingletonMapRecursive { delegate: visitor })
-        }
-
-        fn deserialize_i128<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_i128(SingletonMapRecursive { delegate: visitor })
-        }
-
-        fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_u8(SingletonMapRecursive { delegate: visitor })
-        }
-
-        fn deserialize_u16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_u16(SingletonMapRecursive { delegate: visitor })
-        }
-
-        fn deserialize_u32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_u32(SingletonMapRecursive { delegate: visitor })
-        }
-
-        fn deserialize_u64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_u64(SingletonMapRecursive { delegate: visitor })
-        }
-
-        fn deserialize_u128<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_u128(SingletonMapRecursive { delegate: visitor })
-        }
-
-        fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_f32(SingletonMapRecursive { delegate: visitor })
-        }
-
-        fn deserialize_f64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_f64(SingletonMapRecursive { delegate: visitor })
-        }
-
-        fn deserialize_char<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_char(SingletonMapRecursive { delegate: visitor })
-        }
-
-        fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_str(SingletonMapRecursive { delegate: visitor })
-        }
-
-        fn deserialize_string<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_string(SingletonMapRecursive { delegate: visitor })
-        }
-
-        fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_bytes(SingletonMapRecursive { delegate: visitor })
-        }
-
-        fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_byte_buf(SingletonMapRecursive { delegate: visitor })
+        forward_singleton_deserialize! {
+            |visitor| SingletonMapRecursive { delegate: visitor };
+            deserialize_any,
+            deserialize_bool,
+            deserialize_i8,
+            deserialize_i16,
+            deserialize_i32,
+            deserialize_i64,
+            deserialize_i128,
+            deserialize_u8,
+            deserialize_u16,
+            deserialize_u32,
+            deserialize_u64,
+            deserialize_u128,
+            deserialize_f32,
+            deserialize_f64,
+            deserialize_char,
+            deserialize_str,
+            deserialize_string,
+            deserialize_bytes,
+            deserialize_byte_buf,
+            deserialize_unit,
+            deserialize_seq,
+            deserialize_map,
+            deserialize_identifier,
+            deserialize_ignored_any,
         }
 
         fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -763,14 +534,6 @@ pub mod singleton_map_recursive {
                     name: "",
                     delegate: visitor,
                 })
-        }
-
-        fn deserialize_unit<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_unit(SingletonMapRecursive { delegate: visitor })
         }
 
         fn deserialize_unit_struct<V>(
@@ -797,14 +560,6 @@ pub mod singleton_map_recursive {
                 .deserialize_newtype_struct(name, SingletonMapRecursive { delegate: visitor })
         }
 
-        fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_seq(SingletonMapRecursive { delegate: visitor })
-        }
-
         fn deserialize_tuple<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
         where
             V: Visitor<'de>,
@@ -827,14 +582,6 @@ pub mod singleton_map_recursive {
                 len,
                 SingletonMapRecursive { delegate: visitor },
             )
-        }
-
-        fn deserialize_map<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_map(SingletonMapRecursive { delegate: visitor })
         }
 
         fn deserialize_struct<V>(
@@ -868,22 +615,6 @@ pub mod singleton_map_recursive {
             })
         }
 
-        fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_identifier(SingletonMapRecursive { delegate: visitor })
-        }
-
-        fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.delegate
-                .deserialize_ignored_any(SingletonMapRecursive { delegate: visitor })
-        }
-
         fn is_human_readable(&self) -> bool {
             self.delegate.is_human_readable()
         }
@@ -899,144 +630,27 @@ pub mod singleton_map_recursive {
             self.delegate.expecting(formatter)
         }
 
-        fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            self.delegate.visit_bool(value)
-        }
-
-        fn visit_i8<E>(self, value: i8) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            self.delegate.visit_i8(value)
-        }
-
-        fn visit_i16<E>(self, value: i16) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            self.delegate.visit_i16(value)
-        }
-
-        fn visit_i32<E>(self, value: i32) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            self.delegate.visit_i32(value)
-        }
-
-        fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            self.delegate.visit_i64(value)
-        }
-
-        fn visit_i128<E>(self, value: i128) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            self.delegate.visit_i128(value)
-        }
-
-        fn visit_u8<E>(self, value: u8) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            self.delegate.visit_u8(value)
-        }
-
-        fn visit_u16<E>(self, value: u16) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            self.delegate.visit_u16(value)
-        }
-
-        fn visit_u32<E>(self, value: u32) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            self.delegate.visit_u32(value)
-        }
-
-        fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            self.delegate.visit_u64(value)
-        }
-
-        fn visit_u128<E>(self, value: u128) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            self.delegate.visit_u128(value)
-        }
-
-        fn visit_f32<E>(self, value: f32) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            self.delegate.visit_f32(value)
-        }
-
-        fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            self.delegate.visit_f64(value)
-        }
-
-        fn visit_char<E>(self, value: char) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            self.delegate.visit_char(value)
-        }
-
-        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            self.delegate.visit_str(value)
-        }
-
-        fn visit_borrowed_str<E>(self, value: &'de str) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            self.delegate.visit_borrowed_str(value)
-        }
-
-        fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            self.delegate.visit_string(value)
-        }
-
-        fn visit_bytes<E>(self, value: &[u8]) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            self.delegate.visit_bytes(value)
-        }
-
-        fn visit_borrowed_bytes<E>(self, value: &'de [u8]) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            self.delegate.visit_borrowed_bytes(value)
-        }
-
-        fn visit_byte_buf<E>(self, value: Vec<u8>) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            self.delegate.visit_byte_buf(value)
+        forward_visit_scalars! {
+            visit_bool(bool),
+            visit_i8(i8),
+            visit_i16(i16),
+            visit_i32(i32),
+            visit_i64(i64),
+            visit_i128(i128),
+            visit_u8(u8),
+            visit_u16(u16),
+            visit_u32(u32),
+            visit_u64(u64),
+            visit_u128(u128),
+            visit_f32(f32),
+            visit_f64(f64),
+            visit_char(char),
+            visit_str(&str),
+            visit_borrowed_str(&'de str),
+            visit_string(String),
+            visit_bytes(&[u8]),
+            visit_borrowed_bytes(&'de [u8]),
+            visit_byte_buf(Vec<u8>),
         }
 
         fn visit_none<E>(self) -> Result<Self::Value, E>

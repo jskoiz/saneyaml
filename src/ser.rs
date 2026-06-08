@@ -35,6 +35,56 @@ const NUMBER_STRUCT: &str = "$saneyaml::Number";
 const BYTES_UNSUPPORTED: &str = "serialization of bytes in YAML is not implemented";
 const MAX_SERIALIZE_HINT_PREALLOC: usize = 4096;
 
+/// Generates the `Serializer` numeric scalar methods that all map through
+/// `Value::from`. Only the fixed-width integer/float types that share a single
+/// uniform body are generated here; `bool`, `i128`, and `u128` keep their
+/// per-serializer handling (lossless 128-bit narrowing, etc.) and stay
+/// hand-written. `|value| <expr>` names how the resulting [`Value`] is wrapped.
+macro_rules! serialize_value_from_scalars {
+    ($ret:ty, |$converted:ident| $wrap:expr) => {
+        fn serialize_i8(self, value: i8) -> $ret {
+            let $converted = Value::from(value);
+            $wrap
+        }
+        fn serialize_i16(self, value: i16) -> $ret {
+            let $converted = Value::from(value);
+            $wrap
+        }
+        fn serialize_i32(self, value: i32) -> $ret {
+            let $converted = Value::from(value);
+            $wrap
+        }
+        fn serialize_i64(self, value: i64) -> $ret {
+            let $converted = Value::from(value);
+            $wrap
+        }
+        fn serialize_u8(self, value: u8) -> $ret {
+            let $converted = Value::from(value);
+            $wrap
+        }
+        fn serialize_u16(self, value: u16) -> $ret {
+            let $converted = Value::from(value);
+            $wrap
+        }
+        fn serialize_u32(self, value: u32) -> $ret {
+            let $converted = Value::from(value);
+            $wrap
+        }
+        fn serialize_u64(self, value: u64) -> $ret {
+            let $converted = Value::from(value);
+            $wrap
+        }
+        fn serialize_f32(self, value: f32) -> $ret {
+            let $converted = Value::from(value);
+            $wrap
+        }
+        fn serialize_f64(self, value: f64) -> $ret {
+            let $converted = Value::from(value);
+            $wrap
+        }
+    };
+}
+
 /// Converts a serializable value into a YAML [`Value`].
 pub fn to_value<T>(value: T) -> Result<Value>
 where
@@ -629,21 +679,7 @@ impl ser::Serializer for ValueSerializer {
         Ok(Value::Bool(value))
     }
 
-    fn serialize_i8(self, value: i8) -> Result<Value> {
-        Ok(Value::from(value))
-    }
-
-    fn serialize_i16(self, value: i16) -> Result<Value> {
-        Ok(Value::from(value))
-    }
-
-    fn serialize_i32(self, value: i32) -> Result<Value> {
-        Ok(Value::from(value))
-    }
-
-    fn serialize_i64(self, value: i64) -> Result<Value> {
-        Ok(Value::from(value))
-    }
+    serialize_value_from_scalars!(Result<Value>, |converted| Ok(converted));
 
     /// Serializes a 128-bit signed integer losslessly.
     ///
@@ -662,22 +698,6 @@ impl ser::Serializer for ValueSerializer {
         }
     }
 
-    fn serialize_u8(self, value: u8) -> Result<Value> {
-        Ok(Value::from(value))
-    }
-
-    fn serialize_u16(self, value: u16) -> Result<Value> {
-        Ok(Value::from(value))
-    }
-
-    fn serialize_u32(self, value: u32) -> Result<Value> {
-        Ok(Value::from(value))
-    }
-
-    fn serialize_u64(self, value: u64) -> Result<Value> {
-        Ok(Value::from(value))
-    }
-
     /// Serializes a 128-bit unsigned integer losslessly.
     ///
     /// Values that fit in `u64` are narrowed to match the corresponding
@@ -690,14 +710,6 @@ impl ser::Serializer for ValueSerializer {
         } else {
             Ok(Value::from(value))
         }
-    }
-
-    fn serialize_f32(self, value: f32) -> Result<Value> {
-        Ok(Value::from(value))
-    }
-
-    fn serialize_f64(self, value: f64) -> Result<Value> {
-        Ok(Value::from(value))
     }
 
     fn serialize_char(self, value: char) -> Result<Value> {
@@ -871,52 +883,14 @@ impl ser::Serializer for NestedValueSerializer {
         ValueSerializer.serialize_bool(value)
     }
 
-    fn serialize_i8(self, value: i8) -> Result<Value> {
-        ValueSerializer.serialize_i8(value)
-    }
-
-    fn serialize_i16(self, value: i16) -> Result<Value> {
-        ValueSerializer.serialize_i16(value)
-    }
-
-    fn serialize_i32(self, value: i32) -> Result<Value> {
-        ValueSerializer.serialize_i32(value)
-    }
-
-    fn serialize_i64(self, value: i64) -> Result<Value> {
-        ValueSerializer.serialize_i64(value)
-    }
+    serialize_value_from_scalars!(Result<Value>, |converted| Ok(converted));
 
     fn serialize_i128(self, value: i128) -> Result<Value> {
         ValueSerializer.serialize_i128(value)
     }
 
-    fn serialize_u8(self, value: u8) -> Result<Value> {
-        ValueSerializer.serialize_u8(value)
-    }
-
-    fn serialize_u16(self, value: u16) -> Result<Value> {
-        ValueSerializer.serialize_u16(value)
-    }
-
-    fn serialize_u32(self, value: u32) -> Result<Value> {
-        ValueSerializer.serialize_u32(value)
-    }
-
-    fn serialize_u64(self, value: u64) -> Result<Value> {
-        ValueSerializer.serialize_u64(value)
-    }
-
     fn serialize_u128(self, value: u128) -> Result<Value> {
         ValueSerializer.serialize_u128(value)
-    }
-
-    fn serialize_f32(self, value: f32) -> Result<Value> {
-        ValueSerializer.serialize_f32(value)
-    }
-
-    fn serialize_f64(self, value: f64) -> Result<Value> {
-        ValueSerializer.serialize_f64(value)
     }
 
     fn serialize_char(self, value: char) -> Result<Value> {
@@ -1083,52 +1057,14 @@ impl ser::Serializer for ByteCompatibleRootSerializer {
         Ok(node_from_value(Value::Bool(value)))
     }
 
-    fn serialize_i8(self, value: i8) -> Result<Node> {
-        Ok(node_from_value(Value::from(value)))
-    }
-
-    fn serialize_i16(self, value: i16) -> Result<Node> {
-        Ok(node_from_value(Value::from(value)))
-    }
-
-    fn serialize_i32(self, value: i32) -> Result<Node> {
-        Ok(node_from_value(Value::from(value)))
-    }
-
-    fn serialize_i64(self, value: i64) -> Result<Node> {
-        Ok(node_from_value(Value::from(value)))
-    }
+    serialize_value_from_scalars!(Result<Node>, |converted| Ok(node_from_value(converted)));
 
     fn serialize_i128(self, value: i128) -> Result<Node> {
         Ok(node_from_value(ValueSerializer.serialize_i128(value)?))
     }
 
-    fn serialize_u8(self, value: u8) -> Result<Node> {
-        Ok(node_from_value(Value::from(value)))
-    }
-
-    fn serialize_u16(self, value: u16) -> Result<Node> {
-        Ok(node_from_value(Value::from(value)))
-    }
-
-    fn serialize_u32(self, value: u32) -> Result<Node> {
-        Ok(node_from_value(Value::from(value)))
-    }
-
-    fn serialize_u64(self, value: u64) -> Result<Node> {
-        Ok(node_from_value(Value::from(value)))
-    }
-
     fn serialize_u128(self, value: u128) -> Result<Node> {
         Ok(node_from_value(ValueSerializer.serialize_u128(value)?))
-    }
-
-    fn serialize_f32(self, value: f32) -> Result<Node> {
-        Ok(node_from_value(Value::from(value)))
-    }
-
-    fn serialize_f64(self, value: f64) -> Result<Node> {
-        Ok(node_from_value(Value::from(value)))
     }
 
     fn serialize_char(self, value: char) -> Result<Node> {
@@ -1734,52 +1670,16 @@ impl ser::Serializer for TagDetectingKeySerializer {
         Ok(SerializedKey::Value(Value::Bool(value)))
     }
 
-    fn serialize_i8(self, value: i8) -> Result<SerializedKey> {
-        Ok(SerializedKey::Value(Value::from(value)))
-    }
-
-    fn serialize_i16(self, value: i16) -> Result<SerializedKey> {
-        Ok(SerializedKey::Value(Value::from(value)))
-    }
-
-    fn serialize_i32(self, value: i32) -> Result<SerializedKey> {
-        Ok(SerializedKey::Value(Value::from(value)))
-    }
-
-    fn serialize_i64(self, value: i64) -> Result<SerializedKey> {
-        Ok(SerializedKey::Value(Value::from(value)))
-    }
+    serialize_value_from_scalars!(Result<SerializedKey>, |converted| Ok(SerializedKey::Value(
+        converted
+    )));
 
     fn serialize_i128(self, value: i128) -> Result<SerializedKey> {
         Ok(SerializedKey::Value(ValueSerializer.serialize_i128(value)?))
     }
 
-    fn serialize_u8(self, value: u8) -> Result<SerializedKey> {
-        Ok(SerializedKey::Value(Value::from(value)))
-    }
-
-    fn serialize_u16(self, value: u16) -> Result<SerializedKey> {
-        Ok(SerializedKey::Value(Value::from(value)))
-    }
-
-    fn serialize_u32(self, value: u32) -> Result<SerializedKey> {
-        Ok(SerializedKey::Value(Value::from(value)))
-    }
-
-    fn serialize_u64(self, value: u64) -> Result<SerializedKey> {
-        Ok(SerializedKey::Value(Value::from(value)))
-    }
-
     fn serialize_u128(self, value: u128) -> Result<SerializedKey> {
         Ok(SerializedKey::Value(ValueSerializer.serialize_u128(value)?))
-    }
-
-    fn serialize_f32(self, value: f32) -> Result<SerializedKey> {
-        Ok(SerializedKey::Value(Value::from(value)))
-    }
-
-    fn serialize_f64(self, value: f64) -> Result<SerializedKey> {
-        Ok(SerializedKey::Value(Value::from(value)))
     }
 
     fn serialize_char(self, value: char) -> Result<SerializedKey> {
@@ -2313,52 +2213,14 @@ impl ser::Serializer for PreserveNumberSerializer {
         Ok(Value::Bool(value))
     }
 
-    fn serialize_i8(self, value: i8) -> Result<Value> {
-        Ok(Value::from(value))
-    }
-
-    fn serialize_i16(self, value: i16) -> Result<Value> {
-        Ok(Value::from(value))
-    }
-
-    fn serialize_i32(self, value: i32) -> Result<Value> {
-        Ok(Value::from(value))
-    }
-
-    fn serialize_i64(self, value: i64) -> Result<Value> {
-        Ok(Value::from(value))
-    }
+    serialize_value_from_scalars!(Result<Value>, |converted| Ok(converted));
 
     fn serialize_i128(self, value: i128) -> Result<Value> {
         Ok(Value::Number(Number::Integer(value)))
     }
 
-    fn serialize_u8(self, value: u8) -> Result<Value> {
-        Ok(Value::from(value))
-    }
-
-    fn serialize_u16(self, value: u16) -> Result<Value> {
-        Ok(Value::from(value))
-    }
-
-    fn serialize_u32(self, value: u32) -> Result<Value> {
-        Ok(Value::from(value))
-    }
-
-    fn serialize_u64(self, value: u64) -> Result<Value> {
-        Ok(Value::from(value))
-    }
-
     fn serialize_u128(self, value: u128) -> Result<Value> {
         Ok(Value::Number(Number::Unsigned(value)))
-    }
-
-    fn serialize_f32(self, value: f32) -> Result<Value> {
-        Ok(Value::from(value))
-    }
-
-    fn serialize_f64(self, value: f64) -> Result<Value> {
-        Ok(Value::from(value))
     }
 
     fn serialize_char(self, value: char) -> Result<Value> {

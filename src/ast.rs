@@ -1782,63 +1782,77 @@ where
     }
 }
 
+/// Generates the `Iterator`/`DoubleEndedIterator`/`ExactSizeIterator` trio for a
+/// mapping view that projects the inner `(Value, Value)` pair iterator. The first
+/// arm handles borrowed views (with a lifetime), the second owning views.
+macro_rules! mapping_projection_iter {
+    ($name:ident<$lt:lifetime>, $item:ty, |$pair:pat_param| $proj:expr) => {
+        impl<$lt> Iterator for $name<$lt> {
+            type Item = $item;
+
+            fn next(&mut self) -> Option<Self::Item> {
+                self.iter.next().map(|$pair| $proj)
+            }
+
+            fn size_hint(&self) -> (usize, Option<usize>) {
+                self.iter.size_hint()
+            }
+        }
+
+        impl DoubleEndedIterator for $name<'_> {
+            fn next_back(&mut self) -> Option<Self::Item> {
+                self.iter.next_back().map(|$pair| $proj)
+            }
+        }
+
+        impl ExactSizeIterator for $name<'_> {
+            fn len(&self) -> usize {
+                self.iter.len()
+            }
+        }
+    };
+    ($name:ident, $item:ty, |$pair:pat_param| $proj:expr) => {
+        impl Iterator for $name {
+            type Item = $item;
+
+            fn next(&mut self) -> Option<Self::Item> {
+                self.iter.next().map(|$pair| $proj)
+            }
+
+            fn size_hint(&self) -> (usize, Option<usize>) {
+                self.iter.size_hint()
+            }
+        }
+
+        impl DoubleEndedIterator for $name {
+            fn next_back(&mut self) -> Option<Self::Item> {
+                self.iter.next_back().map(|$pair| $proj)
+            }
+        }
+
+        impl ExactSizeIterator for $name {
+            fn len(&self) -> usize {
+                self.iter.len()
+            }
+        }
+    };
+}
+
 /// Iterator over borrowed mapping key/value pairs.
 pub struct Iter<'a> {
     iter: std::slice::Iter<'a, (Value, Value)>,
 }
 
-impl<'a> Iterator for Iter<'a> {
-    type Item = (&'a Value, &'a Value);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|(key, value)| (key, value))
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.iter.size_hint()
-    }
-}
-
-impl DoubleEndedIterator for Iter<'_> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.iter.next_back().map(|(key, value)| (key, value))
-    }
-}
-
-impl ExactSizeIterator for Iter<'_> {
-    fn len(&self) -> usize {
-        self.iter.len()
-    }
-}
+mapping_projection_iter!(Iter<'a>, (&'a Value, &'a Value), |(key, value)| (key, value));
 
 /// Iterator over borrowed mapping keys and mutable values.
 pub struct IterMut<'a> {
     iter: std::slice::IterMut<'a, (Value, Value)>,
 }
 
-impl<'a> Iterator for IterMut<'a> {
-    type Item = (&'a Value, &'a mut Value);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|(key, value)| (&*key, value))
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.iter.size_hint()
-    }
-}
-
-impl DoubleEndedIterator for IterMut<'_> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.iter.next_back().map(|(key, value)| (&*key, value))
-    }
-}
-
-impl ExactSizeIterator for IterMut<'_> {
-    fn len(&self) -> usize {
-        self.iter.len()
-    }
-}
+mapping_projection_iter!(IterMut<'a>, (&'a Value, &'a mut Value), |(key, value)| (
+    &*key, value
+));
 
 /// Owning iterator over mapping key/value pairs.
 pub struct IntoIter {
@@ -1874,145 +1888,35 @@ pub struct Keys<'a> {
     iter: std::slice::Iter<'a, (Value, Value)>,
 }
 
-impl<'a> Iterator for Keys<'a> {
-    type Item = &'a Value;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|(key, _)| key)
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.iter.size_hint()
-    }
-}
-
-impl DoubleEndedIterator for Keys<'_> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.iter.next_back().map(|(key, _)| key)
-    }
-}
-
-impl ExactSizeIterator for Keys<'_> {
-    fn len(&self) -> usize {
-        self.iter.len()
-    }
-}
+mapping_projection_iter!(Keys<'a>, &'a Value, |(key, _)| key);
 
 /// Owning iterator over mapping keys.
 pub struct IntoKeys {
     iter: std::vec::IntoIter<(Value, Value)>,
 }
 
-impl Iterator for IntoKeys {
-    type Item = Value;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|(key, _)| key)
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.iter.size_hint()
-    }
-}
-
-impl DoubleEndedIterator for IntoKeys {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.iter.next_back().map(|(key, _)| key)
-    }
-}
-
-impl ExactSizeIterator for IntoKeys {
-    fn len(&self) -> usize {
-        self.iter.len()
-    }
-}
+mapping_projection_iter!(IntoKeys, Value, |(key, _)| key);
 
 /// Iterator over borrowed mapping values.
 pub struct Values<'a> {
     iter: std::slice::Iter<'a, (Value, Value)>,
 }
 
-impl<'a> Iterator for Values<'a> {
-    type Item = &'a Value;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|(_, value)| value)
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.iter.size_hint()
-    }
-}
-
-impl DoubleEndedIterator for Values<'_> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.iter.next_back().map(|(_, value)| value)
-    }
-}
-
-impl ExactSizeIterator for Values<'_> {
-    fn len(&self) -> usize {
-        self.iter.len()
-    }
-}
+mapping_projection_iter!(Values<'a>, &'a Value, |(_, value)| value);
 
 /// Iterator over mutable mapping values.
 pub struct ValuesMut<'a> {
     iter: std::slice::IterMut<'a, (Value, Value)>,
 }
 
-impl<'a> Iterator for ValuesMut<'a> {
-    type Item = &'a mut Value;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|(_, value)| value)
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.iter.size_hint()
-    }
-}
-
-impl DoubleEndedIterator for ValuesMut<'_> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.iter.next_back().map(|(_, value)| value)
-    }
-}
-
-impl ExactSizeIterator for ValuesMut<'_> {
-    fn len(&self) -> usize {
-        self.iter.len()
-    }
-}
+mapping_projection_iter!(ValuesMut<'a>, &'a mut Value, |(_, value)| value);
 
 /// Owning iterator over mapping values.
 pub struct IntoValues {
     iter: std::vec::IntoIter<(Value, Value)>,
 }
 
-impl Iterator for IntoValues {
-    type Item = Value;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|(_, value)| value)
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.iter.size_hint()
-    }
-}
-
-impl DoubleEndedIterator for IntoValues {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.iter.next_back().map(|(_, value)| value)
-    }
-}
-
-impl ExactSizeIterator for IntoValues {
-    fn len(&self) -> usize {
-        self.iter.len()
-    }
-}
+mapping_projection_iter!(IntoValues, Value, |(_, value)| value);
 
 /// Entry view into a [`Mapping`].
 pub enum Entry<'a> {

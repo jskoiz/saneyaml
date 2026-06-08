@@ -12,8 +12,10 @@ categories = ["config", "encoding", "parser-implementations"]
 include = [
     "/Cargo.lock",
     "/Cargo.toml",
+    "/book.toml",
     "/README.md",
     "/docs/README.md",
+    "/docs/SUMMARY.md",
     "/docs/getting-started.md",
     "/docs/cookbook.md",
     "/docs/schema-modes.md",

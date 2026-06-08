@@ -1,0 +1,79 @@
+name: Docs
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/docs.yml"
+      - "book.toml"
+      - "CHANGELOG.md"
+      - "CONTRIBUTING.md"
+      - "LICENSE.md"
+      - "README.md"
+      - "SECURITY.md"
+      - "docs/**"
+  pull_request:
+    paths:
+      - ".github/workflows/docs.yml"
+      - "book.toml"
+      - "CHANGELOG.md"
+      - "CONTRIBUTING.md"
+      - "LICENSE.md"
+      - "README.md"
+      - "SECURITY.md"
+      - "docs/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: Build mdBook
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install mdBook
+        run: cargo install mdbook --version 0.5.3 --locked
+
+      - name: Build guide
+        run: mdbook build
+
+      - name: Configure Pages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: book
+
+  deploy:
+    name: Deploy GitHub Pages
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,7 +1,8 @@
 # saneyaml documentation
 
-Serde-first YAML for Rust, with real YAML 1.2 semantics. Start with **Getting
-started**, then open a topic page when you hit it.
+Serde-first YAML for Rust, with real YAML 1.2 semantics. Read this as a hosted
+guide at <https://jskoiz.github.io/saneyaml/>, or start with **Getting started**
+in the repo and open a topic page when you hit it.
 
 ### Learn the basics
 

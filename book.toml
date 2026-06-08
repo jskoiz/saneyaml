@@ -1,0 +1,16 @@
+[book]
+title = "saneyaml"
+description = "Serde-first YAML for Rust, with YAML 1.2 semantics, diagnostics, resource limits, and source-preserving edits."
+authors = ["jskoiz"]
+src = "docs"
+language = "en"
+
+[output.html]
+git-repository-url = "https://github.com/jskoiz/saneyaml"
+edit-url-template = "https://github.com/jskoiz/saneyaml/edit/main/{path}"
+site-url = "/saneyaml/"
+additional-css = []
+
+[output.html.fold]
+enable = true
+level = 1

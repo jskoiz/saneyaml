@@ -91,7 +91,8 @@ locking the surface down, not expanding it — stability is the goal.
 
 ## Documentation
 
-Start with **[Getting started](docs/getting-started.md)** and the
+Start with the **[Guide](https://jskoiz.github.io/saneyaml/)**, or read the
+same files in-repo: **[Getting started](docs/getting-started.md)** and the
 **[Cookbook](docs/cookbook.md)**. The [docs index](docs/README.md) maps
 everything else.
 

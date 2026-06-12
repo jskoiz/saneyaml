@@ -81,6 +81,10 @@ hand. saneyaml is serde-first **and** YAML 1.2-correct.
   anchors, ordering, and untouched bytes.
 - **Benchmarked** — real-world config corpus runs are tracked against
   `serde_yaml`, `yaml-rust2`, and `saphyr`; see [BENCHMARKS.md](docs/BENCHMARKS.md).
+- **Conformance-tracked** — all 402 upstream yaml-test-suite cases run against
+  this crate and its alternatives, published as a
+  [live conformance matrix](https://jskoiz.github.io/saneyaml/conformance/index.html);
+  see [docs/conformance.md](docs/conformance.md).
 
 ## Status
 
@@ -101,7 +105,8 @@ everything else.
   [Diagnostics](docs/diagnostics.md) · [Untrusted input](docs/untrusted-input.md)
   · [Editing files](docs/editing.md) · [Streaming](docs/streaming.md)
 - **Migrating** — [from `serde_yaml`](docs/MIGRATION.md)
-- **Reference** — [Compatibility](docs/COMPATIBILITY.md) ·
+- **Reference** — [Conformance](docs/conformance.md) ·
+  [Compatibility](docs/COMPATIBILITY.md) ·
   [Architecture](docs/ARCHITECTURE.md) · [Benchmarks](docs/BENCHMARKS.md) ·
   [API docs](https://docs.rs/saneyaml)
 - **Project** — [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) ·

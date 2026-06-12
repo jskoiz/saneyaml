@@ -17,6 +17,7 @@ include = [
     "/docs/README.md",
     "/docs/SUMMARY.md",
     "/docs/getting-started.md",
+    "/docs/conformance.md",
     "/docs/cookbook.md",
     "/docs/schema-modes.md",
     "/docs/diagnostics.md",

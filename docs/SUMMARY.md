@@ -18,6 +18,7 @@
 
 # Reference
 
+- [Conformance](conformance.md)
 - [Compatibility](COMPATIBILITY.md)
 - [Architecture](ARCHITECTURE.md)
 - [Benchmarks](BENCHMARKS.md)

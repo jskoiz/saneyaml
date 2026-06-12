@@ -27,6 +27,9 @@ in the repo and open a topic page when you hit it.
 
 ### Reference
 
+- **[Conformance](conformance.md)** — all 402 yaml-test-suite cases, with an
+  [interactive matrix](https://jskoiz.github.io/saneyaml/conformance/index.html)
+  against other crates.
 - **[Compatibility](COMPATIBILITY.md)** — scalar resolution table, divergences,
   threat model.
 - **[Architecture](ARCHITECTURE.md)** — crate layout and design decisions.

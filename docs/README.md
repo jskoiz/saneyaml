@@ -30,6 +30,8 @@ in the repo and open a topic page when you hit it.
 - **[Conformance](conformance.md)** — all 402 yaml-test-suite cases, with an
   [interactive matrix](https://jskoiz.github.io/saneyaml/conformance/index.html)
   against other crates.
+- **[Road to 1.0](ROADMAP.md)** — stability gates, MSRV and deprecation
+  policy, and what 1.0 will and won't promise.
 - **[Compatibility](COMPATIBILITY.md)** — scalar resolution table, divergences,
   threat model.
 - **[Architecture](ARCHITECTURE.md)** — crate layout and design decisions.

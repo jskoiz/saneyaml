@@ -316,9 +316,13 @@ fn main() {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>saneyaml — YAML test-suite conformance matrix</title>
 <style>
-:root {{ --ok: #1a7f37; --bad: #cf222e; --policy: #9a6700; --border: #d0d7de; --muted: #57606a; }}
+:root {{ color-scheme: light dark; --ok: #1a7f37; --bad: #cf222e; --policy: #9a6700; --border: #d0d7de; --muted: #57606a; --bg: #ffffff; --fg: #1f2328; --head-bg: #f6f8fa; --ok-bg: #f0fff4; --bad-bg: #fff5f5; --policy-bg: #fff8e5; --link: #0969da; }}
+@media (prefers-color-scheme: dark) {{
+  :root {{ --ok: #3fb950; --bad: #f85149; --policy: #d29922; --border: #30363d; --muted: #8b949e; --bg: #0d1117; --fg: #e6edf3; --head-bg: #161b22; --ok-bg: #12261e; --bad-bg: #2d1517; --policy-bg: #272115; --link: #4493f8; }}
+}}
 * {{ box-sizing: border-box; }}
-body {{ font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; margin: 0; color: #1f2328; }}
+body {{ font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; margin: 0; color: var(--fg); background: var(--bg); }}
+a {{ color: var(--link); }}
 main {{ max-width: 1080px; margin: 0 auto; padding: 24px 16px 64px; }}
 h1 {{ margin-bottom: 4px; }}
 .subtitle {{ color: var(--muted); margin-top: 0; }}
@@ -330,16 +334,16 @@ h1 {{ margin-bottom: 4px; }}
 .card .big small {{ font-size: 15px; color: var(--muted); font-weight: normal; }}
 .card .detail {{ color: var(--muted); font-size: 13px; margin: 4px 0 0; }}
 .controls {{ display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 16px 0; }}
-.controls input[type="search"] {{ flex: 1 1 240px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }}
-.controls select {{ padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }}
+.controls input[type="search"] {{ flex: 1 1 240px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: var(--bg); color: var(--fg); }}
+.controls select {{ padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: var(--bg); color: var(--fg); }}
 .controls label {{ font-size: 14px; color: var(--muted); display: flex; gap: 6px; align-items: center; }}
 table {{ border-collapse: collapse; width: 100%; font-size: 14px; }}
 th, td {{ border: 1px solid var(--border); padding: 5px 8px; text-align: left; }}
-th {{ background: #f6f8fa; position: sticky; top: 0; }}
+th {{ background: var(--head-bg); position: sticky; top: 0; }}
 td.cell {{ text-align: center; font-weight: 600; width: 84px; }}
-td.cell.ok {{ color: var(--ok); background: #f0fff4; }}
-td.cell.bad {{ color: var(--bad); background: #fff5f5; }}
-td.cell.policy {{ color: var(--policy); background: #fff8e5; }}
+td.cell.ok {{ color: var(--ok); background: var(--ok-bg); }}
+td.cell.bad {{ color: var(--bad); background: var(--bad-bg); }}
+td.cell.policy {{ color: var(--policy); background: var(--policy-bg); }}
 td.id a {{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }}
 td.name .tags {{ display: block; color: var(--muted); font-size: 12px; }}
 .chip {{ font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); white-space: nowrap; }}

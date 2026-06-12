@@ -90,8 +90,11 @@ hand. saneyaml is serde-first **and** YAML 1.2-correct.
 
 Pre-1.0 (`0.3.0`), MSRV Rust 1.88, and actively maintained. The public API is a
 preview surface but is treated as SemVer-visible: breaking changes and MSRV
-bumps are explicit, documented release decisions. The road to 1.0 is about
-locking the surface down, not expanding it — stability is the goal.
+bumps are explicit, documented release decisions, and every PR is gated by
+`cargo semver-checks` against the published release. The road to 1.0 is about
+locking the surface down, not expanding it — see the
+[stability gates](docs/ROADMAP.md). The library also builds for
+`wasm32-unknown-unknown` (kept green in CI).
 
 ## Documentation
 

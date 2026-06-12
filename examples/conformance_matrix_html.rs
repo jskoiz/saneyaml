@@ -293,8 +293,8 @@ fn main() {
              <p class=\"big\">{pass}/{spec_total} <small>{rate:.1}%</small></p>\
              <p class=\"detail\">{strict} too strict &middot; {lax} too lax &middot; \
              tree policy {tree_pass}/{tree_total}</p></div>",
-            name = library.name,
-            version = library.version,
+            name = escape_html(library.name),
+            version = escape_html(&library.version),
             pass = score.spec_pass,
             rate = score.spec_rate(),
             strict = score.too_strict,
@@ -305,7 +305,7 @@ fn main() {
 
     let mut header_cells = String::new();
     for library in &libraries {
-        let _ = write!(header_cells, "<th>{}</th>", library.name);
+        let _ = write!(header_cells, "<th>{}</th>", escape_html(library.name));
     }
 
     let html = format!(
@@ -425,7 +425,12 @@ apply();
 "#,
         total = total,
         upstream = escape_html(&source.upstream),
-        commit_short = &source.data_branch_commit[..12],
+        commit_short = escape_html(
+            source
+                .data_branch_commit
+                .get(..12)
+                .unwrap_or(&source.data_branch_commit)
+        ),
         cards = cards,
         spec_total = spec_total,
         tree_total = tree_total,

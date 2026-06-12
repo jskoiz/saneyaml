@@ -7,6 +7,11 @@ load-then-re-emit round trip can't do.
 > Snippets elide the enclosing function; assume a function returning
 > `saneyaml::Result<()>`.
 
+For a runnable end-to-end demo, `examples/syq.rs` is a minimal `yq`-style
+command-line editor built on this API: `cargo run --example syq -- set
+/services/web/image nginx:1.27 stack.yaml` rewrites one value and leaves
+every comment and anchor in place.
+
 ## Edit by path
 
 `saneyaml::edit` opens a `ConfigEditor`. Address values by path, then `finish`:

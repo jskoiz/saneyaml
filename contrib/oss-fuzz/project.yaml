@@ -1,0 +1,8 @@
+homepage: "https://github.com/jskoiz/saneyaml"
+main_repo: "https://github.com/jskoiz/saneyaml"
+language: rust
+primary_contact: "brinakdorser@gmail.com"
+fuzzing_engines:
+  - libfuzzer
+sanitizers:
+  - address

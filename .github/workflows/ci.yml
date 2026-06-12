@@ -140,6 +140,31 @@ jobs:
           manifest-path: ${{ matrix.manifest }}
           command: check advisories bans licenses sources
 
+  wasm:
+    name: wasm32 build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Check library on wasm32
+        run: cargo check --locked --target wasm32-unknown-unknown
+
+  semver:
+    name: SemVer compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check public API against the latest published release
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+
   msrv:
     name: Rust 1.88 MSRV
     runs-on: ubuntu-latest

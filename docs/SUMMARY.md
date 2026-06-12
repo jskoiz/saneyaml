@@ -18,6 +18,8 @@
 
 # Reference
 
+- [Conformance](conformance.md)
+- [Road to 1.0](ROADMAP.md)
 - [Compatibility](COMPATIBILITY.md)
 - [Architecture](ARCHITECTURE.md)
 - [Benchmarks](BENCHMARKS.md)
